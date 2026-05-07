@@ -1,15 +1,15 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 const projectRoot = process.cwd();
 
 const cleanupTargets = [
-  'android/build/generated/autolinking',
-  'android/app/.cxx',
-  'node_modules/react-native-reanimated/android/.cxx',
-  'node_modules/react-native-reanimated/android/build',
-  'node_modules/react-native-worklets/android/.cxx',
-  'node_modules/react-native-worklets/android/build',
+  "android/build/generated/autolinking",
+  "android/app/.cxx",
+  "node_modules/react-native-reanimated/android/.cxx",
+  "node_modules/react-native-reanimated/android/build",
+  "node_modules/react-native-worklets/android/.cxx",
+  "node_modules/react-native-worklets/android/build",
 ];
 
 for (const relativeTarget of cleanupTargets) {
@@ -20,4 +20,4 @@ for (const relativeTarget of cleanupTargets) {
   }
 }
 
-console.log('Android native cache cleanup complete.');
+console.log("Android native cache cleanup complete.");
