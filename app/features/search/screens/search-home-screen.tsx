@@ -109,7 +109,23 @@ export function SearchHomeScreen() {
       router.push("/home-feed-root");
       return;
     }
+
+    if (tabId === "sell") {
+      router.push("/sell-entry");
+      return;
+    }
+
     if (tabId === "search") {
+      return;
+    }
+
+    if (tabId === "messages") {
+      router.push("/messages-inbox");
+      return;
+    }
+
+    if (tabId === "profile") {
+      router.push("/dashboard-home");
       return;
     }
   };

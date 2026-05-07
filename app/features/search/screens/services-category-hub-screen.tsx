@@ -154,8 +154,23 @@ export function ServicesCategoryHubScreen() {
       router.push("/home-feed-root");
       return;
     }
+    if (tabId === "sell") {
+      router.push("/sell-entry");
+      return;
+    }
     if (tabId === "search") {
       router.push("/search-home");
+      return;
+    }
+
+    if (tabId === "messages") {
+      router.push("/messages-inbox");
+      return;
+    }
+
+    if (tabId === "profile") {
+      router.push("/dashboard-home");
+      return;
     }
   };
 
