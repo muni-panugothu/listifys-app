@@ -1,0 +1,585 @@
+/**
+ * Search Routes — Elasticsearch-powered full-text search
+ *
+ * Falls back to MongoDB $text search when Elasticsearch is unavailable.
+ *
+ * GET /api/search?q=iphone&entity=electronics&minPrice=100&maxPrice=1000
+ * GET /api/search/suggest?q=iph&entity=electronics
+ * POST /api/search/reindex   (admin — sync MongoDB → Elasticsearch)
+ */
+
+const express = require('express');
+const router = express.Router();
+const SearchService = require('../services/search.service.js');
+const ListingCache = require('../services/listingcache.service.js');
+const { searchLimiter } = require('../middleware/ratelimiter.middleware.js');
+const { protect, authorize } = require('../middleware/auth.middleware.js');
+const { logger } = require('../utils/logger');
+
+// Models for fallback
+const Electronics = require('../models/electronics.model.js');
+const Job = require('../models/job.model.js');
+const Vehicle = require('../models/vehicle.model.js');
+const Event = require('../models/event.model.js');
+const ForSale = require('../models/forsale.model.js');
+const Furniture = require('../models/furniture.model.js');
+const Fashion = require('../models/fashion.model.js');
+const Sports = require('../models/sports.model.js');
+const Collectible = require('../models/collectible.model.js');
+const Pet = require('../models/pet.model.js');
+const Book = require('../models/book.model.js');
+const Beauty = require('../models/beauty.model.js');
+const Other = require('../models/other.model.js');
+const Toy = require('../models/toy.model.js');
+const Mobile = require('../models/mobile.model.js');
+const Property = require('../models/property.model.js');
+const TakeCare = require('../models/takecare.model.js');
+const ServiceListing = require('../models/servicelisting.model.js');
+
+const MODEL_MAP = {
+  electronics: Electronics,
+  jobs: Job,
+  vehicles: Vehicle,
+  events: Event,
+  forsale: ForSale,
+  furniture: Furniture,
+  fashion: Fashion,
+  sports: Sports,
+  collectibles: Collectible,
+  pets: Pet,
+  books: Book,
+  beauty: Beauty,
+  others: Other,
+  toys: Toy,
+  mobiles: Mobile,
+  properties: Property,
+  takecare: TakeCare,
+  services: ServiceListing,
+};
+
+// ── Entity-name aliases (search "properties" → match the properties entity) ──
+const ENTITY_ALIASES = {
+  electronics: ['electronic', 'tv', 'laptop', 'computer', 'ac', 'fridge', 'camera', 'appliance'],
+  jobs: ['job', 'career', 'hiring', 'vacancy', 'work', 'employment', 'internship'],
+  vehicles: ['vehicle', 'car', 'bike', 'cycle', 'motorcycle', 'scooter', 'automobile'],
+  events: ['event', 'concert', 'show', 'festival', 'party', 'meetup'],
+  forsale: ['for sale', 'sell', 'selling', 'buy', 'deal'],
+  furniture: ['sofa', 'table', 'chair', 'bed', 'wardrobe', 'desk', 'shelf', 'cabinet'],
+  fashion: ['clothes', 'clothing', 'wear', 'dress', 'shirt', 'shoes', 'footwear', 'watch'],
+  sports: ['sport', 'fitness', 'gym', 'exercise', 'cricket', 'football', 'yoga'],
+  collectibles: ['collectible', 'antique', 'vintage', 'coin', 'stamp', 'memorabilia'],
+  pets: ['pet', 'dog', 'cat', 'puppy', 'kitten', 'bird', 'fish', 'animal'],
+  books: ['book', 'novel', 'textbook', 'comic', 'magazine', 'literature', 'reading'],
+  beauty: ['makeup', 'skincare', 'cosmetic', 'fragrance', 'perfume', 'hair care'],
+  others: ['other', 'miscellaneous', 'misc'],
+  toys: ['toy', 'game', 'puzzle', 'doll', 'lego', 'action figure'],
+  mobiles: ['mobile', 'phone', 'smartphone', 'tablet', 'iphone', 'samsung', 'android'],
+  properties: ['property', 'house', 'apartment', 'flat', 'room', 'rental', 'pg', 'roommate', 'rent', 'bhk', 'villa', 'condo'],
+  takecare: ['nanny', 'babysitter', 'caretaker', 'elder care', 'childcare', 'daycare'],
+  services: ['service', 'plumber', 'electrician', 'mechanic', 'cleaning', 'repair'],
+};
+
+/**
+ * Check if the search query matches an entity name or alias.
+ * Returns the set of matching entity keys.
+ */
+function matchEntityNames(query) {
+  if (!query) return new Set();
+  const q = query.trim().toLowerCase();
+  const matched = new Set();
+  for (const [entityKey, aliases] of Object.entries(ENTITY_ALIASES)) {
+    // Match entity key itself (singular and plural)
+    if (q === entityKey || q === entityKey.replace(/s$/, '') || q === entityKey + 's') {
+      matched.add(entityKey);
+      continue;
+    }
+    // Match any alias
+    if (aliases.some(alias => q === alias || q.includes(alias) || alias.includes(q))) {
+      matched.add(entityKey);
+    }
+  }
+  return matched;
+}
+
+// ── Extra searchable fields per entity (beyond title/description/category/subcategory/brand) ──
+const EXTRA_SEARCH_FIELDS = {
+  properties: ['occupancy', 'furnishing', 'genderPreference', 'propertyType'],
+  jobs: ['companyName', 'jobType', 'skills', 'workMode', 'employmentType', 'industry', 'department'],
+  vehicles: ['fuelType', 'transmission', 'color', 'ownership', 'cycleType', 'variant'],
+  events: ['venue', 'organizer', 'dressCode'],
+  fashion: ['fabricType', 'gender', 'color', 'size', 'material'],
+  mobiles: ['storage', 'ram', 'color'],
+  furniture: ['material', 'color', 'dimensions'],
+  beauty: ['skinType', 'shade', 'gender', 'ingredients'],
+  pets: ['breed', 'gender', 'color'],
+  books: ['author', 'publisher', 'language', 'edition', 'genre'],
+  sports: ['sportType', 'material', 'ageGroup'],
+  collectibles: ['era', 'origin', 'rarity', 'material'],
+  toys: ['ageGroup', 'material', 'characterTheme', 'playMode'],
+  takecare: ['serviceType', 'experience', 'availability', 'languages'],
+  services: ['serviceType', 'experience', 'tags'],
+  electronics: ['processor', 'displayType', 'energyRating', 'lensType'],
+  forsale: ['material', 'color', 'size'],
+  others: [],
+};
+
+// ── Full-text search ──────────────────────────────────────
+router.get('/', searchLimiter, async (req, res) => {
+  try {
+    const {
+      q,
+      entity = 'all',
+      category,
+      condition,
+      minPrice,
+      maxPrice,
+      location,
+      lat,
+      lng,
+      brand,
+      fuelType,
+      transmission,
+      sort,
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    if (!q && !location && (!lat || !lng)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Either search query (q) or location is required',
+      });
+    }
+
+    // Determine which entities to search
+    const entitiesToSearch =
+      entity === 'all'
+        ? Object.keys(MODEL_MAP)
+        : MODEL_MAP[entity]
+          ? [entity]
+          : null;
+
+    if (!entitiesToSearch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid entity. Use "electronics", "jobs", "vehicles", "events", "forsale", "furniture", "fashion", "sports", "toys", "mobiles", "properties", "takecare", "services", or "all"',
+      });
+    }
+
+    // ── Single entity path (unchanged caching logic) ──
+    if (entitiesToSearch.length === 1) {
+      const singleEntity = entitiesToSearch[0];
+
+      // 1. Try Redis cache first
+      // Build a cache key that accounts for ALL query params so different
+      // filter/pagination combos don't collide.
+      const cacheKeyObj = { entity: singleEntity, q, category, condition, minPrice, maxPrice, location, brand, fuelType, transmission, sort, page: +page, limit: +limit };
+      const cacheKey = `search:${singleEntity}:${Buffer.from(JSON.stringify(cacheKeyObj)).toString('base64url')}`;
+      const cachedResults = await ListingCache.getCachedSearchResults(singleEntity, cacheKey);
+      if (cachedResults) {
+        const cachedListings = cachedResults.listings || [];
+        return res.status(200).json({
+          success: true,
+          query: q,
+          entity: singleEntity,
+          results: cachedListings.map((d) => ({ ...d, _entity: singleEntity })),
+          total: cachedResults.pagination?.total || cachedListings.length,
+          pagination: cachedResults.pagination,
+          source: 'cache',
+        });
+      }
+
+      // 2. Try Elasticsearch
+      const esResults = await SearchService.search(singleEntity, {
+        query: q,
+        category,
+        condition,
+        minPrice,
+        maxPrice,
+        location,
+        brand,
+        fuelType,
+        transmission,
+        sort,
+        page,
+        limit,
+      });
+
+      if (esResults) {
+        await ListingCache.cacheSearchResults(singleEntity, cacheKey, esResults.listings, esResults.pagination);
+        const esListings = esResults.listings || [];
+        return res.status(200).json({
+          success: true,
+          query: q,
+          entity: singleEntity,
+          results: esListings.map((d) => ({ ...d, _entity: singleEntity })),
+          total: esResults.pagination?.total || esListings.length,
+          pagination: esResults.pagination,
+          source: 'elasticsearch',
+        });
+      }
+
+      // 3. Fallback to MongoDB
+      const Model = MODEL_MAP[singleEntity];
+      let filter = { status: 'active' };
+
+      // Use regex search (works on all models, no $text index required)
+      if (q) {
+        const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapedQ, 'i');
+        const orConditions = [
+          { title: searchRegex },
+          { description: searchRegex },
+          { category: searchRegex },
+          { subcategory: searchRegex },
+          { brand: searchRegex },
+        ];
+        // Add entity-specific searchable fields
+        const extraFields = EXTRA_SEARCH_FIELDS[singleEntity] || [];
+        for (const field of extraFields) {
+          orConditions.push({ [field]: searchRegex });
+        }
+        filter.$or = orConditions;
+      }
+
+      if (category) filter.subcategory = { $in: category.split(',').map((c) => c.trim()) };
+      if (condition) filter.condition = { $in: condition.split(',').map((c) => c.trim()) };
+      if (minPrice || maxPrice) {
+        if (singleEntity === 'services') {
+          filter['pricing.basePrice'] = {};
+          if (minPrice) filter['pricing.basePrice'].$gte = Number(minPrice);
+          if (maxPrice) filter['pricing.basePrice'].$lte = Number(maxPrice);
+        } else {
+          filter.price = {};
+          if (minPrice) filter.price.$gte = Number(minPrice);
+          if (maxPrice) filter.price.$lte = Number(maxPrice);
+        }
+      }
+      if (location) {
+        const locRegex = new RegExp(location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        if (singleEntity === 'services') {
+          filter['location.address'] = locRegex;
+        } else {
+          filter.location = locRegex;
+        }
+      }
+      
+      const { applyGeoFilter, buildSortOption } = require('../utils/geoQuery');
+      const radiusKm = req.query.radius || 50;
+      if (lat && lng) {
+        applyGeoFilter(filter, lat, lng, radiusKm);
+      }
+
+      let sortOption = buildSortOption(sort, !!(lat && lng), !!q);
+
+      const SEARCH_PROJECTION = 'title slug price images location condition brand model year fuelType transmission kmDriven seller createdAt';
+      const skip = (Number(page) - 1) * Number(limit);
+      const [listings, total] = await Promise.all([
+        Model.find(filter)
+          .select(SEARCH_PROJECTION)
+          .sort(sortOption)
+          .skip(skip)
+          .limit(Number(limit))
+          .populate('seller', 'name profileImage')
+          .lean(),
+        Model.countDocuments(filter),
+      ]);
+
+      const pagination = {
+        total,
+        page: Number(page),
+        pages: Math.ceil(total / Number(limit)),
+        limit: Number(limit),
+      };
+
+      await ListingCache.cacheSearchResults(singleEntity, cacheKey, listings, pagination);
+      return res.status(200).json({
+        success: true,
+        query: q,
+        entity: singleEntity,
+        results: listings.map((d) => ({ ...d, _entity: singleEntity })),
+        total: pagination.total,
+        pagination,
+        source: 'mongodb',
+      });
+    }
+
+    // ── Multi-entity ("all") path ──
+    // 1. Try Redis cache first
+    const allCacheKeyObj = { entity: 'all', q, condition, minPrice, maxPrice, location, sort, lat, lng };
+    const allCacheKey = `search:all:${Buffer.from(JSON.stringify(allCacheKeyObj)).toString('base64url')}`;
+    const cachedAll = await ListingCache.getCachedSearchResults('all', allCacheKey);
+    if (cachedAll) {
+      return res.status(200).json({
+        success: true,
+        query: q,
+        entity: 'all',
+        results: cachedAll.listings || cachedAll,
+        total: cachedAll.pagination?.total || (cachedAll.listings || cachedAll).length,
+        source: 'cache',
+      });
+    }
+
+    // 2. Try Elasticsearch multi-index search
+    const esMatchedEntities = matchEntityNames(q);
+    if (SearchService.isAvailable() && q) {
+      try {
+        const esPromises = entitiesToSearch.map(async (eName) => {
+          // If query matches entity name, fetch all active listings (no text filter)
+          const esQuery = esMatchedEntities.has(eName) ? '' : q;
+          const esResult = await SearchService.search(eName, {
+            query: esQuery, category, condition, minPrice, maxPrice, location, sort, page: 1, limit: 20,
+          });
+          if (esResult && esResult.listings && esResult.listings.length > 0) {
+            return esResult.listings.map((d) => ({ ...d, _entity: eName }));
+          }
+          return null; // null signals ES had no results for this entity
+        });
+        const esArrays = await Promise.all(esPromises);
+        // Only use ES results if at least one entity returned data
+        const hasEsResults = esArrays.some((arr) => arr !== null);
+        if (hasEsResults) {
+          const esResults = esArrays.filter(Boolean).flat();
+          await ListingCache.cacheSearchResults('all', allCacheKey, esResults);
+          return res.status(200).json({
+            success: true,
+            query: q,
+            entity: 'all',
+            results: esResults,
+            total: esResults.length,
+            source: 'elasticsearch',
+          });
+        }
+      } catch (esErr) {
+        logger.warn('Multi-entity ES search failed, falling back to MongoDB', { error: esErr.message });
+      }
+    }
+
+    // 3. MongoDB regex fallback
+    // Use regex-based search for broad matching (handles hyphens, partial words,
+    // and works even for models without a $text index like ServiceListing).
+    const escapedQ = q ? q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+    const searchRegex = q ? new RegExp(escapedQ, 'i') : null;
+    const matchedEntities = matchEntityNames(q);
+
+    const buildFilter = (eName) => {
+      const filter = { status: 'active' };
+
+      // If the query matches this entity's name/alias, return all active listings
+      // from this entity (user searched "properties" → show all property listings)
+      if (matchedEntities.has(eName)) {
+        // Still apply location/price/condition filters, just skip text match
+      } else if (searchRegex) {
+        // Broad regex search on title + description + category + subcategory + brand
+        // plus entity-specific fields
+        const orConditions = [
+          { title: searchRegex },
+          { description: searchRegex },
+          { category: searchRegex },
+          { subcategory: searchRegex },
+          { brand: searchRegex },
+        ];
+        const extraFields = EXTRA_SEARCH_FIELDS[eName] || [];
+        for (const field of extraFields) {
+          orConditions.push({ [field]: searchRegex });
+        }
+        filter.$or = orConditions;
+      }
+
+      if (condition) filter.condition = { $in: condition.split(',').map((c) => c.trim()) };
+
+      // Price filter — ServiceListing uses pricing.basePrice
+      if (minPrice || maxPrice) {
+        if (eName === 'services') {
+          filter['pricing.basePrice'] = {};
+          if (minPrice) filter['pricing.basePrice'].$gte = Number(minPrice);
+          if (maxPrice) filter['pricing.basePrice'].$lte = Number(maxPrice);
+        } else {
+          filter.price = {};
+          if (minPrice) filter.price.$gte = Number(minPrice);
+          if (maxPrice) filter.price.$lte = Number(maxPrice);
+        }
+      }
+
+      // Location filter — ServiceListing uses location.address
+      if (location) {
+        const locRegex = new RegExp(location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        if (eName === 'services') {
+          filter['location.address'] = locRegex;
+        } else {
+          filter.location = locRegex;
+        }
+      }
+
+      const { applyGeoFilter } = require('../utils/geoQuery');
+      const radiusKm = req.query.radius || 50;
+      if (lat && lng) applyGeoFilter(filter, lat, lng, radiusKm);
+      return filter;
+    };
+
+    const perEntityLimit = Math.min(Number(limit), 20);
+    const promises = entitiesToSearch.map(async (eName) => {
+      const Model = MODEL_MAP[eName];
+      const filter = buildFilter(eName);
+      try {
+        const docs = await Model.find(filter)
+          .select('title slug price images location condition brand model year seller createdAt')
+          .sort({ createdAt: -1 })
+          .limit(perEntityLimit)
+          .populate('seller', 'name profileImage')
+          .lean();
+        return docs.map((d) => ({ ...d, _entity: eName }));
+      } catch (err) {
+        logger.warn(`Search query failed for entity "${eName}":`, err.message);
+        return [];
+      }
+    });
+
+    const arrays = await Promise.all(promises);
+    const results = arrays.flat();
+
+    // Cache the MongoDB results for subsequent identical searches
+    if (results.length > 0) {
+      await ListingCache.cacheSearchResults('all', allCacheKey, results);
+    }
+
+    return res.status(200).json({
+      success: true,
+      query: q,
+      entity: 'all',
+      results,
+      total: results.length,
+      source: 'mongodb',
+    });
+  } catch (error) {
+    logger.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Search failed',
+    });
+  }
+});
+
+// ── Autocomplete / suggestions ────────────────────────────
+router.get('/suggest', searchLimiter, async (req, res) => {
+  try {
+    const { q, entity = 'all', limit = 5 } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.status(200).json({ success: true, suggestions: [] });
+    }
+
+    // Try Elasticsearch suggestions first (single entity only)
+    if (entity !== 'all' && MODEL_MAP[entity]) {
+      const suggestions = await SearchService.suggest(entity, q, Number(limit));
+      if (suggestions && suggestions.length > 0) {
+        return res.status(200).json({
+          success: true,
+          suggestions,
+          source: 'elasticsearch',
+        });
+      }
+    }
+
+    // Fallback: MongoDB regex-based suggestions across all or single entity
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const entitiesToQuery = entity === 'all' ? Object.keys(MODEL_MAP) : (MODEL_MAP[entity] ? [entity] : []);
+
+    if (entitiesToQuery.length === 0) {
+      return res.status(200).json({ success: true, suggestions: [] });
+    }
+
+    const perEntityLimit = entity === 'all' ? Math.max(2, Math.ceil(Number(limit) / entitiesToQuery.length)) : Number(limit);
+    const promises = entitiesToQuery.map(async (eName) => {
+      try {
+        const docs = await MODEL_MAP[eName].find(
+          {
+            status: 'active',
+            $or: [
+              { title: regex },
+              { description: regex },
+              { category: regex },
+              { subcategory: regex },
+              { brand: regex },
+            ],
+          },
+          { title: 1, price: 1, location: 1, images: 1, brand: 1, model: 1, currency: 1, subcategory: 1 }
+        ).limit(perEntityLimit).lean();
+        return docs.map((r) => ({
+          _id: r._id,
+          title: r.title,
+          price: r.price,
+          currency: r.currency,
+          location: r.location,
+          thumbnail: r.images?.[0] || null,
+          brand: r.brand,
+          model: r.model,
+          subcategory: r.subcategory,
+          _entity: eName,
+        }));
+      } catch (err) { logger.warn(`Suggest failed for "${eName}":`, err.message); return []; }
+    });
+
+    const arrays = await Promise.all(promises);
+    const mongoSuggestions = arrays.flat().slice(0, Number(limit));
+
+    res.status(200).json({
+      success: true,
+      suggestions: mongoSuggestions,
+      source: 'mongodb',
+    });
+  } catch (error) {
+    logger.error('Suggest error:', error);
+    res.status(200).json({ success: true, suggestions: [] });
+  }
+});
+
+// ── Reindex: sync MongoDB → Elasticsearch ─────────────────
+router.post('/reindex', protect, authorize('admin'), async (req, res) => {
+  try {
+    if (!SearchService.isAvailable()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Elasticsearch is not connected. Set ELASTICSEARCH_URL env var.',
+      });
+    }
+
+    const { entity } = req.body;
+    const entities = entity ? [entity] : Object.keys(MODEL_MAP);
+    const results = {};
+
+    for (const ent of entities) {
+      const Model = MODEL_MAP[ent];
+      if (!Model) continue;
+
+      const listings = await Model.find({ status: 'active' }).lean();
+      const result = await SearchService.bulkIndex(ent, listings);
+      results[ent] = { total: listings.length, ...result };
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Reindex complete',
+      results,
+    });
+  } catch (error) {
+    logger.error('Reindex error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Reindex failed',
+    });
+  }
+});
+
+// ── Elasticsearch status ──────────────────────────────────
+router.get('/status', protect, authorize('admin'), async (req, res) => {
+  res.status(200).json({
+    success: true,
+    elasticsearch: {
+      connected: SearchService.isAvailable(),
+      fallback: 'MongoDB $text search',
+    },
+  });
+});
+
+module.exports = router;

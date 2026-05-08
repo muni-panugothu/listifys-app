@@ -1,0 +1,304 @@
+/**
+ * AWS OpenSearch / Elastic Cloud Configuration
+ *
+ * Supports three authentication modes (auto-detected from env vars):
+ *   1. AWS OpenSearch with IAM Signature V4 — set AWS_OPENSEARCH_IAM_AUTH=true
+ *   2. Basic auth (AWS fine-grained access control or self-hosted) — set ELASTIC_USERNAME + ELASTIC_PASSWORD
+ *   3. Elastic Cloud API key — set ELASTICSEARCH_API_KEY
+ *
+ * Env vars:
+ *   ELASTICSEARCH_URL         — cluster endpoint (required)
+ *   ELASTICSEARCH_API_KEY     — Elastic Cloud base-64 API key
+ *   ELASTIC_USERNAME          — basic auth username (default: "elastic")
+ *   ELASTIC_PASSWORD          — basic auth password
+ *   AWS_OPENSEARCH_IAM_AUTH   — set "true" to enable IAM Sig v4 signing
+ *   AWS_OPENSEARCH_REGION     — AWS region (default: eu-north-1)
+ */
+
+const { Client } = require('@elastic/elasticsearch');
+const { Transport } = require('@elastic/transport');
+const { logger } = require('../utils/logger');
+
+let client = null;
+let isConnected = false;
+
+class OpenSearchCompatibleTransport extends Transport {
+  constructor(opts) {
+    // Disable product check (OpenSearch doesn't return x-elastic-product header)
+    // Override vendored content-type headers (OpenSearch rejects application/vnd.elasticsearch+json)
+    super({
+      ...opts,
+      productCheck: null,
+      vendoredHeaders: {
+        jsonContentType: 'application/json',
+        ndjsonContentType: 'application/x-ndjson',
+        accept: 'application/json,text/plain',
+      },
+    });
+  }
+}
+
+function isAwsOpenSearchEndpoint(endpoint) {
+  try {
+    const { hostname } = new URL(endpoint);
+    return (
+      hostname.endsWith('.es.amazonaws.com') ||
+      hostname.includes('.aos.') ||
+      hostname.endsWith('.aoss.amazonaws.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+// ── AWS Signature V4 connector (lazy-loaded) ──────────────────────
+async function createAwsConnector() {
+  const { defaultProvider } = require('@aws-sdk/credential-provider-node');
+  const { SignatureV4 } = require('@smithy/signature-v4');
+  const { Sha256 } = require('@aws-crypto/sha256-js');
+
+  const region = process.env.AWS_OPENSEARCH_REGION || 'eu-north-1';
+  const credentials = defaultProvider();
+
+  const signer = new SignatureV4({
+    credentials,
+    region,
+    service: 'es',
+    sha256: Sha256,
+  });
+
+  return { signer, region };
+}
+
+// Custom Connection class that signs every request with AWS Sig v4
+function buildAwsConnection(signer) {
+  const { Connection } = require('@elastic/elasticsearch');
+
+  class AwsSigV4Connection extends Connection {
+    async request(params, options) {
+      const url = new URL(params.path, this.url.href);
+      if (params.querystring) url.search = params.querystring;
+
+      const headers = { ...params.headers, host: url.hostname };
+      delete headers['content-length'];
+
+      const signable = {
+        method: params.method,
+        path: url.pathname,
+        query: Object.fromEntries(url.searchParams),
+        headers,
+        body: params.body || undefined,
+        protocol: url.protocol,
+      };
+
+      const signed = await signer.sign(signable);
+      params.headers = signed.headers;
+      return super.request(params, options);
+    }
+  }
+
+  return AwsSigV4Connection;
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+const initElasticsearch = async () => {
+  const url = process.env.ELASTICSEARCH_URL;
+
+  if (!url) {
+    logger.info('ELASTICSEARCH_URL not set — using MongoDB text search as fallback');
+    return null;
+  }
+
+  try {
+    const clientConfig = { node: url };
+
+    if (isAwsOpenSearchEndpoint(url)) {
+      // @elastic/elasticsearch v9 hardcodes productCheck="Elasticsearch" in transport options.
+      // Inject a custom transport to force productCheck=null for OpenSearch endpoints.
+      clientConfig.Transport = OpenSearchCompatibleTransport;
+      logger.info('Elasticsearch: OpenSearch compatibility mode enabled');
+    }
+
+    // --- Auth mode selection ---
+    if (process.env.AWS_OPENSEARCH_IAM_AUTH === 'true') {
+      // Mode 1: AWS IAM Signature V4
+      const { signer } = await createAwsConnector();
+      clientConfig.Connection = buildAwsConnection(signer);
+      logger.info('Elasticsearch: using AWS IAM Sig v4 authentication');
+    } else if (process.env.ELASTICSEARCH_API_KEY) {
+      // Mode 2: Elastic Cloud API key
+      clientConfig.auth = { apiKey: process.env.ELASTICSEARCH_API_KEY };
+      logger.info('Elasticsearch: using Elastic Cloud API key authentication');
+    } else if (process.env.ELASTIC_PASSWORD) {
+      // Mode 3: Basic auth (AWS fine-grained access control or self-hosted)
+      clientConfig.auth = {
+        username: process.env.ELASTIC_USERNAME || 'elastic',
+        password: process.env.ELASTIC_PASSWORD,
+      };
+      logger.info('Elasticsearch: using basic auth');
+    }
+
+    // TLS: disable verification in dev for local clusters
+    if (process.env.NODE_ENV !== 'production') {
+      clientConfig.tls = { rejectUnauthorized: false };
+    }
+
+    client = new Client(clientConfig);
+
+    // Ping to verify connection
+    await client.ping();
+    isConnected = true;
+    logger.info('Elasticsearch connected successfully');
+
+    // Create indices if they don't exist
+    await ensureIndices();
+
+    return client;
+  } catch (error) {
+    logger.error('Elasticsearch connection failed', { error: error.message });
+    logger.info('Falling back to MongoDB text search');
+    isConnected = false;
+    return null;
+  }
+};
+
+// ── Shared field definitions (DRY) ────────────────────────────────
+const COMMON_FIELDS = {
+  title:      { type: 'text', analyzer: 'listify_standard' },
+  description:{ type: 'text', analyzer: 'listify_standard' },
+  price:      { type: 'float' },
+  category:   { type: 'keyword' },
+  subcategory:{ type: 'keyword' },
+  condition:  { type: 'keyword' },
+  location:   { type: 'text', fields: { keyword: { type: 'keyword' } } },
+  sellerName: { type: 'text', fields: { keyword: { type: 'keyword' } } },
+  sellerId:   { type: 'keyword' },
+  status:     { type: 'keyword' },
+  slug:       { type: 'keyword' },
+  features:   { type: 'text' },
+  images:     { type: 'keyword', index: false },
+  phone:      { type: 'keyword', index: false },
+  views:      { type: 'integer' },
+  currency:   { type: 'keyword' },
+  createdAt:  { type: 'date' },
+  updatedAt:  { type: 'date' },
+};
+
+const MARKETPLACE_FIELDS = {
+  brand:      { type: 'text', fields: { keyword: { type: 'keyword' } } },
+  model:      { type: 'text', fields: { keyword: { type: 'keyword' } } },
+  material:   { type: 'keyword' },
+  size:       { type: 'keyword' },
+  color:      { type: 'keyword' },
+  author:     { type: 'text', fields: { keyword: { type: 'keyword' } } },
+  sportType:  { type: 'keyword' },
+  fabricType: { type: 'keyword' },
+  gender:     { type: 'keyword' },
+  dimensions: { type: 'text' },
+};
+
+const INDEX_SETTINGS = {
+  number_of_shards: 1,
+  number_of_replicas: process.env.NODE_ENV === 'production' ? 1 : 0,
+  analysis: { analyzer: { listify_standard: { type: 'standard', stopwords: '_english_' } } },
+};
+
+function buildIndex(extraFields = {}) {
+  return {
+    mappings: { properties: { ...COMMON_FIELDS, ...extraFields } },
+    settings: INDEX_SETTINGS,
+  };
+}
+
+/**
+ * Create all 18 category indices with proper mappings
+ */
+const ensureIndices = async () => {
+  if (!client) return;
+
+  const indices = {
+    listify_electronics:  buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_vehicles:     buildIndex({
+      ...MARKETPLACE_FIELDS,
+      variant:      { type: 'text' },
+      year:         { type: 'keyword' },
+      kmDriven:     { type: 'keyword' },
+      fuelType:     { type: 'keyword' },
+      transmission: { type: 'keyword' },
+      ownership:    { type: 'keyword' },
+    }),
+    listify_forsale:      buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_furniture:    buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_fashion:      buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_toys:         buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_sports:       buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_collectibles: buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_pets:         buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_books:        buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_beauty:       buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_others:       buildIndex({ ...MARKETPLACE_FIELDS }),
+    listify_mobiles:      buildIndex({
+      ...MARKETPLACE_FIELDS,
+      storage: { type: 'keyword' },
+      ram:     { type: 'keyword' },
+    }),
+    listify_properties:   buildIndex({
+      bedrooms:     { type: 'integer' },
+      bathrooms:    { type: 'integer' },
+      squareFeet:   { type: 'integer' },
+      furnishing:   { type: 'keyword' },
+      occupancy:    { type: 'keyword' },
+      propertyType: { type: 'keyword' },
+    }),
+    listify_jobs:         buildIndex({
+      companyName:    { type: 'text', fields: { keyword: { type: 'keyword' } } },
+      jobType:        { type: 'keyword' },
+      experience:     { type: 'keyword' },
+      workMode:       { type: 'keyword' },
+      employmentType: { type: 'keyword' },
+      salary:         { type: 'object', enabled: true },
+      skills:         { type: 'text' },
+    }),
+    listify_events:       buildIndex({
+      eventDate:        { type: 'date' },
+      eventTime:        { type: 'keyword' },
+      organizer:        { type: 'text' },
+      venue:            { type: 'text' },
+      ticketsAvailable: { type: 'integer' },
+    }),
+    listify_takecare:     buildIndex({
+      serviceType:  { type: 'keyword' },
+      experience:   { type: 'keyword' },
+      availability: { type: 'keyword' },
+    }),
+    listify_services:     buildIndex({
+      serviceCategory: { type: 'keyword' },
+      experience:      { type: 'keyword' },
+      availability:    { type: 'keyword' },
+    }),
+  };
+
+  for (const [indexName, indexConfig] of Object.entries(indices)) {
+    try {
+      const exists = await client.indices.exists({ index: indexName });
+      if (!exists) {
+        await client.indices.create({ index: indexName, ...indexConfig });
+        logger.info('Created Elasticsearch index', { indexName });
+      } else {
+        logger.info('Elasticsearch index already exists', { indexName });
+      }
+    } catch (err) {
+      logger.error(`Error creating index ${indexName}:`, err.meta?.body?.error || err.message);
+    }
+  }
+};
+
+const getClient = () => client;
+const getIsConnected = () => isConnected;
+
+module.exports = {
+  initElasticsearch,
+  getClient,
+  getIsConnected,
+  ensureIndices,
+};
