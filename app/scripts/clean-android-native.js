@@ -15,8 +15,13 @@ const cleanupTargets = [
 for (const relativeTarget of cleanupTargets) {
   const target = path.join(projectRoot, relativeTarget);
   if (fs.existsSync(target)) {
-    fs.rmSync(target, { recursive: true, force: true });
-    console.log(`Removed ${relativeTarget}`);
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+      console.log(`Removed ${relativeTarget}`);
+    } catch (error) {
+      // Windows can keep CMake artifacts locked briefly; warn and continue.
+      console.warn(`Skipped ${relativeTarget}: ${error.message}`);
+    }
   }
 }
 
