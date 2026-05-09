@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -13,12 +15,40 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearError, forgotPassword } from "@/store/slices/auth-slice";
+
 export function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { status, error, resetEmail } = useAppSelector((s) => s.auth);
   const [identity, setIdentity] = useState("");
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
+  const isLoading = status === "loading";
+
+  useEffect(() => {
+    if (resetEmail) {
+      router.push("/reset-otp-verification" as Href);
+    }
+  }, [resetEmail]);
+
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Error", error);
+      dispatch(clearError());
+    }
+  }, [error]);
+
+  const handleSendCode = () => {
+    const trimmed = identity.trim();
+    if (!trimmed) {
+      Alert.alert("Required", "Please enter your email.");
+      return;
+    }
+    dispatch(forgotPassword({ email: trimmed.toLowerCase() }));
+  };
 
   return (
     <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
@@ -96,11 +126,11 @@ export function ForgotPasswordScreen() {
               </View>
 
               <Pressable
-                onPress={() => {
-                  router.push("/reset-otp-verification" as Href);
-                }}
+                onPress={handleSendCode}
+                disabled={isLoading}
                 style={({ pressed }) => [
                   { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                  { opacity: isLoading ? 0.7 : 1 },
                 ]}
                 className="overflow-hidden rounded-lg"
               >
@@ -117,10 +147,14 @@ export function ForgotPasswordScreen() {
                     elevation: 6,
                   }}
                 >
-                  <Text className="text-[18px] font-semibold text-white">
-                    Send Code
-                  </Text>
-                  <MaterialIcons name="send" size={20} color="#FFFFFF" />
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[18px] font-semibold text-white">
+                      Send Code
+                    </Text>
+                  )}
+                  {!isLoading && <MaterialIcons name="send" size={20} color="#FFFFFF" />}
                 </LinearGradient>
               </Pressable>
             </View>

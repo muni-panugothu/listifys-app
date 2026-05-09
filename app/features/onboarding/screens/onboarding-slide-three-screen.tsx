@@ -10,10 +10,18 @@ import {
     ListifyOnboardingAssets,
 } from "@/constants/listify-theme";
 import { Image } from "@/lib/nativewind-interop";
+import { useAppDispatch } from "@/store/hooks";
+import { completeOnboarding } from "@/store/slices/onboarding-slice";
 
 export function OnboardingSlideThreeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+
+  const handleGetStarted = () => {
+    dispatch(completeOnboarding());
+    router.push("/sign-in" as Href);
+  };
 
   return (
     <View
@@ -122,9 +130,7 @@ export function OnboardingSlideThreeScreen() {
             </View>
 
             <Pressable
-              onPress={() => {
-                router.push("/sign-in" as Href);
-              }}
+              onPress={handleGetStarted}
               style={({ pressed }) => [
                 { transform: [{ scale: pressed ? 0.95 : 1 }] },
               ]}
@@ -154,9 +160,7 @@ export function OnboardingSlideThreeScreen() {
               Already have an account?{" "}
               <Text
                 className="font-bold text-[#27BB97]"
-                onPress={() => {
-                  router.push("/sign-in" as Href);
-                }}
+                onPress={handleGetStarted}
               >
                 Log In
               </Text>

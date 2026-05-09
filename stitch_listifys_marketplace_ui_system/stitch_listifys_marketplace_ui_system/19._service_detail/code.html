@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline-variant": "#bbcac3",
+                    "inverse-primary": "#55dcb6",
+                    "surface-dim": "#d5dcd7",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#dde4df",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#75f9d2",
+                    "on-background": "#161d1a",
+                    "secondary-fixed-dim": "#a6c8ff",
+                    "error": "#ba1a1a",
+                    "primary-container": "#27bb97",
+                    "surface-container": "#e9efeb",
+                    "surface-tint": "#006b55",
+                    "secondary": "#005fb0",
+                    "on-tertiary-container": "#4b3a00",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#2b322f",
+                    "on-tertiary-fixed": "#241a00",
+                    "surface-container-highest": "#dde4df",
+                    "on-surface-variant": "#3c4a44",
+                    "surface-container-high": "#e3eae5",
+                    "surface": "#f4fbf6",
+                    "inverse-on-surface": "#ecf2ed",
+                    "primary": "#006b55",
+                    "on-primary-container": "#004535",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#ffe08e",
+                    "surface-container-low": "#eff5f0",
+                    "tertiary-container": "#cba100",
+                    "on-error-container": "#93000a",
+                    "on-primary-fixed-variant": "#00513f",
+                    "secondary-fixed": "#d5e3ff",
+                    "tertiary": "#755b00",
+                    "background": "#f4fbf6",
+                    "surface-bright": "#f4fbf6",
+                    "error-container": "#ffdad6",
+                    "on-surface": "#161d1a",
+                    "on-secondary-fixed-variant": "#004786",
+                    "secondary-container": "#5ba2ff",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#f0c122",
+                    "primary-fixed-dim": "#55dcb6",
+                    "on-secondary-container": "#00376b",
+                    "outline": "#6c7a74",
+                    "on-secondary-fixed": "#001c3b",
+                    "on-primary-fixed": "#002118",
+                    "on-tertiary-fixed-variant": "#584400"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "grid_gutter": "12px",
+                    "container_margin": "16px",
+                    "stack_gap_sm": "8px",
+                    "stack_gap_md": "16px",
+                    "stack_gap_xs": "4px",
+                    "stack_gap_lg": "24px"
+            },
+            "fontFamily": {
+                    "h3": ["Inter"],
+                    "price-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "price-md": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-md": ["Inter"],
+                    "h2": ["Inter"],
+                    "label-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                    "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-overlay {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .gradient-primary {
+            background: linear-gradient(135deg, #27BB97 0%, #1E9E7E 100%);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background font-body-md text-on-surface antialiased">
+<!-- Top AppBar (JSON Component Implementation) -->
+<header class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 backdrop-blur-md text-slate-900 shadow-sm z-50">
+<div class="flex items-center gap-stack_gap_sm">
+<button class="active:opacity-70 transition-opacity p-2">
+<span class="material-symbols-outlined text-slate-900">arrow_back</span>
+</button>
+<span class="text-xl font-black text-[#27BB97] tracking-tight">Listify</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="active:opacity-70 transition-opacity p-2 rounded-full hover:bg-slate-50">
+<span class="material-symbols-outlined text-slate-900">share</span>
+</button>
+<button class="active:opacity-70 transition-opacity p-2 rounded-full hover:bg-slate-50">
+<span class="material-symbols-outlined text-slate-900">favorite</span>
+</button>
+</div>
+</header>
+<main class="pb-24 pt-16">
+<!-- Hero Section: Cover Image -->
+<section class="relative h-64 w-full">
+<img class="w-full h-full object-cover" data-alt="Professional interior designer working in a bright modern studio with color palettes and fabric samples on a wooden desk" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGs23VktszuEagNylsPgf-9GFSu_s7uCb-J6Qi7ZCGqtm6O_KuWB_Y211FM3R8s4vQ9Tqs5YGlZ-C0v8gy8KMLTMzjLKoRrBkYepTFmKvmGpe_hWjjFe-xc3r1xuF-7JuUn-rwb4oqOoJrkNJOmG0wgxodueczJg2KwV6eEWKRyQzOMcWUqEjcex5_N_X3vo12YYaGEyFbq7_UXCyV2Z4KzsGH7wQVLUsRieRu8MkUOBXmvHwNx2Oy95ElfT9LiF_a4z5IgO8CNOM"/>
+<div class="absolute -bottom-12 left-container_margin">
+<div class="relative">
+<img class="w-24 h-24 rounded-xl border-4 border-white shadow-md object-cover" data-alt="Portrait of a smiling professional woman with dark hair wearing a stylish green blazer in a high-key studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBED343g7NNJLDUCiIrrFmoy5-EuJ-1-7wUNbwPZB6UWNvZdRTc4oCsjzevF1m4W4nBGpyZhTP142vJfSrr-pEyK9M5vBqCg_xhx21wxvxbWX0_ZbyvpNlv7IqgNzb6Dsx6pGCypesc_jOGb4-Le_eNcsvv-HYTlLcNnaIFv7LPeaednPFP8pCcIT4BcgDh2LelQ5eV_wuYr2HGFrpQxziOTQILaAO7JE-ywYSWMvBmok9FQzxpUczRw-YymnXUMuip2TJZJ4Eh1uY"/>
+<div class="absolute -bottom-1 -right-1 bg-[#27BB97] text-white rounded-full p-1 border-2 border-white">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Professional Identity -->
+<section class="mt-16 px-container_margin">
+<div class="flex justify-between items-start">
+<div>
+<h1 class="font-h1 text-h1 text-on-surface">Priya Sharma</h1>
+<p class="font-body-lg text-body-lg text-outline">Premium Interior Architect &amp; Space Planner</p>
+</div>
+<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-lg">
+<span class="material-symbols-outlined text-tertiary-container text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-price-md text-price-md">4.9</span>
+</div>
+</div>
+<!-- Quick Stats -->
+<div class="flex gap-stack_gap_md mt-stack_gap_md">
+<div class="flex items-center gap-1 text-label-sm font-label-sm text-outline">
+<span class="material-symbols-outlined text-[16px]">location_on</span>
+                    Bandra, Mumbai
+                </div>
+<div class="flex items-center gap-1 text-label-sm font-label-sm text-outline">
+<span class="material-symbols-outlined text-[16px]">work</span>
+                    8+ Years Exp.
+                </div>
+</div>
+</section>
+<!-- Portfolio Gallery -->
+<section class="mt-stack_gap_lg">
+<div class="px-container_margin flex justify-between items-center mb-stack_gap_sm">
+<h2 class="font-h2 text-h2">Portfolio</h2>
+<button class="text-[#27BB97] font-label-sm">View all</button>
+</div>
+<div class="flex overflow-x-auto gap-stack_gap_sm px-container_margin hide-scrollbar">
+<img class="w-48 h-32 rounded-xl object-cover flex-shrink-0 border border-slate-100" data-alt="Modern minimalist living room design with large windows, neutral tones, and organic textures in soft morning light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAlF2hAkVSYAm55L-77f-1LeCVgUsqf1kGAAdXwSavFj5-Dx2962_CVzkWf4-b0BqlhxzIeVvqSGbJWcHWC5SJuBbOlRHkuuU7qrbEFXcT97DuzwhCnZLoEL3MB-nPruSU_4jNS6ImivBqH_Hwwv833ShjNfWIBX1O-3UIC65XKVuj-ttjKVYA6qt4UblJPvt-CDdr7zy4fPajx452zpb-iyP3S3RH7087CdCoAv17-zMQbXC5XXN5OZOQizqonf3zmlIGu0u62B2E"/>
+<img class="w-48 h-32 rounded-xl object-cover flex-shrink-0 border border-slate-100" data-alt="Contemporary kitchen layout with dark green cabinets, marble countertops, and warm gold pendant lighting fixtures" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIvXQr-RSAw2-OgCORDMu-psGNbDYVhAR7cuavsRinq3am5cPvQtmKfK22bDAY0UIbBfG1sf7vPsIv9KjrfOxChm8rI4LQonJP8t3UGxtulsgtQJTky9trMQECYtbUEkiK9G7SF8ZmAjAcJVjUShIIRHZWuXJ0S2gCheTZDH95DH7HvAW6jFriKib5pP82y65z_sGYW_vPPkLbZtAzdCRqSFLOw6WZyEUytxiD2LSzB3mzYjKDpshkMaXMLE_dweO8y-b0oK5OIcE"/>
+<img class="w-48 h-32 rounded-xl object-cover flex-shrink-0 border border-slate-100" data-alt="Luxury bedroom design featuring a velvet headboard, ambient backlighting, and sleek wooden paneling on the walls" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_Syn_4SedQpoO1LekoxQB6Fm47gnq8TAiGA_rh7V8_vh1nKziPOf0fpithR0zMz6vzyJGr1grsWewxSM-C1XfBbIQQJ99IS-ADT7Rf3CzLvqOD51d0_GDOwD3Z5v8-bW0yctNOJ-WsLiD4B10s6y2y7IirRAwjgkxFmtHcqNVmzTx4r9u8CIfV_jmMRJ1mHZidh_cKeeQM49jBza2WKrOu49t6Bi-CQ2ga3B8UTajLhhm8AUKkqpbrtcjCfu8LhXB5_LlvKkZEvc"/>
+</div>
+</section>
+<!-- About Me -->
+<section class="mt-stack_gap_lg px-container_margin">
+<h2 class="font-h2 text-h2 mb-stack_gap_sm">About me</h2>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                Transforming spaces into curated experiences. I specialize in contemporary Indian aesthetics blended with global minimalism. My focus is on sustainable materials and ergonomic efficiency for modern urban homes.
+            </p>
+</section>
+<!-- Pricing Section -->
+<section class="mt-stack_gap_lg px-container_margin">
+<h2 class="font-h2 text-h2 mb-stack_gap_sm">Pricing</h2>
+<div class="grid gap-stack_gap_sm">
+<div class="p-4 rounded-xl border border-outline-variant bg-white flex justify-between items-center shadow-sm">
+<div>
+<p class="font-h3 text-h3">Consultation Call</p>
+<p class="font-label-sm text-outline">45 min video strategy session</p>
+</div>
+<p class="font-price-lg text-price-lg text-[#27BB97]">₹1,499</p>
+</div>
+<div class="p-4 rounded-xl border-2 border-primary-container bg-surface-container-lowest flex justify-between items-center shadow-md relative overflow-hidden">
+<div class="absolute top-0 right-0 bg-primary-container text-white px-3 py-0.5 rounded-bl-lg font-label-sm text-[10px] uppercase tracking-widest">Popular</div>
+<div>
+<p class="font-h3 text-h3">Room Redesign</p>
+<p class="font-label-sm text-outline">Full 2D layout + Material list</p>
+</div>
+<p class="font-price-lg text-price-lg text-[#27BB97]">₹8,999</p>
+</div>
+</div>
+</section>
+<!-- Reviews List -->
+<section class="mt-stack_gap_lg px-container_margin">
+<div class="flex justify-between items-center mb-stack_gap_sm">
+<h2 class="font-h2 text-h2">Reviews (128)</h2>
+<button class="text-[#27BB97] font-label-sm">Read all</button>
+</div>
+<div class="space-y-stack_gap_md">
+<!-- Review Item -->
+<div class="pb-stack_gap_md border-b border-slate-100">
+<div class="flex items-center gap-3 mb-2">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="Portrait of a male client with a beard and glasses, smiling warmly" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSctB2QhHptLZ-gpplqfqBrAI423MtkNpBWjWUL5WiI1RAiPllwt2z8GGaI7h96_Y5WJj6sUjE3IuiXibLrv_hUjfiOs8T4lAo8RKWDhq1GKzv0pHfZu7oz6_f_TsG6ObY_C_7jp9O-tJGdqzNB9P4lFOHBKOjhLDU7fPRYWLZ5Zh0JBJ3nqZcGGhV8pE-kLBPiJZ3GjpCUNj1t10IFyEJevDyWOlpU9npFtF2HvJhJpXbSuPZpzbVu89mplqdSVn53nE6dDCsKvE"/>
+<div>
+<p class="font-body-md font-semibold">Rahul Mehta</p>
+<div class="flex text-tertiary-container scale-75 -ml-4">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+</div>
+<span class="ml-auto font-label-sm text-outline">2 days ago</span>
+</div>
+<p class="font-body-md text-on-surface-variant">Priya completely transformed my studio apartment. Her eye for detail and space utilization is unmatched. Highly recommend!</p>
+</div>
+<!-- Review Item -->
+<div class="pb-stack_gap_md border-b border-slate-100">
+<div class="flex items-center gap-3 mb-2">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="Portrait of a young woman with curly hair looking confident" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLZCD0j-0uBAJfH30FVDbB8ao7Md9m319IyEZKLhvlUPxrsL4fxGmwPpjw9f0nQt9cppQ14xvNlqx_b1TF-BdIN-xm4E8OMtF96Diy_I6jDh22X6K_vi4YHLTjAZq5PAqCElJIDfnf7haWTE6g7y80Ko7b2C1fJnnYkWmJ7jco29f4sQXudgWc3oP9SYEhvDaOWx_nz6yr5ZMfe2LOuu-ul_p0d7N1yPvV-K7Y1ctd9p1VreAdkmJOjveYII16MCTyjMDvB5XhN1I"/>
+<div>
+<p class="font-body-md font-semibold">Ananya Iyer</p>
+<div class="flex text-tertiary-container scale-75 -ml-4">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+</div>
+<span class="ml-auto font-label-sm text-outline">1 week ago</span>
+</div>
+<p class="font-body-md text-on-surface-variant">Great consultation session. She gave me practical tips that I could implement immediately on a budget.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Fixed Footer Action -->
+<footer class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-lg border-t border-slate-100 p-container_margin z-50">
+<div class="flex items-center gap-stack_gap_md">
+<div class="flex-grow">
+<p class="font-label-sm text-outline">Starting from</p>
+<p class="font-price-lg text-price-lg text-on-surface">₹1,499</p>
+</div>
+<button class="gradient-primary text-white h-12 px-8 rounded-lg font-h3 shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 flex-grow-[2]">
+                Book Now
+                <span class="material-symbols-outlined text-[20px]">calendar_today</span>
+</button>
+</div>
+</footer>
+</body></html>

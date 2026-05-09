@@ -1,17 +1,25 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListifyColors } from "@/constants/listify-theme";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { restoreSession } from "@/store/slices/auth-slice";
+import { checkOnboarding } from "@/store/slices/onboarding-slice";
 
 export function SplashScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector((s) => s.auth);
+  const { hasCompletedOnboarding } = useAppSelector((s) => s.onboarding);
   const pulse = useRef(new Animated.Value(1)).current;
+  const hasNavigatedRef = useRef(false);
+  const [isBootstrapped, setIsBootstrapped] = useState(false);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -39,14 +47,51 @@ export function SplashScreen() {
   }, [pulse]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    // Fail-safe: never allow splash to block forever.
+    const fallback = setTimeout(() => {
+      if (isMounted) {
+        setIsBootstrapped(true);
+      }
+    }, 2200);
+
+    Promise.all([dispatch(checkOnboarding()), dispatch(restoreSession())]).finally(
+      () => {
+        if (isMounted) {
+          setIsBootstrapped(true);
+        }
+        clearTimeout(fallback);
+      },
+    );
+
+    return () => {
+      isMounted = false;
+      clearTimeout(fallback);
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!isBootstrapped || hasNavigatedRef.current) return;
+
+    // If onboarding state is unresolved, treat as first-time user.
+    const onboardingCompleted = hasCompletedOnboarding === true;
+
     const timeout = setTimeout(() => {
-      router.replace("/onboarding-slide-1");
-    }, 1800);
+      hasNavigatedRef.current = true;
+      if (isAuthenticated) {
+        router.replace("/home-feed-root" as Href);
+      } else if (!onboardingCompleted) {
+        router.replace("/onboarding-slide-1" as Href);
+      } else {
+        router.replace("/sign-in" as Href);
+      }
+    }, 700);
 
     return () => {
       clearTimeout(timeout);
     };
-  }, [router]);
+  }, [isBootstrapped, hasCompletedOnboarding, isAuthenticated, router]);
 
   const animatedStyle = {
     opacity: pulse.interpolate({

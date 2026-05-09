@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 type SearchResultItem = {
   id: string;
@@ -101,32 +102,7 @@ export function SearchResultsEntityTabsScreen() {
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") {
-      router.push("/home-feed-root");
-      return;
-    }
-
-    if (tabId === "sell") {
-      router.push("/sell-entry");
-      return;
-    }
-
-    if (tabId === "search") {
-      router.push("/search-home");
-      return;
-    }
-
-    if (tabId === "messages") {
-      router.push("/messages-inbox");
-      return;
-    }
-
-    if (tabId === "profile") {
-      router.push("/dashboard-home");
-      return;
-    }
-  };
+  const handleBottomTabPress = useTabNavigation();
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">

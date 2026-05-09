@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline-variant": "#bbcac3",
+                        "inverse-primary": "#55dcb6",
+                        "surface-dim": "#d5dcd7",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#dde4df",
+                        "on-primary": "#ffffff",
+                        "primary-fixed": "#75f9d2",
+                        "on-background": "#161d1a",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "error": "#ba1a1a",
+                        "primary-container": "#27bb97",
+                        "surface-container": "#e9efeb",
+                        "surface-tint": "#006b55",
+                        "secondary": "#005fb0",
+                        "on-tertiary-container": "#4b3a00",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#2b322f",
+                        "on-tertiary-fixed": "#241a00",
+                        "surface-container-highest": "#dde4df",
+                        "on-surface-variant": "#3c4a44",
+                        "surface-container-high": "#e3eae5",
+                        "surface": "#f4fbf6",
+                        "inverse-on-surface": "#ecf2ed",
+                        "primary": "#006b55",
+                        "on-primary-container": "#004535",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#ffe08e",
+                        "surface-container-low": "#eff5f0",
+                        "tertiary-container": "#cba100",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed-variant": "#00513f",
+                        "secondary-fixed": "#d5e3ff",
+                        "tertiary": "#755b00",
+                        "background": "#f4fbf6",
+                        "surface-bright": "#f4fbf6",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#161d1a",
+                        "on-secondary-fixed-variant": "#004786",
+                        "secondary-container": "#5ba2ff",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "primary-fixed-dim": "#55dcb6",
+                        "on-secondary-container": "#00376b",
+                        "outline": "#6c7a74",
+                        "on-secondary-fixed": "#001c3b",
+                        "on-primary-fixed": "#002118",
+                        "on-tertiary-fixed-variant": "#584400"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "grid_gutter": "12px",
+                        "container_margin": "16px",
+                        "stack_gap_sm": "8px",
+                        "stack_gap_md": "16px",
+                        "stack_gap_xs": "4px",
+                        "stack_gap_lg": "24px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Inter"],
+                        "price-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "price-md": ["Inter"],
+                        "h1": ["Inter"],
+                        "body-md": ["Inter"],
+                        "h2": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-md text-on-surface antialiased">
+<!-- Header Actions (Over Image Overlay) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 py-4">
+<button class="w-10 h-10 flex items-center justify-center bg-white/70 backdrop-blur-md rounded-full shadow-sm text-on-surface active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="flex gap-2">
+<button class="w-10 h-10 flex items-center justify-center bg-white/70 backdrop-blur-md rounded-full shadow-sm text-on-surface active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center bg-white/70 backdrop-blur-md rounded-full shadow-sm text-on-surface active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-error" data-icon="favorite" data-weight="fill" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+</div>
+</header>
+<main class="pb-24">
+<!-- Image Gallery -->
+<section class="relative w-full aspect-square bg-surface-container overflow-hidden">
+<div class="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar h-full">
+<div class="flex-none w-full h-full snap-start">
+<img class="w-full h-full object-cover" data-alt="Premium black over-ear headphones sitting on a minimalist wooden desk with soft studio lighting and clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCyo-DEhSQWij_8TCGkbOlbvRXwn7OmV_Nyd9j3_BSY0Nl222NpqpSjZ9Wu2nMATuk_BpFtreapq9qdFdRacm9HRtTKmyOiRdXzEbIKf332Vhv5gldclFQx-mNmMwlx52ZxE58aQzxE5SW9eoy6PmnscYDMR1xcq8sMcs8ugZTeL4S9es-mxzrRL7CE7AAnnhUhcTWrLkM17xdkp5uFimkVtlxlhFk8I8nhnVPMWUIVHzV_CEHxpzTxrWuLjtDMtznn9nCTyK0nbfw"/>
+</div>
+<div class="flex-none w-full h-full snap-start">
+<img class="w-full h-full object-cover" data-alt="Detailed close-up of high-end headphones ear cushions and tactile controls showcasing premium leather texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCT9sTYZ9RfkNspk7jrp2GRFYindVNvZG9XtDmBk3C4597fas9wFXUNIdKKawXhxnv8IFf2kpF12lMz9gr3yDAHdbVPXu-IrooP5npQYc5JYNOGxAOznYWMUUQs5aiN7XTXBrBYBBuer10t-zn3PiyNzw21mO9wUXwjttVsmoKHgCPvkwh503yMIZ3cvICasOb6-iWfTWAcw09zu-QvNrcsfhmrxSAiRFwPpq3Xra0GQlXCvwtVA6w8bGa1l2A8bQTmOPJ0H90iivs"/>
+</div>
+<div class="flex-none w-full h-full snap-start">
+<img class="w-full h-full object-cover" data-alt="Professional headphones displayed in their original carbon-fiber texture carrying case with accessories neatly organized" src="https://lh3.googleusercontent.com/aida-public/AB6AXuARP2l8zUsaZ2V4rYV8fUrGLUj2vMZCbFVgEgFFQN465h9JyGD_EanjVoNPbRdPeKGsjXjN-VRLSGAbyoGTtNsJMrvTI_RdCoNP0xNkiZN9C3zq_LyTt0XWDUH7Uj4zbo1nq7uEcrdxf2LhxjZC8LSiu2vpOpA0xRN8Bu-yKzF-X7zPaZTtYoXeJrmbtxBHdySgCRIFmuJn7v3a3GBq2sSaovHRnmXdXuC8M5oNGOLuZG1iws-40yPL_dCZsRtnSjr-diNiK0PAHk4"/>
+</div>
+</div>
+<!-- Pagination Dots -->
+<div class="absolute bottom-4 left-0 w-full flex justify-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-white shadow-sm"></div>
+<div class="w-2 h-2 rounded-full bg-white/40 shadow-sm"></div>
+<div class="w-2 h-2 rounded-full bg-white/40 shadow-sm"></div>
+</div>
+</section>
+<!-- Product Details -->
+<section class="px-container_margin mt-stack_gap_md space-y-4">
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h1 class="font-h1 text-h1 text-on-surface leading-tight">Sony WH-1000XM4 Noise Cancelling Headphones</h1>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-price-lg text-price-lg text-primary">₹18,500</span>
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-sm font-label-sm bg-primary-container/10 text-primary">
+                        Like New
+                    </span>
+</div>
+</div>
+<!-- Description -->
+<div class="pt-2">
+<h2 class="font-h3 text-h3 mb-2">Description</h2>
+<p class="font-body-md text-on-surface-variant leading-relaxed">
+                    Barely used, 6 months old. Original packaging included with all accessories (aux cable, flight adapter, charging cable). Exceptional battery life and industry-leading noise cancellation. Selling because I upgraded to the newer model. No scratches or signs of wear.
+                </p>
+</div>
+<hr class="border-outline-variant/30"/>
+<!-- Location Map -->
+<div class="py-2">
+<h2 class="font-h3 text-h3 mb-3">Location</h2>
+<div class="relative w-full h-40 rounded-xl overflow-hidden border border-outline-variant/30">
+<img class="w-full h-full object-cover grayscale opacity-50" data-alt="Top down aesthetic map view of a modern city neighborhood with soft pastel colors and clean street lines" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAVYfR8aC7KqDOIqHdhM5CQSs3MPAQWfF1rVEIcsXfJ5ot_uPO-J0sIfOimcIpF90ObzJ0q4TmADY9jj5gZ9YfKEHnPeu8IB6IBbq1VtwCcnnaJN1vUzqg59LUqi_vU-zXRa_hN03J2q0kqrzEVLyOzTLDYQcdSIJPJeeUZwjP6RVjb_C-nASKxRhO4yG4mnpUGeeoaC7PsyJPkPalFINlSFyCmGUCcW7CFY_a_Ml294Fs53tJ5AgDm5vFGQwONmTMe9dftfjBN5w"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="w-24 h-24 bg-primary/10 border-2 border-primary/40 rounded-full animate-pulse flex items-center justify-center">
+<div class="w-4 h-4 bg-primary rounded-full shadow-lg ring-4 ring-white"></div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2 mt-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="text-label-sm">Indiranagar, Bangalore • 2.4 km away</span>
+</div>
+</div>
+<hr class="border-outline-variant/30"/>
+<!-- Seller Card -->
+<div class="py-2">
+<h2 class="font-h3 text-h3 mb-4">Seller Information</h2>
+<div class="flex items-center p-4 bg-white dark:bg-slate-900 rounded-xl border border-outline-variant/20 shadow-sm">
+<div class="relative w-14 h-14 rounded-full overflow-hidden mr-4 border-2 border-white shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Professional portrait of a friendly smiling male seller in a casual business setting with warm lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9LDdNevaB_R6eajjo6Yc7JbRhvfBO-8llZ6RSHIvG3BnT6ds4GsiBBKI1dKLxMHcrf-1O72vMrHmn1IdnxxDjhdEu1s08-1K1XG-azSuySCawuwHvbX1ePzX46le3647TDM06NhyTPRkcV8c5InmjUjBkaf41xWsuHq0hyAoQFJYhSr2_gDS3GQmsG0lqEPnb0mJ8y6mPpGcisibFIk3yKXBwdCWVdVatvUyOsrurDXvQJo5-H1mpudL_bL5fXQey1q6juFXYzUE"/>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-1">
+<span class="font-h2 text-h2">John D.</span>
+<span class="material-symbols-outlined text-secondary text-[18px]" data-icon="verified" data-weight="fill" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<p class="text-label-sm text-on-surface-variant">Member since 2021</p>
+<div class="flex items-center mt-1 gap-1">
+<span class="material-symbols-outlined text-tertiary text-[16px]" data-icon="star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-label-sm font-bold">4.8</span>
+<span class="text-label-sm text-on-surface-variant">(124 reviews)</span>
+</div>
+</div>
+<button class="p-2 rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Sticky Footer Bar -->
+<footer class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-outline-variant/20 px-container_margin py-4 flex gap-4 z-50">
+<button class="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-outline-variant/50 text-on-surface font-semibold rounded-xl active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[20px]" data-icon="chat_bubble">chat_bubble</span>
+            Message
+        </button>
+<button class="flex-1 h-12 flex items-center justify-center gap-2 bg-gradient-to-r from-[#27BB97] to-[#1E9E7E] text-white font-semibold rounded-xl shadow-lg shadow-primary-container/20 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[20px]" data-icon="call">call</span>
+            Call
+        </button>
+</footer>
+</body></html>

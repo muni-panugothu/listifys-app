@@ -6,6 +6,7 @@ import { Dimensions, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GAP = 12;

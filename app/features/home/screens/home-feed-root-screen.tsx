@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
     Dimensions,
     Pressable,
@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ListifyHomeFeedAssets } from "@/constants/listify-theme";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { useAppDispatch } from "@/store/hooks";
+import { fetchProfile } from "@/store/slices/auth-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
@@ -31,6 +34,8 @@ const categories = [
   { id: "fashion", label: "Fashion", icon: "checkroom" as const },
   { id: "services", label: "Services", icon: "home-repair-service" as const },
   { id: "properties", label: "Properties", icon: "apartment" as const },
+  { id: "jobs", label: "Jobs", icon: "work" as const },
+  { id: "events", label: "Events", icon: "event" as const },
 ];
 
 const recommendations = [
@@ -49,6 +54,37 @@ const recommendations = [
     location: "Andheri, Mumbai",
     image: ListifyHomeFeedAssets.recommendationWatch,
     liked: true,
+  },
+];
+
+const featuredServices = [
+  {
+    id: "plumber-visit",
+    title: "Expert Plumber Visit",
+    price: "From ₹500",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuCvVDeAqfUnThr5rMPGkBOzccH-zYB0x2u8Llq6IMX67bVxcgfeAMeq-9xWVITCmFZvTlbsquIc2igXE46GEROxOH2mrJ0JXVqh_2-xKdHW5P0ypObGDSY32ea_-6WBJkrGC1rgXOEDbyFlpRVeRqeT9yfMCSRI6U6-89-i6J9Q0nKn_m8EEnMpwSLqcsYtxraz53LZAuKNxia_R4f_ZGzssWOuB4KnNU5Gv2-r488y7JU5kMIORSz2Dx2988VY2wdzXgWmU1T2H-E",
+  },
+  {
+    id: "deep-cleaning",
+    title: "Deep Home Cleaning",
+    price: "From ₹1,299",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuBe0CDfy2_s56CJFW4z6PgMHbhIy5bCAEJPpKn-Y7PQ-mcJdsO7L49UHFxV6lrgVAMdJhbOn-wSErSrcqRdFiJg7l4aZVEhCLDb7uSGOmPlkRJELNRAW5B4_hoJBXB3m21S7h2ccZnzk4EOQ2mR46mBVSLoXY2O10TB-sCa2GtmGH72BLSlCXjinMag6zse2rQ5mmUNCbm1rkbKeMAdV0PsDsaeSzR1YYA57Nfk7Sk7Upu7Ogq9YdrAFmQxBUVWjfJbJq90VmVnrbE",
+  },
+  {
+    id: "electric-repair",
+    title: "Electric Repair & Fix",
+    price: "From ₹650",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuAMClfKgWx-R5cp0hXW2YY3caff5O-4Nou8qBYQ5ay3E7nlJ_Px0Tz-63SBX9neiDWF07oxrAwxLDgcBlPzy-GLoemjdXC9vaT7Zzcqva_WO_RAVLP94O-vE0D8E5An_Z-QskUcJUsdLlkebS8A4bSHHpLKu5baRbHtnv0nRNeq1kA81nOzJBOGQnKkd1AoPD1ybaF1CzhNfhIDH2WWyWSX1OWhB9LCsoUIROmU2UjomR0XrV0flTvXbOLLc-rZHzitc8lUQF7LIro",
+  },
+  {
+    id: "leak-specialist",
+    title: "Leak Detection Specialist",
+    price: "From ₹450",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuAojdUCJ2PxDfy74Vbyrz1zJc8WZPw9nQTzVxilu0RyTaefuCHAP_sCWfVsp0LlfcXb37lMnhIK6zudAObvSX0_jkECqQAuxEeKPfPvQt-voljCycnTqKYuhrbwZVp8RzQsemlIcHN5RUZznu0SoRQe7mny9kN04Bdg-zGtqjEgRieXqU4VosW7yXb7vp52hq6fY2xJESuoGTDbv5oLBRwy7QOTkS2Txm1B6F9ew09dKEMPjAzTdqGaqzOJ06XcaZf4AEwVf5BGsk4",
   },
 ];
 
@@ -84,35 +120,19 @@ const bottomTabs = [
 export function HomeFeedRootScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const { refreshing, onRefresh } = usePullToRefresh();
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") {
-      return;
-    }
+  const handleRefresh = useCallback(async () => {
+    // Re-fetch user profile + any server-side data to keep the feed fresh
+    await dispatch(fetchProfile()).unwrap().catch(() => {});
+    // Future: fetch listings, recommendations, etc. from API here
+  }, [dispatch]);
 
-    if (tabId === "sell") {
-      router.push("/sell-entry");
-      return;
-    }
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
-    if (tabId === "search") {
-      router.push("/search-home");
-      return;
-    }
-
-    if (tabId === "messages") {
-      router.push("/messages-inbox");
-      return;
-    }
-
-    if (tabId === "profile") {
-      router.push("/dashboard-home");
-      return;
-    }
-  };
+  const handleBottomTabPress = useTabNavigation();
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -229,6 +249,12 @@ export function HomeFeedRootScreen() {
                   }
                   if (cat.id === "properties") {
                     router.push("/properties-listing");
+                  }
+                  if (cat.id === "jobs") {
+                    router.push("/jobs-listing");
+                  }
+                  if (cat.id === "events") {
+                    router.push("/events-listing");
                   }
                 }}
                 className="items-center gap-1"
@@ -420,6 +446,55 @@ export function HomeFeedRootScreen() {
               </View>
             ))}
           </View>
+        </View>
+
+        {/* Featured Services */}
+        <View className="mb-6">
+          <View className="mb-4 flex-row items-center justify-between px-4">
+            <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
+              Featured Services
+            </Text>
+            <Pressable onPress={() => router.push("/services-category-hub")}>
+              <Text className="text-[12px] font-medium text-[#27BB97]">
+                See all
+              </Text>
+            </Pressable>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+          >
+            {featuredServices.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => router.push("/services-category-hub")}
+                className="w-48"
+              >
+                <View
+                  className="mb-2 overflow-hidden rounded-xl"
+                  style={{ aspectRatio: 4 / 3 }}
+                >
+                  <Image
+                    source={item.image}
+                    contentFit="cover"
+                    transition={200}
+                    className="h-full w-full"
+                  />
+                </View>
+                <Text
+                  className="text-[14px] leading-5 text-[#161D1A]"
+                  numberOfLines={2}
+                >
+                  {item.title}
+                </Text>
+                <Text className="text-[16px] font-bold text-[#27BB97]">
+                  {item.price}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Recently Viewed */}

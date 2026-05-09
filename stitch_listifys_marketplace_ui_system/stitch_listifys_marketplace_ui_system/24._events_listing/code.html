@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline-variant": "#bbcac3",
+                    "inverse-primary": "#55dcb6",
+                    "surface-dim": "#d5dcd7",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#dde4df",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#75f9d2",
+                    "on-background": "#161d1a",
+                    "secondary-fixed-dim": "#a6c8ff",
+                    "error": "#ba1a1a",
+                    "primary-container": "#27bb97",
+                    "surface-container": "#e9efeb",
+                    "surface-tint": "#006b55",
+                    "secondary": "#005fb0",
+                    "on-tertiary-container": "#4b3a00",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#2b322f",
+                    "on-tertiary-fixed": "#241a00",
+                    "surface-container-highest": "#dde4df",
+                    "on-surface-variant": "#3c4a44",
+                    "surface-container-high": "#e3eae5",
+                    "surface": "#f4fbf6",
+                    "inverse-on-surface": "#ecf2ed",
+                    "primary": "#006b55",
+                    "on-primary-container": "#004535",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#ffe08e",
+                    "surface-container-low": "#eff5f0",
+                    "tertiary-container": "#cba100",
+                    "on-error-container": "#93000a",
+                    "on-primary-fixed-variant": "#00513f",
+                    "secondary-fixed": "#d5e3ff",
+                    "tertiary": "#755b00",
+                    "background": "#f4fbf6",
+                    "surface-bright": "#f4fbf6",
+                    "error-container": "#ffdad6",
+                    "on-surface": "#161d1a",
+                    "on-secondary-fixed-variant": "#004786",
+                    "secondary-container": "#5ba2ff",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#f0c122",
+                    "primary-fixed-dim": "#55dcb6",
+                    "on-secondary-container": "#00376b",
+                    "outline": "#6c7a74",
+                    "on-secondary-fixed": "#001c3b",
+                    "on-primary-fixed": "#002118",
+                    "on-tertiary-fixed-variant": "#584400"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "grid_gutter": "12px",
+                    "container_margin": "16px",
+                    "stack_gap_sm": "8px",
+                    "stack_gap_md": "16px",
+                    "stack_gap_xs": "4px",
+                    "stack_gap_lg": "24px"
+            },
+            "fontFamily": {
+                    "h3": ["Inter"],
+                    "price-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "price-md": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-md": ["Inter"],
+                    "h2": ["Inter"],
+                    "label-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                    "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md antialiased pb-24">
+<!-- Top Navigation Header -->
+<header class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 backdrop-blur-md z-50 border-b border-slate-100 shadow-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#27BB97]" data-icon="storefront">storefront</span>
+<span class="text-xl font-black text-[#27BB97] tracking-tight">Listify</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-slate-500" data-icon="search">search</span>
+<span class="material-symbols-outlined text-slate-500" data-icon="notifications">notifications</span>
+</div>
+</header>
+<main class="mt-16 container mx-auto px-container_margin">
+<!-- Screen Title Section -->
+<section class="py-stack_gap_md">
+<h1 class="font-h1 text-h1 text-on-background">Upcoming Events</h1>
+</section>
+<!-- Calendar Date Picker -->
+<section class="mb-stack_gap_lg">
+<div class="flex overflow-x-auto gap-stack_gap_sm hide-scrollbar py-2">
+<button class="flex flex-col items-center justify-center min-w-[56px] h-[72px] bg-primary-container text-white rounded-xl shadow-md">
+<span class="font-label-sm text-label-sm opacity-80">OCT</span>
+<span class="font-h2 text-h2">12</span>
+</button>
+<button class="flex flex-col items-center justify-center min-w-[56px] h-[72px] bg-white border border-outline-variant/30 rounded-xl">
+<span class="font-label-sm text-label-sm text-outline">OCT</span>
+<span class="font-h2 text-h2 text-on-surface">13</span>
+</button>
+<button class="flex flex-col items-center justify-center min-w-[56px] h-[72px] bg-white border border-outline-variant/30 rounded-xl">
+<span class="font-label-sm text-label-sm text-outline">OCT</span>
+<span class="font-h2 text-h2 text-on-surface">14</span>
+</button>
+<button class="flex flex-col items-center justify-center min-w-[56px] h-[72px] bg-white border border-outline-variant/30 rounded-xl">
+<span class="font-label-sm text-label-sm text-outline">OCT</span>
+<span class="font-h2 text-h2 text-on-surface">15</span>
+</button>
+<button class="flex flex-col items-center justify-center min-w-[56px] h-[72px] bg-white border border-outline-variant/30 rounded-xl">
+<span class="font-label-sm text-label-sm text-outline">OCT</span>
+<span class="font-h2 text-h2 text-on-surface">16</span>
+</button>
+<button class="flex flex-col items-center justify-center min-w-[56px] h-[72px] bg-white border border-outline-variant/30 rounded-xl">
+<span class="font-label-sm text-label-sm text-outline">OCT</span>
+<span class="font-h2 text-h2 text-on-surface">17</span>
+</button>
+<div class="flex items-center px-4">
+<span class="material-symbols-outlined text-outline" data-icon="calendar_month">calendar_month</span>
+</div>
+</div>
+</section>
+<!-- Category Filters -->
+<section class="mb-stack_gap_lg">
+<div class="flex overflow-x-auto gap-stack_gap_sm hide-scrollbar">
+<button class="px-5 py-2 rounded-full bg-on-background text-white font-label-sm text-label-sm whitespace-nowrap">All Events</button>
+<button class="px-5 py-2 rounded-full bg-white border border-outline-variant/30 text-on-surface font-label-sm text-label-sm whitespace-nowrap">Music</button>
+<button class="px-5 py-2 rounded-full bg-white border border-outline-variant/30 text-on-surface font-label-sm text-label-sm whitespace-nowrap">Workshops</button>
+<button class="px-5 py-2 rounded-full bg-white border border-outline-variant/30 text-on-surface font-label-sm text-label-sm whitespace-nowrap">Sports</button>
+<button class="px-5 py-2 rounded-full bg-white border border-outline-variant/30 text-on-surface font-label-sm text-label-sm whitespace-nowrap">Networking</button>
+</div>
+</section>
+<!-- Events Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-grid_gutter">
+<!-- Event Card 1 (Featured) -->
+<div class="group relative bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm transition-all hover:shadow-md">
+<div class="relative h-56 w-full overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="vibrant neon concert stage with crowds of people silhouetted against bright purple and teal lights energetic atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTjGpVoWp6gxrW3HnWt-tD4j4A-Z2Y4_CV71RGDdO1Ll9VG6k7TQYrV2flLsBS3IQX9F4gKYZWSDjjabJ_EX_FORlR41ABY0dh6S4vYfo0kgwzU9OpP-4eo8MhdQy-bqeivTLkSMjoBr1244BCwGSuREcAiERx2FRHyrJQkC1kmc-n9VMeR2IleAKxDywj7zPoSb4PBH4IeLP9Xh6wWxTwvOlE9bn7yHCS3fmxVsBklbiAHkgAqpbiVedQ75-Uy53tw9pD1Auj-7w"/>
+<div class="absolute top-3 left-3 bg-[#27BB97] text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg">Trending</div>
+<div class="absolute top-3 right-3 h-10 w-10 bg-white/70 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50">
+<span class="material-symbols-outlined text-error" data-icon="favorite" data-weight="fill" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+</div>
+<div class="p-4">
+<div class="flex items-center gap-1 text-[#27BB97] font-label-sm text-label-sm mb-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+<span>Oct 12 • 07:00 PM onwards</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background mb-1">Neon Pulse: Underground Music Festival</h3>
+<div class="flex items-center gap-1 text-outline font-body-md text-body-md mb-4">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span>The Warehouse District, South Mumbai</span>
+</div>
+<div class="flex justify-between items-end border-t border-slate-50 pt-3">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Entry Price</p>
+<p class="font-price-md text-price-md text-on-surface">₹999 onwards</p>
+</div>
+<button class="bg-[#27BB97] text-white px-6 py-2 rounded-lg font-label-sm font-semibold hover:bg-[#1E9E7E] transition-colors">Book Now</button>
+</div>
+</div>
+</div>
+<!-- Event Card 2 -->
+<div class="group relative bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm transition-all hover:shadow-md">
+<div class="relative h-56 w-full overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="minimalist pottery studio with hands molding clay on a potter's wheel soft natural morning light warm wooden textures" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6eJDHR53_Al6hiUIACcaClkQmX8CLwZs-aVs7liU5uKaHjk_MmZmn0siGrJT57u91pj9Z31GwtUKrQXB_Cp27geIAQhro26qkQ8MS3_06c0oUR3BSH3vxE1Fxsp5h1z5t-eacjXpBY4WBi3TukXi773wWk7lqbqpwJcSquy_uEJYRpVbcWaRmtYpy9hRuyQqrRzj333cC03OmF0NjqKctbv52ubxeVvU0TNowFym-rveBWCQZlmh3AKNmvcmL1-1oCvWA4BpcLr0"/>
+<div class="absolute top-3 right-3 h-10 w-10 bg-white/70 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50">
+<span class="material-symbols-outlined text-on-surface" data-icon="favorite">favorite</span>
+</div>
+</div>
+<div class="p-4">
+<div class="flex items-center gap-1 text-[#27BB97] font-label-sm text-label-sm mb-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+<span>Oct 13 • 10:00 AM</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background mb-1">Artisan Pottery &amp; Glazing Workshop</h3>
+<div class="flex items-center gap-1 text-outline font-body-md text-body-md mb-4">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span>The Creative Hub, Bandra West</span>
+</div>
+<div class="flex justify-between items-end border-t border-slate-50 pt-3">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Entry Price</p>
+<p class="font-price-md text-price-md text-on-surface">₹500 onwards</p>
+</div>
+<button class="bg-[#27BB97] text-white px-6 py-2 rounded-lg font-label-sm font-semibold hover:bg-[#1E9E7E] transition-colors">Book Now</button>
+</div>
+</div>
+</div>
+<!-- Event Card 3 -->
+<div class="group relative bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm transition-all hover:shadow-md">
+<div class="relative h-56 w-full overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="professional modern conference hall with people networking with coffee cups soft bokeh lighting business professional attire" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDkBFg6KX9oXuI4mGKzgvyWIZhACwMTesQrMPjSJV7MsBLCVBe6UWs6b-2WxykuPnCWibM31nQat8NQTtjm0GxQzFdK3mw9fIVeNVtMuEOVmQt-ukAMMQjspJYItVi6JgCYGOopRG_UGJLm9LoCmcFbK6SoOKtr0sANq7b9p5brF-CCMd5HeB3VQc5MhKFloguNOUDcotTf7CQzRrGroXdAv_MDD8rKNhV-vNePwVr8TavTmSG6iTf3fZdEq7onp0Osx-xzfrqdouA"/>
+<div class="absolute top-3 right-3 h-10 w-10 bg-white/70 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50">
+<span class="material-symbols-outlined text-on-surface" data-icon="favorite">favorite</span>
+</div>
+</div>
+<div class="p-4">
+<div class="flex items-center gap-1 text-[#27BB97] font-label-sm text-label-sm mb-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+<span>Oct 15 • 06:30 PM</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background mb-1">Tech Founders Meetup: AI in 2024</h3>
+<div class="flex items-center gap-1 text-outline font-body-md text-body-md mb-4">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span>Innovation Park, HSR Layout</span>
+</div>
+<div class="flex justify-between items-end border-t border-slate-50 pt-3">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Entry Price</p>
+<p class="font-price-md text-price-md text-on-surface">FREE</p>
+</div>
+<button class="bg-[#27BB97] text-white px-6 py-2 rounded-lg font-label-sm font-semibold hover:bg-[#1E9E7E] transition-colors">RSVP</button>
+</div>
+</div>
+</div>
+<!-- Event Card 4 -->
+<div class="group relative bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm transition-all hover:shadow-md">
+<div class="relative h-56 w-full overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="overhead view of a competitive badminton game on a blue indoor court with sharp lighting and action movement" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIDMHKtLl1wy0dv_UN2woK-TeV33Wc7PNm9_UfBpP45JoQAWnm9jvNEUXhQn1okIcRnctJwYQIvu6M80Ju14sIePMbKIs5_6KXACg52YFNo0oe8XiGvlYM6FdDHMMNPh-hXbaC8m-Q6E-DHwCARgtyMxwDP_1B-NfjxkbfO3iN1TtnEGGkGHM6MUoWVjwBPErud_REDckZcT1Tq6WjAZusA6a_YKcJjtNwp8AQzG7NWzIwey5MbXQChIKQuV-JwJFs3QOTNHTQ59g"/>
+<div class="absolute top-3 left-3 bg-[#27BB97] text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg">Trending</div>
+<div class="absolute top-3 right-3 h-10 w-10 bg-white/70 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50">
+<span class="material-symbols-outlined text-on-surface" data-icon="favorite">favorite</span>
+</div>
+</div>
+<div class="p-4">
+<div class="flex items-center gap-1 text-[#27BB97] font-label-sm text-label-sm mb-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+<span>Oct 16 • 07:00 AM</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background mb-1">Open Smash: Amateur Badminton Open</h3>
+<div class="flex items-center gap-1 text-outline font-body-md text-body-md mb-4">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span>Skyline Sports Arena, Koramangala</span>
+</div>
+<div class="flex justify-between items-end border-t border-slate-50 pt-3">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Entry Price</p>
+<p class="font-price-md text-price-md text-on-surface">₹750 onwards</p>
+</div>
+<button class="bg-[#27BB97] text-white px-6 py-2 rounded-lg font-label-sm font-semibold hover:bg-[#1E9E7E] transition-colors">Register</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-white/90 backdrop-blur-lg border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+<a class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#27BB97] py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="search" data-weight="fill" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Search</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Sell</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Profile</span>
+</a>
+</nav>
+<!-- Floating Action Button: Suppressed on Details but appropriate for Browsing -->
+<button class="fixed right-6 bottom-24 h-14 w-14 bg-primary-container text-white rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+</body></html>

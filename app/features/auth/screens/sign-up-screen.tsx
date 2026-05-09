@@ -1,8 +1,10 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -18,6 +20,42 @@ import {
     ListifyOnboardingAssets,
 } from "@/constants/listify-theme";
 import { Image } from "@/lib/nativewind-interop";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearError, googleLogin, register, sendPhoneOtp } from "@/store/slices/auth-slice";
+
+// Check if the native Google Sign-In TurboModule exists in this binary
+function isGoogleNativeModuleAvailable(): boolean {
+  const proxy = (global as any).__turboModuleProxy;
+  if (proxy != null) {
+    return proxy("RNGoogleSignin") != null;
+  }
+  try {
+    const { NativeModules } = require("react-native");
+    return NativeModules.RNGoogleSignin != null;
+  } catch {
+    return false;
+  }
+}
+
+let _googleModule: any = null;
+let _googleChecked = false;
+
+function getGoogleSigninModule() {
+  if (_googleChecked) return _googleModule;
+  _googleChecked = true;
+
+  if (!isGoogleNativeModuleAvailable()) {
+    _googleModule = null;
+    return null;
+  }
+
+  try {
+    _googleModule = require("@react-native-google-signin/google-signin");
+  } catch {
+    _googleModule = null;
+  }
+  return _googleModule;
+}
 
 function getPasswordStrength(password: string) {
   let score = 0;
@@ -56,15 +94,136 @@ function getPasswordStrength(password: string) {
 export function SignUpScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { status, error, registrationEmail, registrationPhone, isAuthenticated } = useAppSelector(
+    (s) => s.auth,
+  );
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [otpChannel, setOtpChannel] = useState<"sms" | "whatsapp">("sms");
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
   const passwordStrength = getPasswordStrength(password);
+  const isLoading = status === "loading";
+  const isPhoneOnlyMode =
+    !!phoneNumber.trim() &&
+    !fullName.trim() &&
+    !email.trim() &&
+    !password;
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/home-feed-root" as Href);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (registrationEmail || registrationPhone) {
+      router.push("/otp-verification" as Href);
+    }
+  }, [registrationEmail, registrationPhone]);
+
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Registration Failed", error);
+      dispatch(clearError());
+    }
+  }, [error]);
+
+  useEffect(() => {
+    const googleModule = getGoogleSigninModule();
+    if (!googleModule) return;
+
+    googleModule.GoogleSignin.configure({
+      webClientId: "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
+      offlineAccess: false,
+    });
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    const googleModule = getGoogleSigninModule();
+    if (!googleModule) {
+      Alert.alert(
+        "Google Sign In",
+        "Native Google Sign-In module is missing in this build. Rebuild and reinstall the Android app.",
+      );
+      return;
+    }
+
+    const { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } =
+      googleModule;
+
+    try {
+      setIsGoogleLoading(true);
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+      // Sign out first so the account chooser always appears
+      try { await GoogleSignin.signOut(); } catch (_) { /* ok if not signed in */ }
+
+      const response = await GoogleSignin.signIn();
+
+      if (isSuccessResponse(response)) {
+        const idToken = response.data.idToken;
+        if (idToken) {
+          dispatch(googleLogin({ idToken }));
+        } else {
+          Alert.alert("Google Sign In", "Failed to get authentication token.");
+        }
+      }
+    } catch (err: any) {
+      if (isErrorWithCode(err)) {
+        switch (err.code) {
+          case statusCodes.IN_PROGRESS:
+            break;
+          case statusCodes.SIGN_IN_CANCELLED:
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            Alert.alert("Google Sign In", "Google Play Services not available.");
+            break;
+          default:
+            Alert.alert("Google Sign In", err?.message || "Something went wrong.");
+        }
+      } else {
+        Alert.alert("Google Sign In", err?.message || "Failed to connect.");
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleCreateAccount = () => {
+    if (!acceptedTerms) {
+      Alert.alert("Terms Required", "Please accept the Terms & Conditions.");
+      return;
+    }
+
+    if (isPhoneOnlyMode) {
+      const digitsOnly = phoneNumber.replace(/\D/g, "");
+      if (digitsOnly.length !== 10) {
+        Alert.alert("Invalid Phone", "Please enter a valid 10-digit phone number.");
+        return;
+      }
+
+      const phone = `+91${digitsOnly}`;
+      dispatch(sendPhoneOtp({ phone, channel: otpChannel }));
+      return;
+    }
+
+    if (!fullName.trim() || !email.trim() || !password) {
+      Alert.alert(
+        "Missing Details",
+        "Enter phone number only for OTP signup, or fill name, email, and password.",
+      );
+      return;
+    }
+
+    dispatch(register({ name: fullName.trim(), email: email.trim().toLowerCase(), password }));
+  };
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -178,6 +337,54 @@ export function SignUpScreen() {
                     className="h-12 flex-1 rounded-lg border border-[#BBCAC3] bg-white px-4 text-[14px] text-[#161D1A]"
                   />
                 </View>
+
+                {isPhoneOnlyMode && (
+                  <View className="mt-2 flex-row gap-2">
+                    <Pressable
+                      onPress={() => setOtpChannel("sms")}
+                      className={`h-10 flex-1 flex-row items-center justify-center gap-2 rounded-lg border ${
+                        otpChannel === "sms"
+                          ? "border-[#27BB97] bg-[#27BB97]/10"
+                          : "border-[#BBCAC3] bg-white"
+                      }`}
+                    >
+                      <MaterialIcons
+                        name="sms"
+                        size={18}
+                        color={otpChannel === "sms" ? "#27BB97" : "#6C7A74"}
+                      />
+                      <Text
+                        className={`text-[13px] font-semibold ${
+                          otpChannel === "sms" ? "text-[#27BB97]" : "text-[#6C7A74]"
+                        }`}
+                      >
+                        SMS
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => setOtpChannel("whatsapp")}
+                      className={`h-10 flex-1 flex-row items-center justify-center gap-2 rounded-lg border ${
+                        otpChannel === "whatsapp"
+                          ? "border-[#25D366] bg-[#25D366]/10"
+                          : "border-[#BBCAC3] bg-white"
+                      }`}
+                    >
+                      <Ionicons
+                        name="logo-whatsapp"
+                        size={18}
+                        color={otpChannel === "whatsapp" ? "#25D366" : "#6C7A74"}
+                      />
+                      <Text
+                        className={`text-[13px] font-semibold ${
+                          otpChannel === "whatsapp" ? "text-[#25D366]" : "text-[#6C7A74]"
+                        }`}
+                      >
+                        WhatsApp
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
 
               <View className="gap-1">
@@ -264,11 +471,11 @@ export function SignUpScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => {
-                  router.push("/otp-verification" as Href);
-                }}
+                onPress={handleCreateAccount}
+                disabled={isLoading}
                 style={({ pressed }) => [
                   { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                  { opacity: isLoading ? 0.7 : 1 },
                 ]}
                 className="mt-2 overflow-hidden rounded-lg"
               >
@@ -285,9 +492,13 @@ export function SignUpScreen() {
                     elevation: 6,
                   }}
                 >
-                  <Text className="text-[18px] font-semibold text-white">
-                    Create Account
-                  </Text>
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[18px] font-semibold text-white">
+                      {isPhoneOnlyMode ? "Send OTP" : "Create Account"}
+                    </Text>
+                  )}
                 </LinearGradient>
               </Pressable>
 
@@ -301,7 +512,12 @@ export function SignUpScreen() {
               </View>
 
               <View className="mb-2 flex-row gap-4">
-                <Pressable className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-[#BBCAC3] bg-white">
+                <Pressable
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading || isGoogleLoading}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                  className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-[#BBCAC3] bg-white"
+                >
                   <Image
                     source={ListifyOnboardingAssets.signInGoogleLogo}
                     contentFit="contain"
@@ -309,7 +525,7 @@ export function SignUpScreen() {
                     className="h-5 w-5"
                   />
                   <Text className="text-[14px] font-medium text-[#111827]">
-                    Google
+                    {isGoogleLoading ? "Connecting..." : "Google"}
                   </Text>
                 </Pressable>
 

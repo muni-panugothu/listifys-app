@@ -169,9 +169,22 @@ const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow same-origin requests (origin is undefined for non-browser clients)
-    // but block requests with origin: null (sandboxed iframes, data: URIs)
-    if (origin === undefined || isOriginAllowed(origin, allowedOrigins)) {
+    // Allow same-origin requests (origin is undefined for non-browser clients
+    // such as React Native, Expo, and native mobile apps)
+    if (origin === undefined) {
+      return callback(null, true);
+    }
+    // Allow all localhost/LAN origins during development (mobile dev builds)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const parsed = new URL(origin);
+        const host = parsed.hostname;
+        if (host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host)) {
+          return callback(null, true);
+        }
+      } catch (_) {}
+    }
+    if (isOriginAllowed(origin, allowedOrigins)) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
@@ -295,12 +308,17 @@ async function connectWithRetry(maxRetries = 5) {
       const errorMessage = err?.message || 'Unknown MongoDB connection error';
       const isAtlasAllowlistError = /whitelist|whitelisted|ip that isn't whitelisted/i.test(errorMessage);
 
-      // Atlas allowlist errors are not transient; fail fast with an actionable message.
+      // Atlas allowlist errors are not transient — in production exit immediately.
+      // In development, keep retrying so the dev can fix Atlas Network Access
+      // without having to restart nodemon manually.
       if (isAtlasAllowlistError) {
-        logger.error('MongoDB Atlas network access blocked. Add this machine public IP in Atlas Network Access, then restart server.', {
+        logger.error('MongoDB Atlas network access blocked. Add this machine\'s public IP in Atlas → Network Access, then the next retry will connect.', {
           error: errorMessage,
         });
-        process.exit(1);
+        if (IS_PRODUCTION) {
+          process.exit(1);
+        }
+        // In dev, fall through to retry with backoff
       }
 
       if (attempt === maxRetries) {
@@ -315,7 +333,7 @@ async function connectWithRetry(maxRetries = 5) {
 }
 
 let _dbReady = false;
-const dbReadyPromise = connectWithRetry().then(() => {
+const dbReadyPromise = connectWithRetry(IS_PRODUCTION ? 5 : 10).then(() => {
   _dbReady = true;
   const { migrateAllSlugs } = require('./utils/migrate-slugs');
   migrateAllSlugs().catch((err) => logger.error('Slug migration error', { error: err.message }));

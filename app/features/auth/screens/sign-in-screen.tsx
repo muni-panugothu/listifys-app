@@ -1,8 +1,10 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -18,15 +20,142 @@ import {
     ListifyOnboardingAssets,
 } from "@/constants/listify-theme";
 import { Image } from "@/lib/nativewind-interop";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearError, googleLogin, login } from "@/store/slices/auth-slice";
+
+// Check if the native Google Sign-In TurboModule exists in this binary
+// BEFORE requiring the JS wrapper (which calls getEnforcing and crashes).
+function isGoogleNativeModuleAvailable(): boolean {
+  const proxy = (global as any).__turboModuleProxy;
+  if (proxy != null) {
+    return proxy("RNGoogleSignin") != null;
+  }
+  // Legacy bridge fallback
+  try {
+    const { NativeModules } = require("react-native");
+    return NativeModules.RNGoogleSignin != null;
+  } catch {
+    return false;
+  }
+}
+
+let _googleModule: any = null;
+let _googleChecked = false;
+
+function getGoogleSigninModule() {
+  if (_googleChecked) return _googleModule;
+  _googleChecked = true;
+
+  if (!isGoogleNativeModuleAvailable()) {
+    _googleModule = null;
+    return null;
+  }
+
+  try {
+    _googleModule = require("@react-native-google-signin/google-signin");
+  } catch {
+    _googleModule = null;
+  }
+  return _googleModule;
+}
 
 export function SignInScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { status, error, isAuthenticated } = useAppSelector((s) => s.auth);
   const [credential, setCredential] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
+  const isLoading = status === "loading";
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/home-feed-root" as Href);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Sign In Failed", error);
+      dispatch(clearError());
+    }
+  }, [error]);
+
+  useEffect(() => {
+    const googleModule = getGoogleSigninModule();
+    if (!googleModule) {
+      return;
+    }
+
+    googleModule.GoogleSignin.configure({
+      webClientId: "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
+      offlineAccess: false,
+    });
+  }, []);
+
+  const handleSignIn = () => {
+    const identity = credential.trim();
+    if (!identity || !password) {
+      Alert.alert("Missing Details", "Please enter your email/phone and password.");
+      return;
+    }
+    dispatch(login({ identity, password }));
+  };
+
+  const handleGoogleSignIn = async () => {
+    const googleModule = getGoogleSigninModule();
+    if (!googleModule) {
+      Alert.alert(
+        "Google Sign In",
+        "Native Google Sign-In module is missing in this build. Rebuild and reinstall the Android app.",
+      );
+      return;
+    }
+
+    const { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } =
+      googleModule;
+
+    try {
+      setIsGoogleLoading(true);
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+      // Sign out first so the account chooser always appears
+      try { await GoogleSignin.signOut(); } catch (_) { /* ok if not signed in */ }
+
+      const response = await GoogleSignin.signIn();
+
+      if (isSuccessResponse(response)) {
+        const idToken = response.data.idToken;
+        if (idToken) {
+          dispatch(googleLogin({ idToken }));
+        } else {
+          Alert.alert("Google Sign In", "Failed to get authentication token.");
+        }
+      }
+    } catch (err: any) {
+      if (isErrorWithCode(err)) {
+        switch (err.code) {
+          case statusCodes.IN_PROGRESS:
+            break;
+          case statusCodes.SIGN_IN_CANCELLED:
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            Alert.alert("Google Sign In", "Google Play Services not available.");
+            break;
+          default:
+            Alert.alert("Google Sign In", err?.message || "Something went wrong.");
+        }
+      } else {
+        Alert.alert("Google Sign In", err?.message || "Failed to connect.");
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -146,8 +275,11 @@ export function SignInScreen() {
               </View>
 
               <Pressable
+                onPress={handleSignIn}
+                disabled={isLoading || isGoogleLoading}
                 style={({ pressed }) => [
                   { transform: [{ scale: pressed ? 0.95 : 1 }] },
+                  { opacity: isLoading ? 0.7 : 1 },
                 ]}
                 className="overflow-hidden rounded-lg"
               >
@@ -157,9 +289,13 @@ export function SignInScreen() {
                   end={{ x: 1, y: 0.5 }}
                   className="h-12 items-center justify-center rounded-lg"
                 >
-                  <Text className="text-[18px] font-semibold text-white">
-                    Sign In
-                  </Text>
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[18px] font-semibold text-white">
+                      Sign In
+                    </Text>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>
@@ -174,7 +310,12 @@ export function SignInScreen() {
             </View>
 
             <View className="mb-6 flex-row gap-4">
-              <Pressable className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-[#BBCAC3] bg-white">
+              <Pressable
+                onPress={handleGoogleSignIn}
+                disabled={isLoading || isGoogleLoading}
+                style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+                className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-[#BBCAC3] bg-white"
+              >
                 <Image
                   source={ListifyOnboardingAssets.signInGoogleLogo}
                   contentFit="contain"
@@ -182,7 +323,7 @@ export function SignInScreen() {
                   className="h-5 w-5"
                 />
                 <Text className="text-[14px] font-medium text-[#111827]">
-                  Google
+                  {isGoogleLoading ? "Connecting..." : "Google"}
                 </Text>
               </Pressable>
 

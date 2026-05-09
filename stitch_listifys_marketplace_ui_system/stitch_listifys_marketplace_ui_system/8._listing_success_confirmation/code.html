@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Listing Success - Listify</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-high": "#e3eae5",
+                    "on-primary-container": "#004535",
+                    "surface-container-lowest": "#ffffff",
+                    "error": "#ba1a1a",
+                    "surface-container-low": "#eff5f0",
+                    "on-primary-fixed-variant": "#00513f",
+                    "on-error-container": "#93000a",
+                    "surface-container-highest": "#dde4df",
+                    "secondary-container": "#5ba2ff",
+                    "on-surface": "#161d1a",
+                    "on-secondary-container": "#00376b",
+                    "tertiary": "#755b00",
+                    "secondary-fixed": "#d5e3ff",
+                    "primary-fixed": "#75f9d2",
+                    "on-secondary": "#ffffff",
+                    "inverse-primary": "#55dcb6",
+                    "on-tertiary-fixed-variant": "#584400",
+                    "on-background": "#161d1a",
+                    "tertiary-fixed": "#ffe08e",
+                    "primary-fixed-dim": "#55dcb6",
+                    "primary": "#006b55",
+                    "outline-variant": "#bbcac3",
+                    "on-surface-variant": "#3c4a44",
+                    "surface-tint": "#006b55",
+                    "surface": "#f4fbf6",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#cba100",
+                    "on-tertiary-fixed": "#241a00",
+                    "surface-bright": "#f4fbf6",
+                    "secondary": "#005fb0",
+                    "on-error": "#ffffff",
+                    "secondary-fixed-dim": "#a6c8ff",
+                    "surface-variant": "#dde4df",
+                    "surface-dim": "#d5dcd7",
+                    "surface-container": "#e9efeb",
+                    "primary-container": "#27bb97",
+                    "background": "#f4fbf6",
+                    "error-container": "#ffdad6",
+                    "inverse-on-surface": "#ecf2ed",
+                    "inverse-surface": "#2b322f",
+                    "tertiary-fixed-dim": "#f0c122",
+                    "on-tertiary-container": "#4b3a00",
+                    "on-secondary-fixed": "#001c3b",
+                    "on-primary": "#ffffff",
+                    "outline": "#6c7a74",
+                    "on-secondary-fixed-variant": "#004786",
+                    "on-primary-fixed": "#002118"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack_gap_sm": "8px",
+                    "grid_gutter": "12px",
+                    "container_margin": "16px",
+                    "stack_gap_xs": "4px",
+                    "stack_gap_lg": "24px",
+                    "stack_gap_md": "16px"
+            },
+            "fontFamily": {
+                    "price-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "h2": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "h1": ["Inter"],
+                    "price-lg": ["Inter"],
+                    "h3": ["Inter"]
+            },
+            "fontSize": {
+                    "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                    "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .success-blob {
+            background: radial-gradient(circle at center, rgba(39, 187, 151, 0.1) 0%, rgba(39, 187, 151, 0) 70%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col items-center">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none z-50">
+<div class="flex items-center gap-stack_gap_sm active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-[#27BB97]">storefront</span>
+<span class="text-xl font-black text-[#27BB97] tracking-tight">Listify</span>
+</div>
+<div class="flex items-center gap-stack_gap_md">
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors rounded-full">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 w-full max-w-md px-container_margin pt-24 pb-32 flex flex-col items-center">
+<!-- Success Identity Section -->
+<div class="w-full flex flex-col items-center text-center space-y-stack_gap_md mb-stack_gap_lg relative">
+<div class="success-blob absolute -top-12 w-64 h-64 -z-10"></div>
+<div class="w-20 h-20 bg-primary-container/10 rounded-full flex items-center justify-center border-4 border-white shadow-xl">
+<div class="w-16 h-16 bg-primary-container rounded-full flex items-center justify-center text-white">
+<span class="material-symbols-outlined !text-4xl" style="font-variation-settings: 'FILL' 0, 'wght' 600;">check</span>
+</div>
+</div>
+<div class="space-y-stack_gap_xs">
+<h1 class="font-h1 text-h1 text-on-surface">Success! Your ad is live</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Millions of buyers can now see your listing. We'll notify you when someone reaches out.</p>
+</div>
+</div>
+<!-- Preview Card -->
+<div class="w-full bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden mb-stack_gap_lg">
+<div class="relative h-48 w-full">
+<img class="w-full h-full object-cover" data-alt="Modern sleek grey cat sitting elegantly on a light hardwood floor with soft natural window light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHKuRSqBvFz-njyFPuaLRGuY2K8EBqo1tMeABWJW0980o5B2CbGHwlqB0gWK3hmcJ6QkfnFGojFw7PvCsIp2B7QlVzBYn2ZmFGJeks70ffx8iresJ8GyWyjlho24AkxrQE95hDxy2hIBAfeSd8ByLzS66ApdRvC9OzIFwNeYNf5KhgHBWZ7vz-pNUAtXVuw8-pXUbxx29-s5tGenJmSOkpAzqqzcgvdUbEq_vUKGrDP9FY0TJz19jER-WHnP4H1w4kNOzk3jb8cN0"/>
+<div class="absolute top-3 right-3 bg-white/70 backdrop-blur-md p-2 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-on-surface">share</span>
+</div>
+<div class="absolute bottom-3 left-3 bg-primary-container/90 backdrop-blur-sm px-3 py-1 rounded-full">
+<span class="font-label-sm text-label-sm text-white">Live Listing</span>
+</div>
+</div>
+<div class="p-4 space-y-stack_gap_sm">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Elegant Modern Living Sofa</h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined !text-[14px]">location_on</span>
+                            New Delhi, India
+                        </p>
+</div>
+<p class="font-price-lg text-price-lg text-primary">₹24,999</p>
+</div>
+<div class="pt-2 border-t border-slate-50 flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a professional man with a friendly expression in studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXDjdf6kl8PFeVEvdEchJDp_J6zZQ8wFpBXU0FRt9tO3ZABqXuYCxfVoq615eMZi0VN5AHPvhHnoRL-yltTh3jGyJ-Jt5cfNUcD8C3IbFsSaX_gYcWBr2X2SWRutehvakqBf4gSE4f2GIHre5WUam8Jx0c5Gby_tsmENHc_gtcLdJ1U1iOqayHzFU9_E1LFL0-ByfY0JlyYOw0pC7cM3PUMnfhifAvw1i7f-ZRkDkTj_lNz8e02Y8LFcBCHVhOMUsDg3Hdj06EzvA"/>
+</div>
+<div class="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Portrait of a young woman with a warm smile and natural lighting outdoors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBz_D6JTX4Am9-cxMCQv8Rsp7xnzYwvooiu_BIeA6LI6lnyuVoz0Fz5mDsy2y8QzrS6a1NE2BkRmsKwLHv7lYNROQbI6k9EwetmUgVHi7i9nUWAWLxmRCQ_f8FVgsdBi3W-65j0AAprFR5xxzLNkz9FeYkH5CB-9mc-lgBGgLq5uxC0KG2-APi8UtjKGQJjnX4Un5A_fDn-58qvnRYE8ER-5xV5Euq3Zb5Cj21Z_LC4jih_SiKN_So7qKvJt4dSnhmLhRv1SC1tCWg"/>
+</div>
+<div class="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold">12+</div>
+</div>
+<span class="font-label-sm text-label-sm text-slate-400">Listed 1m ago</span>
+</div>
+</div>
+</div>
+<!-- Actions -->
+<div class="w-full flex flex-col gap-stack_gap_md">
+<button class="w-full h-12 bg-gradient-to-r from-[#27BB97] to-[#1E9E7E] text-white rounded-lg font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-container/20 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined !text-xl">share</span>
+                Share Ad
+            </button>
+<button class="w-full h-12 bg-white border border-slate-200 text-on-surface rounded-lg font-semibold flex items-center justify-center gap-2 active:bg-slate-50 transition-colors">
+                Go to My Ads
+            </button>
+</div>
+<!-- Tips / Extras (Bento Style) -->
+<div class="w-full mt-stack_gap_lg grid grid-cols-2 gap-stack_gap_sm">
+<div class="p-4 bg-surface-container-low rounded-xl border border-surface-container flex flex-col gap-2">
+<span class="material-symbols-outlined text-[#27BB97]">trending_up</span>
+<p class="font-label-sm text-label-sm font-bold text-on-surface">Reach 10x more</p>
+<p class="text-[11px] text-on-surface-variant leading-tight">Boost your ad to reach thousands of buyers instantly.</p>
+</div>
+<div class="p-4 bg-surface-container-low rounded-xl border border-surface-container flex flex-col gap-2">
+<span class="material-symbols-outlined text-[#27BB97]">verified_user</span>
+<p class="font-label-sm text-label-sm font-bold text-on-surface">Safety first</p>
+<p class="text-[11px] text-on-surface-variant leading-tight">Always meet in public places and use secure payments.</p>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200 hover:text-[#27BB97] dark:hover:text-[#27BB97]">
+<span class="material-symbols-outlined">home</span>
+<span>Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200 hover:text-[#27BB97] dark:hover:text-[#27BB97]">
+<span class="material-symbols-outlined">search</span>
+<span>Search</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#27BB97] py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">add_circle</span>
+<span>Sell</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200 hover:text-[#27BB97] dark:hover:text-[#27BB97]">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span>Messages</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200 hover:text-[#27BB97] dark:hover:text-[#27BB97]">
+<span class="material-symbols-outlined">person</span>
+<span>Profile</span>
+</div>
+</nav>
+</body></html>

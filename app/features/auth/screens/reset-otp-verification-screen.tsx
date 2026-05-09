@@ -3,6 +3,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -14,12 +16,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearError, resendResetOtp, verifyResetOtp } from "@/store/slices/auth-slice";
+
 const RESET_OTP_LENGTH = 6;
 const INITIAL_TIMER = 59;
 
 export function ResetOtpVerificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { status, error, resetEmail, resetToken } = useAppSelector((s) => s.auth);
   const [otpDigits, setOtpDigits] = useState<string[]>(
     Array(RESET_OTP_LENGTH).fill(""),
   );
@@ -28,6 +35,20 @@ export function ResetOtpVerificationScreen() {
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
   const timerLabel = `00:${String(secondsRemaining).padStart(2, "0")}`;
+  const isLoading = status === "loading";
+
+  useEffect(() => {
+    if (resetToken) {
+      router.push("/new-password" as Href);
+    }
+  }, [resetToken]);
+
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Verification Failed", error);
+      dispatch(clearError());
+    }
+  }, [error]);
 
   useEffect(() => {
     if (secondsRemaining === 0) {
@@ -64,9 +85,21 @@ export function ResetOtpVerificationScreen() {
   };
 
   const handleResend = () => {
+    if (!resetEmail) return;
+    dispatch(resendResetOtp({ email: resetEmail }));
     setOtpDigits(Array(RESET_OTP_LENGTH).fill(""));
     setSecondsRemaining(INITIAL_TIMER);
     inputRefs.current[0]?.focus();
+  };
+
+  const handleVerify = () => {
+    if (!resetEmail) {
+      Alert.alert("Error", "Reset session expired. Please try again.");
+      router.replace("/forgot-password" as Href);
+      return;
+    }
+    const otp = otpDigits.join("");
+    dispatch(verifyResetOtp({ email: resetEmail, otp }));
   };
 
   return (
@@ -154,11 +187,11 @@ export function ResetOtpVerificationScreen() {
               </View>
 
               <Pressable
-                onPress={() => {
-                  router.push("/new-password" as Href);
-                }}
+                onPress={handleVerify}
+                disabled={isLoading}
                 style={({ pressed }) => [
                   { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                  { opacity: isLoading ? 0.7 : 1 },
                 ]}
                 className="overflow-hidden rounded-lg"
               >
@@ -175,9 +208,13 @@ export function ResetOtpVerificationScreen() {
                     elevation: 6,
                   }}
                 >
-                  <Text className="text-[18px] font-semibold text-white">
-                    Verify & Reset
-                  </Text>
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[18px] font-semibold text-white">
+                      Verify & Reset
+                    </Text>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>

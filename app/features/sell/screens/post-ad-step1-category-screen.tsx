@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { type Href, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BackHandler, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
@@ -112,6 +113,22 @@ export function PostAdStep1CategoryScreen() {
   const selectedSubLabel =
     subcategories.find((s) => s.id === selectedSubcategory)?.title ?? "";
 
+  const handleBack = () => {
+    router.replace("/home-feed-root" as Href);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        handleBack();
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    }, [router]),
+  );
+
   useEffect(() => {
     const nextCategoryId = getValidCategoryId(params.category);
 
@@ -136,7 +153,7 @@ export function PostAdStep1CategoryScreen() {
       >
         <View className="flex-row items-center gap-3">
           <Pressable
-            onPress={() => router.back()}
+            onPress={handleBack}
             className="h-9 w-9 items-center justify-center rounded-full"
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >

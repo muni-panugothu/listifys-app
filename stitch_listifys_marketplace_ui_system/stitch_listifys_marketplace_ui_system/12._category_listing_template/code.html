@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Electronics - Listify</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline-variant": "#bbcac3",
+                        "inverse-primary": "#55dcb6",
+                        "surface-dim": "#d5dcd7",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#dde4df",
+                        "on-primary": "#ffffff",
+                        "primary-fixed": "#75f9d2",
+                        "on-background": "#161d1a",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "error": "#ba1a1a",
+                        "primary-container": "#27bb97",
+                        "surface-container": "#e9efeb",
+                        "surface-tint": "#006b55",
+                        "secondary": "#005fb0",
+                        "on-tertiary-container": "#4b3a00",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#2b322f",
+                        "on-tertiary-fixed": "#241a00",
+                        "surface-container-highest": "#dde4df",
+                        "on-surface-variant": "#3c4a44",
+                        "surface-container-high": "#e3eae5",
+                        "surface": "#f4fbf6",
+                        "inverse-on-surface": "#ecf2ed",
+                        "primary": "#006b55",
+                        "on-primary-container": "#004535",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#ffe08e",
+                        "surface-container-low": "#eff5f0",
+                        "tertiary-container": "#cba100",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed-variant": "#00513f",
+                        "secondary-fixed": "#d5e3ff",
+                        "tertiary": "#755b00",
+                        "background": "#f4fbf6",
+                        "surface-bright": "#f4fbf6",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#161d1a",
+                        "on-secondary-fixed-variant": "#004786",
+                        "secondary-container": "#5ba2ff",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "primary-fixed-dim": "#55dcb6",
+                        "on-secondary-container": "#00376b",
+                        "outline": "#6c7a74",
+                        "on-secondary-fixed": "#001c3b",
+                        "on-primary-fixed": "#002118",
+                        "on-tertiary-fixed-variant": "#584400"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "grid_gutter": "12px",
+                        "container_margin": "16px",
+                        "stack_gap_sm": "8px",
+                        "stack_gap_md": "16px",
+                        "stack_gap_xs": "4px",
+                        "stack_gap_lg": "24px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Inter"],
+                        "price-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "price-md": ["Inter"],
+                        "h1": ["Inter"],
+                        "body-md": ["Inter"],
+                        "h2": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background font-body-md text-on-background selection:bg-primary-fixed">
+<!-- TopAppBar Shell -->
+<header class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 backdrop-blur-md z-50 border-b border-slate-100 shadow-sm">
+<div class="flex items-center gap-4">
+<button class="active:opacity-70 transition-opacity p-1">
+<span class="material-symbols-outlined text-slate-900" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="text-xl font-black text-[#27BB97] tracking-tight">Electronics</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="active:opacity-70 transition-opacity p-1">
+<span class="material-symbols-outlined text-slate-900" data-icon="search">search</span>
+</button>
+<button class="active:opacity-70 transition-opacity p-1">
+<span class="material-symbols-outlined text-slate-900" data-icon="notifications">notifications</span>
+</button>
+</div>
+</header>
+<main class="pt-20 pb-32">
+<!-- Subcategory Chips -->
+<div class="flex overflow-x-auto gap-stack_gap_sm px-container_margin py-stack_gap_sm scrollbar-hide no-scrollbar">
+<button class="flex-none px-4 py-2 bg-primary-container text-white rounded-full font-label-sm shadow-sm">All</button>
+<button class="flex-none px-4 py-2 bg-surface-container text-on-surface-variant rounded-full font-label-sm hover:bg-slate-200 transition-colors">Laptops</button>
+<button class="flex-none px-4 py-2 bg-surface-container text-on-surface-variant rounded-full font-label-sm hover:bg-slate-200 transition-colors">Tablets</button>
+<button class="flex-none px-4 py-2 bg-surface-container text-on-surface-variant rounded-full font-label-sm hover:bg-slate-200 transition-colors">Headphones</button>
+<button class="flex-none px-4 py-2 bg-surface-container text-on-surface-variant rounded-full font-label-sm hover:bg-slate-200 transition-colors">Cameras</button>
+<button class="flex-none px-4 py-2 bg-surface-container text-on-surface-variant rounded-full font-label-sm hover:bg-slate-200 transition-colors">Gaming</button>
+</div>
+<!-- Filter/Sort Row -->
+<div class="flex items-center justify-between px-container_margin py-4">
+<div class="flex items-center gap-2">
+<button class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-100 rounded-lg shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[18px]" data-icon="tune">tune</span>
+<span class="font-label-sm">Filters</span>
+<span class="flex items-center justify-center bg-primary text-white text-[10px] w-4 h-4 rounded-full">2</span>
+</button>
+</div>
+<button class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-100 rounded-lg shadow-sm active:scale-95 transition-transform">
+<span class="font-label-sm text-slate-500">Sort:</span>
+<span class="font-label-sm font-semibold">Recommended</span>
+<span class="material-symbols-outlined text-[18px]" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</button>
+</div>
+<!-- Product Grid -->
+<div class="grid grid-cols-2 gap-grid_gutter px-container_margin">
+<!-- Card 1 -->
+<div class="group flex flex-col bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm active:opacity-90 transition-all">
+<div class="relative aspect-square">
+<img alt="Space Grey Macbook Pro" class="w-full h-full object-cover" data-alt="high-end space grey laptop on a minimal white desk with soft morning sunlight casting gentle shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbLGKg_VLrCivipA5M1mqlXsTOqme6F41Vq-UknnSRxbahLGbjqBlq4UQA5UDMTwX9KJkJogG7jCUCJ67R_Gw3ea2gn453ZiaI9Wya7CAiG9VXEe_76mLMm_6uoR3VQ48RYOPa7SI5Sh28hyY2q2EfleRJii1ze-ONG0ioNI6kR73b537p8ovXxbYcvZUHSfRMyJkOpPFUzFYnasl-7HC7IgLqkyi2cNgM4_sehXPPMaBzejN0ZHJmWh_XKeeXJPDkHDkvbuwxaJA"/>
+<button class="absolute top-2 right-2 glass-card p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</button>
+<div class="absolute bottom-2 left-2 px-2 py-1 glass-card rounded-md">
+<span class="text-[10px] font-bold text-slate-900">PREMIUM</span>
+</div>
+</div>
+<div class="p-3 flex flex-col gap-1">
+<span class="font-price-md text-primary">₹1,24,990</span>
+<h3 class="font-h3 text-[14px] line-clamp-1 leading-tight text-on-surface">MacBook Pro M2 - 512GB</h3>
+<div class="flex items-center gap-1 mt-1 text-slate-500">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span class="text-[10px] uppercase font-medium">Bandra, Mumbai</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">2h ago</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="group flex flex-col bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm active:opacity-90 transition-all">
+<div class="relative aspect-square">
+<img alt="iPad Pro with Apple Pencil" class="w-full h-full object-cover" data-alt="silver tablet and white digital stylus on a clean marble surface with minimalist aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyow35OEXh_uvjAffJp2lg7i04735UV0MXGi3Qv242cqTCA3fyUCMHA2HgRVb0nuOyH2t9SFI7nRwdadh1JUSixz-1lSsHTgQyfTynWA7-jhQWxpJgBRLfBHoM8Myk1AePimY_K36dLnuh1MvmLm9bVpTSdoY-DzC7mnSRX9zNQRTt0-QAzjet2Qih8mdbYO58y61wEgf8KpP4AT6NIohjuRCjR2ITv_Ctw_sel2lfoPjWakMKF9TiZAfXPXNBe0lhy4R2bDD72do"/>
+<button class="absolute top-2 right-2 glass-card p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="p-3 flex flex-col gap-1">
+<span class="font-price-md text-primary">₹74,500</span>
+<h3 class="font-h3 text-[14px] line-clamp-1 leading-tight text-on-surface">iPad Pro 11-inch (Gen 4)</h3>
+<div class="flex items-center gap-1 mt-1 text-slate-500">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span class="text-[10px] uppercase font-medium">Indiranagar, BLR</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">4h ago</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="group flex flex-col bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm active:opacity-90 transition-all">
+<div class="relative aspect-square">
+<img alt="Wireless Over-Ear Headphones" class="w-full h-full object-cover" data-alt="professional studio headphones on a wooden stand with warm orange atmospheric lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNwSJa5uAkoWfdr6cIzgx0ckC4kG8jfjsp4DAEytcQBSV4xJXXw835uMzMxSf--wKvpwSk1JNg7fJFPU1jFzUTkHXIO7SicyvmXuVcPgIyshxf9z6s52iK68JRSYLx1j1OCEXtlwCP7YLqhjiC9aXkIL2NVWnloaAAY1_oZr7W14yxLfZYjY9BRlBOBn0S4fahSBEuGk4LrlA-s6eeBkszUH5zdGRDW9hu3l7kDtFt38RZ4IURvW0LfzFCS--mFpSL8SYgMahwb0k"/>
+<button class="absolute top-2 right-2 glass-card p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="p-3 flex flex-col gap-1">
+<span class="font-price-md text-primary">₹18,900</span>
+<h3 class="font-h3 text-[14px] line-clamp-1 leading-tight text-on-surface">Sony WH-1000XM5 ANC</h3>
+<div class="flex items-center gap-1 mt-1 text-slate-500">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span class="text-[10px] uppercase font-medium">Saket, Delhi</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">1h ago</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="group flex flex-col bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm active:opacity-90 transition-all">
+<div class="relative aspect-square">
+<img alt="Mirrorless Camera with Lens" class="w-full h-full object-cover" data-alt="close-up of a modern digital camera with a large lens in a bright professional studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQX3oLLzH4N25jOFTA6d_e0yN2L9_PjbDayHlzvWgLT-Vxzw2-lAVovxuGrQaDXHUGKDWDh23-V73uDCcDp4twMi_x-M84N6nB6YqItJ-nU0Di-QxTcZbCcRjC31mS7r1PeiIQ3O7gR6iaWFXYQ8kV2fAUzi5TVgyWf6R3N7fNSg2djsfRj5nFXTnoapsu06VMNMkQXEipTRVueWf_NjiYXnsHtkdNdgddDG2zfmmzYqT_NlxXNb-zCQWqzYxSiEwUTICoYOTwsFk"/>
+<button class="absolute top-2 right-2 glass-card p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="p-3 flex flex-col gap-1">
+<span class="font-price-md text-primary">₹2,10,000</span>
+<h3 class="font-h3 text-[14px] line-clamp-1 leading-tight text-on-surface">Sony A7 IV + 24-70mm Lens</h3>
+<div class="flex items-center gap-1 mt-1 text-slate-500">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span class="text-[10px] uppercase font-medium">Koramangala, BLR</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">5h ago</span>
+</div>
+</div>
+<!-- Card 5 -->
+<div class="group flex flex-col bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm active:opacity-90 transition-all">
+<div class="relative aspect-square">
+<img alt="PlayStation 5 Console" class="w-full h-full object-cover" data-alt="next-gen white gaming console standing vertically with blue neon glow lighting up the edges" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtQyOB7BAIRJuv1yoNpSxlXr6SJ7ohydm9TSZ1FWrKZqY2028nwvJdsD5GrE7w48P9ks_JSgZrHldPQ_fyhMen3yPH8_d6vnWc3u8Evu0qPQfaIdOuPIgG_fEGJHtX9c5Y5QLCrF7t9EkhFtePpBqfSVq_SRvCh96kIL_7UN7oct8zH2WieZB4j1vXvd9dDcnp6UEwJuss7oye90KIrfnYBaESSCktK39EMdjiBSF_pXKVAgwzUa_FObJKqLzVJh8rD8gLN7dUm8Q"/>
+<button class="absolute top-2 right-2 glass-card p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="p-3 flex flex-col gap-1">
+<span class="font-price-md text-primary">₹39,990</span>
+<h3 class="font-h3 text-[14px] line-clamp-1 leading-tight text-on-surface">PS5 Console + 2 Controllers</h3>
+<div class="flex items-center gap-1 mt-1 text-slate-500">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span class="text-[10px] uppercase font-medium">Kolkata, WB</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">3h ago</span>
+</div>
+</div>
+<!-- Card 6 -->
+<div class="group flex flex-col bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm active:opacity-90 transition-all">
+<div class="relative aspect-square">
+<img alt="White Smartwatch" class="w-full h-full object-cover" data-alt="sleek modern smartwatch with a white band lying on a soft grey textile background with dramatic soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSbt51JwbYsz8_fionbFdezafxcEsZgkgLRM2YzpQVXFfQDpfJfRku3TbnktoO7YzLi2f5QBrOdKDIxcjSY2_KlQf390UzLr6vI4rqOm-wVBYFMKDnSOoHzb9emcUxMExLRTPP2xInxe3Dacz-G8OnJT5gT_sZoyTa6_KmRlnDFYoeQgIJedLbjV64wJSHaJftWEpSlfk0LetuJd-x8FhyEi9nGKRpVAEAH49yJLHlGSb2Kr3Pmro1CfuFc6LXraPOHZgBVyndGuE"/>
+<button class="absolute top-2 right-2 glass-card p-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="p-3 flex flex-col gap-1">
+<span class="font-price-md text-primary">₹32,500</span>
+<h3 class="font-h3 text-[14px] line-clamp-1 leading-tight text-on-surface">Apple Watch Series 8</h3>
+<div class="flex items-center gap-1 mt-1 text-slate-500">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span class="text-[10px] uppercase font-medium">Pune, MH</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">6h ago</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-white/90 backdrop-blur-lg border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-2xl">
+<button class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#27BB97] py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="search" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Search</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-primary-container text-3xl" data-icon="add_circle">add_circle</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Sell</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Messages</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Profile</span>
+</button>
+</nav>
+</body></html>

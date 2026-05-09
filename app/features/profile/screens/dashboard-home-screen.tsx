@@ -1,13 +1,15 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchProfile } from "@/store/slices/auth-slice";
 
-const profileImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDCc0mV6IN8kslA4EAKIewHp_QTTej8yzGqae62e4jfP0Qrt5gmaqc5iwXH_cYLv1gET1rYZgNGR1bChkvLdKh9vb59xU13n83r8V2MDfZT2jd7372hvmsXxdmVFKW91aE3S7UzPKPCy-QF5Jgk_ZriQMlgVt9vgGMjDWn3DeB9McDl9FJ3jRuvHkYct1SlaO16ewJMX5vuCtYd-oWCfILVJ3U4Zs7capsMewr5vefsTRoJoU6qoVUkljlG3jaZTikJImZ5THLYq_4";
+const defaultAvatar = "https://ui-avatars.com/api/?name=User&background=27BB97&color=fff&size=128";
 
 type MenuItem = {
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
@@ -44,29 +46,37 @@ export function DashboardHomeScreen() {
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((s) => s.auth.user);
+
+  useEffect(() => {
+    dispatch(fetchProfile());
+  }, [dispatch]);
+
+  const profileImageUri =
+    user?.profileImageUrl ?? user?.profileImage ?? user?.googleProfileImage ?? user?.avatar ?? defaultAvatar;
+
+  const displayName = user?.name || "User";
+  const displayEmail = user?.email || "";
+  const isVerified = user?.isVerified ?? false;
 
   const stats = [
-    { value: "12", label: "Listings", onPress: () => router.push("/my-listings-active") },
+    { value: "—", label: "Listings", onPress: () => router.push("/my-listings-active") },
     {
-      value: "450",
+      value: "—",
       label: "Followers",
       onPress: () =>
         router.push({ pathname: "/followers-following", params: { tab: "followers" } }),
     },
     {
-      value: "89",
+      value: "—",
       label: "Following",
       onPress: () =>
         router.push({ pathname: "/followers-following", params: { tab: "following" } }),
     },
   ];
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") { router.push("/home-feed-root"); return; }
-    if (tabId === "sell") { router.push("/sell-entry"); return; }
-    if (tabId === "search") { router.push("/search-home"); return; }
-    if (tabId === "messages") { router.push("/messages-inbox"); return; }
-  };
+  const handleBottomTabPress = useTabNavigation();
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -95,16 +105,16 @@ export function DashboardHomeScreen() {
           <View className="mb-6 items-center">
             <View className="relative mb-4">
               <View className="h-24 w-24 overflow-hidden rounded-full border-2 border-[#006B55]" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 }}>
-                <Image source={profileImage} contentFit="cover" className="h-full w-full" />
+                <Image source={profileImageUri} contentFit="cover" className="h-full w-full" />
               </View>
               <View className="absolute bottom-1 right-1 h-5 w-5 rounded-full border-4 border-white bg-green-500" />
             </View>
             <View className="items-center">
               <View className="flex-row items-center gap-1 mb-1">
-                <Text className="text-[24px] font-bold tracking-tight text-[#161D1A]">Arjun Sharma</Text>
-                <MaterialIcons name="verified" size={20} color="#006B55" />
+                <Text className="text-[24px] font-bold tracking-tight text-[#161D1A]">{displayName}</Text>
+                {isVerified && <MaterialIcons name="verified" size={20} color="#006B55" />}
               </View>
-              <Text className="text-[14px] text-[#3C4A44]">arjun.s@gmail.com</Text>
+              <Text className="text-[14px] text-[#3C4A44]">{displayEmail}</Text>
             </View>
           </View>
 

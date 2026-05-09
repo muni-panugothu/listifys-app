@@ -14,6 +14,8 @@ const deviceService = require("../services/device.service");
 const s3Service = require("../services/s3.service");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
+const redis = require("../config/redis");
+const { invalidateAuthCache } = require("../middleware/auth.middleware");
 
 // ── RabbitMQ Producers (non-blocking async side-effects) ───────────────────────
 const {
@@ -39,6 +41,50 @@ const {
   refreshTokens,
   maskOtp,
 } = require("../utils/tokenUtils");
+
+const PROFILE_CACHE_TTL_SECONDS = 300;
+const DEVICES_CACHE_TTL_SECONDS = 180;
+const ACTIVITY_CACHE_TTL_SECONDS = 180;
+
+const getResolvedProfileImage = (user) =>
+  s3Service.toProxyUrl(
+    user?.getProfileImage
+      ? user.getProfileImage()
+      : user?.profileImage || user?.googleProfileImage || user?.avatar || null,
+  );
+
+const readJsonCache = async (key) => {
+  try {
+    const cached = await redis.get(key);
+    if (!cached) return null;
+    return typeof cached === 'string' ? JSON.parse(cached) : cached;
+  } catch (_) {
+    return null;
+  }
+};
+
+const writeJsonCache = async (key, value, ttlSeconds) => {
+  try {
+    await redis.setex(key, ttlSeconds, JSON.stringify(value));
+  } catch (_) {
+    // Non-fatal cache path.
+  }
+};
+
+const invalidateAccountCaches = async (userId) => {
+  try {
+    const id = String(userId);
+    invalidateAuthCache(id);
+    await Promise.all([
+      redis.del(`profile:${id}`),
+      redis.del(`devices:${id}`),
+      redis.del(`activity:${id}`),
+      redis.del(`settings:${id}`),
+    ]);
+  } catch (_) {
+    // Non-fatal cache path.
+  }
+};
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -95,6 +141,8 @@ const sendTokenResponse = async (user, statusCode, res, message) => {
       success: true,
       message,
       user: userResponse,
+      accessToken,
+      refreshToken,
     });
   } catch (error) {
     logger.error("❌ Error sending token response:", error);
@@ -386,6 +434,8 @@ exports.login = async (req, res) => {
       success: true,
       message: "Login successful",
       user: userResponse,
+      accessToken,
+      refreshToken,
       cachedImage, // { url, name, cachedAt } or null
     });
 
@@ -441,6 +491,24 @@ exports.googleTokenAuth = async (req, res) => {
     }
 
     const { user, isNew } = await handleGoogleAuth(resolvedToken, req);
+
+    // Upload Google profile picture to S3 if the user doesn't already have one
+    if (user.googleProfileImage && !user.profileImage) {
+      try {
+        const uploadResult = await s3Service.uploadRemoteProfileImage(
+          user.googleProfileImage,
+          user._id.toString(),
+        );
+        if (uploadResult?.imageUrl) {
+          user.profileImage = uploadResult.imageUrl;
+          user.profileImageKey = uploadResult.key;
+          await user.save();
+          logger.info('✅ Google profile image uploaded to S3', { userId: user._id });
+        }
+      } catch (imgErr) {
+        logger.warn('Could not upload Google profile image to S3:', imgErr.message);
+      }
+    }
 
     // Generate tokens (pass req for fingerprint binding)
     const accessToken = generateAccessToken(user._id, req);
@@ -532,6 +600,8 @@ exports.googleTokenAuth = async (req, res) => {
       success: true,
       message,
       user: userResponse,
+      accessToken,
+      refreshToken,
       cachedImage, // { url, name, cachedAt } or null
     });
   } catch (error) {
@@ -679,6 +749,7 @@ exports.uploadProfileImage = async (req, res) => {
               profileImage: uploadResult.imageUrl,
               profileImageKey: uploadResult.key,
               profileImageThumbnail: uploadResult.imageUrl,
+              updatedAt: new Date(),
             },
           },
           { returnDocument: 'after' }
@@ -710,10 +781,7 @@ exports.uploadProfileImage = async (req, res) => {
       );
     } catch (_) { /* non-critical */ }
 
-    const profileImageUrl = s3Service.toProxyUrl(
-      user.getProfileImage ? user.getProfileImage() : 
-      (user.profileImage || user.googleProfileImage || user.avatar || null)
-    );
+    const profileImageUrl = getResolvedProfileImage(user);
 
     // Update Redis image cache with the proxy URL
     try {
@@ -722,6 +790,8 @@ exports.uploadProfileImage = async (req, res) => {
         name: user.name,
       });
     } catch (_) { /* non-critical */ }
+
+    await invalidateAccountCaches(userId);
 
     res.status(200).json({
       success: true,
@@ -732,6 +802,7 @@ exports.uploadProfileImage = async (req, res) => {
         ...user.toJSON(),
         profileImage: s3Service.toProxyUrl(uploadResult.imageUrl),
         profileImageUrl: profileImageUrl,
+        updatedAt: user.updatedAt,
       }
     });
   } catch (error) {
@@ -774,6 +845,12 @@ exports.generateUploadUrl = async (req, res) => {
 // ==================== GET USER DEVICES ====================
 exports.getUserDevices = async (req, res) => {
   try {
+    const cacheKey = `devices:${req.user.id}`;
+    const cached = await readJsonCache(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     const user = await User.findById(req.user.id);
 
     const formattedDevices = user.devices.map((device) =>
@@ -794,11 +871,15 @@ exports.getUserDevices = async (req, res) => {
       }
     }
 
-    res.status(200).json({
+    const payload = {
       success: true,
       devices: formattedDevices,
       currentDeviceId,
-    });
+    };
+
+    await writeJsonCache(cacheKey, payload, DEVICES_CACHE_TTL_SECONDS);
+
+    res.status(200).json(payload);
   } catch (error) {
     logger.error("❌ Get user devices error:", error);
     res.status(500).json({
@@ -868,6 +949,87 @@ exports.getLoginHistory = async (req, res) => {
   }
 };
 
+// ==================== GET USER ACTIVITY LOG ====================
+exports.getActivityLog = async (req, res) => {
+  try {
+    const cacheKey = `activity:${req.user.id}`;
+    const cached = await readJsonCache(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
+    const user = await User.findById(req.user.id).select("loginHistory securityLogs");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const loginEvents = (user.loginHistory || []).map((entry) => ({
+      id: `login-${entry._id || entry.timestamp?.getTime?.() || Math.random()}`,
+      type: entry.success ? 'login' : 'login-failed',
+      title: entry.success ? 'Signed in' : 'Failed sign-in attempt',
+      description: entry.success
+        ? `${entry.deviceName || 'Unknown device'}${entry.location?.city || entry.location?.country ? ` from ${[entry.location?.city, entry.location?.country].filter(Boolean).join(', ')}` : ''}`
+        : entry.failureReason || 'Login attempt failed',
+      timestamp: entry.timestamp,
+      metadata: {
+        ipAddress: entry.ipAddress,
+        deviceName: entry.deviceName,
+        loginType: entry.loginType,
+        success: entry.success,
+      },
+    }));
+
+    const securityEvents = (user.securityLogs || []).map((entry) => ({
+      id: `security-${entry._id || entry.timestamp?.getTime?.() || Math.random()}`,
+      type: entry.action || 'security',
+      title:
+        entry.action === 'profile_updated'
+          ? 'Updated profile details'
+          : entry.action === 'profile_image_updated'
+            ? 'Changed profile image'
+            : entry.action === 'password_changed'
+              ? 'Changed password'
+              : entry.action === 'failed_login'
+                ? 'Security alert'
+                : 'Security activity',
+      description:
+        entry.action === 'profile_updated'
+          ? 'Your account profile information was updated.'
+          : entry.action === 'profile_image_updated'
+            ? 'Your dashboard avatar was changed.'
+            : entry.action === 'password_changed'
+              ? 'Your password was updated successfully.'
+              : entry.details?.reason || 'A security-related action was recorded.',
+      timestamp: entry.timestamp,
+      metadata: entry.details || {},
+    }));
+
+    const activity = [...loginEvents, ...securityEvents]
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 100);
+
+    const payload = {
+      success: true,
+      summary: {
+        totalActions: activity.length,
+        successfulLogins: loginEvents.filter((entry) => entry.type === 'login').length,
+        securityEvents: securityEvents.length,
+      },
+      activity,
+    };
+
+    await writeJsonCache(cacheKey, payload, ACTIVITY_CACHE_TTL_SECONDS);
+
+    res.status(200).json(payload);
+  } catch (error) {
+    logger.error("❌ Get activity log error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get activity log",
+    });
+  }
+};
+
 // ==================== REVOKE DEVICE ====================
 exports.revokeDevice = async (req, res) => {
   try {
@@ -912,6 +1074,8 @@ exports.revokeDevice = async (req, res) => {
     // Remove device
     user.devices = user.devices.filter((d) => d.deviceId !== deviceId);
     await user.save();
+
+    await invalidateAccountCaches(userId);
 
     logger.info("✅ Device revoked", { userId, deviceId });
 
@@ -1456,6 +1620,12 @@ exports.checkAuth = async (req, res) => {
 // ==================== GET PROFILE ====================
 exports.getProfile = async (req, res) => {
   try {
+    const cacheKey = `profile:${req.user.id}`;
+    const cached = await readJsonCache(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     const user = req.user;
     const [passwordProbeUser, followCounts] = await Promise.all([
       User.findById(user._id).select("+password"),
@@ -1471,10 +1641,7 @@ exports.getProfile = async (req, res) => {
     const followersCount = followCounts[0]?.followersCount || 0;
     const followingCount = followCounts[0]?.followingCount || 0;
 
-    const profileImageUrl = s3Service.toProxyUrl(
-      user.getProfileImage ? user.getProfileImage() : 
-      (user.profileImage || user.googleProfileImage || user.avatar || null)
-    );
+    const profileImageUrl = getResolvedProfileImage(user);
 
     const userResponse = {
       id: user._id,
@@ -1489,6 +1656,7 @@ exports.getProfile = async (req, res) => {
       googleProfileImage: user.googleProfileImage,
       isVerified: user.isVerified,
       createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       phone: user.phone || null,
       address: user.address || null,
       bio: user.bio || null,
@@ -1501,16 +1669,22 @@ exports.getProfile = async (req, res) => {
         emailNotifications: user.preferences?.emailNotifications ?? true,
         pushNotifications: user.preferences?.pushNotifications ?? true,
         marketingEmails: user.preferences?.marketingEmails ?? false,
+        twoFactorAuth: user.preferences?.twoFactorAuth ?? false,
+        theme: user.preferences?.theme ?? 'auto',
       },
       passwordExpiration: user.passwordNeedsChange
         ? user.passwordNeedsChange()
         : null,
     };
 
-    res.status(200).json({
+    const payload = {
       success: true,
       user: userResponse,
-    });
+    };
+
+    await writeJsonCache(cacheKey, payload, PROFILE_CACHE_TTL_SECONDS);
+
+    res.status(200).json(payload);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -1528,6 +1702,7 @@ exports.updateProfile = async (req, res) => {
     if (name !== undefined && name !== "") updateData.name = name;
     if (address !== undefined) updateData.address = address; // allow empty string to clear
     if (bio !== undefined) updateData.bio = bio; // allow empty string to clear
+    updateData.updatedAt = new Date();
 
     // Gender normalisation
     if (gender !== undefined && gender !== "") {
@@ -1610,10 +1785,7 @@ exports.updateProfile = async (req, res) => {
       logger.warn("Could not log profile update activity:", logErr.message);
     }
 
-    const profileImageUrl = s3Service.toProxyUrl(
-      user.getProfileImage ? user.getProfileImage() : 
-      (user.profileImage || user.googleProfileImage || user.avatar || null)
-    );
+    const profileImageUrl = getResolvedProfileImage(user);
     const passwordProbeUser = await User.findById(user._id).select("+password");
     const hasPassword = !!passwordProbeUser?.password;
 
@@ -1622,6 +1794,8 @@ exports.updateProfile = async (req, res) => {
       await invalidateEntityCache("srvcReviewProv");
       await invalidateEntityCache("srvcReviewList");
     } catch (_) { /* bypass cache err */ }
+
+    await invalidateAccountCaches(user._id);
 
     const userResponse = {
       id: user._id,
@@ -1641,6 +1815,7 @@ exports.updateProfile = async (req, res) => {
       googleProfileImage: user.googleProfileImage || null,
       isVerified: user.isVerified,
       profileImageUrl: profileImageUrl,
+      updatedAt: user.updatedAt,
     };
 
     res.status(200).json({
@@ -1670,7 +1845,8 @@ exports.updateProfile = async (req, res) => {
 // ==================== FIXED: CHANGE PASSWORD with backward compatibility ====================
 exports.changePassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, confirmNewPassword, confirmPassword } = req.body;
+    const confirmation = confirmNewPassword ?? confirmPassword;
 
     logger.debug("Change password request received", { userId: req.user.id });
 
@@ -1678,6 +1854,13 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Please provide current password and new password",
+      });
+    }
+
+    if (confirmation !== undefined && confirmation !== newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New passwords do not match",
       });
     }
 
@@ -2121,7 +2304,7 @@ exports.resendForgotPasswordOTP = async (req, res) => {
 exports.resetPasswordWithToken = async (req, res) => {
   try {
     const { resetToken } = req.params;
-    const { email, password, confirmPassword } = req.body;
+    const { email, password } = req.body;
 
     logger.debug("Reset password request received", { email });
 
@@ -2144,13 +2327,6 @@ exports.resetPasswordWithToken = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Password is required",
-      });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Passwords do not match",
       });
     }
 
@@ -2665,19 +2841,12 @@ exports.resetPassword = async (req, res) => {
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, confirmPassword, phone } = req.body;
+    const { name, email, password, phone } = req.body;
 
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
-      });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Passwords do not match",
       });
     }
 
@@ -3123,15 +3292,19 @@ exports.verifyEmailChange = async (req, res) => {
 // ==================== PHONE AUTH: SEND OTP ====================
 /**
  * POST /api/auth/phone/send-otp
- * Body: { phone: "+919876543210" }
- * Sends a 6-digit OTP via Twilio SMS. Stores hashed OTP in Redis.
+ * Body: { phone: "+919876543210", channel?: "sms" | "whatsapp" }
+ * Sends a 6-digit OTP via Twilio SMS or WhatsApp. Stores hashed OTP in Redis.
  */
 exports.phoneSendOTP = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, channel = "sms" } = req.body;
 
     if (!phone) {
       return res.status(400).json({ success: false, message: "Phone number is required" });
+    }
+
+    if (!["sms", "whatsapp"].includes(channel)) {
+      return res.status(400).json({ success: false, message: "Channel must be 'sms' or 'whatsapp'" });
     }
 
     const normalizedPhone = TwilioService.normalizePhone(phone);
@@ -3150,7 +3323,7 @@ exports.phoneSendOTP = async (req, res) => {
     }
 
     const otp = OTPGenerator.generateOTP();
-    logger.info(`Generated phone OTP for ${normalizedPhone.slice(0, 5)}****`);
+    logger.info(`Generated phone OTP for ${normalizedPhone.slice(0, 5)}****`, { channel });
 
     // Store OTP hashed in Redis (keyed by phone number)
     const otpStored = await RedisService.storeOTP(phoneKey, otp);
@@ -3158,23 +3331,28 @@ exports.phoneSendOTP = async (req, res) => {
       return res.status(500).json({ success: false, message: "Failed to generate OTP. Try again." });
     }
 
-    // Send via Twilio
-    const smsResult = await TwilioService.sendOTP(normalizedPhone, otp);
-    if (!smsResult.success) {
+    // Send via selected channel
+    const sendResult = channel === "whatsapp"
+      ? await TwilioService.sendWhatsAppOTP(normalizedPhone, otp)
+      : await TwilioService.sendOTP(normalizedPhone, otp);
+
+    if (!sendResult.success) {
       await RedisService.deleteOTP(phoneKey);
-      logger.error("SMS OTP send failed", { error: smsResult.error });
+      logger.error(`${channel.toUpperCase()} OTP send failed`, { error: sendResult.error });
       return res.status(500).json({
         success: false,
-        message: "Failed to send OTP. Please check your phone number and try again.",
+        message: `Failed to send OTP via ${channel === "whatsapp" ? "WhatsApp" : "SMS"}. Please try again.`,
       });
     }
 
     await RedisService.incrementRegistrationAttempts(phoneKey);
 
+    const channelLabel = channel === "whatsapp" ? "WhatsApp" : "SMS";
     res.status(200).json({
       success: true,
-      message: "OTP sent to your phone number.",
+      message: `OTP sent via ${channelLabel} to your phone number.`,
       phone: normalizedPhone.slice(0, 5) + "****" + normalizedPhone.slice(-2),
+      channel,
       expiresIn: 300,
     });
   } catch (error) {

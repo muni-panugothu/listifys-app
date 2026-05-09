@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e3eae5",
+                        "on-primary-container": "#004535",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#eff5f0",
+                        "on-primary-fixed-variant": "#00513f",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#dde4df",
+                        "secondary-container": "#5ba2ff",
+                        "on-surface": "#161d1a",
+                        "on-secondary-container": "#00376b",
+                        "tertiary": "#755b00",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-fixed": "#75f9d2",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#55dcb6",
+                        "on-tertiary-fixed-variant": "#584400",
+                        "on-background": "#161d1a",
+                        "tertiary-fixed": "#ffe08e",
+                        "primary-fixed-dim": "#55dcb6",
+                        "primary": "#006b55",
+                        "outline-variant": "#bbcac3",
+                        "on-surface-variant": "#3c4a44",
+                        "surface-tint": "#006b55",
+                        "surface": "#f4fbf6",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#cba100",
+                        "on-tertiary-fixed": "#241a00",
+                        "surface-bright": "#f4fbf6",
+                        "secondary": "#005fb0",
+                        "on-error": "#ffffff",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "surface-variant": "#dde4df",
+                        "surface-dim": "#d5dcd7",
+                        "surface-container": "#e9efeb",
+                        "primary-container": "#27bb97",
+                        "background": "#f4fbf6",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#ecf2ed",
+                        "inverse-surface": "#2b322f",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "on-tertiary-container": "#4b3a00",
+                        "on-secondary-fixed": "#001c3b",
+                        "on-primary": "#ffffff",
+                        "outline": "#6c7a74",
+                        "on-secondary-fixed-variant": "#004786",
+                        "on-primary-fixed": "#002118"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack_gap_sm": "8px",
+                        "grid_gutter": "12px",
+                        "container_margin": "16px",
+                        "stack_gap_xs": "4px",
+                        "stack_gap_lg": "24px",
+                        "stack_gap_md": "16px"
+                    },
+                    "fontFamily": {
+                        "price-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "h1": ["Inter"],
+                        "price-lg": ["Inter"],
+                        "h3": ["Inter"]
+                    },
+                    "fontSize": {
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .category-card:active { transform: scale(0.96); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-32">
+<!-- Top Navigation -->
+<header class="fixed top-0 left-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 flex justify-between items-center px-4 h-16">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-50 transition-colors active:opacity-70">
+<span class="material-symbols-outlined text-slate-900" data-icon="close">close</span>
+</button>
+<h1 class="font-h2 text-h2 text-slate-900">Sell</h1>
+<div class="w-10"></div> <!-- Spacer for centering -->
+</header>
+<main class="pt-24 px-4 max-w-lg mx-auto">
+<!-- Hero Section -->
+<div class="mb-8">
+<h2 class="font-h1 text-h1 text-on-background mb-2">What are you offering?</h2>
+<p class="font-body-lg text-body-lg text-outline">Choose a category to start listing your item for thousands of buyers.</p>
+</div>
+<!-- Category Grid -->
+<div class="grid grid-cols-2 gap-4 mb-10">
+<!-- Electronics -->
+<div class="category-card p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex flex-col items-center justify-center text-center transition-all">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="devices">devices</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Electronics</span>
+</div>
+<!-- Vehicles -->
+<div class="category-card p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex flex-col items-center justify-center text-center transition-all">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="directions_car">directions_car</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Vehicles</span>
+</div>
+<!-- Property -->
+<div class="category-card p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex flex-col items-center justify-center text-center transition-all">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="home_work">home_work</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Property</span>
+</div>
+<!-- Fashion -->
+<div class="category-card p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex flex-col items-center justify-center text-center transition-all">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="apparel">apparel</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Fashion</span>
+</div>
+<!-- Home -->
+<div class="category-card p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex flex-col items-center justify-center text-center transition-all">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="chair">chair</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Home</span>
+</div>
+<!-- Jobs -->
+<div class="category-card p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex flex-col items-center justify-center text-center transition-all">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="work">work</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Jobs</span>
+</div>
+</div>
+<!-- Featured Banner / Visual Anchor -->
+<div class="relative overflow-hidden rounded-2xl bg-on-primary-container p-6 mb-10 h-48 flex items-end">
+<img alt="Selling background" class="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay" data-alt="vibrant marketplace scene with soft sunlight, people interacting at a clean modern booth with high-tech electronics and green accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBitXIseT__b9o7MK-VxwZYKCmFhF0W1GGHZSwnmo92SgG0FDmRBIw2LYPPRkbvVpATytd5KfgFqxTx8CXq3WoLXgB52EYa3sKHGVJ95STgFkYwOxwzrs8c93nz7tzT45gNk_SnExz2EPSnDNrhzh4d8bJnBjc7UkXG0PMoFcNdhCB3u4tao8C_gK2NpZK49RJOcMDPdlPC1jO60JHmr01Wyyr8YtnFjbkzvHaJaFo64tkRT7RGhHsQsXXJqxw7n1_CT9kSFZyYJ-w"/>
+<div class="relative z-10">
+<h3 class="font-h3 text-h3 text-white mb-1">Make money today</h3>
+<p class="font-body-md text-body-md text-surface-container-low">Listing is free and takes less than a minute.</p>
+</div>
+</div>
+<!-- Primary Action -->
+<div class="sticky bottom-24 left-0 w-full px-4 mb-4">
+<button class="w-full h-14 bg-gradient-to-r from-[#27BB97] to-[#1E9E7E] text-white rounded-xl font-h3 text-h3 shadow-lg shadow-primary-container/20 active:scale-95 transition-transform">
+                Start Listing
+            </button>
+</div>
+</main>
+<!-- Shared Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-white/90 backdrop-blur-lg border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-2xl">
+<!-- Home -->
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[24px]" data-icon="home">home</span>
+<span class="font-sans text-[11px] font-medium tracking-wide mt-1">Home</span>
+</div>
+<!-- Search -->
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[24px]" data-icon="search">search</span>
+<span class="font-sans text-[11px] font-medium tracking-wide mt-1">Search</span>
+</div>
+<!-- Active Sell Destination -->
+<div class="flex flex-col items-center justify-center text-[#27BB97] py-1 transition-transform active:scale-95">
+<div class="bg-[#27BB97] text-white p-2 rounded-full -mt-8 shadow-lg shadow-primary-container/30 mb-1">
+<span class="material-symbols-outlined text-[28px]" data-icon="add_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+</div>
+<span class="font-sans text-[11px] font-semibold tracking-wide">Sell</span>
+</div>
+<!-- Messages -->
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[24px]" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-sans text-[11px] font-medium tracking-wide mt-1">Messages</span>
+</div>
+<!-- Profile -->
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[24px]" data-icon="person">person</span>
+<span class="font-sans text-[11px] font-medium tracking-wide mt-1">Profile</span>
+</div>
+</nav>
+</body></html>

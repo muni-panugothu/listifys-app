@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline-variant": "#bbcac3",
+                    "inverse-primary": "#55dcb6",
+                    "surface-dim": "#d5dcd7",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#dde4df",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#75f9d2",
+                    "on-background": "#161d1a",
+                    "secondary-fixed-dim": "#a6c8ff",
+                    "error": "#ba1a1a",
+                    "primary-container": "#27bb97",
+                    "surface-container": "#e9efeb",
+                    "surface-tint": "#006b55",
+                    "secondary": "#005fb0",
+                    "on-tertiary-container": "#4b3a00",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#2b322f",
+                    "on-tertiary-fixed": "#241a00",
+                    "surface-container-highest": "#dde4df",
+                    "on-surface-variant": "#3c4a44",
+                    "surface-container-high": "#e3eae5",
+                    "surface": "#f4fbf6",
+                    "inverse-on-surface": "#ecf2ed",
+                    "primary": "#006b55",
+                    "on-primary-container": "#004535",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#ffe08e",
+                    "surface-container-low": "#eff5f0",
+                    "tertiary-container": "#cba100",
+                    "on-error-container": "#93000a",
+                    "on-primary-fixed-variant": "#00513f",
+                    "secondary-fixed": "#d5e3ff",
+                    "tertiary": "#755b00",
+                    "background": "#f4fbf6",
+                    "surface-bright": "#f4fbf6",
+                    "error-container": "#ffdad6",
+                    "on-surface": "#161d1a",
+                    "on-secondary-fixed-variant": "#004786",
+                    "secondary-container": "#5ba2ff",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#f0c122",
+                    "primary-fixed-dim": "#55dcb6",
+                    "on-secondary-container": "#00376b",
+                    "outline": "#6c7a74",
+                    "on-secondary-fixed": "#001c3b",
+                    "on-primary-fixed": "#002118",
+                    "on-tertiary-fixed-variant": "#584400"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "grid_gutter": "12px",
+                    "container_margin": "16px",
+                    "stack_gap_sm": "8px",
+                    "stack_gap_md": "16px",
+                    "stack_gap_xs": "4px",
+                    "stack_gap_lg": "24px"
+            },
+            "fontFamily": {
+                    "h3": ["Inter"],
+                    "price-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "price-md": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-md": ["Inter"],
+                    "h2": ["Inter"],
+                    "label-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                    "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(0.98); }
+        }
+        .animate-brand {
+            animation: pulse-subtle 3s ease-in-out infinite;
+        }
+        .gradient-mesh {
+            background: radial-gradient(circle at 20% 30%, #27BB97 0%, transparent 50%),
+                        radial-gradient(circle at 80% 70%, #1E9E7E 0%, transparent 50%),
+                        linear-gradient(135deg, #27BB97 0%, #1E9E7E 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md overflow-hidden">
+<!-- Splash Screen Container -->
+<main class="relative flex-1 flex flex-col items-center justify-center min-h-screen w-full gradient-mesh">
+<!-- Abstract Glassmorphism Background Decoration -->
+<div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-white/10 rounded-full blur-[80px]"></div>
+<div class="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-white/5 rounded-full blur-[60px]"></div>
+<!-- Center Identity Branding -->
+<div class="relative z-10 flex flex-col items-center animate-brand">
+<!-- Brand Icon Container -->
+<div class="w-24 h-24 bg-white/20 backdrop-blur-md rounded-[24px] flex items-center justify-center shadow-2xl border border-white/30 mb-stack_gap_md">
+<span class="material-symbols-outlined text-white text-[48px]" data-icon="storefront">storefront</span>
+</div>
+<!-- Brand Typography -->
+<h1 class="font-h1 text-[42px] leading-tight text-white tracking-tighter drop-shadow-sm">
+                Listify
+            </h1>
+<p class="font-label-sm text-white/80 tracking-widest mt-2">
+                MARKETPLACE
+            </p>
+</div>
+<!-- Bottom Loading/Status Area -->
+<div class="absolute bottom-16 flex flex-col items-center space-y-stack_gap_md">
+<!-- Custom Styled Spinner -->
+<div class="relative w-10 h-10">
+<div class="absolute inset-0 rounded-full border-2 border-white/20"></div>
+<div class="absolute inset-0 rounded-full border-t-2 border-white animate-spin"></div>
+</div>
+<p class="font-label-sm text-white/70 tracking-widest uppercase">
+                Loading...
+            </p>
+</div>
+<!-- Aesthetic Footer Elements (Non-functional for Splash) -->
+<div class="absolute bottom-8 w-full flex justify-center opacity-30">
+<div class="h-1 w-32 bg-white rounded-full"></div>
+</div>
+</main>
+<!-- Hidden Image Data for Prompting (Decorative Background Element Simulation) -->
+<div class="hidden">
+<img data-alt="vibrant abstract digital background with soft mesh gradient from emerald green to deep teal, minimal glassmorphism style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1_2n64j9z0Q6wgDQMaYoiWD3JI4obsYkU77CnwHIn5eF7q9snJO_1_C7jP2aOGJHyfpqp-SINcpGMxL5oZ_rGbPzFo7zMI2p8K23b0WmM_sXCiscBv8ywqS08yYKzFfM1DTK8731Tb7xbeDg3oEgbdQ4u-7PPJ-S00kG92oqBCOuQJ3d5nsXeKjBV4ogS7k7iXFji2fU2GMYmJrDLDWUbTOar7mCnoudSxGDKjz62cF0MaIsHL7Uxxl_lArVeszy6iaMAj_jizSY"/>
+</div>
+</body></html>

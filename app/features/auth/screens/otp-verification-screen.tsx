@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -14,12 +16,24 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const OTP_LENGTH = 4;
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  clearError,
+  resendOtp,
+  sendPhoneOtp,
+  verifyOtp,
+  verifyPhoneOtp,
+} from "@/store/slices/auth-slice";
+
+const OTP_LENGTH = 6;
 const INITIAL_TIMER = 59;
 
 export function OtpVerificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { status, error, isAuthenticated, registrationEmail, registrationPhone } =
+    useAppSelector((s) => s.auth);
   const [otpDigits, setOtpDigits] = useState<string[]>(
     Array(OTP_LENGTH).fill(""),
   );
@@ -29,6 +43,41 @@ export function OtpVerificationScreen() {
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
   const isVerifyEnabled = otpDigits.every((digit) => digit.length === 1);
   const timerLabel = `00:${String(secondsRemaining).padStart(2, "0")}`;
+  const isLoading = status === "loading";
+
+  const maskedTarget = useMemo(() => {
+    if (registrationPhone) {
+      const digits = registrationPhone.replace(/\D/g, "");
+      if (digits.length >= 10) {
+        return `+${digits.slice(0, 2)} ${digits.slice(2, 5)}****${digits.slice(-2)}`;
+      }
+      return registrationPhone;
+    }
+
+    if (registrationEmail) {
+      const [name, domain] = registrationEmail.split("@");
+      if (!domain) {
+        return registrationEmail;
+      }
+      const safeName = name.length <= 2 ? `${name[0] || ""}*` : `${name.slice(0, 2)}***`;
+      return `${safeName}@${domain}`;
+    }
+
+    return "your contact";
+  }, [registrationEmail, registrationPhone]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/home-feed-root" as Href);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Verification Failed", error);
+      dispatch(clearError());
+    }
+  }, [error]);
 
   useEffect(() => {
     if (secondsRemaining === 0) {
@@ -65,9 +114,33 @@ export function OtpVerificationScreen() {
   };
 
   const handleResend = () => {
+    if (registrationPhone) {
+      dispatch(sendPhoneOtp({ phone: registrationPhone }));
+    } else if (registrationEmail) {
+      dispatch(resendOtp({ email: registrationEmail }));
+    } else {
+      return;
+    }
+
     setOtpDigits(Array(OTP_LENGTH).fill(""));
     setSecondsRemaining(INITIAL_TIMER);
     inputRefs.current[0]?.focus();
+  };
+
+  const handleVerify = () => {
+    if (!registrationEmail && !registrationPhone) {
+      Alert.alert("Error", "Registration session expired. Please start over.");
+      router.replace("/sign-up" as Href);
+      return;
+    }
+
+    const otp = otpDigits.join("");
+    if (registrationPhone) {
+      dispatch(verifyPhoneOtp({ phone: registrationPhone, otp }));
+      return;
+    }
+
+    dispatch(verifyOtp({ email: registrationEmail as string, otp }));
   };
 
   return (
@@ -134,10 +207,9 @@ export function OtpVerificationScreen() {
                 Verification Code
               </Text>
               <Text className="text-center text-[14px] leading-5 text-[#6C7A74]">
-                Enter the 4-digit code sent to
+                Enter the 6-digit code sent to
                 <Text className="font-semibold text-[#161D1A]">
-                  {" "}
-                  +91 98765-XXXXX
+                  {" "}{maskedTarget}
                 </Text>
               </Text>
             </View>
@@ -173,12 +245,13 @@ export function OtpVerificationScreen() {
             </View>
 
             <Pressable
-              disabled={!isVerifyEnabled}
+              onPress={handleVerify}
+              disabled={!isVerifyEnabled || isLoading}
               style={({ pressed }) => [
                 {
                   transform: [{ scale: pressed && isVerifyEnabled ? 0.98 : 1 }],
                 },
-                { opacity: isVerifyEnabled ? 1 : 0.5 },
+                { opacity: isVerifyEnabled && !isLoading ? 1 : 0.5 },
               ]}
               className="w-full overflow-hidden rounded-xl"
             >
@@ -195,9 +268,13 @@ export function OtpVerificationScreen() {
                   elevation: 6,
                 }}
               >
-                <Text className="text-[16px] font-semibold text-white">
-                  Verify
-                </Text>
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-[16px] font-semibold text-white">
+                    Verify
+                  </Text>
+                )}
               </LinearGradient>
             </Pressable>
 

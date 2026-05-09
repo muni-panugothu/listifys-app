@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "surface-container-high": "#e3eae5",
+                  "on-primary-container": "#004535",
+                  "surface-container-lowest": "#ffffff",
+                  "error": "#ba1a1a",
+                  "surface-container-low": "#eff5f0",
+                  "on-primary-fixed-variant": "#00513f",
+                  "on-error-container": "#93000a",
+                  "surface-container-highest": "#dde4df",
+                  "secondary-container": "#5ba2ff",
+                  "on-surface": "#161d1a",
+                  "on-secondary-container": "#00376b",
+                  "tertiary": "#755b00",
+                  "secondary-fixed": "#d5e3ff",
+                  "primary-fixed": "#75f9d2",
+                  "on-secondary": "#ffffff",
+                  "inverse-primary": "#55dcb6",
+                  "on-tertiary-fixed-variant": "#584400",
+                  "on-background": "#161d1a",
+                  "tertiary-fixed": "#ffe08e",
+                  "primary-fixed-dim": "#55dcb6",
+                  "primary": "#006b55",
+                  "outline-variant": "#bbcac3",
+                  "on-surface-variant": "#3c4a44",
+                  "surface-tint": "#006b55",
+                  "surface": "#f4fbf6",
+                  "on-tertiary": "#ffffff",
+                  "tertiary-container": "#cba100",
+                  "on-tertiary-fixed": "#241a00",
+                  "surface-bright": "#f4fbf6",
+                  "secondary": "#005fb0",
+                  "on-error": "#ffffff",
+                  "secondary-fixed-dim": "#a6c8ff",
+                  "surface-variant": "#dde4df",
+                  "surface-dim": "#d5dcd7",
+                  "surface-container": "#e9efeb",
+                  "primary-container": "#27bb97",
+                  "background": "#f4fbf6",
+                  "error-container": "#ffdad6",
+                  "inverse-on-surface": "#ecf2ed",
+                  "inverse-surface": "#2b322f",
+                  "tertiary-fixed-dim": "#f0c122",
+                  "on-tertiary-container": "#4b3a00",
+                  "on-secondary-fixed": "#001c3b",
+                  "on-primary": "#ffffff",
+                  "outline": "#6c7a74",
+                  "on-secondary-fixed-variant": "#004786",
+                  "on-primary-fixed": "#002118"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "full": "9999px"
+          },
+          "spacing": {
+                  "stack_gap_sm": "8px",
+                  "grid_gutter": "12px",
+                  "container_margin": "16px",
+                  "stack_gap_xs": "4px",
+                  "stack_gap_lg": "24px",
+                  "stack_gap_md": "16px"
+          },
+          "fontFamily": {
+                  "price-md": ["Inter"],
+                  "label-sm": ["Inter"],
+                  "h2": ["Inter"],
+                  "body-md": ["Inter"],
+                  "body-lg": ["Inter"],
+                  "h1": ["Inter"],
+                  "price-lg": ["Inter"],
+                  "h3": ["Inter"]
+          },
+          "fontSize": {
+                  "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                  "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                  "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                  "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                  "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                  "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                  "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                  "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #dde4df; border-radius: 10px; }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-24">
+<!-- TopAppBar Navigation -->
+<header class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 backdrop-blur-md z-50 border-b border-slate-100 shadow-sm">
+<div class="flex items-center gap-3">
+<button class="active:opacity-70 transition-opacity p-2 -ml-2 rounded-full hover:bg-slate-50">
+<span class="material-symbols-outlined text-slate-900">arrow_back</span>
+</button>
+<div class="flex flex-col">
+<span class="font-sans antialiased text-slate-900 font-h2 text-h2">Step 3 of 3</span>
+<span class="text-[10px] uppercase tracking-widest text-primary font-bold">Media &amp; Location</span>
+</div>
+</div>
+<button class="text-primary font-semibold font-label-sm text-label-sm active:opacity-70 transition-opacity px-4 py-2 rounded-lg hover:bg-surface-container-low">
+      Preview
+    </button>
+</header>
+<main class="pt-20 px-4 max-w-2xl mx-auto space-y-8">
+<!-- Section: Media Upload -->
+<section class="space-y-4">
+<div class="flex justify-between items-end">
+<h3 class="font-h3 text-h3 text-on-surface">Photos</h3>
+<span class="font-label-sm text-label-sm text-outline">2 / 10 images</span>
+</div>
+<div class="grid grid-cols-3 gap-3">
+<!-- Dashed Dropzone -->
+<div class="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-xl bg-surface-container-low hover:border-primary-container transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-3xl">add_a_photo</span>
+<span class="font-label-sm text-[10px] mt-2 text-outline group-hover:text-primary">Add More</span>
+</div>
+<!-- Thumbnail Preview 1 -->
+<div class="relative aspect-square rounded-xl overflow-hidden shadow-sm border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="studio shot of modern high-quality black headphones on a minimalist grey background with soft cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQ1pYpzc3XQwJC8FtkvuIPpZcepupw_AvLAWDdOL6dp-Ea26gOMyjGGPUgD3jGYDyu3y_eUAWhFd-NWPITzSaKEXfvoJfnheOH6pMvTDiPeVteb-L1PABvoXRg2GMiJF7kE_dcLMt9GQJtNeOua3JdZHWDxORN3AnzYqt9AmQBCvB4CirHMmhAjn8vHGYvXzEbvyvDYImHPqC4jSNDJWBMRzsSdS9Kmpe-bZ9tCVhjoJrmuVTQqLBjYmTw8LAtfGMYOBoFyb2nB7s"/>
+<button class="absolute top-1 right-1 bg-white/70 backdrop-blur-md rounded-full p-1 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[18px] text-error">close</span>
+</button>
+</div>
+<!-- Thumbnail Preview 2 -->
+<div class="relative aspect-square rounded-xl overflow-hidden shadow-sm border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="close-up of a minimalist white wristwatch with a light brown leather strap on a clean marble surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6WrS6NVnGu9l0nqopmUHiOQAhKXgaPiNdTvN676hG8rNLqRwQYbzsgYdLqS1nzIQOUOi4BWG-O0p-4SsyJ7uxgLWQ26UHyEfkwzWPBN2nwP_nIiTOJCTF6bcMSraL8Zd0fxaJx4AnD2avC_iQksoG1xdL3lpMPXKnNL2qPI9JYEikjKOXM4OLPpp0eHAhRRwgoCfyzkBnWezpZyfHUXjemQZDeKH9LpVupVnJxUF67DYIRyV9-UamupPFj8lO7Olyqlk_iXOi3rE"/>
+<button class="absolute top-1 right-1 bg-white/70 backdrop-blur-md rounded-full p-1 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[18px] text-error">close</span>
+</button>
+</div>
+</div>
+<p class="font-body-md text-label-sm text-outline px-1">Ads with high-quality photos get 5x more clicks.</p>
+</section>
+<!-- Section: Location -->
+<section class="space-y-4">
+<label class="font-label-sm text-label-sm text-on-surface block px-1">Item Location</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">location_on</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-primary-container transition-all" placeholder="Search for neighborhood or city..." type="text"/>
+</div>
+<button class="flex items-center gap-2 text-primary font-label-sm text-label-sm py-1 px-1 active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+        Use Current Location
+      </button>
+<!-- Map Snippet -->
+<div class="w-full h-40 rounded-2xl overflow-hidden border border-outline-variant shadow-sm relative group">
+<div class="absolute inset-0 bg-slate-200 animate-pulse hidden" id="map-loader"></div>
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="top-down satellite view of an organized urban neighborhood grid with green parks and clean streets" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKhbqcOHyENYUbAsV0AHhrzxGEk-9irSyTKaAU1haTPK7XUMKrbucZTC5FfOqXfqA2ZKrlTiR_ouoHvqGMu1BNjMxTTPrCwm_mSHUjAjAoc7yRu3mwdmaR11tSA4OHIFVXRb5OuFXA6EMXk_qWYfHgBtGxU_yo8CzVHvZXW9bNEuMGVIBD7n541h8E7azLsyHVqZxtgM6pEO4p2RWbKJfMyT2a-FhJAoPgAHdhymNBEbvsLlcitLoRq4R_spzdDdppmC5Lj3sfnPM"/>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+<span class="material-symbols-outlined text-primary text-4xl" style="font-variation-settings: 'FILL' 1;">location_on</span>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-1 bg-black/20 rounded-full blur-[2px]"></div>
+</div>
+<div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-outline-variant text-[11px] font-bold text-on-surface flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+          Indiranagar, Bangalore
+        </div>
+</div>
+</section>
+<!-- Section: Contact Info -->
+<section class="space-y-4">
+<label class="font-label-sm text-label-sm text-on-surface block px-1">Contact Details</label>
+<div class="flex gap-2">
+<!-- Country Code Picker -->
+<div class="relative w-28">
+<select class="w-full appearance-none pl-4 pr-10 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-primary-container transition-all">
+<option>+91</option>
+<option>+1</option>
+<option>+44</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-outline text-[20px]">keyboard_arrow_down</span>
+</div>
+<!-- Phone Input -->
+<div class="flex-1 relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">call</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-xl font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-primary-container transition-all" placeholder="Mobile number" type="tel"/>
+</div>
+</div>
+<div class="flex items-center gap-3 p-4 bg-primary-container/10 border border-primary-container/20 rounded-xl">
+<span class="material-symbols-outlined text-primary">verified_user</span>
+<p class="text-[11px] font-medium text-on-primary-container">We'll send a verification code to this number to prevent spam and ensure trust.</p>
+</div>
+</section>
+<!-- Policy Hint -->
+<p class="text-center font-body-md text-[12px] text-outline px-6">
+      By clicking "Post Ad Now", you agree to Listify's <span class="text-primary font-semibold">Terms of Use</span> and <span class="text-primary font-semibold">Privacy Policy</span>.
+    </p>
+</main>
+<!-- Footer CTA -->
+<footer class="fixed bottom-0 left-0 w-full z-50 px-4 py-6 bg-white/90 backdrop-blur-lg border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+<button class="w-full h-14 bg-gradient-to-r from-[#27BB97] to-[#1E9E7E] text-white font-h2 text-h2 rounded-2xl shadow-lg shadow-primary-container/25 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+      Post Ad Now
+      <span class="material-symbols-outlined">rocket_launch</span>
+</button>
+</footer>
+<!-- Floating Help Button (Contextual) -->
+<button class="fixed bottom-28 right-4 w-12 h-12 bg-white border border-outline-variant rounded-full shadow-lg flex items-center justify-center text-primary active:scale-95 transition-transform z-40">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</body></html>

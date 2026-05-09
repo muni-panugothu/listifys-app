@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-high": "#e3eae5",
+                    "on-primary-container": "#004535",
+                    "surface-container-lowest": "#ffffff",
+                    "error": "#ba1a1a",
+                    "surface-container-low": "#eff5f0",
+                    "on-primary-fixed-variant": "#00513f",
+                    "on-error-container": "#93000a",
+                    "surface-container-highest": "#dde4df",
+                    "secondary-container": "#5ba2ff",
+                    "on-surface": "#161d1a",
+                    "on-surface-variant": "#3c4a44",
+                    "surface-variant": "#dde4df",
+                    "primary": "#006b55",
+                    "primary-container": "#27bb97",
+                    "background": "#f4fbf6",
+                    "on-primary": "#ffffff",
+                    "outline": "#6c7a74",
+                    "surface": "#f4fbf6",
+                    "surface-container": "#e9efeb",
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "price-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "h2": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "h1": ["Inter"],
+                    "price-lg": ["Inter"],
+                    "h3": ["Inter"]
+            },
+            "fontSize": {
+                    "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                    "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+            font-size: 24px;
+        }
+        .glass-overlay {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+        }
+        .bottom-sheet-shadow {
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md">
+<!-- Background: Listing Detail (Blurred) -->
+<div class="fixed inset-0 overflow-hidden filter blur-md grayscale-[0.2] opacity-60">
+<!-- Top App Bar Mockup -->
+<header class="flex justify-between items-center px-4 h-16 w-full border-b border-surface-variant">
+<span class="text-xl font-black text-primary-container tracking-tight">Listify</span>
+<span class="material-symbols-outlined">notifications</span>
+</header>
+<main class="p-container_margin">
+<div class="aspect-square w-full rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover" data-alt="Premium wireless noise-cancelling headphones resting on a minimalist wooden desk with soft cinematic side lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-60orTud0V6xbMistsvis4PCyOH8Z6Rbp26u9UY3Y1bEQZhxeApI0dwM5cmx4xamlqgKqa57UXSCpq6Gzr9kmfujcdNZuQ-ZWjAlFBrJauFNZHe8MomQLnhdUIgCIhGkhrE5adQWc1exPudNxQNAQM2uR-ffaC9MgIY_RrkeVnTB6h0X8sWmPD4ROQ_ih5R_qzBmLTdWJztuUK1LrjW_5tUBVfDPtpqyJ6zWQzZyQ0vvymxA6udrE7oe-zaoHkINztRXTZ6nmRsY"/>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-start">
+<h1 class="font-h1 text-h1">Sony WH-1000XM5</h1>
+<span class="font-price-lg text-price-lg">₹24,999</span>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<span class="font-body-md text-body-md">Indiranagar, Bangalore</span>
+</div>
+<p class="font-body-md text-body-md mt-4">Pristine condition headphones, barely used for 2 months. Comes with original box and all accessories.</p>
+</div>
+</main>
+</div>
+<!-- Modal Overlay -->
+<div class="fixed inset-0 bg-on-surface/40 z-[60] flex items-end">
+<!-- Bottom Sheet -->
+<div class="w-full bg-surface-container-lowest rounded-t-[32px] bottom-sheet-shadow animate-slide-up max-h-[795px] overflow-y-auto">
+<!-- Pull Handle -->
+<div class="w-full flex justify-center py-4">
+<div class="w-12 h-1.5 bg-surface-variant rounded-full"></div>
+</div>
+<div class="px-6 pb-8">
+<!-- Header -->
+<div class="flex justify-between items-center mb-6">
+<h2 class="font-h2 text-h2 text-on-surface">Report this Ad</h2>
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Reason Selection -->
+<div class="space-y-2 mb-8">
+<label class="flex items-center p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-primary-container transition-all cursor-pointer group">
+<input checked="" class="w-5 h-5 text-primary border-outline focus:ring-primary-container transition-all" name="report_reason" type="radio"/>
+<span class="ml-4 font-body-lg text-body-lg flex-grow">Spam</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container">info</span>
+</label>
+<label class="flex items-center p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-primary-container transition-all cursor-pointer group">
+<input class="w-5 h-5 text-primary border-outline focus:ring-primary-container transition-all" name="report_reason" type="radio"/>
+<span class="ml-4 font-body-lg text-body-lg flex-grow">Fraud / Scams</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container">gavel</span>
+</label>
+<label class="flex items-center p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-primary-container transition-all cursor-pointer group">
+<input class="w-5 h-5 text-primary border-outline focus:ring-primary-container transition-all" name="report_reason" type="radio"/>
+<span class="ml-4 font-body-lg text-body-lg flex-grow">Duplicate Listing</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container">content_copy</span>
+</label>
+<label class="flex items-center p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-primary-container transition-all cursor-pointer group">
+<input class="w-5 h-5 text-primary border-outline focus:ring-primary-container transition-all" name="report_reason" type="radio"/>
+<span class="ml-4 font-body-lg text-body-lg flex-grow">Offensive Content</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container">sentiment_very_dissatisfied</span>
+</label>
+<label class="flex items-center p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-primary-container transition-all cursor-pointer group">
+<input class="w-5 h-5 text-primary border-outline focus:ring-primary-container transition-all" name="report_reason" type="radio"/>
+<span class="ml-4 font-body-lg text-body-lg flex-grow">Incorrect Category</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container">category</span>
+</label>
+</div>
+<!-- Comment Field -->
+<div class="mb-8">
+<label class="block font-label-sm text-label-sm text-on-surface mb-2">Additional Comments (Optional)</label>
+<textarea class="w-full bg-surface-container-low border border-surface-variant rounded-xl p-4 font-body-md text-body-md focus:ring-2 focus:ring-primary-container focus:border-primary-container outline-none transition-all" placeholder="Provide more details to help us investigate..." rows="3"></textarea>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-col gap-3">
+<button class="w-full h-12 bg-gradient-to-r from-error to-[#d32f2f] text-on-primary font-h3 text-h3 rounded-xl shadow-lg shadow-error/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" data-weight="fill">report</span>
+                        Submit Report
+                    </button>
+<button class="w-full h-12 bg-surface-container-high text-on-surface-variant font-h3 text-h3 rounded-xl active:scale-[0.98] transition-all">
+                        Cancel
+                    </button>
+</div>
+<!-- Safe Area Spacer (Mobile) -->
+<div class="h-6"></div>
+</div>
+</div>
+</div>
+<!-- Top App Bar (From Shared Components JSON) -->
+<nav class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-900 dark:text-slate-50 shadow-sm dark:shadow-none border-b border-slate-100 dark:border-slate-800 z-50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#27BB97]">storefront</span>
+<span class="text-xl font-black text-[#27BB97] tracking-tight">Listify</span>
+</div>
+<div class="p-2 rounded-full hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</div>
+</nav>
+<!-- Bottom Nav Bar (From Shared Components JSON) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">home</span>
+            Home
+        </a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">search</span>
+            Search
+        </a>
+<a class="flex flex-col items-center justify-center text-[#27BB97] py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+            Sell
+        </a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+            Messages
+        </a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 font-sans text-[11px] font-medium tracking-wide active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">person</span>
+            Profile
+        </a>
+</nav>
+</body></html>

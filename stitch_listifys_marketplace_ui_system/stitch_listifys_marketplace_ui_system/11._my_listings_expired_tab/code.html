@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e3eae5",
+                        "on-primary-container": "#004535",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#eff5f0",
+                        "on-primary-fixed-variant": "#00513f",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#dde4df",
+                        "secondary-container": "#5ba2ff",
+                        "on-surface": "#161d1a",
+                        "on-secondary-container": "#00376b",
+                        "tertiary": "#755b00",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-fixed": "#75f9d2",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#55dcb6",
+                        "on-tertiary-fixed-variant": "#584400",
+                        "on-background": "#161d1a",
+                        "tertiary-fixed": "#ffe08e",
+                        "primary-fixed-dim": "#55dcb6",
+                        "primary": "#006b55",
+                        "outline-variant": "#bbcac3",
+                        "on-surface-variant": "#3c4a44",
+                        "surface-tint": "#006b55",
+                        "surface": "#f4fbf6",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#cba100",
+                        "on-tertiary-fixed": "#241a00",
+                        "surface-bright": "#f4fbf6",
+                        "secondary": "#005fb0",
+                        "on-error": "#ffffff",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "surface-variant": "#dde4df",
+                        "surface-dim": "#d5dcd7",
+                        "surface-container": "#e9efeb",
+                        "primary-container": "#27bb97",
+                        "background": "#f4fbf6",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#ecf2ed",
+                        "inverse-surface": "#2b322f",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "on-tertiary-container": "#4b3a00",
+                        "on-secondary-fixed": "#001c3b",
+                        "on-primary": "#ffffff",
+                        "outline": "#6c7a74",
+                        "on-secondary-fixed-variant": "#004786",
+                        "on-primary-fixed": "#002118"
+                    },
+                    "spacing": {
+                        "stack_gap_sm": "8px",
+                        "grid_gutter": "12px",
+                        "container_margin": "16px",
+                        "stack_gap_xs": "4px",
+                        "stack_gap_lg": "24px",
+                        "stack_gap_md": "16px"
+                    },
+                    "fontSize": {
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased pb-24">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center px-4 h-16 w-full fixed top-0 bg-white/80 backdrop-blur-md z-50 border-b border-slate-100 shadow-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#27BB97]" data-icon="storefront">storefront</span>
+<span class="text-xl font-black text-[#27BB97] tracking-tight">Listify</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-slate-500" data-icon="notifications">notifications</span>
+</button>
+</div>
+</header>
+<main class="mt-16 px-4">
+<!-- Page Title & Tabs -->
+<div class="py-6 space-y-6">
+<h1 class="font-h1 text-h1 text-on-background">My Listings</h1>
+<div class="flex items-center gap-4 border-b border-surface-variant overflow-x-auto no-scrollbar">
+<button class="pb-3 px-1 font-label-sm text-label-sm text-on-surface-variant transition-colors">Active</button>
+<button class="pb-3 px-1 font-label-sm text-label-sm text-[#27BB97] border-b-2 border-[#27BB97]">Expired</button>
+<button class="pb-3 px-1 font-label-sm text-label-sm text-on-surface-variant transition-colors">Drafts</button>
+</div>
+</div>
+<!-- Filter/Count -->
+<div class="mb-4">
+<p class="font-body-md text-body-md text-on-surface-variant">You have 3 expired listings</p>
+</div>
+<!-- Expired Listings Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Card 1 -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden group">
+<div class="relative h-48 grayscale opacity-75">
+<img class="w-full h-full object-cover" data-alt="modern ergonomic office chair with mesh back on a minimalist white studio background with soft shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRal4dHTVCEzJtDbBOW6fPV9dclx7aUV5OSNRiAPaDJfcxh24lL8Wre8dsz1E9P29DTICT7xQcf8cTbC7vxf-vatXzSvRGdStgqTgZLqBE-8AkYJtV7lyIm1S9Zq2mm-CqV0Z6yWTKjl8jidwQcowdd0MrLj9C-J_mjm6BdYNJ0st3ijkV_QeMUbwUigNiz8_Kzk-m6obOuHdoHcmOQ4s4rt6v59NAcMVXt783NQ5sJGoJBjHB16UfeuFbUKJ2k-KvKucLqmVWs44"/>
+<div class="absolute top-3 right-3">
+<div class="bg-white/70 backdrop-blur-md p-2 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</div>
+</div>
+<div class="absolute top-3 left-3">
+<div class="bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-full">
+<span class="text-[10px] font-bold text-white uppercase tracking-wider">Expired 2 days ago</span>
+</div>
+</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="space-y-1">
+<h3 class="font-h3 text-h3 text-slate-500 line-clamp-1">ErgoComfort Pro Office Chair</h3>
+<div class="flex items-baseline gap-2">
+<span class="font-price-md text-price-md text-slate-400">₹4,999</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-label-sm text-label-sm">Furniture</span>
+</div>
+<button class="w-full bg-[#27BB97] text-white h-12 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined text-[18px]" data-icon="refresh">refresh</span>
+                        Republish
+                    </button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden group">
+<div class="relative h-48 grayscale opacity-75">
+<img class="w-full h-full object-cover" data-alt="professional mirrorless camera with prime lens on a dark oak wooden table with vintage lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUMAjEIvCyzGWkgyaxyIm9h4ou08Rm4w0JfJByC_Dizy8SnwjwbYi9hXjvfB_r-6h8XdRDCx_K60FnGNBemAC8ZexMssT9vqg9FXNksnSVn-9Hkj4wuspgXR4VawJYiw0ny05yGjxTePOZPvEaHCuNHopiy9wxdZH65Dej753O42QKxv-2EIaN72H3BCo9daFJHfdMwx3MliRYGJ_T_00kmm9W1alCfOfOPuLniI0BiCmxeUp3N5NYv7OEZ9qO455mDtuCANQf2_g"/>
+<div class="absolute top-3 right-3">
+<div class="bg-white/70 backdrop-blur-md p-2 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</div>
+</div>
+<div class="absolute top-3 left-3">
+<div class="bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-full">
+<span class="text-[10px] font-bold text-white uppercase tracking-wider">Expired 1 week ago</span>
+</div>
+</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="space-y-1">
+<h3 class="font-h3 text-h3 text-slate-500 line-clamp-1">Sony Alpha a6400 Mirrorless</h3>
+<div class="flex items-baseline gap-2">
+<span class="font-price-md text-price-md text-slate-400">₹58,000</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-label-sm text-label-sm">Electronics</span>
+</div>
+<button class="w-full bg-[#27BB97] text-white h-12 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined text-[18px]" data-icon="refresh">refresh</span>
+                        Republish
+                    </button>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden group">
+<div class="relative h-48 grayscale opacity-75">
+<img class="w-full h-full object-cover" data-alt="mountain bike leaning against a brick wall in an urban alley during sunset with long shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHTU801a8kbp3KXmZYsgVA_PJ7cRbLotShzFHwDTOts4Tx5kBk3BTTxFSaMO_fDJhNZm8t3CDfpKZ8dyeytjVxuE2YpVFXf8Aaul4qE9O6zMO9GwJ7frMS7RJ-h89TgJmgQQIUiWqeT_mOVBtllwlpEcwv-9cDE6BzPRsYT-TLi8UgbE9QM_0fNHjrzmBhXPpQBZyv_7aMJzlwjS5UlPl6nIaetVjmdslXMH6WlSnknbW577TuNohKEVjrAWRRPWwiuVfewS4yYyI"/>
+<div class="absolute top-3 right-3">
+<div class="bg-white/70 backdrop-blur-md p-2 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-slate-900 text-[20px]" data-icon="favorite">favorite</span>
+</div>
+</div>
+<div class="absolute top-3 left-3">
+<div class="bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-full">
+<span class="text-[10px] font-bold text-white uppercase tracking-wider">Expired yesterday</span>
+</div>
+</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="space-y-1">
+<h3 class="font-h3 text-h3 text-slate-500 line-clamp-1">Rockrider ST100 Mountain Bike</h3>
+<div class="flex items-baseline gap-2">
+<span class="font-price-md text-price-md text-slate-400">₹12,500</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-label-sm text-label-sm">Sports</span>
+</div>
+<button class="w-full bg-[#27BB97] text-white h-12 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined text-[18px]" data-icon="refresh">refresh</span>
+                        Republish
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-white/90 backdrop-blur-lg border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-2xl">
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 hover:text-[#27BB97] transition-colors cursor-pointer active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 hover:text-[#27BB97] transition-colors cursor-pointer active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Search</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#27BB97] py-1 cursor-pointer active:scale-95 duration-200">
+<span class="material-symbols-outlined text-3xl" data-icon="add_circle" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Sell</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 hover:text-[#27BB97] transition-colors cursor-pointer active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Messages</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 py-1 hover:text-[#27BB97] transition-colors cursor-pointer active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-sans text-[11px] font-medium tracking-wide">Profile</span>
+</div>
+</nav>
+</body></html>

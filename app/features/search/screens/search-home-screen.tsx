@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GUTTER = 12;
@@ -104,31 +105,7 @@ export function SearchHomeScreen() {
     });
   };
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") {
-      router.push("/home-feed-root");
-      return;
-    }
-
-    if (tabId === "sell") {
-      router.push("/sell-entry");
-      return;
-    }
-
-    if (tabId === "search") {
-      return;
-    }
-
-    if (tabId === "messages") {
-      router.push("/messages-inbox");
-      return;
-    }
-
-    if (tabId === "profile") {
-      router.push("/dashboard-home");
-      return;
-    }
-  };
+  const handleBottomTabPress = useTabNavigation();
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">

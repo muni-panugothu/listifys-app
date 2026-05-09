@@ -49,6 +49,7 @@ router.post(
 // ==================== DEVICE & SESSION ROUTES ====================
 router.get("/devices", protect, authController.getUserDevices);
 router.get("/login-history", protect, authController.getLoginHistory);
+router.get("/activity-log", protect, authController.getActivityLog);
 router.delete("/devices/:deviceId", protect, authController.revokeDevice);
 
 // ==================== OTP-based Registration routes ====================

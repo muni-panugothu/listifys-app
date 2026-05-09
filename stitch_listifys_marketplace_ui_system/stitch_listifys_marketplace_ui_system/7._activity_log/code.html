@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4fbf6;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#27bb97",
+                        "on-error-container": "#93000a",
+                        "primary-fixed-dim": "#55dcb6",
+                        "surface-dim": "#d5dcd7",
+                        "on-tertiary-fixed": "#241a00",
+                        "tertiary-container": "#cba100",
+                        "on-secondary-container": "#00376b",
+                        "on-primary-fixed-variant": "#00513f",
+                        "on-primary-container": "#004535",
+                        "tertiary": "#755b00",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "on-primary-fixed": "#002118",
+                        "surface-container": "#e9efeb",
+                        "on-tertiary-container": "#4b3a00",
+                        "inverse-on-surface": "#ecf2ed",
+                        "surface-container-high": "#e3eae5",
+                        "surface-variant": "#dde4df",
+                        "surface-tint": "#006b55",
+                        "on-background": "#161d1a",
+                        "primary-fixed": "#75f9d2",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#001c3b",
+                        "background": "#f4fbf6",
+                        "surface-container-highest": "#dde4df",
+                        "secondary": "#005fb0",
+                        "error-container": "#ffdad6",
+                        "outline": "#6c7a74",
+                        "on-surface": "#161d1a",
+                        "surface-container-low": "#eff5f0",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "secondary-fixed": "#d5e3ff",
+                        "inverse-surface": "#2b322f",
+                        "surface-bright": "#f4fbf6",
+                        "on-secondary-fixed-variant": "#004786",
+                        "inverse-primary": "#55dcb6",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#ffe08e",
+                        "on-surface-variant": "#3c4a44",
+                        "on-secondary": "#ffffff",
+                        "primary": "#006b55",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#bbcac3",
+                        "on-tertiary-fixed-variant": "#584400",
+                        "surface": "#f4fbf6",
+                        "secondary-container": "#5ba2ff",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Inter"],
+                        "h1": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "price-md": ["Inter"],
+                        "price-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h2": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen">
+<!-- Header Navigation -->
+<header class="fixed top-0 w-full z-50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md shadow-sm border-b border-gray-100 dark:border-gray-800 h-16 flex items-center justify-between px-4">
+<div class="flex items-center gap-4">
+<button class="active:scale-95 duration-200 text-[#27BB97]">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-['Inter'] text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50 uppercase tracking-widest text-[10px]">Activity Log</h1>
+</div>
+<button class="active:scale-95 duration-200 text-gray-500 dark:text-gray-400">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<main class="pt-24 pb-24 px-4 max-w-2xl mx-auto">
+<!-- Summary Stats Bento Section -->
+<div class="grid grid-cols-2 gap-3 mb-8">
+<div class="bg-white p-4 rounded-xl border border-[#F3F4F6] shadow-sm flex flex-col gap-1">
+<span class="text-on-surface-variant font-label-sm text-label-sm">Total Actions</span>
+<span class="font-price-lg text-price-lg text-primary">128</span>
+</div>
+<div class="bg-white p-4 rounded-xl border border-[#F3F4F6] shadow-sm flex flex-col gap-1">
+<span class="text-on-surface-variant font-label-sm text-label-sm">Trust Score</span>
+<span class="font-price-lg text-price-lg text-secondary">98%</span>
+</div>
+</div>
+<h2 class="font-h2 text-h2 mb-6">Recent Activity</h2>
+<div class="space-y-0 relative before:absolute before:inset-y-0 before:left-[19px] before:w-[2px] before:bg-surface-variant">
+<!-- Today Section -->
+<div class="relative pl-12 mb-8">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white z-10 shadow-md">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Today</span>
+<div class="bg-white p-4 rounded-xl border border-[#F3F4F6] shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-h3 text-h3 text-on-background">Listed 'Modern Desk'</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">14:20</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-3">Item added successfully to the Furniture category.</p>
+<div class="relative w-full h-32 rounded-lg overflow-hidden border border-gray-100">
+<img alt="Minimalist wooden desk" class="w-full h-full object-cover" data-alt="close-up of a minimalist wooden desk in a bright airy studio apartment with soft natural light hitting the surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7O30AXOLDVkXDa8TChxy17XT8_7I8nuJNG1QU24wmLa3Zb6xY5Z2i6z8KasvPsaYbF9fpLz7cfqT-xQWSg96_lNAnLPdhGI-7xt9EMnb1pgun7g_7cDk69_hs7VE_ifGZhuwz8j817CC2QGLFcn_CC4jo8U2k2yDTNyqW_0DGULDt1Y9_ZvQefYAdyc616KVyUGgqRpmaOIR50VFNPwUhk6PpGnKMn8EVLfkdajqissdJEbwdg6ik1R0mwSTUvGHC31eXIXYHRVw"/>
+<div class="absolute top-2 left-2 bg-white/70 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-primary">ACTIVE</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Yesterday Section -->
+<div class="relative pl-12 mb-8">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-white z-10 shadow-md">
+<span class="material-symbols-outlined" data-icon="devices">devices</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">Yesterday</span>
+<div class="bg-white p-4 rounded-xl border border-[#F3F4F6] shadow-sm">
+<div class="flex justify-between items-start">
+<h3 class="font-h3 text-h3 text-on-background">New login detected</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">09:15</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Logged in from a MacBook Pro in Mumbai, India.</p>
+<div class="mt-3 flex items-center gap-2 text-primary font-label-sm text-label-sm cursor-pointer hover:underline">
+<span class="material-symbols-outlined text-sm" data-icon="verified_user">verified_user</span>
+                            Recognize this device
+                        </div>
+</div>
+</div>
+</div>
+<!-- Aug 10 Section -->
+<div class="relative pl-12 mb-8">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-tertiary flex items-center justify-center text-white z-10 shadow-md">
+<span class="material-symbols-outlined" data-icon="face">face</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-tertiary uppercase tracking-wider">Aug 10</span>
+<div class="bg-white p-4 rounded-xl border border-[#F3F4F6] shadow-sm flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-100 flex-shrink-0">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="professional portrait of a young woman with a confident smile in soft warm studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQtODfJ8ZlRAIPaXskhHIPqGJF1WET2WY0zaANLr2KL6QxxCfVo5vtAiahdIOb1nJp-YkMZnrUhIwzTOqgVOqd-JwzOKU8hpvwpJYeVbOJVWubBF3IWozAB1W8fXbYwwo1tO024o6hZDZyQEV9fkiivzH8txgnjXniQIZ__lEtg1ybnlL1PfzGN1wk1fzlVpoak3pHz2PnKwj3edBT9aa1ggDZcV5iia9M1qMzCLxuu6FdG6Rcany0FRRNVC6Fl-TfPHTGyarskoo"/>
+</div>
+<div>
+<h3 class="font-h3 text-h3 text-on-background">Changed profile picture</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Your new identity looks great!</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Aug 08 Section -->
+<div class="relative pl-12">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-error flex items-center justify-center text-white z-10 shadow-md">
+<span class="material-symbols-outlined" data-icon="lock_reset">lock_reset</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-error uppercase tracking-wider">Aug 08</span>
+<div class="bg-white p-4 rounded-xl border border-[#F3F4F6] shadow-sm">
+<h3 class="font-h3 text-h3 text-on-background">Password updated</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Security credentials successfully modified.</p>
+<div class="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-error-container text-on-error-container rounded-full text-[10px] font-bold">
+                            SECURITY ALERT
+                        </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-2 py-3 pb-safe bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-t border-gray-100 dark:border-gray-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-50 rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-[#27BB97] transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-['Inter'] text-[10px] font-medium">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-[#27BB97] transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+<span class="font-['Inter'] text-[10px] font-medium">Search</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#27BB97] hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined text-4xl" data-icon="add_circle" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-[#27BB97] transition-colors active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="chat">chat</span>
+<span class="font-['Inter'] text-[10px] font-medium">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#27BB97] bg-teal-50 dark:bg-teal-900/20 rounded-xl px-3 py-1 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="person" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-['Inter'] text-[10px] font-medium">Profile</span>
+</a>
+</nav>
+</body></html>

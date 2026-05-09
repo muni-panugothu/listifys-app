@@ -88,12 +88,26 @@ const securityMiddleware = (req, res, next) => {
     const hasCookieHeader = typeof req.headers.cookie === 'string' && req.headers.cookie.length > 0;
     const hasFetchMetadata = typeof req.headers['sec-fetch-site'] === 'string';
     const apiClientPatterns = ['thunder client', 'postman', 'insomnia', 'curl/', 'httpie', 'paw/'];
+    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp/', 'dart', 'android', 'cfnetwork'];
     const isLikelyApiClient = !hasFetchMetadata && apiClientPatterns.some((pattern) => userAgent.includes(pattern));
-    const isLikelyNonBrowserClient = isLikelyApiClient || (!hasCookieHeader && !hasFetchMetadata);
+    const isLikelyMobileApp = !hasFetchMetadata && mobileAppPatterns.some((pattern) => userAgent.includes(pattern));
+    const isLikelyNonBrowserClient = isLikelyApiClient || isLikelyMobileApp || (!hasCookieHeader && !hasFetchMetadata);
 
     if (origin) {
       if (!isOriginAllowed(origin, allowedOrigins)) {
-        if (isLikelyNonBrowserClient) {
+        // Allow LAN/localhost origins in development (mobile dev builds)
+        let devBypass = false;
+        if (process.env.NODE_ENV !== 'production') {
+          try {
+            const parsed = new URL(origin);
+            const host = parsed.hostname;
+            if (host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host)) {
+              devBypass = true;
+            }
+          } catch (_) {}
+        }
+
+        if (isLikelyNonBrowserClient || devBypass) {
           return next();
         }
 

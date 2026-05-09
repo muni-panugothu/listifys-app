@@ -139,7 +139,7 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
   // ========== 1. INITIATE REGISTRATION ==========
   describe('1. Initiate Registration', () => {
     test('TC-R01: Should reject registration with missing fields', async () => {
-      req.body = { email: VALID_EMAIL }; // Missing name, password, confirmPassword
+      req.body = { email: VALID_EMAIL }; // Missing name, password
       await authController.initiateRegister(req, res);
 
       expect(res.statusCode).toBe(400);
@@ -151,7 +151,6 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
         name: VALID_NAME,
         email: 'not-an-email',
         password: STRONG_PASSWORD,
-        confirmPassword: STRONG_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);
@@ -160,18 +159,19 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
       expect(res._json.message).toMatch(/valid email/i);
     });
 
-    test('TC-R03: Should reject registration with password mismatch', async () => {
+    test('TC-R03: Should accept registration without confirmPassword', async () => {
+      mockUserFindOne.mockResolvedValue(null);
+
       req.body = {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: STRONG_PASSWORD,
-        confirmPassword: 'DifferentP@ss1!',
       };
 
       await authController.initiateRegister(req, res);
 
-      expect(res.statusCode).toBe(400);
-      expect(res._json.message).toMatch(/do not match/i);
+      expect(res.statusCode).toBe(200);
+      expect(res._json.success).toBe(true);
     });
 
     test('TC-R04: Should reject registration with weak password', async () => {
@@ -185,7 +185,6 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: WEAK_PASSWORD,
-        confirmPassword: WEAK_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);
@@ -194,23 +193,23 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
       expect(res._json.message).toMatch(/security requirements/i);
     });
 
-    test('TC-R05: Should reject registration if user already exists', async () => {
+    test('TC-R05: Should return generic success if user already exists', async () => {
       mockUserFindOne.mockResolvedValue(createMockUser());
       
       req.body = {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: STRONG_PASSWORD,
-        confirmPassword: STRONG_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);
 
-      expect(res.statusCode).toBe(400);
-      expect(res._json.message).toMatch(/already exists/i);
+      expect(res.statusCode).toBe(200);
+      expect(res._json.success).toBe(true);
+      expect(res._json.message).toMatch(/otp sent/i);
     });
 
-    test('TC-R06: Should reject registration if pending registration exists', async () => {
+    test('TC-R06: Should return generic success if pending registration exists', async () => {
       mockUserFindOne.mockResolvedValue(null);
       mockRedisService.getPendingRegistration.mockResolvedValue({
         email: VALID_EMAIL,
@@ -221,13 +220,13 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: STRONG_PASSWORD,
-        confirmPassword: STRONG_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);
 
-      expect(res.statusCode).toBe(400);
-      expect(res._json.message).toMatch(/already in progress/i);
+      expect(res.statusCode).toBe(200);
+      expect(res._json.success).toBe(true);
+      expect(res._json.message).toMatch(/otp sent/i);
     });
 
     test('TC-R07: Should reject if email is blocked (too many attempts)', async () => {
@@ -238,7 +237,6 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: STRONG_PASSWORD,
-        confirmPassword: STRONG_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);
@@ -253,7 +251,6 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: STRONG_PASSWORD,
-        confirmPassword: STRONG_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);
@@ -280,7 +277,6 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
         name: VALID_NAME,
         email: VALID_EMAIL,
         password: STRONG_PASSWORD,
-        confirmPassword: STRONG_PASSWORD,
       };
 
       await authController.initiateRegister(req, res);

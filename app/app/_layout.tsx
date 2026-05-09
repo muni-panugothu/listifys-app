@@ -6,15 +6,18 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
+import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { store } from "@/store";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <Provider store={store}>
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <Stack
@@ -191,5 +194,6 @@ export default function RootLayout() {
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>
+    </Provider>
   );
 }

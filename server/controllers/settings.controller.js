@@ -28,11 +28,33 @@ const s3Service = require("../services/s3.service");
 const RedisService = require("../services/redis.service");
 const { logger } = require("../utils/logger");
 const argon2 = require("argon2");
+const redis = require("../config/redis");
+const { invalidateAuthCache } = require("../middleware/auth.middleware");
+
+const invalidateSettingsCaches = async (userId) => {
+  try {
+    const id = String(userId);
+    invalidateAuthCache(id);
+    await Promise.all([
+      redis.del(`profile:${id}`),
+      redis.del(`settings:${id}`),
+      redis.del(`activity:${id}`),
+    ]);
+  } catch (_) {
+    // Cache invalidation is best-effort.
+  }
+};
 
 // ==================== UPDATE NOTIFICATION PREFERENCES ====================
 exports.updatePreferences = async (req, res) => {
   try {
-    const { emailNotifications, pushNotifications, marketingEmails } = req.body;
+    const {
+      emailNotifications,
+      pushNotifications,
+      marketingEmails,
+      twoFactorAuth,
+      theme,
+    } = req.body;
     const update = {};
 
     if (typeof emailNotifications === "boolean") {
@@ -43,6 +65,12 @@ exports.updatePreferences = async (req, res) => {
     }
     if (typeof marketingEmails === "boolean") {
       update["preferences.marketingEmails"] = marketingEmails;
+    }
+    if (typeof twoFactorAuth === "boolean") {
+      update["preferences.twoFactorAuth"] = twoFactorAuth;
+    }
+    if (typeof theme === "string" && ["light", "dark", "auto"].includes(theme)) {
+      update["preferences.theme"] = theme;
     }
 
     if (Object.keys(update).length === 0) {
@@ -59,6 +87,8 @@ exports.updatePreferences = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    await invalidateSettingsCaches(req.user.id);
+
     res.status(200).json({
       success: true,
       message: "Preferences updated",
@@ -66,6 +96,8 @@ exports.updatePreferences = async (req, res) => {
         emailNotifications: user.preferences.emailNotifications,
         pushNotifications: user.preferences.pushNotifications,
         marketingEmails: user.preferences.marketingEmails,
+        twoFactorAuth: user.preferences.twoFactorAuth,
+        theme: user.preferences.theme,
       },
     });
   } catch (error) {
@@ -88,6 +120,8 @@ exports.getPreferences = async (req, res) => {
         emailNotifications: user.preferences?.emailNotifications ?? true,
         pushNotifications: user.preferences?.pushNotifications ?? true,
         marketingEmails: user.preferences?.marketingEmails ?? false,
+        twoFactorAuth: user.preferences?.twoFactorAuth ?? false,
+        theme: user.preferences?.theme ?? 'auto',
       },
     });
   } catch (error) {

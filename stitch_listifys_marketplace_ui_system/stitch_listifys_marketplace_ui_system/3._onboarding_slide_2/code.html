@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "outline-variant": "#bbcac3",
+            "inverse-primary": "#55dcb6",
+            "surface-dim": "#d5dcd7",
+            "on-tertiary": "#ffffff",
+            "surface-variant": "#dde4df",
+            "on-primary": "#ffffff",
+            "primary-fixed": "#75f9d2",
+            "on-background": "#161d1a",
+            "secondary-fixed-dim": "#a6c8ff",
+            "error": "#ba1a1a",
+            "primary-container": "#27bb97",
+            "surface-container": "#e9efeb",
+            "surface-tint": "#006b55",
+            "secondary": "#005fb0",
+            "on-tertiary-container": "#4b3a00",
+            "on-error": "#ffffff",
+            "inverse-surface": "#2b322f",
+            "on-tertiary-fixed": "#241a00",
+            "surface-container-highest": "#dde4df",
+            "on-surface-variant": "#3c4a44",
+            "surface-container-high": "#e3eae5",
+            "surface": "#f4fbf6",
+            "inverse-on-surface": "#ecf2ed",
+            "primary": "#006b55",
+            "on-primary-container": "#004535",
+            "on-secondary": "#ffffff",
+            "tertiary-fixed": "#ffe08e",
+            "surface-container-low": "#eff5f0",
+            "tertiary-container": "#cba100",
+            "on-error-container": "#93000a",
+            "on-primary-fixed-variant": "#00513f",
+            "secondary-fixed": "#d5e3ff",
+            "tertiary": "#755b00",
+            "background": "#f4fbf6",
+            "surface-bright": "#f4fbf6",
+            "error-container": "#ffdad6",
+            "on-surface": "#161d1a",
+            "on-secondary-fixed-variant": "#004786",
+            "secondary-container": "#5ba2ff",
+            "surface-container-lowest": "#ffffff",
+            "tertiary-fixed-dim": "#f0c122",
+            "primary-fixed-dim": "#55dcb6",
+            "on-secondary-container": "#00376b",
+            "outline": "#6c7a74",
+            "on-secondary-fixed": "#001c3b",
+            "on-primary-fixed": "#002118",
+            "on-tertiary-fixed-variant": "#584400"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "fontFamily": {
+            "h3": ["Inter"],
+            "price-lg": ["Inter"],
+            "body-lg": ["Inter"],
+            "price-md": ["Inter"],
+            "h1": ["Inter"],
+            "body-md": ["Inter"],
+            "h2": ["Inter"],
+            "label-sm": ["Inter"]
+          },
+          "fontSize": {
+            "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+            "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .glass-card {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col">
+<!-- Header: Skip Button -->
+<header class="w-full flex justify-end items-center px-container_margin pt-6 h-16">
+<button class="font-label-sm text-label-sm text-outline hover:text-primary transition-colors px-4 py-2 rounded-full hover:bg-surface-container">
+      Skip
+    </button>
+</header>
+<!-- Body Content -->
+<main class="flex-grow flex flex-col items-center justify-center px-container_margin text-center">
+<!-- Asymmetric Illustration Layout -->
+<div class="relative w-full max-w-[320px] aspect-square mb-12 flex items-center justify-center">
+<!-- Decorative Background Shape -->
+<div class="absolute inset-0 bg-primary-fixed/30 rounded-[40px] rotate-6 transform scale-95 -z-10"></div>
+<!-- Main Illustration Card -->
+<div class="w-full h-full relative overflow-hidden rounded-[32px] shadow-lg border border-white/40 glass-card">
+<img class="w-full h-full object-cover grayscale-[20%] mix-blend-overlay opacity-80" data-alt="Modern professional smiling at desk, blurred creative studio background, bright soft lighting, high-quality professional photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtz67wFVR9eS1pe0WPz6Y6YbJuZ4Pbnfe4BJXcPvXTfk1mpNIxS6Utf2IrI0GIPOHr-yUQ4bxJK8Pllw9GFa2XBt7Rbb_qJtLIzn5dOlzVNWr0iZ2t10awfpStP9SghO8BC1pDqOm7ln0SnxXw9O-bSyPv8kiC9YcSJQxDbo5eVMgKogAzCBcx8SmPMiEV_i5O4up3z4ES8aJo8zaW-iIdYJbYAiEnqs-RwzknKsj7vpLI3SWXHNfPUR3KaXULD9kCPTUprC5AmJM"/>
+<!-- Service Floating Chips (Visual Narrative) -->
+<div class="absolute top-6 left-6 flex flex-col gap-2">
+<div class="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-100 shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-primary">brush</span>
+<span class="text-label-sm font-label-sm text-on-surface">Design</span>
+</div>
+<div class="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-100 shadow-sm flex items-center gap-2 translate-x-4">
+<span class="material-symbols-outlined text-[16px] text-secondary">code</span>
+<span class="text-label-sm font-label-sm text-on-surface">Development</span>
+</div>
+</div>
+<!-- Provider Profile Mini-Card -->
+<div class="absolute bottom-6 left-6 right-6 glass-card border border-white/50 p-4 rounded-2xl flex items-center gap-3">
+<img class="w-12 h-12 rounded-xl object-cover" data-alt="Portrait of a friendly male professional with a warm expression, clean studio lighting, minimalist background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzi8we0M9M94wRUnb7-18knblzBWb9XkiKlxxNA4RJu_MYkhgJAhWsUowVPD32445AFwoQOwrYH3R26S__gOpLS-LQ7oqb6FTZjnb94LkHU2bx3WybNPypvznZva2DT00wtzLnBPdoQT9C4VuVgnjGu8KfwIZTnKO1vnM8gV2Q-HdWhd95A0kTPTL4YX80fy-UxzRL_mLwft4baRPd6yEou1C8W5eGJFLgCaj6LErbtPi6-_DH2vX64vdISjW6I-QB0pKVQ3IXB48"/>
+<div class="text-left">
+<p class="font-h3 text-h3 text-on-surface text-[14px]">David Chen</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-tertiary-container" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-label-sm font-label-sm text-outline">4.9 (124 reviews)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Textual Content -->
+<div class="space-y-4 max-w-[280px]">
+<h1 class="font-h1 text-h1 text-on-background tracking-tight">
+        Find Expert Services
+      </h1>
+<p class="font-body-md text-body-md text-outline px-2">
+        Need a plumber, tutor, or designer? Browse top-rated local services at your fingertips.
+      </p>
+</div>
+</main>
+<!-- Footer Navigation -->
+<footer class="w-full px-container_margin pb-12 pt-8 flex flex-col items-center gap-8">
+<!-- Dot Indicators -->
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-outline-variant"></div>
+<div class="w-6 h-2 rounded-full bg-primary-container"></div>
+<div class="w-2 h-2 rounded-full bg-outline-variant"></div>
+</div>
+<!-- Next Button -->
+<button class="w-full max-w-sm h-[48px] bg-gradient-to-r from-[#27BB97] to-[#1E9E7E] text-white font-h2 text-h2 rounded-xl shadow-[0_4px_14px_0_rgba(39,187,151,0.39)] flex items-center justify-center gap-2 group active:scale-95 transition-transform">
+      Next
+      <span class="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>
+</button>
+</footer>
+</body></html>

@@ -232,6 +232,50 @@ class S3Service {
   }
 
   /**
+   * Download a remote image URL and upload it to S3 as a user's profile image.
+   * Used when a user logs in with Google to persist their Google profile picture.
+   *
+   * @param {string} imageUrl - Remote image URL (e.g. Google profile picture)
+   * @param {string} userId - User ID
+   * @returns {Promise<Object|null>} Upload result or null on failure
+   */
+  async uploadRemoteProfileImage(imageUrl, userId) {
+    if (!imageUrl || !userId) return null;
+    try {
+      ensureS3();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(imageUrl, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Listify-Server/1.0' },
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        logger.warn('Failed to download remote profile image', { status: response.status, imageUrl });
+        return null;
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      if (buffer.length < 100 || buffer.length > 10 * 1024 * 1024) {
+        logger.warn('Remote profile image invalid size', { size: buffer.length });
+        return null;
+      }
+
+      // Optimize before uploading
+      const optimized = await this.optimizeImage(buffer, contentType);
+
+      return await this.uploadProfileImage(optimized.buffer, userId, optimized.contentType);
+    } catch (error) {
+      logger.warn('Failed to upload remote profile image to S3:', error.message);
+      return null;
+    }
+  }
+
+  /**
    * Delete image from S3
    * @param {string} key - S3 object key
    * @returns {Promise<boolean>} Success status

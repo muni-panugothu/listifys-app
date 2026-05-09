@@ -1,21 +1,64 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { type Href, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useAppSelector } from "@/store/hooks";
+
+const SETTINGS_KEY = "@listify/app_settings";
 
 export function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
+  const user = useAppSelector((s) => s.auth.user);
 
   const [darkMode, setDarkMode] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
-  type SettingRow = { icon: React.ComponentProps<typeof MaterialIcons>["name"]; label: string; subtitle?: string; type: "toggle" | "navigate"; value?: boolean; onToggle?: (v: boolean) => void; route?: string };
+  useEffect(() => {
+    AsyncStorage.getItem(SETTINGS_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw);
+          if (saved.darkMode !== undefined) setDarkMode(saved.darkMode);
+          if (saved.pushNotifications !== undefined) setPushNotifications(saved.pushNotifications);
+          if (saved.emailUpdates !== undefined) setEmailUpdates(saved.emailUpdates);
+        } catch { /* ignore */ }
+      }
+      setLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ darkMode, pushNotifications, emailUpdates }));
+  }, [darkMode, pushNotifications, emailUpdates, loaded]);
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace("/home-feed-root" as Href);
+  };
+
+  type SettingRow = { icon: React.ComponentProps<typeof MaterialIcons>["name"]; label: string; subtitle?: string; type: "toggle" | "navigate"; value?: boolean; onToggle?: (v: boolean) => void; route?: string; onPress?: () => void };
 
   const sections: { title: string; items: SettingRow[] }[] = [
+    {
+      title: "Account",
+      items: [
+        { icon: "person-outline", label: "Edit Profile", type: "navigate", route: "/profile-details-edit" },
+        { icon: "lock-reset", label: user?.hasPassword === false ? "Set Password" : "Change Password", subtitle: user?.hasPassword === false ? "Add password to your account" : "Old password → New password", type: "navigate", route: "/change-password" },
+        { icon: "lock-open", label: "Forgot Password", subtitle: "Reset via email OTP verification", type: "navigate", route: "/forgot-password" },
+        { icon: "shield", label: "Security", subtitle: "2FA, biometrics, devices", type: "navigate", route: "/security" },
+      ],
+    },
     {
       title: "Preferences",
       items: [
@@ -31,10 +74,18 @@ export function SettingsScreen() {
       ],
     },
     {
+      title: "Support",
+      items: [
+        { icon: "help-outline", label: "Help & Support", type: "navigate", onPress: () => Linking.openURL("mailto:support@listifys.com") },
+        { icon: "bug-report", label: "Report a Problem", type: "navigate", onPress: () => Linking.openURL("mailto:bugs@listifys.com?subject=Bug%20Report") },
+      ],
+    },
+    {
       title: "App Info",
       items: [
         { icon: "info", label: "About Listifys", type: "navigate" },
         { icon: "policy", label: "Privacy Policy", type: "navigate" },
+        { icon: "description", label: "Terms of Service", type: "navigate" },
       ],
     },
   ];
@@ -44,7 +95,7 @@ export function SettingsScreen() {
       {/* Top Bar */}
       <View className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4" style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
         <View className="flex-row items-center gap-4">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="arrow-back" size={24} color="#161D1A" /></Pressable>
+          <Pressable onPress={handleBack} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="arrow-back" size={24} color="#161D1A" /></Pressable>
           <Text className="text-[20px] font-bold text-[#161D1A]">Settings</Text>
         </View>
         <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="help-outline" size={24} color="#161D1A" /></Pressable>
@@ -58,7 +109,14 @@ export function SettingsScreen() {
               <View className="overflow-hidden rounded-xl border border-slate-100 bg-white" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
                 {section.items.map((item, index) => (
                   <View key={item.label}>
-                    <Pressable className="flex-row items-center justify-between p-4" style={({ pressed }) => ({ backgroundColor: pressed ? "#F8FAFC" : "transparent" })}>
+                    <Pressable
+                      onPress={() => {
+                        if (item.onPress) item.onPress();
+                        else if (item.route) router.push(item.route as Href);
+                      }}
+                      className="flex-row items-center justify-between p-4"
+                      style={({ pressed }) => ({ backgroundColor: pressed ? "#F8FAFC" : "transparent" })}
+                    >
                       <View className="flex-row items-center gap-4">
                         <View className="h-10 w-10 items-center justify-center rounded-full bg-teal-50"><MaterialIcons name={item.icon} size={22} color="#006B55" /></View>
                         <View>

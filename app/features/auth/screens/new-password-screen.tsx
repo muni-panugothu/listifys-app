@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -15,6 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListifyOnboardingAssets } from "@/constants/listify-theme";
 import { Image } from "@/lib/nativewind-interop";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearError, clearResetFlow, resetPassword } from "@/store/slices/auth-slice";
 
 function getPasswordRequirements(password: string) {
   return [
@@ -39,6 +43,8 @@ function getPasswordRequirements(password: string) {
 export function NewPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { status, error, resetToken, resetEmail } = useAppSelector((s) => s.auth);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -51,6 +57,30 @@ export function NewPasswordScreen() {
     requirements.every((requirement) => requirement.met) &&
     password.length > 0 &&
     password === confirmPassword;
+  const isLoading = status === "loading";
+
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Reset Failed", error);
+      dispatch(clearError());
+    }
+  }, [error]);
+
+  const handleResetPassword = () => {
+    if (!resetToken || !resetEmail) {
+      Alert.alert("Error", "Session expired. Please start over.");
+      router.replace("/forgot-password" as Href);
+      return;
+    }
+    dispatch(resetPassword({ resetToken, password, email: resetEmail })).then((action) => {
+      if (action.meta.requestStatus === "fulfilled") {
+        dispatch(clearResetFlow());
+        Alert.alert("Success", "Password reset successfully. Please sign in.", [
+          { text: "OK", onPress: () => router.replace("/sign-in" as Href) },
+        ]);
+      }
+    });
+  };
 
   return (
     <View className="flex-1 items-center bg-[#F4FBF6]">
@@ -231,13 +261,11 @@ export function NewPasswordScreen() {
 
             <View className="mt-6 pb-4">
               <Pressable
-                onPress={() => {
-                  router.replace("/home-feed-root" as Href);
-                }}
-                disabled={!canReset}
+                onPress={handleResetPassword}
+                disabled={!canReset || isLoading}
                 style={({ pressed }) => [
                   { transform: [{ scale: pressed && canReset ? 0.95 : 1 }] },
-                  { opacity: canReset ? 1 : 0.55 },
+                  { opacity: canReset && !isLoading ? 1 : 0.55 },
                 ]}
                 className="overflow-hidden rounded-lg"
               >
@@ -254,9 +282,13 @@ export function NewPasswordScreen() {
                     elevation: 6,
                   }}
                 >
-                  <Text className="text-[18px] font-semibold text-white">
-                    Reset Password
-                  </Text>
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[18px] font-semibold text-white">
+                      Reset Password
+                    </Text>
+                  )}
                 </LinearGradient>
               </Pressable>
 

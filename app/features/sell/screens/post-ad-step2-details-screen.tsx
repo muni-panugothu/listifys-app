@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { type Href, useRouter } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { BackHandler, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const conditionOptions = ["New", "Like New", "Used"];
@@ -18,6 +19,22 @@ export function PostAdStep2DetailsScreen() {
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const priceError =
     price.length > 0 && (Number(price) <= 100 || Number(price) === 0);
+
+  const handleBack = () => {
+    router.replace("/home-feed-root" as Href);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        handleBack();
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    }, [router]),
+  );
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -36,7 +53,7 @@ export function PostAdStep2DetailsScreen() {
       >
         <View className="flex-row items-center gap-3">
           <Pressable
-            onPress={() => router.back()}
+            onPress={handleBack}
             className="h-9 w-9 items-center justify-center rounded-full"
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >

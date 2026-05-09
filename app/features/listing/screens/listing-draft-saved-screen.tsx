@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 const draftWatch =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuB--Hv0YCRxdKoyj70pGILS6dra7OUTKVvOo_iA2JbP8uxaY3WzIPwwjGG5BJ3KkJd4MHXR-XHMRPQw5Jq4YQyIEQS_rbpuXmlxra01bn0LIqhb8SstrFyPzx4K7xQUAOxlI8kM1Y1NXSCysS4wYTDFSI8VCXAbCocBmz3m9hfrRz4VYgmTvSnz3gQfc0j-XofuTDDXRAE8XjuzaUbK4UP85YBwh7vXwtDSO7ylwenu9M1JJoCPVL8nmI0txuRShFZtXW9c11x4LAg";
@@ -32,30 +33,7 @@ export function ListingDraftSavedScreen() {
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") {
-      router.push("/home-feed-root");
-      return;
-    }
-    if (tabId === "sell") {
-      router.push("/sell-entry");
-      return;
-    }
-    if (tabId === "search") {
-      router.push("/search-home");
-      return;
-    }
-
-    if (tabId === "messages") {
-      router.push("/messages-inbox");
-      return;
-    }
-
-    if (tabId === "profile") {
-      router.push("/dashboard-home");
-      return;
-    }
-  };
+  const handleBottomTabPress = useTabNavigation();
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">

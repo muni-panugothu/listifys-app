@@ -10,6 +10,26 @@ class DeviceService {
    * @returns {Object} Device information
    */
   parseUserAgent(userAgent) {
+    // Handle custom Listify mobile app User-Agent:
+    // "Listify/2.4.1 (Xiaomi Redmi Note 11; Android 13)"
+    const listifyMatch = userAgent?.match(
+      /^Listify\/([\d.]+)\s*\(([^;]+);\s*([^)]+)\)/
+    );
+    if (listifyMatch) {
+      const [, appVersion, deviceModel, osInfo] = listifyMatch;
+      const osParts = osInfo.trim().split(/\s+/);
+      const osName = osParts[0] || 'Unknown';
+      const osVersion = osParts.slice(1).join(' ') || '';
+      return {
+        browser: `Listify App`,
+        browserVersion: appVersion,
+        os: osName,
+        osVersion,
+        device: { model: deviceModel.trim(), type: 'mobile' },
+        deviceType: 'mobile',
+      };
+    }
+
     const parser = new UAParser(userAgent);
     const result = parser.getResult();
 

@@ -1,32 +1,27 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  type NotificationItem,
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/features/auth/services/auth-api";
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
-type Notification = {
-  id: string;
-  type: "offer" | "follower" | "price_drop" | "security";
-  title: string;
-  description: string;
-  time: string;
-  unread?: boolean;
-  icon: React.ComponentProps<typeof MaterialIcons>["name"];
-  iconBg: string;
-  iconColor: string;
-  avatar?: string;
-  actionLabel?: string;
-  product?: { image: string; oldPrice: string; newPrice: string };
-};
-
-const notifications: Notification[] = [
-  { id: "1", type: "offer", title: "New Offer", description: "Someone placed an offer on your MacBook Pro M2. Tap to review details.", time: "2m ago", unread: true, icon: "sell", iconBg: "rgba(39,187,151,0.1)", iconColor: "#27BB97" },
-  { id: "2", type: "follower", title: "Priya Sharma", description: "Started following you. View their profile to see what they are selling.", time: "1h ago", icon: "person", iconBg: "transparent", iconColor: "#27BB97", avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuAKB4fqc9xbdNy-01QszLtRtNDj0GmIoizp83AO6hQtuiyOQ8CtfbRIHOugU1k7CctviY0ZpBrjX_zgVJV5QZEmWi9xjPlNQgxs97wWC2AIfZL-QwvAw6z81Ps5ducgUMWd9fooGp2ofPtjGH0clxPT9MzzGGlS1HpeeL_LFUylfO8qfvGLLEgoj33DUZrHiqXRXoswrMe9o_URnrfpQD7StgOgCnCPDqf0N4RQUDvlmCh8QLFzTySzamJ3JlUs2wH8qCc3DKks8WA", actionLabel: "Follow Back" },
-  { id: "3", type: "price_drop", title: "Price Drop", description: "The price of your saved item Sony Headphones just dropped by 15%!", time: "3h ago", unread: true, icon: "trending-down", iconBg: "rgba(203,161,0,0.1)", iconColor: "#CBA100", product: { image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDXykz3M7wbiYYFFFAQ0f_1sa6LaJNiGYTPYe66TulO075GzjrSKUToXBT-dl_iJCwxXsMEh3WIuNXVoG_MnBNy2FHcw_Xx9JffEKIxZBIYIly0lBPPUmERfxb9cWllez7b0_Jtoke_n1VoV1alfnV6xlsVUb7b0WP9gN4zvEkAyPQ15HkVbHMIDjljqKe6s7muccg9zjJRBbq6A3tYguFz6wS4cx3-u78Urt0enQEqs68hjc5vVgwOpbWRIgttppfxECYlRbd_EQ0", oldPrice: "₹24,999", newPrice: "₹21,249" } },
-  { id: "4", type: "security", title: "System Security Alert", description: "New login detected on a Chrome browser (Macintosh OS) from Bengaluru, India. If this wasn't you, secure your account now.", time: "Yesterday", icon: "security", iconBg: "rgba(186,26,26,0.1)", iconColor: "#BA1A1A" },
-];
+function getNotifStyle(type: string) {
+  switch (type) {
+    case "offer": return { icon: "sell" as const, bg: "rgba(39,187,151,0.1)", color: "#27BB97" };
+    case "follower": return { icon: "person" as const, bg: "transparent", color: "#27BB97" };
+    case "price_drop": return { icon: "trending-down" as const, bg: "rgba(203,161,0,0.1)", color: "#CBA100" };
+    case "security": return { icon: "security" as const, bg: "rgba(186,26,26,0.1)", color: "#BA1A1A" };
+    default: return { icon: "notifications" as const, bg: "rgba(39,187,151,0.1)", color: "#27BB97" };
+  }
+}
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -42,14 +37,47 @@ export function NotificationsCenterScreen() {
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
   const [activeTab, setActiveTab] = useState("All");
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") { router.push("/home-feed-root"); return; }
-    if (tabId === "sell") { router.push("/sell-entry"); return; }
-    if (tabId === "search") { router.push("/search-home"); return; }
-    if (tabId === "messages") { router.push("/messages-inbox"); return; }
-    if (tabId === "profile") { router.push("/dashboard-home"); return; }
+  const handleBottomTabPress = useTabNavigation();
+
+  const loadNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getNotifications();
+      setNotifications(res.notifications || []);
+    } catch {
+      /* silently handle */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      Alert.alert("Error", "Failed to mark notifications as read");
+    }
   };
+
+  const filtered = activeTab === "Unread" ? notifications.filter((n) => !n.read) : notifications;
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(dateStr).toLocaleDateString();
+  }
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -60,7 +88,7 @@ export function NotificationsCenterScreen() {
           <Text className="text-[20px] font-black text-[#161D1A]">Notifications</Text>
         </View>
         <View className="flex-row items-center gap-4">
-          <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><Text className="text-[12px] font-semibold text-[#27BB97]">Mark all as read</Text></Pressable>
+          <Pressable onPress={handleMarkAllRead} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><Text className="text-[12px] font-semibold text-[#27BB97]">Mark all as read</Text></Pressable>
           <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="settings" size={22} color="#64748B" /></Pressable>
         </View>
       </View>
@@ -77,41 +105,40 @@ export function NotificationsCenterScreen() {
           </View>
 
           {/* Feed */}
+          {loading ? (
+            <ActivityIndicator size="large" color="#27BB97" style={{ marginVertical: 32 }} />
+          ) : filtered.length === 0 ? (
+            <Text className="py-12 text-center text-[14px] text-[#94A3B8]">No notifications yet.</Text>
+          ) : (
           <View className="gap-3">
-            {notifications.map((n) => (
-              <View key={n.id} className="relative flex-row items-start gap-4 rounded-xl p-4" style={{ backgroundColor: n.unread ? "#FFFFFF" : "#FAFCFB", borderWidth: 1, borderColor: n.unread ? "rgba(39,187,151,0.2)" : "#F3F4F6", shadowColor: n.unread ? "#000" : "transparent", shadowOffset: { width: 0, height: 2 }, shadowOpacity: n.unread ? 0.08 : 0, shadowRadius: n.unread ? 6 : 0, elevation: n.unread ? 2 : 0 }}>
-                {n.unread && <View className="absolute right-4 top-4 h-2 w-2 rounded-full bg-[#27BB97]" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 4 }} />}
-                {/* Icon / Avatar */}
-                {n.avatar ? (
-                  <View className="h-12 w-12 overflow-hidden rounded-full border border-slate-100"><Image source={n.avatar} contentFit="cover" className="h-full w-full" /></View>
-                ) : (
-                  <View className="h-12 w-12 items-center justify-center rounded-xl border" style={{ backgroundColor: n.iconBg, borderColor: n.iconBg }}><MaterialIcons name={n.icon} size={22} color={n.iconColor} /></View>
-                )}
-                {/* Content */}
+            {filtered.map((n) => {
+              const style = getNotifStyle(n.type);
+              return (
+              <Pressable
+                key={n._id}
+                onPress={async () => {
+                  if (!n.read) {
+                    await markNotificationRead(n._id).catch(() => {});
+                    setNotifications((prev) => prev.map((x) => x._id === n._id ? { ...x, read: true } : x));
+                  }
+                }}
+                className="relative flex-row items-start gap-4 rounded-xl p-4"
+                style={{ backgroundColor: !n.read ? "#FFFFFF" : "#FAFCFB", borderWidth: 1, borderColor: !n.read ? "rgba(39,187,151,0.2)" : "#F3F4F6", shadowColor: !n.read ? "#000" : "transparent", shadowOffset: { width: 0, height: 2 }, shadowOpacity: !n.read ? 0.08 : 0, shadowRadius: !n.read ? 6 : 0, elevation: !n.read ? 2 : 0 }}
+              >
+                {!n.read && <View className="absolute right-4 top-4 h-2 w-2 rounded-full bg-[#27BB97]" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 4 }} />}
+                <View className="h-12 w-12 items-center justify-center rounded-xl border" style={{ backgroundColor: style.bg, borderColor: style.bg }}><MaterialIcons name={style.icon} size={22} color={style.color} /></View>
                 <View className="flex-1">
                   <View className="flex-row items-start justify-between mb-1">
                     <Text className="text-[18px] font-semibold text-[#161D1A]">{n.title}</Text>
-                    <Text className="text-[10px] font-medium text-[#94A3B8]">{n.time}</Text>
+                    <Text className="text-[10px] font-medium text-[#94A3B8]">{timeAgo(n.createdAt)}</Text>
                   </View>
-                  <Text className="text-[14px] leading-5 text-[#3C4A44]">{n.description}</Text>
-                  {n.actionLabel && (
-                    <Pressable className="mt-3 self-start rounded-lg border border-[#27BB97] px-4 py-1.5" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                      <Text className="text-[12px] font-medium text-[#27BB97]">{n.actionLabel}</Text>
-                    </Pressable>
-                  )}
-                  {n.product && (
-                    <View className="mt-3 flex-row items-center gap-3 rounded-lg border border-slate-100 bg-[#F4FBF6] p-2">
-                      <Image source={n.product.image} contentFit="cover" className="h-10 w-10 rounded-md" />
-                      <View>
-                        <Text className="text-[10px] text-[#94A3B8] line-through">{n.product.oldPrice}</Text>
-                        <Text className="text-[16px] font-bold text-[#27BB97]">{n.product.newPrice}</Text>
-                      </View>
-                    </View>
-                  )}
+                  <Text className="text-[14px] leading-5 text-[#3C4A44]">{n.message}</Text>
                 </View>
-              </View>
-            ))}
+              </Pressable>
+              );
+            })}
           </View>
+          )}
         </View>
       </ScrollView>
 

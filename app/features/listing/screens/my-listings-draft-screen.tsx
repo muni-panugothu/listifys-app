@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 type DraftListing = {
   id: string;
@@ -71,13 +72,7 @@ export function MyListingsDraftScreen() {
     if (tab === "Expired") router.replace("/my-listings-expired");
   };
 
-  const handleBottomTabPress = (tabId: string) => {
-    if (tabId === "home") { router.push("/home-feed-root"); return; }
-    if (tabId === "sell") { router.push("/sell-entry"); return; }
-    if (tabId === "search") { router.push("/search-home"); return; }
-    if (tabId === "messages") { router.push("/messages-inbox"); return; }
-    if (tabId === "profile") { router.push("/dashboard-home"); return; }
-  };
+  const handleBottomTabPress = useTabNavigation();
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">

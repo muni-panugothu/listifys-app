@@ -1,9 +1,35 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import { type Href, useRouter } from "expo-router";
+import { useState } from "react";
+import { ActivityIndicator, Platform, Pressable, Text, ToastAndroid, View } from "react-native";
+
+import { logoutFromServer } from "@/features/auth/services/auth-api";
+import { useAppDispatch } from "@/store/hooks";
+import { logout } from "@/store/slices/auth-slice";
+
+function showToast(msg: string) {
+  if (Platform.OS === "android") {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  }
+}
 
 export function LogoutModalScreen() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  const [loading, setLoading] = useState(false);
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await logoutFromServer();
+    } catch {
+      /* proceed with local logout even if server call fails */
+    }
+    await dispatch(logout());
+    showToast("Logged out successfully");
+    setLoading(false);
+    router.replace("/sign-in" as Href);
+  };
 
   return (
     <View className="flex-1 items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
@@ -26,10 +52,12 @@ export function LogoutModalScreen() {
           {/* Buttons */}
           <View className="w-full gap-3">
             <Pressable
+              onPress={handleLogout}
+              disabled={loading}
               className="h-12 flex-row items-center justify-center gap-2 rounded-xl bg-[#BA1A1A]"
-              style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
+              style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }], opacity: loading ? 0.6 : 1 })}
             >
-              <MaterialIcons name="logout" size={20} color="#FFFFFF" />
+              {loading ? <ActivityIndicator color="#FFF" size="small" /> : <MaterialIcons name="logout" size={20} color="#FFFFFF" />}
               <Text className="text-[16px] font-semibold text-white">Logout</Text>
             </Pressable>
             <Pressable

@@ -8,6 +8,7 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 const fromNumber = process.env.TWILIO_PHONE_NUMBER; // fallback if no messaging service
+const whatsappFromNumber = process.env.TWILIO_WHATSAPP_NUMBER; // e.g. +14155238886
 
 let client = null;
 
@@ -91,7 +92,56 @@ async function sendOTP(phone, otp) {
   }
 }
 
+/**
+ * Send an OTP via WhatsApp using Twilio.
+ * Requires TWILIO_WHATSAPP_NUMBER (Twilio Sandbox or approved sender).
+ * @param {string} phone - Phone number (will be normalised to E.164)
+ * @param {string} otp   - The 6-digit OTP code
+ * @returns {Promise<{success: boolean, messageId?: string, error?: string}>}
+ */
+async function sendWhatsAppOTP(phone, otp) {
+  if (!client) {
+    logger.error("Twilio client not initialised — cannot send WhatsApp OTP");
+    return { success: false, error: "WhatsApp service not configured" };
+  }
+
+  const to = normalizePhone(phone);
+  if (!to) {
+    return { success: false, error: "Invalid phone number" };
+  }
+
+  const sender = whatsappFromNumber || fromNumber;
+  if (!sender) {
+    logger.error("No Twilio WhatsApp sender configured (TWILIO_WHATSAPP_NUMBER)");
+    return { success: false, error: "WhatsApp sender not configured" };
+  }
+
+  try {
+    const message = await client.messages.create({
+      body: `Your Listify verification code is: ${otp}. It expires in 5 minutes. Do not share this code.`,
+      from: `whatsapp:${sender}`,
+      to: `whatsapp:${to}`,
+    });
+
+    logger.info("WhatsApp OTP sent", {
+      to: to.slice(0, 5) + "****",
+      messageId: message.sid,
+      status: message.status,
+    });
+
+    return { success: true, messageId: message.sid };
+  } catch (error) {
+    logger.error("Failed to send WhatsApp OTP", {
+      error: error.message,
+      code: error.code,
+      to: to.slice(0, 5) + "****",
+    });
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendOTP,
+  sendWhatsAppOTP,
   normalizePhone,
 };

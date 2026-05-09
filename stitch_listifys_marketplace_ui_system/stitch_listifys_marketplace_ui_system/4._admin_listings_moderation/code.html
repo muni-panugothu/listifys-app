@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Admin Listings Moderation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#55dcb6",
+                        "on-tertiary-fixed-variant": "#584400",
+                        "tertiary": "#755b00",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-fixed": "#75f9d2",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#006b55",
+                        "tertiary-container": "#cba100",
+                        "surface": "#f4fbf6",
+                        "on-tertiary": "#ffffff",
+                        "on-background": "#161d1a",
+                        "tertiary-fixed": "#ffe08e",
+                        "primary-fixed-dim": "#55dcb6",
+                        "primary": "#006b55",
+                        "outline-variant": "#bbcac3",
+                        "on-surface-variant": "#3c4a44",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#eff5f0",
+                        "surface-container-high": "#e3eae5",
+                        "on-primary-container": "#004535",
+                        "surface-container-highest": "#dde4df",
+                        "on-primary-fixed-variant": "#00513f",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#00376b",
+                        "secondary-container": "#5ba2ff",
+                        "on-surface": "#161d1a",
+                        "on-tertiary-container": "#4b3a00",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "inverse-on-surface": "#ecf2ed",
+                        "inverse-surface": "#2b322f",
+                        "on-secondary-fixed-variant": "#004786",
+                        "outline": "#6c7a74",
+                        "on-primary-fixed": "#002118",
+                        "on-secondary-fixed": "#001c3b",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "secondary": "#005fb0",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "on-tertiary-fixed": "#241a00",
+                        "surface-bright": "#f4fbf6",
+                        "surface-container": "#e9efeb",
+                        "primary-container": "#27bb97",
+                        "background": "#f4fbf6",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#dde4df",
+                        "surface-dim": "#d5dcd7"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack_gap_xs": "4px",
+                        "stack_gap_sm": "8px",
+                        "grid_gutter": "12px",
+                        "container_margin": "16px",
+                        "stack_gap_md": "16px",
+                        "stack_gap_lg": "24px"
+                    },
+                    "fontFamily": {
+                        "price-lg": ["Inter"],
+                        "h3": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "h1": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "price-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-50 flex items-center justify-between px-4 h-16 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-4">
+<button class="p-2 text-teal-600 dark:text-teal-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors rounded-full">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-sans font-semibold text-lg text-teal-600 dark:text-teal-400">Admin Dashboard</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-teal-600 dark:text-teal-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors rounded-full relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="h-8 w-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs">
+                AD
+            </div>
+</div>
+</header>
+<div class="flex min-h-screen">
+<!-- NavigationDrawer (Sidebar) -->
+<aside class="fixed left-0 top-0 h-full hidden md:flex flex-col z-40 bg-white dark:bg-slate-900 h-full w-72 border-r border-slate-100 dark:border-slate-800 shadow-xl pt-20">
+<div class="px-6 py-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional headshot of a mature male executive with a confident expression in a modern office setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBN1a6SxK5FCniZo6yMvoTsSH4r7SfTfGiN1j4Rs3smCVgLurRa84gJ78xNST7f8MJY2P8RZE3O6qCigfbbGg22fcWABEXvvUpHTgipPOp9eQfFRYnrx-F8MlIVLW-YzErCbm9Y6DMwMCw6HDmE2XXWCZ2l8HpUGzqZRO2Ao3NGuuU4R_5dXwL8Fnp0PnDq5s0Wtn9WEDN6WJ4wRf-zuJG-AtgTAE87UPIitgmqm7yFwAeIpRYHt2QFknxTTQWMFsPLw0SOXxnRygc"/>
+</div>
+<div>
+<div class="text-lg font-black text-teal-600">System Admin</div>
+<div class="font-sans text-sm font-medium text-slate-500">Super User</div>
+</div>
+</div>
+<nav class="mt-4 flex-1">
+<a class="flex items-center gap-4 px-6 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:pl-8 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-sans text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:pl-8 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-sans text-sm font-medium">Users</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-3 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-r-4 border-teal-600 hover:pl-8 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-sans text-sm font-medium">Listings</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:pl-8 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="forum">forum</span>
+<span class="font-sans text-sm font-medium">Conversations</span>
+</a>
+<a class="flex items-center gap-4 px-6 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:pl-8 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings_suggest">settings_suggest</span>
+<span class="font-sans text-sm font-medium">Settings</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 md:ml-72 pb-24 md:pb-8">
+<div class="max-w-6xl mx-auto px-container_margin py-stack_gap_lg">
+<!-- Page Header & Filters -->
+<section class="mb-stack_gap_lg">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-stack_gap_md">
+<div>
+<h2 class="font-h1 text-h1 text-on-surface">Listings Moderation</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Review flagged marketplace items for policy compliance.</p>
+</div>
+<div class="flex items-center gap-2 text-label-sm font-label-sm bg-surface-container-high px-3 py-1.5 rounded-full text-primary">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                            14 items pending review
+                        </div>
+</div>
+<!-- Filter Bar -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-slate-400" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border-transparent focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg text-body-md font-body-md outline-none transition-all" placeholder="Search title or seller..." type="text"/>
+</div>
+<div>
+<select class="w-full px-4 py-2.5 bg-surface-container-low border-transparent focus:border-primary rounded-lg text-body-md font-body-md outline-none">
+<option>All Categories</option>
+<option>Electronics</option>
+<option>Vehicles</option>
+<option>Property</option>
+<option>Fashion</option>
+</select>
+</div>
+<div>
+<select class="w-full px-4 py-2.5 bg-surface-container-low border-transparent focus:border-primary rounded-lg text-body-md font-body-md outline-none text-error">
+<option class="text-on-surface" value="">All Flags</option>
+<option>Suspicious Price</option>
+<option>Prohibited Item</option>
+<option>Scam Report</option>
+<option>Copyright Infringement</option>
+</select>
+</div>
+<button class="flex items-center justify-center gap-2 bg-primary text-on-primary py-2.5 rounded-lg font-label-sm hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]" data-icon="filter_list">filter_list</span>
+                            Apply Filters
+                        </button>
+</div>
+</section>
+<!-- Moderation Queue -->
+<div class="grid grid-cols-1 gap-6">
+<!-- Moderation Card 1 -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-outline-variant overflow-hidden shadow-sm flex flex-col md:flex-row group transition-all hover:shadow-md">
+<div class="relative w-full md:w-64 h-48 md:h-auto overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="high-end gaming laptop sitting on a dark desk with vibrant neon rgb lighting reflecting on its surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHb_bsnEn1w3Ws9Lb_HsN-z1L25xu4wKLFr7f21HHfTAx3WVQzaAgXPnUkCqLsf7-i9CKMFlPHXb6nbXk1bXuMrc4zc172-5tiF8N_qGUX4W4XwxLT1eW7pUMjaZAQDqxw-tPpLCEMwqxXuheKLLK0Nwhcj2ei_XuIAeSdX4eWwZgqnybMQHf_vxx6QTLqL0qsj0ZRoZux5m9wauGoSiWuhxShr9APuwDIwFzhkcqaSROCU8B07ddN6udi7ulMgqMxUhTmLkDuMjM"/>
+<div class="absolute top-3 left-3 bg-error/90 backdrop-blur-md text-on-error px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                                Flagged
+                            </div>
+</div>
+<div class="flex-1 p-5 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-h3 text-h3 text-on-surface">Razer Blade 15 Gaming Laptop</h3>
+<span class="font-price-md text-price-md text-primary">₹12,500</span>
+</div>
+<div class="flex flex-wrap gap-4 mb-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-slate-400" data-icon="person">person</span>
+<span class="text-body-md font-body-md text-on-surface-variant">Arjun Sharma</span>
+<span class="text-[10px] bg-secondary-container/20 text-secondary px-1.5 py-0.5 rounded">New Seller</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-error" data-icon="report">report</span>
+<span class="text-body-md font-medium text-error">Suspicious Price</span>
+</div>
+</div>
+<p class="text-body-md font-body-md text-slate-500 line-clamp-2">Original MSRP ₹1,80,000. Listing price is 93% below market value. Potential scam or counterfeit item reported by multiple users.</p>
+</div>
+<div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<button class="bg-surface-container text-on-surface px-4 py-2 rounded-lg font-label-sm hover:bg-surface-container-high transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="mail">mail</span>
+                                        Contact Seller
+                                    </button>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-lg font-label-sm text-error hover:bg-error/5 transition-colors border border-error/20 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="close">close</span>
+                                        Reject
+                                    </button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg font-label-sm hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="check">check</span>
+                                        Approve
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Moderation Card 2 -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-outline-variant overflow-hidden shadow-sm flex flex-col md:flex-row group transition-all hover:shadow-md">
+<div class="relative w-full md:w-64 h-48 md:h-auto overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="various prescription medicine bottles and loose pills scattered on a sterile white surgical tray under cool clinic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJYYhUFYQs5gxt3nnGXhmZpxABOK98p4wtGYYl7By61P21kSgjl5KgpOGRiiwV--dB95f3-LXDBJnfHiuIfcKBVjXZq1aoj9B1vYlTBXIVv1PYM6v8J53iyaFiijUOwD3Jidg51k_S2VxUVYLjRB9mWaC1fmPy-1E_MVaLV1o7KP-cDmlAaKC1i265LJmbMkyaYt0MFeNhfe_AvUQeBkX9jTMLLp48I1RCgULEbEwLzAwJk1_Lr3lujtTjOtZlrrmAgPsnbTPckHE"/>
+<div class="absolute top-3 left-3 bg-error/90 backdrop-blur-md text-on-error px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                                Flagged
+                            </div>
+</div>
+<div class="flex-1 p-5 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-h3 text-h3 text-on-surface">Bulk Antibiotics - Wholesale</h3>
+<span class="font-price-md text-price-md text-primary">₹45,000</span>
+</div>
+<div class="flex flex-wrap gap-4 mb-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-slate-400" data-icon="person">person</span>
+<span class="text-body-md font-body-md text-on-surface-variant">Global Pharma Ltd</span>
+<span class="text-[10px] bg-primary-container/20 text-primary px-1.5 py-0.5 rounded">Verified</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-error" data-icon="block">block</span>
+<span class="text-body-md font-medium text-error">Prohibited Item</span>
+</div>
+</div>
+<p class="text-body-md font-body-md text-slate-500 line-clamp-2">Listing contains prescription-only medication. Direct sale to consumers is prohibited under Marketplace Policy Section 4.2 (Healthcare Items).</p>
+</div>
+<div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<button class="bg-surface-container text-on-surface px-4 py-2 rounded-lg font-label-sm hover:bg-surface-container-high transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="mail">mail</span>
+                                        Contact Seller
+                                    </button>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-lg font-label-sm text-error hover:bg-error/5 transition-colors border border-error/20 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+                                        Remove Permanently
+                                    </button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg font-label-sm hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="check">check</span>
+                                        Dismiss Flag
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Moderation Card 3 (Bento Grid Style Internal) -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-outline-variant overflow-hidden shadow-sm flex flex-col md:flex-row group transition-all hover:shadow-md">
+<div class="relative w-full md:w-64 h-48 md:h-auto overflow-hidden">
+<img class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="industrial heavy machinery part made of polished steel with complex gear patterns in a clean warehouse environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAaTaxFG5sz3vqsWvP_brOkg71QzuXaINwNdNT7bScEx8EHLv0718TigU8K2uB98SlGkGEwZJ8y4o9qb42bI7IrGAzrDvVp_bmqONm4QdXjhDx_sWZxIeTr1vLEI0rXw9xFFNe36PM4vufx0i6X-4KFq3TIKN46OehOusAfYGeAoE3GTWH4G-tb2dnjozjTHQOiMeh4vXarYJl3Rux34ftFGLf0HET5wPpIqJ-i5Y2WOOUqJ1tUHfLmI8qzA1_sNEmTqHUZfNiR1JE"/>
+<div class="absolute top-3 left-3 bg-tertiary-container/90 backdrop-blur-md text-on-tertiary px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                                Warning
+                            </div>
+</div>
+<div class="flex-1 p-5 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-h3 text-h3 text-on-surface">Precision CNC Milling Component</h3>
+<span class="font-price-md text-price-md text-primary">₹8,500</span>
+</div>
+<div class="flex flex-wrap gap-4 mb-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-slate-400" data-icon="person">person</span>
+<span class="text-body-md font-body-md text-on-surface-variant">TechFab Solutions</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-tertiary" data-icon="visibility">visibility</span>
+<span class="text-body-md font-medium text-tertiary">Review Requested</span>
+</div>
+</div>
+<p class="text-body-md font-body-md text-slate-500 line-clamp-2">AI-Flagged: Image contains logos that might belong to a third party. Potential copyright infringement check needed for the industrial design.</p>
+</div>
+<div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<button class="bg-surface-container text-on-surface px-4 py-2 rounded-lg font-label-sm hover:bg-surface-container-high transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="info">info</span>
+                                        View Full Details
+                                    </button>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-lg font-label-sm text-slate-500 hover:bg-slate-100 transition-colors border border-slate-200 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="history">history</span>
+                                        Audit Log
+                                    </button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg font-label-sm hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="check">check</span>
+                                        Release Item
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Pagination -->
+<div class="mt-stack_gap_lg flex items-center justify-between">
+<button class="flex items-center gap-2 text-label-sm font-label-sm text-on-surface-variant hover:text-primary transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+                        Previous
+                    </button>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-lg bg-primary text-on-primary font-label-sm">1</button>
+<button class="w-10 h-10 rounded-lg text-on-surface-variant hover:bg-surface-container font-label-sm transition-colors">2</button>
+<button class="w-10 h-10 rounded-lg text-on-surface-variant hover:bg-surface-container font-label-sm transition-colors">3</button>
+<span class="px-2 text-slate-400">...</span>
+<button class="w-10 h-10 rounded-lg text-on-surface-variant hover:bg-surface-container font-label-sm transition-colors">12</button>
+</div>
+<button class="flex items-center gap-2 text-label-sm font-label-sm text-on-surface-variant hover:text-primary transition-colors">
+                        Next
+                        <span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 w-full md:hidden flex justify-around items-center px-2 py-3 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[10px] font-medium tracking-tight">Dash</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="text-[10px] font-medium tracking-tight">Users</span>
+</a>
+<a class="flex flex-col items-center justify-center text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-900/20 rounded-xl px-2 py-1 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="list_alt" style="font-variation-settings: 'FILL' 1;">list_alt</span>
+<span class="text-[10px] font-medium tracking-tight">Items</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="text-[10px] font-medium tracking-tight">Chat</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px] font-medium tracking-tight">Sets</span>
+</a>
+</nav>
+<!-- FAB (Contextual for Bulk Action) -->
+<div class="fixed bottom-24 right-6 md:bottom-8 md:right-8 group">
+<button class="w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined" data-icon="bolt">bolt</span>
+</button>
+<div class="absolute bottom-full right-0 mb-4 flex flex-col gap-2 items-end opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all">
+<span class="bg-surface-container-highest px-3 py-1.5 rounded-lg text-label-sm whitespace-nowrap shadow-md">Bulk Review</span>
+</div>
+</div>
+</body></html>

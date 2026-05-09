@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Edit Listing - Listify</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e3eae5",
+                        "on-primary-container": "#004535",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#eff5f0",
+                        "on-primary-fixed-variant": "#00513f",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#dde4df",
+                        "secondary-container": "#5ba2ff",
+                        "on-surface": "#161d1a",
+                        "on-secondary-container": "#00376b",
+                        "tertiary": "#755b00",
+                        "secondary-fixed": "#d5e3ff",
+                        "primary-fixed": "#75f9d2",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#55dcb6",
+                        "on-tertiary-fixed-variant": "#584400",
+                        "on-background": "#161d1a",
+                        "tertiary-fixed": "#ffe08e",
+                        "primary-fixed-dim": "#55dcb6",
+                        "primary": "#006b55",
+                        "outline-variant": "#bbcac3",
+                        "on-surface-variant": "#3c4a44",
+                        "surface-tint": "#006b55",
+                        "surface": "#f4fbf6",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#cba100",
+                        "on-tertiary-fixed": "#241a00",
+                        "surface-bright": "#f4fbf6",
+                        "secondary": "#005fb0",
+                        "on-error": "#ffffff",
+                        "secondary-fixed-dim": "#a6c8ff",
+                        "surface-variant": "#dde4df",
+                        "surface-dim": "#d5dcd7",
+                        "surface-container": "#e9efeb",
+                        "primary-container": "#27bb97",
+                        "background": "#f4fbf6",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#ecf2ed",
+                        "inverse-surface": "#2b322f",
+                        "tertiary-fixed-dim": "#f0c122",
+                        "on-tertiary-container": "#4b3a00",
+                        "on-secondary-fixed": "#001c3b",
+                        "on-primary": "#ffffff",
+                        "outline": "#6c7a74",
+                        "on-secondary-fixed-variant": "#004786",
+                        "on-primary-fixed": "#002118"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack_gap_sm": "8px",
+                        "grid_gutter": "12px",
+                        "container_margin": "16px",
+                        "stack_gap_xs": "4px",
+                        "stack_gap_lg": "24px",
+                        "stack_gap_md": "16px"
+                    },
+                    "fontFamily": {
+                        "price-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "h1": ["Inter"],
+                        "price-lg": ["Inter"],
+                        "h3": ["Inter"]
+                    },
+                    "fontSize": {
+                        "price-md": ["16px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "h2": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "h1": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "price-lg": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "h3": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-overlay {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #dde4df;
+            border-radius: 10px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md antialiased">
+<!-- Custom Task Header (Suppresses TopAppBar for transaction context) -->
+<header class="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md z-50 flex items-center justify-between px-4 border-b border-surface-variant">
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined text-on-surface">arrow_back</span>
+</button>
+<h1 class="font-h2 text-h2 text-on-surface">Edit Listing</h1>
+</div>
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-error font-label-sm hover:bg-error-container/20 rounded-lg transition-colors active:opacity-70">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+            Delete
+        </button>
+</header>
+<main class="pt-20 pb-32 px-container_margin max-w-2xl mx-auto">
+<form class="flex flex-col gap-stack_gap_lg">
+<!-- Media Section: Image Reordering -->
+<section class="flex flex-col gap-stack_gap_md">
+<div class="flex items-baseline justify-between">
+<h3 class="font-h3 text-h3 text-on-surface">Photos</h3>
+<span class="font-label-sm text-outline">Drag to reorder</span>
+</div>
+<div class="grid grid-cols-3 gap-3">
+<!-- Main Image (Large) -->
+<div class="col-span-2 row-span-2 relative group aspect-square rounded-xl overflow-hidden border border-surface-variant">
+<img class="w-full h-full object-cover" data-alt="Modern olive green velvet sofa with wooden legs against a neutral minimalist living room wall, soft natural daylight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBk_u9vLO5X8o1MIQDAixKpK2yUorLPZ0SSjoNG9qCVaDJMhMyOzRpacRLesjhT7plFdU7n4vdk5kb3VcdTODd-4gem7zKeif6DI7jATSpvGF6EE59EAt9QgfybK4UddJogvxB5A-nfA51y_KVOuovI47JAzb_Vw5ZbUqpUCr_G3RQT11lC-IVKKc1hRn1-TsNvBYlmn_-P_gW1jMLdILw0Fdl6jVwxTqXZbqzK6L_8xNKnCLx6L1w9rTrxh7GwFGN83WeR0FwPkLY"/>
+<div class="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-3xl">drag_indicator</span>
+</div>
+<div class="absolute top-2 left-2 glass-overlay px-2 py-0.5 rounded-full text-[10px] font-bold text-on-primary-container">COVER</div>
+<button class="absolute top-2 right-2 glass-overlay p-1.5 rounded-full active:scale-90">
+<span class="material-symbols-outlined text-on-surface text-[18px]">close</span>
+</button>
+</div>
+<!-- Secondary Images -->
+<div class="relative group aspect-square rounded-xl overflow-hidden border border-surface-variant">
+<img class="w-full h-full object-cover" data-alt="Close-up detail of high-quality green velvet upholstery fabric texture and clean stitching on a sofa" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYVWM9XaZcQKZzpEYh49ASgtWRAWjFH-hF25jpXOnlP-WiqUflI7SGI7hlKH3yCl1rFtRfiny-fa1nZkE8Mr67QUOsojibr1lDAtbl5QK5n6jMlzDl22U2WAWYvo7A5Pnz4E2NSQAuHY6JRZblQopxdi0rAaem1MGz-VUqC5_kicVkClRbZ-NemtIudj3RAbN5LQ0-Mc8ODuBq2eit2QrxsN7WN7bTN4XANdPJCgqinppVNQLMGY9PTzkypOFhTGeFypjGGS8t8xo"/>
+<div class="absolute inset-0 bg-black/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white">drag_indicator</span>
+</div>
+<button class="absolute top-1.5 right-1.5 glass-overlay p-1 rounded-full">
+<span class="material-symbols-outlined text-on-surface text-[14px]">close</span>
+</button>
+</div>
+<div class="relative group aspect-square rounded-xl overflow-hidden border border-surface-variant">
+<img class="w-full h-full object-cover" data-alt="Side view of a modern sofa showing the wooden legs and clean geometric profile in a sunlit interior" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZV-QYtgdSZYlaz1rNaCegjHGCWpXa4wtBpL5nMLPw9JXj0nD4pV4Xqb_PLCrkF23XoqL6IJ9f0bWuMFOTXdl186e8XStwPwARBAM1SapnpHRipYWv8QK292Fog_iLSF4L9CL4Hpb8afIMCarKJB2Sk3EJxezGiuYK5kvsunTpd5lIApz34QC2t4XV0zz7IzUOPT0wSaCnere549ElUIKoQozZ7Zw7z-uA7qu2BZU4ccFSl8ymjgu1DrtP97zi3fGiRwCSgJEUwdQ"/>
+<div class="absolute inset-0 bg-black/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white">drag_indicator</span>
+</div>
+<button class="absolute top-1.5 right-1.5 glass-overlay p-1 rounded-full">
+<span class="material-symbols-outlined text-on-surface text-[14px]">close</span>
+</button>
+</div>
+<!-- Add More Placeholder -->
+<button class="flex flex-col items-center justify-center gap-1 border-2 border-dashed border-outline-variant bg-surface-container-low rounded-xl aspect-square hover:bg-surface-container-high transition-colors active:scale-95" type="button">
+<span class="material-symbols-outlined text-primary text-3xl">add_a_photo</span>
+<span class="font-label-sm text-outline">Add more</span>
+</button>
+</div>
+</section>
+<!-- Pricing Section (Primary Focus) -->
+<section class="bg-white p-5 rounded-2xl border border-surface-variant shadow-sm flex flex-col gap-stack_gap_md">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Pricing</h3>
+<p class="font-body-md text-outline">Set a competitive price to sell faster.</p>
+</div>
+<div class="relative">
+<label class="font-label-sm text-on-surface block mb-2">Selling Price</label>
+<div class="flex items-center px-4 py-3 bg-surface-container-low rounded-lg border border-outline-variant focus-within:border-primary-container focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
+<span class="font-price-lg text-price-lg text-on-surface-variant mr-2">₹</span>
+<input class="w-full bg-transparent border-none p-0 focus:ring-0 font-price-lg text-price-lg text-on-surface" placeholder="0.00" type="number" value="24500"/>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 bg-primary-container/10 rounded-lg">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">trending_up</span>
+<div>
+<p class="font-label-sm text-on-primary-container">Price Insight</p>
+<p class="text-[12px] text-on-primary-container/80">Similar sofas sell for ₹22k - ₹28k</p>
+</div>
+</div>
+<span class="font-label-sm text-primary font-bold">FAIR</span>
+</div>
+</section>
+<!-- Details Section -->
+<section class="flex flex-col gap-stack_gap_md">
+<h3 class="font-h3 text-h3 text-on-surface px-1">Details</h3>
+<div class="space-y-4">
+<div>
+<label class="font-label-sm text-on-surface block mb-2">Title</label>
+<input class="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg font-body-lg text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" placeholder="What are you selling?" type="text" value="Modern Velvet 3-Seater Sofa - Forest Green"/>
+</div>
+<div>
+<label class="font-label-sm text-on-surface block mb-2">Category</label>
+<div class="relative">
+<select class="w-full appearance-none px-4 py-3 bg-white border border-outline-variant rounded-lg font-body-lg text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all">
+<option>Furniture</option>
+<option>Electronics</option>
+<option>Home Decor</option>
+<option>Appliances</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-outline">expand_more</span>
+</div>
+</div>
+<div>
+<label class="font-label-sm text-on-surface block mb-2">Description</label>
+<textarea class="w-full px-4 py-3 bg-white border border-outline-variant rounded-lg font-body-lg text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all resize-none" placeholder="Describe the item condition, dimensions, and usage..." rows="4">Minimalist forest green velvet sofa. Purchased 6 months ago. Immaculate condition with no stains or tears. Sturdy oak wood frame. Perfect for modern living spaces. Selling because I'm relocating.</textarea>
+</div>
+</div>
+</section>
+<!-- Location Section -->
+<section class="flex flex-col gap-stack_gap_md">
+<h3 class="font-h3 text-h3 text-on-surface px-1">Location</h3>
+<div class="relative h-32 rounded-xl overflow-hidden border border-surface-variant group">
+<img class="w-full h-full object-cover" data-alt="Stylized map showing urban city grid with a central pin marker in a teal color palette" data-location="Indiranagar, Bangalore" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEFykSAMqZz4737T-69Va30y90wI7asmsDeAdGHWGLL5blWmn1uSHm04clvGIcnznXBK4G50QQTHkExq0Zcug5FiWitYo14lGsF4td4lsSM49tAah-eyVE9ikMAUoeXGOCGKZsLfLsdJwTW8PuiY9aSuPUPVGSkTkVlNOF-5nrnr2IgV0Zw1L_i59Dv00yQHySgS_d9CVt27Y96e-1O023kK4AU589vO9fKR7iAjl4vZcCTZKfq6aDAwX8bXcxyNTO4smJzQsjqy0"/>
+<div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+<div class="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 shadow-lg border border-white/50">
+<span class="material-symbols-outlined text-primary text-[18px]">location_on</span>
+<span class="font-label-sm text-on-surface">Indiranagar, Bangalore</span>
+</div>
+</div>
+<button class="absolute bottom-2 right-2 glass-overlay p-2 rounded-lg active:scale-95" type="button">
+<span class="material-symbols-outlined text-on-surface">edit_location_alt</span>
+</button>
+</div>
+</section>
+<!-- Listing Attributes -->
+<section class="flex flex-col gap-stack_gap_md">
+<h3 class="font-h3 text-h3 text-on-surface px-1">Additional Info</h3>
+<div class="grid grid-cols-2 gap-3">
+<div class="p-4 bg-white border border-surface-variant rounded-xl flex flex-col gap-1">
+<span class="font-label-sm text-outline">Condition</span>
+<span class="font-body-lg font-medium text-on-surface">Like New</span>
+</div>
+<div class="p-4 bg-white border border-surface-variant rounded-xl flex flex-col gap-1">
+<span class="font-label-sm text-outline">Brand</span>
+<span class="font-body-lg font-medium text-on-surface">Custom Build</span>
+</div>
+</div>
+</section>
+</form>
+</main>
+<!-- Fixed Footer Action -->
+<footer class="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-xl border-t border-surface-variant z-50">
+<div class="max-w-2xl mx-auto flex gap-3">
+<button class="flex-[1] py-4 bg-surface-container-high text-on-surface font-label-sm rounded-xl hover:bg-surface-container-highest transition-colors active:scale-[0.98]">
+                Save as Draft
+            </button>
+<button class="flex-[2] py-4 bg-gradient-to-r from-primary-container to-[#1E9E7E] text-white font-h3 rounded-xl shadow-lg shadow-primary-container/20 hover:opacity-90 transition-all active:scale-[0.98]">
+                Update Listing
+            </button>
+</div>
+</footer>
+</body></html>
