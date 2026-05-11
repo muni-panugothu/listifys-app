@@ -25,6 +25,7 @@ import {
   toggleSaveListing,
   type ListingItem,
 } from "@/features/listing/services/listing-api";
+import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
@@ -43,6 +44,19 @@ export function ListingDetailTemplateScreen() {
 
   const categorySlug = (params.category ?? "electronics") as CategorySlug;
   const listingId = params.id;
+
+  // Auth gate for guest users
+  const [authGateVisible, setAuthGateVisible] = useState(false);
+  const [authGateAction, setAuthGateAction] = useState<"save" | "message" | "offer">("general" as any);
+
+  const requireAuth = useCallback((action: "save" | "message" | "offer", callback: () => void) => {
+    if (!user) {
+      setAuthGateAction(action);
+      setAuthGateVisible(true);
+      return;
+    }
+    callback();
+  }, [user]);
 
   const loadListing = useCallback(async () => {
     if (!listingId) return;
@@ -73,11 +87,13 @@ export function ListingDetailTemplateScreen() {
 
   const handleToggleSave = useCallback(async () => {
     if (!listingId) return;
-    try {
-      const res = await toggleSaveListing(categorySlug, listingId);
-      setIsSaved(res.saved);
-    } catch { /* silently fail */ }
-  }, [categorySlug, listingId]);
+    requireAuth("save", async () => {
+      try {
+        const res = await toggleSaveListing(categorySlug, listingId);
+        setIsSaved(res.saved);
+      } catch { /* silently fail */ }
+    });
+  }, [categorySlug, listingId, requireAuth]);
 
   const images = listing?.images?.length ? listing.images : [];
   const title = listing?.title ?? "";
@@ -470,9 +486,11 @@ export function ListingDetailTemplateScreen() {
             onPress={() => {
               const sellerId = listing?.seller?._id;
               if (!sellerId) return;
-              router.push(
-                `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "₹")}` as Href,
-              );
+              requireAuth("message", () => {
+                router.push(
+                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "₹")}` as Href,
+                );
+              });
             }}
             className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white"
           >
@@ -482,7 +500,7 @@ export function ListingDetailTemplateScreen() {
             </Text>
           </Pressable>
           <Pressable
-            onPress={openOfferSheet}
+            onPress={() => requireAuth("offer", openOfferSheet)}
             className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-[#27BB97]"
             style={{
               shadowColor: "#27BB97",
@@ -700,6 +718,13 @@ export function ListingDetailTemplateScreen() {
           </View>
         </Animated.View>
       </Modal>
+
+      {/* Auth Gate for guest users */}
+      <AuthGateBottomSheet
+        visible={authGateVisible}
+        onClose={() => setAuthGateVisible(false)}
+        action={authGateAction}
+      />
     </View>
   );
 }

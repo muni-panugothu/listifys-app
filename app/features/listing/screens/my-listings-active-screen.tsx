@@ -1,10 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "@/lib/safe-router";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { fetchMyListings, type ListingItem } from "@/features/listing/services/listing-api";
+import { deleteListing, fetchMyListings, type ListingItem } from "@/features/listing/services/listing-api";
+import type { CategorySlug } from "@/constants/categories";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
@@ -64,6 +65,35 @@ export function MyListingsActiveScreen() {
   };
 
   const handleBottomTabPress = useTabNavigation();
+
+  const handleDeleteListing = useCallback((listing: ListingItem) => {
+    const category = ((listing as any)._source ?? listing.category) as CategorySlug;
+    Alert.alert(
+      "Delete Listing",
+      `Are you sure you want to delete "${listing.title}"? This will also remove all images from storage. This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteListing(category, listing._id);
+              setListings((prev) => prev.filter((l) => l._id !== listing._id));
+              Alert.alert("Deleted", "Listing has been removed successfully.");
+            } catch {
+              Alert.alert("Error", "Failed to delete listing. Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const handleEditListing = useCallback((listing: ListingItem) => {
+    const category = ((listing as any)._source ?? listing.category) as CategorySlug;
+    router.push(`/edit-listing?category=${category}&id=${listing._id}` as any);
+  }, [router]);
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -175,6 +205,25 @@ export function MyListingsActiveScreen() {
                       <MaterialIcons name="favorite" size={18} color="#64748B" />
                       <Text className="text-[13px] font-medium text-[#64748B]">{listing.savedBy?.length ?? 0} Saves</Text>
                     </View>
+                  </View>
+                  {/* Edit / Delete Actions */}
+                  <View className="mt-4 flex-row gap-3 border-t border-slate-100 pt-3">
+                    <Pressable
+                      onPress={() => handleEditListing(listing)}
+                      className="flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-[#27BB97] bg-[#27BB97]/5 py-2.5"
+                      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                    >
+                      <MaterialIcons name="edit" size={18} color="#27BB97" />
+                      <Text className="text-[13px] font-semibold text-[#27BB97]">Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleDeleteListing(listing)}
+                      className="flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 py-2.5"
+                      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                    >
+                      <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
+                      <Text className="text-[13px] font-semibold text-[#EF4444]">Delete</Text>
+                    </Pressable>
                   </View>
                 </View>
               </Pressable>

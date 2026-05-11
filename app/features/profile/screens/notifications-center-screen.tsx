@@ -10,9 +10,14 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/features/auth/services/auth-api";
+import {
+  connectSocket,
+  getSocket,
+} from "@/features/messaging/services/socket-service";
 import { Image } from "@/lib/nativewind-interop";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { useAppSelector } from "@/store/hooks";
 
 function getNotifStyle(type: string) {
   switch (type) {
@@ -42,6 +47,7 @@ export function NotificationsCenterScreen() {
   const [loading, setLoading] = useState(true);
 
   const handleBottomTabPress = useTabNavigation();
+  const user = useAppSelector((s) => s.auth.user);
 
   const loadNotifications = useCallback(async () => {
     setLoading(true);
@@ -56,6 +62,30 @@ export function NotificationsCenterScreen() {
   }, []);
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  // Real-time socket notifications
+  useEffect(() => {
+    if (!user) return;
+    try { connectSocket(); } catch { return; }
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewNotification = (data: any) => {
+      const notif: NotificationItem = {
+        _id: data._id || `notif_${Date.now()}`,
+        type: data.type || "general",
+        title: data.title || "New Notification",
+        message: data.message || "",
+        read: false,
+        createdAt: data.createdAt || new Date().toISOString(),
+        data: data.data,
+      };
+      setNotifications((prev) => [notif, ...prev]);
+    };
+
+    socket.on("notification:new", handleNewNotification);
+    return () => { socket.off("notification:new", handleNewNotification); };
+  }, [user]);
 
   const handleRefresh = useCallback(async () => {
     try {
