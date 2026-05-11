@@ -145,6 +145,13 @@ export function SignUpScreen() {
     });
   }, []);
 
+  const showGoogleDeveloperError = () => {
+    Alert.alert(
+      "Google Sign In",
+      "Google Sign-In is misconfigured for this Android build. Check that the app package is com.listifys.app, that the SHA-1 for this build is added in Firebase/Google Cloud, and that the web client ID is the Web OAuth client.",
+    );
+  };
+
   const handleGoogleSignIn = async () => {
     const googleModule = getGoogleSigninModule();
     if (!googleModule) {
@@ -177,6 +184,21 @@ export function SignUpScreen() {
       }
     } catch (err: any) {
       if (isErrorWithCode(err)) {
+        const message = typeof err?.message === "string" ? err.message : "";
+        const isDeveloperError =
+          err?.code === 10 ||
+          message.includes("DEVELOPER_ERROR") ||
+          message.includes("Developer console is not set up correctly") ||
+          message.toLowerCase().includes("developer error");
+
+        if (isDeveloperError) {
+          Alert.alert(
+            "Google Sign In",
+            "Google Sign-In is not configured correctly for this Android build. Verify the Android package name and SHA-1 in Firebase or Google Cloud, then rebuild the app.",
+          );
+          return;
+        }
+
         switch (err.code) {
           case statusCodes.IN_PROGRESS:
             break;
@@ -186,10 +208,24 @@ export function SignUpScreen() {
             Alert.alert("Google Sign In", "Google Play Services not available.");
             break;
           default:
-            Alert.alert("Google Sign In", err?.message || "Something went wrong.");
+            if (
+              typeof err?.message === "string" &&
+              (err.message.includes("DEVELOPER_ERROR") || err.message.includes("code: 10"))
+            ) {
+              showGoogleDeveloperError();
+            } else {
+              Alert.alert("Google Sign In", err?.message || "Something went wrong.");
+            }
         }
       } else {
-        Alert.alert("Google Sign In", err?.message || "Failed to connect.");
+        if (
+          typeof err?.message === "string" &&
+          (err.message.includes("DEVELOPER_ERROR") || err.message.includes("code: 10"))
+        ) {
+          showGoogleDeveloperError();
+        } else {
+          Alert.alert("Google Sign In", err?.message || "Failed to connect.");
+        }
       }
     } finally {
       setIsGoogleLoading(false);

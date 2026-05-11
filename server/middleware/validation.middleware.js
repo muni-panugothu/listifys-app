@@ -299,6 +299,9 @@ const FIELD_ENUMS = {
 exports.validateListingInput = (req, res, next) => {
   const errors = {};
   const body = req.body;
+  const isPartialUpdate = ['PUT', 'PATCH'].includes(req.method);
+  const hasField = (field) => Object.prototype.hasOwnProperty.call(body, field);
+  const shouldValidateField = (field) => !isPartialUpdate || hasField(field);
 
   // Utility: strip HTML tags and dangerous chars
   const stripTags = (str) =>
@@ -340,40 +343,46 @@ exports.validateListingInput = (req, res, next) => {
   }
 
   // ── 2. Required common fields ────────────────────────────────
-  if (!body.title || body.title.length < 3)
-    errors.title = 'Title must be at least 3 characters';
-  if (body.title && body.title.length > 200)
-    errors.title = 'Title cannot exceed 200 characters';
+  if (shouldValidateField('title')) {
+    if (!body.title || body.title.length < 3)
+      errors.title = 'Title must be at least 3 characters';
+    if (body.title && body.title.length > 200)
+      errors.title = 'Title cannot exceed 200 characters';
+  }
 
-  if (!body.description || body.description.length < 20)
-    errors.description = 'Description must be at least 20 characters';
-  if (body.description && body.description.length > 5000)
-    errors.description = 'Description cannot exceed 5000 characters';
+  if (shouldValidateField('description')) {
+    if (!body.description || body.description.length < 20)
+      errors.description = 'Description must be at least 20 characters';
+    if (body.description && body.description.length > 5000)
+      errors.description = 'Description cannot exceed 5000 characters';
+  }
 
   // Price is optional for Jobs and Events (can be free / salary-based)
   const PRICE_OPTIONAL_CATEGORIES = ['Jobs', 'Events', 'Take Care'];
   const priceOptional = PRICE_OPTIONAL_CATEGORIES.includes(body.category);
 
-  if (!priceOptional) {
-    if (body.price === undefined || body.price === null || body.price === '')
-      errors.price = 'Price is required';
-    else if (isNaN(Number(body.price)) || Number(body.price) < 0)
-      errors.price = 'Price must be a non-negative number';
-    else if (Number(body.price) > 999999999)
-      errors.price = 'Price exceeds maximum allowed value';
-  } else {
-    // Still validate if provided
-    if (body.price !== undefined && body.price !== null && body.price !== '') {
-      if (isNaN(Number(body.price)) || Number(body.price) < 0)
+  if (!isPartialUpdate || hasField('price')) {
+    if (!priceOptional) {
+      if (body.price === undefined || body.price === null || body.price === '')
+        errors.price = 'Price is required';
+      else if (isNaN(Number(body.price)) || Number(body.price) < 0)
         errors.price = 'Price must be a non-negative number';
       else if (Number(body.price) > 999999999)
         errors.price = 'Price exceeds maximum allowed value';
+    } else {
+      // Still validate if provided
+      if (body.price !== undefined && body.price !== null && body.price !== '') {
+        if (isNaN(Number(body.price)) || Number(body.price) < 0)
+          errors.price = 'Price must be a non-negative number';
+        else if (Number(body.price) > 999999999)
+          errors.price = 'Price exceeds maximum allowed value';
+      }
     }
   }
 
-  if (!body.category) errors.category = 'Category is required';
-  if (!body.subcategory) errors.subcategory = 'Subcategory is required';
-  if (!body.location || body.location.length < 2)
+  if (shouldValidateField('category') && !body.category) errors.category = 'Category is required';
+  if (shouldValidateField('subcategory') && !body.subcategory) errors.subcategory = 'Subcategory is required';
+  if (shouldValidateField('location') && (!body.location || body.location.length < 2))
     errors.location = 'Location is required (at least 2 characters)';
 
   // ── 3. Category / Subcategory enum validation ────────────────
@@ -410,14 +419,22 @@ exports.validateListingInput = (req, res, next) => {
   const CONDITION_SKIP_CATEGORIES = ['Jobs', 'Events', 'Take Care'];
   const conditionRequired = !CONDITION_SKIP_CATEGORIES.includes(body.category);
 
-  if (conditionRequired) {
+  if (!isPartialUpdate) {
+    if (conditionRequired) {
+      if (!body.condition) {
+        errors.condition = 'Condition is required';
+      } else if (!FIELD_ENUMS.condition.includes(body.condition)) {
+        errors.condition = `Condition must be one of: ${FIELD_ENUMS.condition.join(', ')}`;
+      }
+    } else if (body.condition && !FIELD_ENUMS.condition.includes(body.condition)) {
+      errors.condition = `Condition must be one of: ${FIELD_ENUMS.condition.join(', ')}`;
+    }
+  } else if (hasField('condition')) {
     if (!body.condition) {
       errors.condition = 'Condition is required';
     } else if (!FIELD_ENUMS.condition.includes(body.condition)) {
       errors.condition = `Condition must be one of: ${FIELD_ENUMS.condition.join(', ')}`;
     }
-  } else if (body.condition && !FIELD_ENUMS.condition.includes(body.condition)) {
-    errors.condition = `Condition must be one of: ${FIELD_ENUMS.condition.join(', ')}`;
   }
 
   // ── 6. Field-specific enum validations ───────────────────────
@@ -511,22 +528,24 @@ exports.validateListingInput = (req, res, next) => {
   if (!body.images && Array.isArray(body.imageUrls)) {
     body.images = body.imageUrls;
   }
-  if (!Array.isArray(body.images)) {
-    errors.images = 'At least one image is required';
-  } else if (body.images.length < 1) {
-    errors.images = 'At least one image is required';
-  } else if (body.images.length > 10) {
-    errors.images = 'Maximum 10 images allowed';
-  } else {
-    for (const url of body.images) {
-      if (typeof url !== 'string' || url.length > 2048) {
-        errors.images = 'Invalid image URL detected';
-        break;
-      }
-      // Allow HTTP/HTTPS URLs, proxy URLs (/api/images/), and data URIs
-      if (!/^(https?:\/\/|\/api\/images\/|data:image\/)/i.test(url)) {
-        errors.images = 'Invalid image URL format';
-        break;
+  if (!isPartialUpdate || body.images !== undefined) {
+    if (!Array.isArray(body.images)) {
+      errors.images = 'At least one image is required';
+    } else if (body.images.length < 1) {
+      errors.images = 'At least one image is required';
+    } else if (body.images.length > 10) {
+      errors.images = 'Maximum 10 images allowed';
+    } else {
+      for (const url of body.images) {
+        if (typeof url !== 'string' || url.length > 2048) {
+          errors.images = 'Invalid image URL detected';
+          break;
+        }
+        // Allow HTTP/HTTPS URLs, proxy URLs (/api/images/), and data URIs
+        if (!/^(https?:\/\/|\/api\/images\/|data:image\/)/i.test(url)) {
+          errors.images = 'Invalid image URL format';
+          break;
+        }
       }
     }
   }
@@ -575,7 +594,9 @@ exports.validateListingInput = (req, res, next) => {
   }
 
   // Coerce price to number
-  body.price = Number(body.price);
+  if (hasField('price') && body.price !== undefined && body.price !== null && body.price !== '') {
+    body.price = Number(body.price);
+  }
 
   next();
 };

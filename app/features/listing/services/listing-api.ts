@@ -13,6 +13,7 @@ import {
   resolveAbsoluteMediaUrl,
 } from "@/features/auth/services/auth-api";
 import type { CategorySlug } from "@/constants/categories";
+import { cacheKeys, invalidateCache, withCache } from "@/lib/cache";
 
 import Constants from "expo-constants";
 import { requireOptionalNativeModule } from "expo-modules-core";
@@ -169,19 +170,24 @@ export async function fetchHomeFeed(params?: {
   if (params?.search) query.set("search", params.search);
 
   const qs = query.toString();
-  const data = await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`);
 
-  // Normalise all images in each category
-  if (data.categories) {
-    for (const category of Object.keys(data.categories)) {
-      const cat = data.categories[category];
-      if (cat?.listings) {
-        cat.listings = cat.listings.map(normaliseListingImages);
+  return withCache(
+    cacheKeys.feed(params?.page),
+    async () => {
+      const data = await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`);
+      // Normalise all images in each category
+      if (data.categories) {
+        for (const category of Object.keys(data.categories)) {
+          const cat = data.categories[category];
+          if (cat?.listings) {
+            cat.listings = cat.listings.map(normaliseListingImages);
+          }
+        }
       }
-    }
-  }
-
-  return data;
+      return data;
+    },
+    60_000, // 1 minute TTL
+  );
 }
 
 // ── Category Listings ──────────────────────────────────────────────────────────
@@ -210,12 +216,18 @@ export async function fetchCategoryListings(
   if (params?.sort) query.set("sort", params.sort);
 
   const qs = query.toString();
-  const data = await apiRequest<ListingsResponse>(
-    `/api/${categorySlug}${qs ? `?${qs}` : ""}`,
-  );
 
-  data.listings = (data.listings || []).map(normaliseListingImages);
-  return data;
+  return withCache(
+    cacheKeys.categoryList(categorySlug, params?.page),
+    async () => {
+      const data = await apiRequest<ListingsResponse>(
+        `/api/${categorySlug}${qs ? `?${qs}` : ""}`,
+      );
+      data.listings = (data.listings || []).map(normaliseListingImages);
+      return data;
+    },
+    60_000,
+  );
 }
 
 // ── Single Listing Detail ──────────────────────────────────────────────────────
@@ -224,13 +236,19 @@ export async function fetchListingById(
   categorySlug: CategorySlug,
   id: string,
 ): Promise<SingleListingResponse> {
-  const data = await apiRequest<SingleListingResponse>(
-    `/api/${categorySlug}/${id}`,
+  return withCache(
+    cacheKeys.listingDetail(categorySlug, id),
+    async () => {
+      const data = await apiRequest<SingleListingResponse>(
+        `/api/${categorySlug}/${id}`,
+      );
+      if (data.listing) {
+        data.listing = normaliseListingImages(data.listing);
+      }
+      return data;
+    },
+    120_000, // 2 minutes TTL
   );
-  if (data.listing) {
-    data.listing = normaliseListingImages(data.listing);
-  }
-  return data;
 }
 
 // ── Create Listing ─────────────────────────────────────────────────────────────
@@ -239,10 +257,15 @@ export async function createListing(
   categorySlug: CategorySlug,
   body: Record<string, unknown>,
 ): Promise<CreateListingResponse> {
-  return apiRequest<CreateListingResponse>(`/api/${categorySlug}`, {
+  const result = await apiRequest<CreateListingResponse>(`/api/${categorySlug}`, {
     method: "POST",
     body: JSON.stringify(body),
   });
+  // Invalidate feed and category caches
+  invalidateCache("feed:");
+  invalidateCache(`list:${categorySlug}`);
+  invalidateCache("my-listings");
+  return result;
 }
 
 // ── Update Listing ─────────────────────────────────────────────────────────────
@@ -252,10 +275,15 @@ export async function updateListing(
   id: string,
   body: Record<string, unknown>,
 ): Promise<CreateListingResponse> {
-  return apiRequest<CreateListingResponse>(`/api/${categorySlug}/${id}`, {
+  const result = await apiRequest<CreateListingResponse>(`/api/${categorySlug}/${id}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
+  invalidateCache(cacheKeys.listingDetail(categorySlug, id));
+  invalidateCache(`list:${categorySlug}`);
+  invalidateCache("feed:");
+  invalidateCache("my-listings");
+  return result;
 }
 
 // ── Delete Listing ─────────────────────────────────────────────────────────────
@@ -264,7 +292,12 @@ export async function deleteListing(
   categorySlug: CategorySlug,
   id: string,
 ): Promise<{ success: boolean; message: string }> {
-  return apiRequest(`/api/${categorySlug}/${id}`, { method: "DELETE" });
+  const result = await apiRequest<{ success: boolean; message: string }>(`/api/${categorySlug}/${id}`, { method: "DELETE" });
+  invalidateCache(cacheKeys.listingDetail(categorySlug, id));
+  invalidateCache(`list:${categorySlug}`);
+  invalidateCache("feed:");
+  invalidateCache("my-listings");
+  return result;
 }
 
 // ── Toggle Save (bookmark) ─────────────────────────────────────────────────────
