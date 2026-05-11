@@ -39,7 +39,7 @@ export function PostAdStep1CategoryScreen() {
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
 
   const handleBack = () => {
-    router.back();
+    router.replace("/sell-entry" as Href);
   };
 
   useFocusEffect(

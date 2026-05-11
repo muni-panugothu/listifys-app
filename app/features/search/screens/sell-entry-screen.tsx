@@ -84,13 +84,13 @@ export function SellEntryScreen() {
 	const insets = useSafeAreaInsets();
 	const dispatch = useAppDispatch();
 	const [selectedCategorySlug, setSelectedCategorySlug] =
-		useState<CategorySlug>("electronics");
+		useState<CategorySlug | null>(null);
 
 	const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
 	const bottomNavPadding = Math.max(insets.bottom, 8);
-	const selectedCategory =
-		categories.find((category) => category.slug === selectedCategorySlug) ??
-		categories[0];
+	const selectedCategory = selectedCategorySlug
+		? categories.find((category) => category.slug === selectedCategorySlug) ?? null
+		: null;
 
 	const openCategoryFlow = (slug: CategorySlug) => {
 		setSelectedCategorySlug(slug);
@@ -252,7 +252,7 @@ export function SellEntryScreen() {
 							Tips to sell faster
 						</Text>
 						{[
-							{ icon: "photo-camera" as const, text: "Add clear, well-lit photos" },
+							{ icon: "photo-camera" as const, text: "Add clear, well-fit photos" },
 							{ icon: "description" as const, text: "Write a detailed description" },
 							{ icon: "local-offer" as const, text: "Set a competitive price" },
 						].map((tip) => (
@@ -273,33 +273,6 @@ export function SellEntryScreen() {
 				className="absolute inset-x-0 z-40 px-4"
 				style={{ bottom: 86 + bottomNavPadding }}
 			>
-				<Pressable
-					onPress={() => openCategoryFlow(selectedCategory.slug)}
-					className="overflow-hidden rounded-2xl"
-					style={({ pressed }) => ({
-						transform: [{ scale: pressed ? 0.98 : 1 }],
-					})}
-				>
-					<LinearGradient
-						colors={["#27BB97", "#1E9E7E"]}
-						start={{ x: 0, y: 0.5 }}
-						end={{ x: 1, y: 0.5 }}
-						style={{
-							height: 56,
-							alignItems: "center",
-							justifyContent: "center",
-							shadowColor: "#27BB97",
-							shadowOffset: { width: 0, height: 8 },
-							shadowOpacity: 0.22,
-							shadowRadius: 14,
-							elevation: 7,
-						}}
-					>
-						<Text className="text-[18px] font-semibold tracking-tight text-white">
-							Start Listing
-						</Text>
-					</LinearGradient>
-				</Pressable>
 			</View>
 
 			<View
