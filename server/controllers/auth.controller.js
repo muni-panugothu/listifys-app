@@ -1627,7 +1627,30 @@ exports.getProfile = async (req, res) => {
     }
 
     const user = req.user;
-    const [passwordProbeUser, followCounts] = await Promise.all([
+
+    // Count active listings across all category models
+    const listingModels = [
+      require("../models/electronics.model"),
+      require("../models/vehicle.model"),
+      require("../models/mobile.model"),
+      require("../models/job.model"),
+      require("../models/furniture.model"),
+      require("../models/toy.model"),
+      require("../models/fashion.model"),
+      require("../models/sports.model"),
+      require("../models/collectible.model"),
+      require("../models/pet.model"),
+      require("../models/service.model"),
+      require("../models/book.model"),
+      require("../models/beauty.model"),
+      require("../models/other.model"),
+      require("../models/forsale.model"),
+      require("../models/event.model"),
+      require("../models/property.model"),
+      require("../models/takecare.model"),
+    ];
+
+    const [passwordProbeUser, followCounts, ...listingCounts] = await Promise.all([
       User.findById(user._id).select("+password"),
       User.aggregate([
         { $match: { _id: user._id } },
@@ -1636,10 +1659,14 @@ exports.getProfile = async (req, res) => {
           followingCount: { $size: { $ifNull: ['$following', []] } },
         }},
       ]),
+      ...listingModels.map((Model) =>
+        Model.countDocuments({ seller: user._id, status: "active" })
+      ),
     ]);
     const hasPassword = !!passwordProbeUser?.password;
     const followersCount = followCounts[0]?.followersCount || 0;
     const followingCount = followCounts[0]?.followingCount || 0;
+    const listingsCount = listingCounts.reduce((sum, c) => sum + c, 0);
 
     const profileImageUrl = getResolvedProfileImage(user);
 
@@ -1665,6 +1692,7 @@ exports.getProfile = async (req, res) => {
       profileImageUrl: profileImageUrl,
       followersCount,
       followingCount,
+      listingsCount,
       preferences: {
         emailNotifications: user.preferences?.emailNotifications ?? true,
         pushNotifications: user.preferences?.pushNotifications ?? true,
@@ -3057,7 +3085,7 @@ exports.getSellerProfile = async (req, res) => {
     }
 
     const seller = await User.findById(sellerId).select(
-      "name profileImage googleProfileImage avatar provider createdAt"
+      "name email profileImage googleProfileImage avatar provider createdAt"
     );
 
     if (!seller) {
@@ -3117,6 +3145,7 @@ exports.getSellerProfile = async (req, res) => {
         id: seller._id,
         _id: seller._id,
         name: seller.name,
+        email: seller.email,
         provider: seller.provider,
         profileImageUrl,
         createdAt: seller.createdAt,
@@ -3130,6 +3159,66 @@ exports.getSellerProfile = async (req, res) => {
   } catch (error) {
     logger.error("Get seller profile error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch seller profile" });
+  }
+};
+
+// ==================== SELLER LISTINGS (public, auth-required) ====================
+/**
+ * GET /api/auth/seller/:userId/listings
+ * Returns all active listings across every category for a given seller.
+ */
+exports.getSellerListings = async (req, res) => {
+  try {
+    const sellerId = req.params.userId;
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    const categoryModels = [
+      { model: require("../models/electronics.model"), type: "electronics" },
+      { model: require("../models/vehicle.model"), type: "vehicles" },
+      { model: require("../models/mobile.model"), type: "mobiles" },
+      { model: require("../models/job.model"), type: "jobs" },
+      { model: require("../models/furniture.model"), type: "furniture" },
+      { model: require("../models/toy.model"), type: "toys" },
+      { model: require("../models/fashion.model"), type: "fashion" },
+      { model: require("../models/sports.model"), type: "sports" },
+      { model: require("../models/collectible.model"), type: "collectibles" },
+      { model: require("../models/pet.model"), type: "pets" },
+      { model: require("../models/book.model"), type: "books" },
+      { model: require("../models/beauty.model"), type: "beauty" },
+      { model: require("../models/other.model"), type: "others" },
+      { model: require("../models/forsale.model"), type: "forsale" },
+      { model: require("../models/event.model"), type: "events" },
+      { model: require("../models/property.model"), type: "properties" },
+      { model: require("../models/takecare.model"), type: "takecare" },
+    ];
+
+    const results = await Promise.all(
+      categoryModels.map(async ({ model: Model, type }) => {
+        const docs = await Model.find({ seller: sellerId, status: "active" })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .select("title price images location condition subcategory category createdAt")
+          .lean();
+        return docs.map((d) => ({
+          ...d,
+          _listingType: type,
+          images: (d.images || []).map((img) =>
+            s3Service.toProxyUrl ? s3Service.toProxyUrl(img) : img
+          ),
+        }));
+      })
+    );
+
+    const listings = results
+      .flat()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.status(200).json({ success: true, listings });
+  } catch (error) {
+    logger.error("Get seller listings error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch seller listings" });
   }
 };
 

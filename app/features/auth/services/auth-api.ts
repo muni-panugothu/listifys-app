@@ -17,6 +17,11 @@ export type AuthUser = {
   profileImageUrl?: string | null;
   isVerified?: boolean;
   phoneVerified?: boolean;
+  followersCount?: number;
+  followingCount?: number;
+  listingsCount?: number;
+  createdAt?: string;
+  bio?: string | null;
 };
 
 export type AuthResponse = {
@@ -149,7 +154,11 @@ export function getAccessToken() {
   return _accessToken;
 }
 
-async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<boolean> {
+  // Try to restore from storage if in-memory token is missing
+  if (!_refreshToken) {
+    await restoreTokens();
+  }
   if (!_refreshToken) return false;
 
   // Deduplicate concurrent refresh calls
@@ -191,18 +200,37 @@ function extractErrorMessage(payload: unknown) {
 
   const body = payload as Record<string, unknown>;
 
-  if (typeof body.message === "string" && body.message.trim().length > 0) {
-    return body.message;
-  }
+  const findFirstString = (value: unknown): string | null => {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = findFirstString(item);
+        if (found) return found;
+      }
+      return null;
+    }
+    if (value && typeof value === "object") {
+      for (const item of Object.values(value as Record<string, unknown>)) {
+        const found = findFirstString(item);
+        if (found) return found;
+      }
+      return null;
+    }
+    return null;
+  };
 
+  // Prefer specific field errors over generic messages like "Validation failed"
   if (body.errors && typeof body.errors === "object") {
-    const firstError = Object.values(body.errors as Record<string, unknown>).find(
-      (value) => typeof value === "string" && value.trim().length > 0,
-    ) as string | undefined;
-
+    const firstError = findFirstString(body.errors);
     if (firstError) {
       return firstError;
     }
+  }
+
+  if (typeof body.message === "string" && body.message.trim().length > 0) {
+    return body.message;
   }
 
   return "Request failed. Please try again.";
@@ -221,9 +249,14 @@ async function parseJsonSafe(response: Response) {
   }
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${AUTH_API_BASE_URL}${normalizedPath}`;
+
+  // Ensure in-memory tokens are loaded from storage before first request
+  if (!_accessToken && !_refreshToken) {
+    await restoreTokens();
+  }
 
   const buildHeaders = () => ({
     "Content-Type": "application/json",
@@ -240,7 +273,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   // Auto-refresh on 401 and retry once
-  if (response.status === 401 && _refreshToken) {
+  if (response.status === 401) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       response = await fetch(url, {
@@ -609,7 +642,7 @@ export function getNotifications(page = 1, limit = 30) {
 }
 
 export function getUnreadCount() {
-  return requestJson<{ success: boolean; count: number }>(
+  return requestJson<{ success: boolean; unreadCount: number }>(
     "/api/notifications/unread-count",
     { method: "GET" },
   );

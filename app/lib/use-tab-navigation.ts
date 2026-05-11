@@ -1,4 +1,4 @@
-import { usePathname, useRouter } from "expo-router";
+import { usePathname, useRouter } from "@/lib/safe-router";
 import { useCallback } from "react";
 
 const TAB_ROUTES: Record<string, string> = {

@@ -1,12 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type DeviceSession, getDevices, logoutAllDevices, revokeDevice } from "@/features/auth/services/auth-api";
 import { Image } from "@/lib/nativewind-interop";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 const heroImage = "https://lh3.googleusercontent.com/aida-public/AB6AXuAuhXEzk0isZFjM8QbQX3ab0RiYIrvSTgaGYCMtVk2FxJdctudTkhBu3vtypIGtH22NbYhrapHrRbtoyoxNcBOUQNo4-O1tBi4ZqiPBo_Z5QESK_EwRmsvUUvVdjfR5wa3kT1JKjkf1U_FAlPZJpTksljkOR-PxjQfExczQXS08bwCIPvRitXOg8vY-FpCIvvkdqG4B62ilLEw-W00wmjf5Ai3YqwNFuVsC1QSD4rnZiM4TloOxUFIAT_8WqMmB_GDEhkc6X8s-MIo";
 
@@ -38,6 +39,17 @@ export function DevicesScreen() {
   }, []);
 
   useEffect(() => { loadDevices(); }, [loadDevices]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      const res = await getDevices();
+      setDevices(res.devices || []);
+    } catch {
+      /* silently handle */
+    }
+  }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
   const handleLogoutAll = () => {
     Alert.alert("Log out everywhere?", "You will be signed out from all other devices.", [
@@ -85,7 +97,19 @@ export function DevicesScreen() {
         <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="settings" size={22} color="#64748B" /></Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 100 + Math.max(insets.bottom, 8) }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
+            progressViewOffset={topBarHeight}
+          />
+        }
+        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 100 + Math.max(insets.bottom, 8) }}
+      >
         <View className="px-4">
           {/* Hero */}
           <View className="mb-6 h-48 overflow-hidden rounded-xl" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 }}>

@@ -70,6 +70,13 @@ const handleListingEvent = async (payload) => {
 // ── Search Index Consumer ─────────────────────────────────────────────────────
 const handleSearchIndex = async (payload) => {
   const { action, entity, listing } = payload;
+
+  // Search analytics tracking
+  if (action === 'search_analytics') {
+    await handleSearchAnalytics(payload);
+    return;
+  }
+
   const SearchService = getSearchService();
 
   if (action === 'remove') {
@@ -78,6 +85,61 @@ const handleSearchIndex = async (payload) => {
     await SearchService.indexListing(entity, listing);
   }
   logger.info(`[SearchConsumer] ${action} processed`, { entity });
+};
+
+// ── Search Analytics Handler ──────────────────────────────────────────────────
+const handleSearchAnalytics = async (payload) => {
+  const { query, entity, resultCount, source, userId, timestamp } = payload;
+
+  try {
+    const mongoose = require('mongoose');
+
+    // Upsert into a lightweight search_analytics collection
+    const SearchAnalytics = mongoose.models.SearchAnalytics || mongoose.model(
+      'SearchAnalytics',
+      new mongoose.Schema({
+        query:       { type: String, required: true, index: true },
+        entity:      { type: String, default: 'all' },
+        searchCount: { type: Number, default: 0 },
+        lastSearched:{ type: Date, default: Date.now },
+        avgResults:  { type: Number, default: 0 },
+        sources:     { type: Map, of: Number, default: {} },
+        userIds:     { type: [String], default: [] },
+      }, {
+        collection: 'search_analytics',
+        timestamps: true,
+      })
+    );
+
+    // Ensure TTL index (auto-expire after 90 days of no searches)
+    SearchAnalytics.collection.createIndex(
+      { lastSearched: 1 },
+      { expireAfterSeconds: 90 * 24 * 60 * 60 }
+    ).catch(() => {}); // Ignore if already exists
+
+    await SearchAnalytics.findOneAndUpdate(
+      { query: query.toLowerCase(), entity },
+      {
+        $inc: { searchCount: 1, [`sources.${source}`]: 1 },
+        $set: { lastSearched: new Date(timestamp || Date.now()) },
+        $push: {
+          userIds: {
+            $each: userId ? [userId] : [],
+            $slice: -50, // Keep last 50 user IDs only
+          },
+        },
+        // Running average of result counts
+        ...(resultCount != null ? {
+          $set: { avgResults: resultCount },
+        } : {}),
+      },
+      { upsert: true, new: true }
+    );
+
+    logger.debug(`[SearchAnalytics] Tracked: "${query}" (${resultCount} results via ${source})`);
+  } catch (err) {
+    logger.error('[SearchAnalytics] Failed to track:', err.message);
+  }
 };
 
 // ── Image Cleanup Consumer ────────────────────────────────────────────────────

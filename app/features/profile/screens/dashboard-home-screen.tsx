@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useEffect, useMemo } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo } from "react";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
@@ -53,6 +55,12 @@ export function DashboardHomeScreen() {
     dispatch(fetchProfile());
   }, [dispatch]);
 
+  const handleRefresh = useCallback(async () => {
+    await dispatch(fetchProfile()).unwrap().catch(() => {});
+  }, [dispatch]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
+
   const profileImageUri =
     user?.profileImageUrl ?? user?.profileImage ?? user?.googleProfileImage ?? user?.avatar ?? defaultAvatar;
 
@@ -61,15 +69,15 @@ export function DashboardHomeScreen() {
   const isVerified = user?.isVerified ?? false;
 
   const stats = [
-    { value: "—", label: "Listings", onPress: () => router.push("/my-listings-active") },
+    { value: String(user?.listingsCount ?? 0), label: "Listings", onPress: () => router.push("/my-listings-active") },
     {
-      value: "—",
+      value: String(user?.followersCount ?? 0),
       label: "Followers",
       onPress: () =>
         router.push({ pathname: "/followers-following", params: { tab: "followers" } }),
     },
     {
-      value: "—",
+      value: String(user?.followingCount ?? 0),
       label: "Following",
       onPress: () =>
         router.push({ pathname: "/followers-following", params: { tab: "following" } }),
@@ -98,6 +106,15 @@ export function DashboardHomeScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
+            progressViewOffset={topBarHeight}
+          />
+        }
         contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
       >
         <View className="px-4">

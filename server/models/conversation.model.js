@@ -23,6 +23,9 @@ const conversationSchema = new mongoose.Schema(
         default: null,
       },
       listingTitle: { type: String, default: null },
+      listingPrice: { type: Number, default: null },
+      listingImage: { type: String, default: null },
+      currency: { type: String, default: "₹" },
     },
     // Track unread counts per participant
     unreadCounts: {

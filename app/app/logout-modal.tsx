@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { LogoutModalScreen } from "../features/profile/screens/logout-modal-screen";
 

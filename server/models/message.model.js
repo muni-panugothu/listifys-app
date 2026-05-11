@@ -36,6 +36,26 @@ const messageSchema = new mongoose.Schema(
         },
       },
     ],
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+    },
+    reactions: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        emoji: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 16,
+        },
+      },
+    ],
     // Message delivery status: sent → delivered → read
     status: {
       type: String,

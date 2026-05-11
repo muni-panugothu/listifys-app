@@ -87,8 +87,11 @@ export function usePullToRefresh(
     const startTime = Date.now();
 
     try {
-      await playRefreshSound();
-      await handler?.();
+      // Run sound + data refresh in parallel so audio issues never block the refresh
+      await Promise.all([
+        playRefreshSound().catch(() => {}),
+        handler?.(),
+      ]);
     } finally {
       const elapsed = Date.now() - startTime;
       const remaining = minimumSpinnerMs - elapsed;

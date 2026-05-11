@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { SearchResultsEntityTabsScreen } from "@/features/search/screens/search-results-entity-tabs-screen";
 

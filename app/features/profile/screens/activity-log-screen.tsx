@@ -1,11 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ActivityLogEntry, getActivityLog } from "@/features/auth/services/auth-api";
 import { Image } from "@/lib/nativewind-interop";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 function getActivityIcon(action: string): { icon: React.ComponentProps<typeof MaterialIcons>["name"]; bg: string } {
   const a = action.toLowerCase();
@@ -38,6 +39,17 @@ export function ActivityLogScreen() {
 
   useEffect(() => { loadActivities(); }, [loadActivities]);
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      const res = await getActivityLog();
+      setActivities(res.activities || []);
+    } catch {
+      /* silently handle */
+    }
+  }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
+
   return (
     <View className="flex-1 bg-[#F4FBF6]">
       {/* Top Bar */}
@@ -49,7 +61,19 @@ export function ActivityLogScreen() {
         <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="settings" size={22} color="#64748B" /></Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 40 + Math.max(insets.bottom, 8) }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
+            progressViewOffset={topBarHeight}
+          />
+        }
+        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 40 + Math.max(insets.bottom, 8) }}
+      >
         <View className="px-4">
           {/* Stats */}
           <View className="mb-8 flex-row gap-3">
@@ -71,7 +95,7 @@ export function ActivityLogScreen() {
             <Text className="py-8 text-center text-[14px] text-[#94A3B8]">No activity yet.</Text>
           ) : (
           <View className="relative pl-12">
-            <View className="absolute bottom-0 left-[19px] top-0 w-[2px] bg-[#DDE4DF]" />
+            <View className="absolute bottom-0 left-4.75 top-0 w-0.5 bg-[#DDE4DF]" />
             {activities.map((item) => {
               const { icon, bg } = getActivityIcon(item.action);
               const d = new Date(item.createdAt);

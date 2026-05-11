@@ -1,5 +1,5 @@
 import { OnboardingSlideOneScreen } from "@/features/onboarding/screens/onboarding-slide-one-screen";
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 export default function OnboardingSlideOneRoute() {
   return (

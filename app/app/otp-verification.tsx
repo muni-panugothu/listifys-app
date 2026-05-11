@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { OtpVerificationScreen } from "@/features/auth/screens/otp-verification-screen";
 

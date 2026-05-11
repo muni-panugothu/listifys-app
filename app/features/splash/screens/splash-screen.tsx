@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { type Href, useRouter } from "expo-router";
+import { type Href, useRouter } from "@/lib/safe-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Text, View } from "react-native";

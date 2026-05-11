@@ -350,12 +350,26 @@ exports.validateListingInput = (req, res, next) => {
   if (body.description && body.description.length > 5000)
     errors.description = 'Description cannot exceed 5000 characters';
 
-  if (body.price === undefined || body.price === null || body.price === '')
-    errors.price = 'Price is required';
-  else if (isNaN(Number(body.price)) || Number(body.price) < 0)
-    errors.price = 'Price must be a non-negative number';
-  else if (Number(body.price) > 999999999)
-    errors.price = 'Price exceeds maximum allowed value';
+  // Price is optional for Jobs and Events (can be free / salary-based)
+  const PRICE_OPTIONAL_CATEGORIES = ['Jobs', 'Events', 'Take Care'];
+  const priceOptional = PRICE_OPTIONAL_CATEGORIES.includes(body.category);
+
+  if (!priceOptional) {
+    if (body.price === undefined || body.price === null || body.price === '')
+      errors.price = 'Price is required';
+    else if (isNaN(Number(body.price)) || Number(body.price) < 0)
+      errors.price = 'Price must be a non-negative number';
+    else if (Number(body.price) > 999999999)
+      errors.price = 'Price exceeds maximum allowed value';
+  } else {
+    // Still validate if provided
+    if (body.price !== undefined && body.price !== null && body.price !== '') {
+      if (isNaN(Number(body.price)) || Number(body.price) < 0)
+        errors.price = 'Price must be a non-negative number';
+      else if (Number(body.price) > 999999999)
+        errors.price = 'Price exceeds maximum allowed value';
+    }
+  }
 
   if (!body.category) errors.category = 'Category is required';
   if (!body.subcategory) errors.subcategory = 'Subcategory is required';
@@ -392,10 +406,17 @@ exports.validateListingInput = (req, res, next) => {
     }
   }
 
-  // ── 5. Condition (mandatory + enum) ──────────────────────────
-  if (!body.condition) {
-    errors.condition = 'Condition is required';
-  } else if (!FIELD_ENUMS.condition.includes(body.condition)) {
+  // ── 5. Condition (optional for non-product categories) ─────
+  const CONDITION_SKIP_CATEGORIES = ['Jobs', 'Events', 'Take Care'];
+  const conditionRequired = !CONDITION_SKIP_CATEGORIES.includes(body.category);
+
+  if (conditionRequired) {
+    if (!body.condition) {
+      errors.condition = 'Condition is required';
+    } else if (!FIELD_ENUMS.condition.includes(body.condition)) {
+      errors.condition = `Condition must be one of: ${FIELD_ENUMS.condition.join(', ')}`;
+    }
+  } else if (body.condition && !FIELD_ENUMS.condition.includes(body.condition)) {
     errors.condition = `Condition must be one of: ${FIELD_ENUMS.condition.join(', ')}`;
   }
 
@@ -468,14 +489,28 @@ exports.validateListingInput = (req, res, next) => {
   // ── 9. Per-subcategory required fields ───────────────────────
   if (body.subcategory && REQUIRED_FIELDS_BY_SUBCATEGORY[body.subcategory]) {
     const requiredFields = REQUIRED_FIELDS_BY_SUBCATEGORY[body.subcategory];
-    requiredFields.forEach((field) => {
-      if (!body[field] || (typeof body[field] === 'string' && body[field].trim() === '')) {
-        errors[field] = `${field.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim()} is required for ${body.subcategory}`;
-      }
-    });
+    const filledCount = requiredFields.filter(
+      (field) => body[field] && String(body[field]).trim() !== '',
+    ).length;
+
+    // Backward-compatible behavior:
+    // Only enforce the full required set when user started entering
+    // spec fields for this subcategory. This keeps older/simple clients
+    // (that only submit common fields) working.
+    if (filledCount > 0) {
+      requiredFields.forEach((field) => {
+        if (!body[field] || (typeof body[field] === 'string' && body[field].trim() === '')) {
+          errors[field] = `${field.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim()} is required for ${body.subcategory}`;
+        }
+      });
+    }
   }
 
   // ── 10. Validate images array (mandatory) ───────────────────
+  // Accept "imageUrls" as alias for "images" (some clients/controllers use this)
+  if (!body.images && Array.isArray(body.imageUrls)) {
+    body.images = body.imageUrls;
+  }
   if (!Array.isArray(body.images)) {
     errors.images = 'At least one image is required';
   } else if (body.images.length < 1) {

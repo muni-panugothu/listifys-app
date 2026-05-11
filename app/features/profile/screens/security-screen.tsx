@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { type Href, useRouter } from "expo-router";
+import { type Href, useRouter } from "@/lib/safe-router";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

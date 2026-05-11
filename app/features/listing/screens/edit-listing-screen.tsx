@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/lib/safe-router";
 import { useMemo, useState } from "react";
 import {
   Dimensions,

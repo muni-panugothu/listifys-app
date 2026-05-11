@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { SearchHomeScreen } from "@/features/search/screens/search-home-screen";
 

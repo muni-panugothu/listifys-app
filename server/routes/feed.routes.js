@@ -215,4 +215,92 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ── GET /api/feed/my-listings — all user listings across every category ──
+router.get("/my-listings", require("../middleware/auth.middleware").protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const s3Service = require("../services/s3.service");
+
+    const entries = Object.entries(CATEGORY_MODELS);
+    const results = await Promise.allSettled(
+      entries.map(async ([key, Model]) => {
+        // services use "userId" instead of "seller"
+        const filter = key === "services"
+          ? { userId }
+          : { seller: userId };
+
+        const listings = await Model.find(filter)
+          .select(LISTING_FIELDS + " status seller")
+          .populate("seller", "name profileImage")
+          .sort({ createdAt: -1 })
+          .lean();
+
+        for (const doc of listings) {
+          if (Array.isArray(doc.images)) {
+            doc.images = doc.images.map((img) => {
+              const url = typeof img === "object" ? img.url || img.src : img;
+              return url ? s3Service.toProxyUrl(url) : url;
+            });
+          }
+          doc._source = key;
+        }
+        return { key, listings };
+      }),
+    );
+
+    let all = [];
+    for (const r of results) {
+      if (r.status === "fulfilled") all.push(...r.value.listings);
+    }
+    all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.status(200).json({ success: true, listings: all });
+  } catch (err) {
+    logger.error("Feed my-listings error", { error: err.message });
+    res.status(500).json({ success: false, message: "Failed to fetch my listings" });
+  }
+});
+
+// ── GET /api/feed/saved — all saved listings across every category ──
+router.get("/saved", require("../middleware/auth.middleware").protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const s3Service = require("../services/s3.service");
+
+    const entries = Object.entries(CATEGORY_MODELS);
+    const results = await Promise.allSettled(
+      entries.map(async ([key, Model]) => {
+        const listings = await Model.find({ savedBy: userId, status: "active" })
+          .select(LISTING_FIELDS + " seller")
+          .populate("seller", "name profileImage")
+          .sort({ createdAt: -1 })
+          .lean();
+
+        for (const doc of listings) {
+          if (Array.isArray(doc.images)) {
+            doc.images = doc.images.map((img) => {
+              const url = typeof img === "object" ? img.url || img.src : img;
+              return url ? s3Service.toProxyUrl(url) : url;
+            });
+          }
+          doc._source = key;
+          doc._saved = true;
+        }
+        return { key, listings };
+      }),
+    );
+
+    let all = [];
+    for (const r of results) {
+      if (r.status === "fulfilled") all.push(...r.value.listings);
+    }
+    all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.status(200).json({ success: true, listings: all });
+  } catch (err) {
+    logger.error("Feed saved error", { error: err.message });
+    res.status(500).json({ success: false, message: "Failed to fetch saved listings" });
+  }
+});
+
 module.exports = router;

@@ -1,9 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Dimensions,
+    Keyboard,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -13,6 +14,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  addRecentSearch,
+  clearRecentSearches,
+  fetchSuggestions,
+  getRecentSearches,
+  removeRecentSearch,
+  type SearchSuggestion,
+} from "@/features/search/services/search-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
@@ -31,11 +40,7 @@ type SearchCategory = {
   offsetTop?: number;
 };
 
-const initialRecentSearches = [
-  "iPhone 15 Pro Max",
-  "Studio apartments in South Delhi",
-  "UI UX Designer remote",
-];
+const initialRecentSearches: string[] = [];
 
 const popularCategories: SearchCategory[] = [
   {
@@ -92,17 +97,74 @@ export function SearchHomeScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState(initialRecentSearches);
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const { refreshing, onRefresh } = usePullToRefresh();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
 
-  const openSearchResults = (value?: string) => {
-    const text = value?.trim() || query.trim() || "iPhone 13";
+  // Load recent searches on mount
+  useEffect(() => {
+    getRecentSearches().then(setRecentSearches);
+  }, []);
+
+  // Debounced autocomplete as user types
+  const handleQueryChange = useCallback((text: string) => {
+    setQuery(text);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (text.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await fetchSuggestions(text.trim());
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300); // 300ms debounce
+  }, []);
+
+  const openSearchResults = async (value?: string) => {
+    const text = value?.trim() || query.trim();
+    if (!text) return;
+
+    Keyboard.dismiss();
+    setShowSuggestions(false);
+
+    // Save to recent searches
+    const updated = await addRecentSearch(text);
+    setRecentSearches(updated);
+
     router.push({
       pathname: "/search-results-entity-tabs",
       params: { q: text },
     });
+  };
+
+  const handleSuggestionPress = (suggestion: SearchSuggestion) => {
+    setQuery(suggestion.title);
+    setShowSuggestions(false);
+    openSearchResults(suggestion.title);
+  };
+
+  const handleClearRecent = async () => {
+    await clearRecentSearches();
+    setRecentSearches([]);
+  };
+
+  const handleRemoveRecent = async (item: string) => {
+    const updated = await removeRecentSearch(item);
+    setRecentSearches(updated);
   };
 
   const handleBottomTabPress = useTabNavigation();
@@ -138,7 +200,7 @@ export function SearchHomeScreen() {
           <TextInput
             autoFocus
             value={query}
-            onChangeText={setQuery}
+            onChangeText={handleQueryChange}
             onSubmitEditing={() => openSearchResults()}
             placeholder="Search on Listify..."
             placeholderTextColor="#94A3B8"
@@ -147,7 +209,11 @@ export function SearchHomeScreen() {
           />
           <View className="absolute right-3 top-0 h-10 items-center justify-center">
             <Pressable
-              onPress={() => setQuery("")}
+              onPress={() => {
+                setQuery("");
+                setSuggestions([]);
+                setShowSuggestions(false);
+              }}
               style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
             >
               <MaterialIcons name="cancel" size={20} color="#CBD5E1" />
@@ -155,6 +221,78 @@ export function SearchHomeScreen() {
           </View>
         </View>
       </View>
+
+      {/* ── Autocomplete Suggestions Dropdown ── */}
+      {showSuggestions && suggestions.length > 0 && (
+        <View
+          className="absolute inset-x-0 z-40 border-b border-slate-100 bg-white"
+          style={{
+            top: topBarHeight,
+            maxHeight: 360,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 10,
+          }}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {suggestions.map((item, idx) => (
+              <Pressable
+                key={`${item._entity}_${item._id}_${idx}`}
+                onPress={() => handleSuggestionPress(item)}
+                className="flex-row items-center gap-3 border-b border-slate-50 px-4 py-3"
+                style={({ pressed }) => ({
+                  backgroundColor: pressed ? "#F0FAF5" : "transparent",
+                })}
+              >
+                {/* Thumbnail */}
+                {item.thumbnail ? (
+                  <View className="h-10 w-10 overflow-hidden rounded-lg bg-slate-100">
+                    <Image
+                      source={item.thumbnail}
+                      contentFit="cover"
+                      className="h-full w-full"
+                    />
+                  </View>
+                ) : (
+                  <View className="h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
+                    <MaterialIcons name="search" size={18} color="#94A3B8" />
+                  </View>
+                )}
+
+                {/* Text */}
+                <View className="flex-1">
+                  <Text
+                    numberOfLines={1}
+                    className="text-[14px] font-medium text-[#161D1A]"
+                  >
+                    {item.title}
+                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    {item.price != null && (
+                      <Text className="text-[12px] font-semibold text-[#27BB97]">
+                        ₹{Number(item.price).toLocaleString("en-IN")}
+                      </Text>
+                    )}
+                    {item.subcategory && (
+                      <Text className="text-[10px] text-[#6C7A74]">
+                        in {item.subcategory}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Arrow */}
+                <MaterialIcons name="north-west" size={16} color="#94A3B8" />
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -178,7 +316,7 @@ export function SearchHomeScreen() {
               <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
                 Recent Searches
               </Text>
-              <Pressable onPress={() => setRecentSearches([])}>
+              <Pressable onPress={handleClearRecent}>
                 <Text className="text-[12px] font-medium text-[#27BB97]">
                   Clear all
                 </Text>
@@ -197,11 +335,7 @@ export function SearchHomeScreen() {
                     <Text className="text-[14px] text-[#161D1A]">{item}</Text>
                   </View>
                   <Pressable
-                    onPress={() =>
-                      setRecentSearches((prev) =>
-                        prev.filter((s) => s !== item),
-                      )
-                    }
+                    onPress={() => handleRemoveRecent(item)}
                     style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
                   >
                     <MaterialIcons name="close" size={18} color="#CBD5E1" />

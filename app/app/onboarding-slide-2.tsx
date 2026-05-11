@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { OnboardingSlideTwoScreen } from "@/features/onboarding/screens/onboarding-slide-two-screen";
 

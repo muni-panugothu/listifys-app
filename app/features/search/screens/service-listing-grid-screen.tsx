@@ -1,5 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useMemo, useState } from "react";
 import {
     Pressable,

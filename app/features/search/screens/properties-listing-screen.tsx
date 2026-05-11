@@ -1,7 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { type Href, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -11,87 +12,21 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  fetchCategoryListings,
+  toggleSaveListing,
+  type ListingItem,
+} from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
-
-type PropertyItem = {
-  id: string;
-  title: string;
-  location: string;
-  price: string;
-  subtitle?: string;
-  bhk: string;
-  area: string;
-  parking?: string;
-  image: string;
-  featured?: boolean;
-  premium?: boolean;
-  liked?: boolean;
-};
+import { useAppSelector } from "@/store/hooks";
 
 const CONTAINER_PADDING = 16;
 const GRID_GAP = 12;
+const CATEGORY_SLUG = "properties" as const;
 
 const filterChips = ["BHK", "Budget", "Furnishing", "Amenities"];
-
-const properties: PropertyItem[] = [
-  {
-    id: "elysian",
-    title: "Elysian Heights Penthouse",
-    location: "Worli Sea Face, Mumbai",
-    price: "₹8.50 Cr",
-    subtitle: "₹28,500/sq.ft",
-    bhk: "4 BHK",
-    area: "3,200 sq.ft",
-    parking: "2 Parking",
-    featured: true,
-    premium: true,
-    liked: true,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAX5Gu-WV6nZ0vwM9e6-QOBoMMYjpV2Zi_egjYx7zMj7EDDsAeZcCXMRNAkViHm_xy5f-e9xsM86HBJOSRJ17tCie3kjPLs4onMWD5OtZIz00prOayZwE-reE5xFfRBDGvpTFc1WOb1zDQm0DX7JVAh1qS_skvA-ytgnZBNVKy86Ns1poNryH87YzqwrMgrl67Ws7BE9xDZXgjqSWSi6FdBz3Rp9O5Gm3jHLfxF14BSW2jejxJQL8RankQpZaNr-3ux7WvmfRCoF08",
-  },
-  {
-    id: "skyline",
-    title: "Skyline Residency",
-    location: "Andheri West, Mumbai",
-    price: "₹2.40 Cr",
-    bhk: "2 BHK",
-    area: "1,050 sq.ft",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBunEimnF_YHK49Y9Gshu-fFGuOtQL4iJOmJmM6KpiY4uqzYp9J7UQTopNi1nobj5Ja4jINpB9m7_J0hZ4uBCGNI0eZ9EZcRIx1DXL25AyPnS6--l5mo-7ng7rN7_t_iaogm-dSHzqoRFRHkKE-gcL7_JwTqnm0UWMDC_RXvr5KIqV5y6_I9MbAoNfPGGHhn8GibhIn9GcUr6emLafhtGJvHknvDNjrj68ObimOxar69HqIu8KxfsCU3KU3iSD6ACbARzm1OhNMnFE",
-  },
-  {
-    id: "green-valley",
-    title: "Green Valley Villa",
-    location: "Powai, Mumbai",
-    price: "₹4.15 Cr",
-    bhk: "3 BHK",
-    area: "2,100 sq.ft",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDmFqHvJc9Gy6V01l986Mz6Yg67pPxuS_P_kAFjOQeAYXZaQGWchne4_q3k6GIB9WS2e0Cs98tNab-NqTM9wNOJ9HiosOnax9jqx1s4BfLad1kLQf3r27JdkcvvdmdxK9pnFGDmEAUAkFaEKuxJ7_GS4QmPmkII5i3cZ04AGwIDlaAdUHeuwG-zJkxXhCksjTJf9pWmHj40QA7tgbkMc37Xf44FcDMooOM30pPu7Q-ulpWHg5t5dQx1rd-MEGTCwZSpypTE5PEwfE4",
-  },
-  {
-    id: "urban-loft",
-    title: "The Urban Loft",
-    location: "Bandra East, Mumbai",
-    price: "₹1.10 Cr",
-    bhk: "1 BHK",
-    area: "650 sq.ft",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDVedqh2pkY54Q05JyRCpS34g-2Xr_1NiXmdjW4-Fd5iOUsiT3V8MDBtufyNF6M93Ocw4LxKUbJNkNsY5vupFvRV2oIGJHyB8NsyJgMdyshaLBrEtXkhzcQ8J7Jb5XZVIviUapAvpez3PW2SCgCYB04SCNmzcNw5PQBDxHmZxHbHn04kjdQbQHR0ZMMlGHbVnk34sArhMXhZO8AR9dNfiaVgYC6JnadchyurdnrZ9TYJi0AKiSmKEkn9X2--bWEpm3uxy7lAszGLWI",
-  },
-  {
-    id: "oceanique",
-    title: "Oceanique Towers",
-    location: "Juhu, Mumbai",
-    price: "₹6.75 Cr",
-    bhk: "4 BHK",
-    area: "2,800 sq.ft",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDnuECXdqus8UYk6pwuDJ0E-r8Gs0VHVD1L2L3gVy6TJMgVGxy59rv2Ye56CIerfLtEqtw7tHCIqrldsUBgnnSkGbpuXfG8W8thb7K0esvjPqvO5-eGNnMOQYkYte2TRe515DAe7AlNvXxCJICAlJ55ApBnFa0dnIDC7L8aVhgSuBNzl17yW3YhYFiaY-nZtwh0ozT_arlb3lE90tsZnuNiGQaO3iF7nxiF5Kud8gg2B613CJwuqVQ-JpPUs0sG7hD7L4x6FfKPV2g",
-  },
-];
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -101,28 +36,81 @@ const bottomTabs = [
   { id: "profile", label: "Profile", icon: "person" as const },
 ];
 
+function formatPrice(price?: number): string {
+  if (!price) return "";
+  if (price >= 10000000) return `\u20B9${(price / 10000000).toFixed(2)} Cr`;
+  if (price >= 100000) return `\u20B9${(price / 100000).toFixed(2)} L`;
+  return `\u20B9${price.toLocaleString("en-IN")}`;
+}
+
 export function PropertiesListingScreen() {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { refreshing, onRefresh } = usePullToRefresh();
+  const user = useAppSelector((s) => s.auth.user);
   const [listingType, setListingType] = useState<"buy" | "rent">("buy");
+  const [properties, setProperties] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
   const columns = screenWidth >= 768 ? 2 : 1;
   const regularCardWidth = useMemo(() => {
-    if (columns === 1) {
-      return screenWidth - CONTAINER_PADDING * 2;
-    }
-
+    if (columns === 1) return screenWidth - CONTAINER_PADDING * 2;
     return (screenWidth - CONTAINER_PADDING * 2 - GRID_GAP) / 2;
   }, [columns, screenWidth]);
 
-  const featured = properties.find((item) => item.featured);
-  const regular = properties.filter((item) => !item.featured);
+  const loadListings = useCallback(async () => {
+    try {
+      const subcategory = listingType === "rent" ? "Rentals" : "Properties";
+      const res = await fetchCategoryListings(CATEGORY_SLUG, {
+        limit: 20,
+        subcategory,
+      });
+      if (res.listings) setProperties(res.listings);
+    } catch {
+      // keep existing
+    } finally {
+      setLoading(false);
+    }
+  }, [listingType]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadListings();
+  }, [loadListings]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadListings);
+
+  const handleToggleSave = useCallback(
+    async (item: ListingItem) => {
+      try {
+        const res = await toggleSaveListing(CATEGORY_SLUG, item._id);
+        setProperties((prev) =>
+          prev.map((p) =>
+            p._id === item._id
+              ? {
+                  ...p,
+                  savedBy: res.saved
+                    ? [...(p.savedBy ?? []), user?.id ?? ""]
+                    : (p.savedBy ?? []).filter((id) => id !== user?.id),
+                }
+              : p,
+          ),
+        );
+      } catch {}
+    },
+    [user?.id],
+  );
+
+  // First listing is featured
+  const featured = properties.length > 0 ? properties[0] : null;
+  const regular = properties.slice(1);
 
   const handleBottomTabPress = useTabNavigation();
+
+  const isSaved = (item: ListingItem) =>
+    user?.id ? (item.savedBy ?? []).includes(user.id) : false;
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -199,8 +187,7 @@ export function PropertiesListingScreen() {
             onPress={() => setListingType("buy")}
             className="flex-1 rounded-lg py-2"
             style={{
-              backgroundColor:
-                listingType === "buy" ? "#FFFFFF" : "transparent",
+              backgroundColor: listingType === "buy" ? "#FFFFFF" : "transparent",
               shadowColor: listingType === "buy" ? "#000" : "transparent",
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: listingType === "buy" ? 0.08 : 0,
@@ -220,8 +207,7 @@ export function PropertiesListingScreen() {
             onPress={() => setListingType("rent")}
             className="flex-1 rounded-lg py-2"
             style={{
-              backgroundColor:
-                listingType === "rent" ? "#FFFFFF" : "transparent",
+              backgroundColor: listingType === "rent" ? "#FFFFFF" : "transparent",
               shadowColor: listingType === "rent" ? "#000" : "transparent",
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: listingType === "rent" ? 0.08 : 0,
@@ -265,193 +251,198 @@ export function PropertiesListingScreen() {
           ))}
         </ScrollView>
 
-        <View
-          className="flex-row flex-wrap"
-          style={{ rowGap: GRID_GAP, columnGap: GRID_GAP }}
-        >
-          {featured ? (
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/property-detail",
-                  params: {
-                    title: featured.title,
-                    price: featured.price,
-                    location: featured.location,
-                    bhk: featured.bhk,
-                    area: featured.area,
-                  },
-                })
-              }
-              className="overflow-hidden rounded-xl border border-slate-100 bg-white"
-              style={{ width: screenWidth - CONTAINER_PADDING * 2 }}
-            >
-              <View
-                style={{ height: columns === 1 ? 240 : 320 }}
-                className="relative w-full"
+        {loading ? (
+          <View className="items-center py-20">
+            <ActivityIndicator size="large" color="#27BB97" />
+          </View>
+        ) : properties.length === 0 ? (
+          <View className="items-center py-20">
+            <MaterialIcons name="apartment" size={48} color="#CBD5E1" />
+            <Text className="mt-2 text-[14px] text-[#6C7A74]">No properties found</Text>
+          </View>
+        ) : (
+          <View
+            className="flex-row flex-wrap"
+            style={{ rowGap: GRID_GAP, columnGap: GRID_GAP }}
+          >
+            {featured ? (
+              <Pressable
+                onPress={() =>
+                  router.push(
+                    `/property-detail?id=${featured._id}&category=properties` as Href,
+                  )
+                }
+                className="overflow-hidden rounded-xl border border-slate-100 bg-white"
+                style={{ width: screenWidth - CONTAINER_PADDING * 2 }}
               >
-                <Image
-                  source={featured.image}
-                  contentFit="cover"
-                  transition={200}
-                  className="h-full w-full"
-                />
+                <View
+                  style={{ height: columns === 1 ? 240 : 320 }}
+                  className="relative w-full"
+                >
+                  {featured.images?.[0] ? (
+                    <Image
+                      source={featured.images[0]}
+                      contentFit="cover"
+                      transition={200}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-[#E9EFEB]">
+                      <MaterialIcons name="apartment" size={48} color="#CBD5E1" />
+                    </View>
+                  )}
 
-                <View className="absolute right-4 top-4">
+                  <View className="absolute right-4 top-4">
+                    <Pressable
+                      onPress={() => handleToggleSave(featured)}
+                      className="rounded-full bg-white/70 p-2"
+                      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                    >
+                      <MaterialIcons
+                        name={isSaved(featured) ? "favorite" : "favorite-border"}
+                        size={20}
+                        color={isSaved(featured) ? "#EF4444" : "#161D1A"}
+                      />
+                    </Pressable>
+                  </View>
+
+                  {featured.status === "premium" ? (
+                    <View className="absolute bottom-4 left-4 rounded-full bg-[#27BB97] px-3 py-1">
+                      <Text className="text-[12px] font-medium text-white">
+                        Premium
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View className="p-4">
+                  <View className="mb-2 flex-row items-start justify-between gap-4">
+                    <View className="flex-1">
+                      <Text className="text-[20px] font-semibold text-[#161D1A]">
+                        {featured.title}
+                      </Text>
+                      <View className="mt-0.5 flex-row items-center gap-1">
+                        <MaterialIcons name="location-on" size={16} color="#6C7A74" />
+                        <Text className="text-[14px] text-[#6C7A74]">
+                          {featured.location}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="items-end">
+                      <Text className="text-[20px] font-bold text-[#006B55]">
+                        {formatPrice(featured.price)}
+                      </Text>
+                      {(featured as any).squareFeet && featured.price ? (
+                        <Text className="text-[12px] text-[#6C7A74]">
+                          {`\u20B9${Math.round(featured.price / (featured as any).squareFeet).toLocaleString("en-IN")}/sq.ft`}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <View className="mt-2 flex-row gap-4 border-t border-slate-100 pt-3">
+                    <View className="flex-row items-center gap-1">
+                      <MaterialIcons name="bed" size={20} color="#6C7A74" />
+                      <Text className="text-[12px] text-[#6C7A74]">
+                        {featured.bedrooms ?? 0} BHK
+                      </Text>
+                    </View>
+
+                    <View className="flex-row items-center gap-1">
+                      <MaterialIcons name="square-foot" size={20} color="#6C7A74" />
+                      <Text className="text-[12px] text-[#6C7A74]">
+                        {(featured as any).squareFeet
+                          ? `${Number((featured as any).squareFeet).toLocaleString()} sq.ft`
+                          : "\u2014"}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row items-center gap-1">
+                      <MaterialIcons name="bathtub" size={20} color="#6C7A74" />
+                      <Text className="text-[12px] text-[#6C7A74]">
+                        {featured.bathrooms ?? 0} Bath
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {regular.map((item) => (
+              <Pressable
+                key={item._id}
+                onPress={() =>
+                  router.push(
+                    `/property-detail?id=${item._id}&category=properties` as Href,
+                  )
+                }
+                className="overflow-hidden rounded-xl border border-slate-100 bg-white"
+                style={{ width: regularCardWidth }}
+              >
+                <View className="relative h-45 w-full">
+                  {item.images?.[0] ? (
+                    <Image
+                      source={item.images[0]}
+                      contentFit="cover"
+                      transition={200}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-[#E9EFEB]">
+                      <MaterialIcons name="apartment" size={32} color="#CBD5E1" />
+                    </View>
+                  )}
+
                   <Pressable
-                    className="rounded-full bg-white/70 p-2"
+                    onPress={() => handleToggleSave(item)}
+                    className="absolute right-3 top-3 rounded-full bg-white/70 p-1.5"
                     style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
                   >
                     <MaterialIcons
-                      name={featured.liked ? "favorite" : "favorite-border"}
-                      size={20}
-                      color={featured.liked ? "#EF4444" : "#161D1A"}
+                      name={isSaved(item) ? "favorite" : "favorite-border"}
+                      size={18}
+                      color={isSaved(item) ? "#EF4444" : "#161D1A"}
                     />
                   </Pressable>
                 </View>
 
-                {featured.premium ? (
-                  <View className="absolute bottom-4 left-4 rounded-full bg-[#27BB97] px-3 py-1">
-                    <Text className="text-[12px] font-medium text-white">
-                      Premium
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
+                <View className="p-4">
+                  <Text className="mb-1 text-[16px] font-bold text-[#006B55]">
+                    {formatPrice(item.price)}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    className="text-[18px] font-semibold text-[#161D1A]"
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    className="mb-3 text-[14px] text-[#6C7A74]"
+                  >
+                    {item.location}
+                  </Text>
 
-              <View className="p-4">
-                <View className="mb-2 flex-row items-start justify-between gap-4">
-                  <View className="flex-1">
-                    <Text className="text-[20px] font-semibold text-[#161D1A]">
-                      {featured.title}
-                    </Text>
-                    <View className="mt-0.5 flex-row items-center gap-1">
-                      <MaterialIcons
-                        name="location-on"
-                        size={16}
-                        color="#6C7A74"
-                      />
-                      <Text className="text-[14px] text-[#6C7A74]">
-                        {featured.location}
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-[12px] text-[#6C7A74]">
+                        {item.bedrooms ?? 0} BHK
+                      </Text>
+                      <Text className="text-[12px] text-slate-300">{"\u2022"}</Text>
+                      <Text className="text-[12px] text-[#6C7A74]">
+                        {(item as any).squareFeet
+                          ? `${Number((item as any).squareFeet).toLocaleString()} sq.ft`
+                          : "\u2014"}
                       </Text>
                     </View>
-                  </View>
-
-                  <View className="items-end">
-                    <Text className="text-[20px] font-bold text-[#006B55]">
-                      {featured.price}
-                    </Text>
-                    <Text className="text-[12px] text-[#6C7A74]">
-                      {featured.subtitle}
-                    </Text>
+                    <MaterialIcons name="verified" size={18} color="#6C7A74" />
                   </View>
                 </View>
-
-                <View className="mt-2 flex-row gap-4 border-t border-slate-100 pt-3">
-                  <View className="flex-row items-center gap-1">
-                    <MaterialIcons name="bed" size={20} color="#6C7A74" />
-                    <Text className="text-[12px] text-[#6C7A74]">
-                      {featured.bhk}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row items-center gap-1">
-                    <MaterialIcons
-                      name="square-foot"
-                      size={20}
-                      color="#6C7A74"
-                    />
-                    <Text className="text-[12px] text-[#6C7A74]">
-                      {featured.area}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row items-center gap-1">
-                    <MaterialIcons
-                      name="directions-car"
-                      size={20}
-                      color="#6C7A74"
-                    />
-                    <Text className="text-[12px] text-[#6C7A74]">
-                      {featured.parking}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </Pressable>
-          ) : null}
-
-          {regular.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() =>
-                router.push({
-                  pathname: "/property-detail",
-                  params: {
-                    title: item.title,
-                    price: item.price,
-                    location: item.location,
-                    bhk: item.bhk,
-                    area: item.area,
-                  },
-                })
-              }
-              className="overflow-hidden rounded-xl border border-slate-100 bg-white"
-              style={{ width: regularCardWidth }}
-            >
-              <View className="relative h-45 w-full">
-                <Image
-                  source={item.image}
-                  contentFit="cover"
-                  transition={200}
-                  className="h-full w-full"
-                />
-
-                <Pressable
-                  className="absolute right-3 top-3 rounded-full bg-white/70 p-1.5"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                >
-                  <MaterialIcons
-                    name={item.liked ? "favorite" : "favorite-border"}
-                    size={18}
-                    color="#161D1A"
-                  />
-                </Pressable>
-              </View>
-
-              <View className="p-4">
-                <Text className="mb-1 text-[16px] font-bold text-[#006B55]">
-                  {item.price}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  className="text-[18px] font-semibold text-[#161D1A]"
-                >
-                  {item.title}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  className="mb-3 text-[14px] text-[#6C7A74]"
-                >
-                  {item.location}
-                </Text>
-
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-[12px] text-[#6C7A74]">
-                      {item.bhk}
-                    </Text>
-                    <Text className="text-[12px] text-slate-300">•</Text>
-                    <Text className="text-[12px] text-[#6C7A74]">
-                      {item.area}
-                    </Text>
-                  </View>
-                  <MaterialIcons name="verified" size={18} color="#6C7A74" />
-                </View>
-              </View>
-            </Pressable>
-          ))}
-        </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <Pressable

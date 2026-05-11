@@ -143,7 +143,7 @@ exports.createProperty = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: `${category} listing created successfully`,
-      data: savedProperty,
+      listing: savedProperty,
     });
   } catch (error) {
     logger.error("Error creating property listing:", {
@@ -179,11 +179,7 @@ exports.getProperties = async (req, res) => {
 
     const query = { status: "active" };
     if (category) {
-      if (category === "Properties") {
-        query.category = { $in: ["Properties", "Rentals", "Roommates"] };
-      } else {
-        query.category = category;
-      }
+      query.category = category;
     }
     if (subcategory) query.subcategory = subcategory;
     if (sellerId) query.seller = sellerId;
@@ -206,7 +202,7 @@ exports.getProperties = async (req, res) => {
         res.setHeader('X-Search-Source', 'elasticsearch');
         return res.status(200).json({
           success: true,
-          data: esResult.docs,
+          listings: esResult.docs,
           pagination: esResult.pagination,
         });
       }
@@ -271,7 +267,7 @@ exports.getProperties = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: listings,
+      listings,
       pagination,
     });
   } catch (error) {
@@ -300,7 +296,7 @@ exports.getPropertyById = async (req, res) => {
     // views update handled separatedly if needed
     normaliseImages(listing);
 
-    return res.status(200).json({ success: true, data: listing });
+    return res.status(200).json({ success: true, listing });
   } catch (error) {
     logger.error("Error in getPropertyById:", error);
     return res.status(500).json({ success: false, message: "Error fetching listing details" });

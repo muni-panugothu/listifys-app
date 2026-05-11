@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { HomeFeedRootScreen } from "@/features/home/screens/home-feed-root-screen";
 

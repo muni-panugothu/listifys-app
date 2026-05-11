@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { ReportListingModalScreen } from "@/features/listing/screens/report-listing-modal-screen";
 

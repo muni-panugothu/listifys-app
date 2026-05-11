@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { SignUpScreen } from "@/features/auth/screens/sign-up-screen";
 

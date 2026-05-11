@@ -1,58 +1,26 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useFocusEffect, useRouter } from "@/lib/safe-router";
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { fetchMyListings, type ListingItem } from "@/features/listing/services/listing-api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 
-type ExpiredListing = {
-  id: string;
-  title: string;
-  price: string;
-  category: string;
-  expiredAgo: string;
-  views: number;
-  likes: number;
-  image: string;
-};
-
-const expiredListings: ExpiredListing[] = [
-  {
-    id: "1",
-    title: "Vintage Record Player",
-    price: "₹6,500",
-    category: "Electronics",
-    expiredAgo: "Expired 3 days ago",
-    views: 89,
-    likes: 7,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBMWwjxlO1A3IpbkLt5RXBX5eoOm_8xnV2c3x68Uw9C8yEDh2jdFE_4QTNzw3H3vqfILQCbR3j_Hc7Fv4hzZd0zDI6VLJLfzKbK-XuJSR4CDNqjXdPr_JlKIBgGqQfK0KnPDRK0dCfpylC_4qxBKMVGq5xkGRr5yPWlVcjDqBbUMFcQGj",
-  },
-  {
-    id: "2",
-    title: "Mountain Bike - Trek X1",
-    price: "₹18,000",
-    category: "Sports",
-    expiredAgo: "Expired 1 week ago",
-    views: 234,
-    likes: 15,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCS23_BQR_idKthAezAeDcFIDhoacF1CAF38RjLvBVBE-YTYCVmYGl1lrMab_i66GqNA2YYfwNTWLKTZGHNMh03sq8Wib7xalZ6kY_nKWg0z90fAqqWtdoCt0t7jQtaz9azz8_bqzbXR21g0szBtvT82R4o3qjUmdRnOx2_RGGxIppGgfJ9GtDs4sg",
-  },
-  {
-    id: "3",
-    title: "Ceramic Plant Pots Set",
-    price: "₹1,200",
-    category: "Home & Garden",
-    expiredAgo: "Expired 2 weeks ago",
-    views: 56,
-    likes: 3,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBXuo6LzQc-Mij-_BvqApAiuGeVZjLT0p72YYK7WwfvGNiU5KVk_YPcMe5dG5C6hSyjlfjoAiq47yweiyuCU7KRlR4DtdFL8QeFjvAOPU28CWI0fkj-bczfgdeuRJd98TeOqZt6YRWFlfelf",
-  },
-];
+function timeAgo(dateStr?: string) {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
 
 const tabs = ["Active", "Expired", "Drafts"];
 
@@ -68,8 +36,26 @@ export function MyListingsExpiredScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState("Expired");
+  const [listings, setListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
+
+  const loadListings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchMyListings();
+      setListings((res.listings || []).filter((l) => l.status === "expired" || l.status === "sold"));
+    } catch {
+      // keep existing
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadListings(); }, [loadListings]));
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadListings);
 
   const handleTabPress = (tab: string) => {
     setActiveTab(tab);
@@ -87,21 +73,22 @@ export function MyListingsExpiredScreen() {
         style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}
       >
         <View className="flex-row items-center gap-2">
-          <MaterialIcons name="storefront" size={24} color="#27BB97" />
-          <Text className="text-[20px] font-black tracking-tight text-[#27BB97]">Listify</Text>
+          <Pressable onPress={() => router.back()} className="rounded-full p-1">
+            <MaterialIcons name="arrow-back" size={24} color="#161D1A" />
+          </Pressable>
+          <Text className="text-[20px] font-bold tracking-tight text-[#161D1A]">My Listings</Text>
         </View>
-        <Pressable className="rounded-full p-2">
+        <Pressable onPress={() => router.push("/notifications-center")} className="rounded-full p-2">
           <MaterialIcons name="notifications-none" size={24} color="#64748B" />
         </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#27BB97"]} tintColor="#27BB97" />}
         contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
       >
         <View className="px-4">
-          <Text className="mb-6 text-[24px] font-bold tracking-tight text-[#161D1A]">My Listings</Text>
-
           {/* Tab Bar */}
           <View className="mb-8 flex-row gap-1 rounded-xl bg-[#EFF5F0] p-1">
             {tabs.map((tab) => {
@@ -126,17 +113,40 @@ export function MyListingsExpiredScreen() {
             })}
           </View>
 
+          {/* Loading */}
+          {loading && listings.length === 0 && (
+            <View className="items-center py-16">
+              <ActivityIndicator size="large" color="#27BB97" />
+            </View>
+          )}
+
+          {/* Empty */}
+          {!loading && listings.length === 0 && (
+            <View className="items-center py-16">
+              <MaterialIcons name="history" size={56} color="#CBD5E1" />
+              <Text className="mt-3 text-[16px] font-semibold text-[#6C7A74]">No expired listings</Text>
+              <Text className="mt-1 text-[13px] text-[#94A3B8]">Expired or sold listings will appear here</Text>
+            </View>
+          )}
+
           {/* Listings */}
           <View className="gap-6">
-            {expiredListings.map((listing) => (
-              <View
-                key={listing.id}
+            {listings.map((listing) => (
+              <Pressable
+                key={listing._id}
+                onPress={() => router.push(`/listing-detail-template?category=${(listing as any)._source ?? listing.category}&id=${listing._id}` as any)}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-white"
                 style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 }}
               >
-                {/* Image with grayscale overlay */}
+                {/* Image with dimmed overlay */}
                 <View className="relative h-40 w-full">
-                  <Image source={listing.image} contentFit="cover" className="h-full w-full" style={{ opacity: 0.5 }} />
+                  {listing.images?.[0] ? (
+                    <Image source={listing.images[0]} contentFit="cover" className="h-full w-full" style={{ opacity: 0.5 }} />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-slate-100" style={{ opacity: 0.5 }}>
+                      <MaterialIcons name="image" size={40} color="#CBD5E1" />
+                    </View>
+                  )}
                   <View className="absolute inset-0 bg-slate-900/20" />
                   <View className="absolute left-2 top-2 rounded bg-[#EF4444] px-2 py-1">
                     <Text className="text-[10px] font-bold uppercase tracking-wider text-white">Expired</Text>
@@ -146,40 +156,29 @@ export function MyListingsExpiredScreen() {
                 <View className="p-4">
                   <View className="flex-row items-start justify-between">
                     <Text className="flex-1 pr-4 text-[18px] font-semibold text-[#161D1A]" numberOfLines={1}>{listing.title}</Text>
-                    <Text className="text-[16px] font-bold text-[#94A3B8]">{listing.price}</Text>
+                    <Text className="text-[16px] font-bold text-[#94A3B8]">
+                      {listing.price ? `₹${Number(listing.price).toLocaleString("en-IN")}` : "N/A"}
+                    </Text>
                   </View>
-                  <Text className="mt-1 text-[12px] font-medium text-[#EF4444]">{listing.expiredAgo}</Text>
-                  <Text className="text-[12px] text-[#6C7A74]">{listing.category}</Text>
+                  <Text className="mt-1 text-[12px] font-medium text-[#EF4444]">
+                    Expired {timeAgo(listing.updatedAt ?? listing.createdAt)}
+                  </Text>
+                  <Text className="text-[12px] text-[#6C7A74]">
+                    {(listing as any)._source ?? listing.category}
+                  </Text>
                   {/* Stats */}
                   <View className="mt-3 flex-row gap-4">
                     <View className="flex-row items-center gap-1.5">
                       <MaterialIcons name="visibility" size={18} color="#64748B" />
-                      <Text className="text-[13px] font-medium text-[#64748B]">{listing.views} Views</Text>
+                      <Text className="text-[13px] font-medium text-[#64748B]">{listing.views ?? 0} Views</Text>
                     </View>
                     <View className="flex-row items-center gap-1.5">
                       <MaterialIcons name="favorite" size={18} color="#64748B" />
-                      <Text className="text-[13px] font-medium text-[#64748B]">{listing.likes} Likes</Text>
+                      <Text className="text-[13px] font-medium text-[#64748B]">{listing.savedBy?.length ?? 0} Saves</Text>
                     </View>
                   </View>
-                  {/* Actions */}
-                  <View className="mt-4 flex-row gap-2">
-                    <Pressable
-                      className="flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-slate-200 py-2"
-                      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                    >
-                      <MaterialIcons name="delete-outline" size={18} color="#161D1A" />
-                      <Text className="text-[12px] font-medium text-[#161D1A]">Delete</Text>
-                    </Pressable>
-                    <Pressable
-                      className="flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-[#27BB97] py-2"
-                      style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.95 : 1 }] })}
-                    >
-                      <MaterialIcons name="refresh" size={18} color="#FFFFFF" />
-                      <Text className="text-[12px] font-medium text-white">Renew</Text>
-                    </Pressable>
-                  </View>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>

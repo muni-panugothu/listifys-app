@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
-import { type Href, useRouter } from "expo-router";
+import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

@@ -1,24 +1,71 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { type Href, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { BackHandler, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { type Href, useRouter } from "@/lib/safe-router";
+import { useCallback, useMemo } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  CATEGORY_MAP,
+  CONDITION_SKIP_CATEGORIES,
+  PRICE_OPTIONAL_CATEGORIES,
+  FORSALE_SUBCATEGORY_TO_CATEGORY,
+} from "@/constants/categories";
+import {
+  createListing,
+  uploadListingImages,
+} from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
-
-const thumbImage1 =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuAQ1pYpzc3XQwJC8FtkvuIPpZcepupw_AvLAWDdOL6dp-Ea26gOMyjGGPUgD3jGYDyu3y_eUAWhFd-NWPITzSaKEXfvoJfnheOH6pMvTDiPeVteb-L1PABvoXRg2GMiJF7kE_dcLMt9GQJtNeOua3JdZHWDxORN3AnzYqt9AmQBCvB4CirHMmhAjn8vHGYvXzEbvyvDYImHPqC4jSNDJWBMRzsSdS9Kmpe-bZ9tCVhjoJrmuVTQqLBjYmTw8LAtfGMYOBoFyb2nB7s";
-const thumbImage2 =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuA6WrS6NVnGu9l0nqopmUHiOQAhKXgaPiNdTvN676hG8rNLqRwQYbzsgYdLqS1nzIQOUOi4BWG-O0p-4SsyJ7uxgLWQ26UHyEfkwzWPBN2nwP_nIiTOJCTF6bcMSraL8Zd0fxaJx4AnD2avC_iQksoG1xdL3lpMPXKnNL2qPI9JYEikjKOXM4OLPpp0eHAhRRwgoCfyzkBnWezpZyfHUXjemQZDeKH9LpVupVnJxUF67DYIRyV9-UamupPFj8lO7Olyqlk_iXOi3rE";
-const mapImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuBKhbqcOHyENYUbAsV0AHhrzxGEk-9irSyTKaAU1haTPK7XUMKrbucZTC5FfOqXfqA2ZKrlTiR_ouoHvqGMu1BNjMxTTPrCwm_mSHUjAjAoc7yRu3mwdmaR11tSA4OHIFVXRb5OuFXA6EMXk_qWYfHgBtGxU_yo8CzVHvZXW9bNEuMGVIBD7n541h8E7azLsyHVqZxtgM6pEO4p2RWbKJfMyT2a-FhJAoPgAHdhymNBEbvsLlcitLoRq4R_spzdDdppmC5Lj3sfnPM";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  addImageUri,
+  removeImageUri,
+  resetPostForm,
+  setLocation,
+  setPhone,
+  setSubmitError,
+  setSubmitting,
+  setUploadedImageUrls,
+} from "@/store/slices/post-form-slice";
 
 export function PostAdStep3MediaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [phone, setPhone] = useState("");
+  const dispatch = useAppDispatch();
+
+  const {
+    category,
+    subcategory,
+    title,
+    description,
+    price,
+    condition,
+    location,
+    listingType,
+    bedrooms,
+    bathrooms,
+    furnishing,
+    squareFeet,
+    features,
+    petFriendly,
+    availableFrom,
+    imageUris,
+    phone,
+    phoneCode,
+    isSubmitting,
+    submitError,
+  } = useAppSelector((s) => s.postForm);
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
 
@@ -33,10 +80,130 @@ export function PostAdStep3MediaScreen() {
         return true;
       };
 
-      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      const sub = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onHardwareBack,
+      );
       return () => sub.remove();
     }, [router]),
   );
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: 6 - imageUris.length,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      for (const asset of result.assets) {
+        dispatch(addImageUri(asset.uri));
+      }
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (imageUris.length === 0) {
+      Alert.alert("Photos required", "Please add at least one photo.");
+      return;
+    }
+    if (!title || title.length < 3) {
+      Alert.alert("Title too short", "Title must be at least 3 characters.");
+      return;
+    }
+    if (!description || description.length < 20) {
+      Alert.alert("Description too short", "Description must be at least 20 characters.");
+      return;
+    }
+    if (!location || location.length < 2) {
+      Alert.alert("Location required", "Please enter a location (at least 2 characters).");
+      return;
+    }
+
+    dispatch(setSubmitting(true));
+    dispatch(setSubmitError(null));
+
+    try {
+      // 1. Upload images to S3
+      const uploadResult = await uploadListingImages(category, imageUris);
+      const imageUrls = uploadResult.images ?? [];
+      dispatch(setUploadedImageUrls(imageUrls));
+
+      console.log("[PostAd] uploadResult keys:", Object.keys(uploadResult));
+      console.log("[PostAd] imageUrls count:", imageUrls.length, imageUrls);
+
+      if (imageUrls.length === 0) {
+        throw new Error("Image upload succeeded but no URLs were returned. Please try again.");
+      }
+
+      // 2. Create listing
+      const categoryConfig = CATEGORY_MAP[category];
+
+      // Resolve the category name to send to the server
+      let serverCategory: string;
+      if (category === "properties") {
+        serverCategory = listingType; // "Properties" or "Rentals"
+      } else if (category === "forsale" && subcategory) {
+        // ForSale controller expects sub-group name (e.g. "Mobiles", "Furniture")
+        serverCategory = FORSALE_SUBCATEGORY_TO_CATEGORY[subcategory] ?? "Others";
+      } else {
+        serverCategory = categoryConfig?.name ?? category;
+      }
+
+      const skipCondition = CONDITION_SKIP_CATEGORIES.includes(category);
+      const priceOptional = PRICE_OPTIONAL_CATEGORIES.includes(category);
+
+      const listingBody: Record<string, unknown> = {
+        title,
+        description,
+        ...(!priceOptional || price ? { price: Number(price) } : {}),
+        ...(!skipCondition ? { condition } : {}),
+        category: serverCategory,
+        subcategory,
+        images: imageUrls,
+        imageUrls,
+        location,
+        ...(phone ? { phone: `${phoneCode}${phone}` } : {}),
+      };
+
+      // Attach property-specific fields
+      if (category === "properties") {
+        if (bedrooms) listingBody.bedrooms = Number(bedrooms);
+        if (bathrooms) listingBody.bathrooms = Number(bathrooms);
+        if (furnishing) listingBody.furnishing = furnishing;
+        if (squareFeet) listingBody.squareFeet = Number(squareFeet);
+        if (features.length > 0) listingBody.features = features;
+        listingBody.petFriendly = petFriendly;
+        if (availableFrom) listingBody.availableFrom = availableFrom;
+      }
+
+      console.log("[PostAd] createListing body:", JSON.stringify(listingBody));
+      const result = await createListing(category, listingBody);
+
+      dispatch(setSubmitting(false));
+      dispatch(resetPostForm());
+
+      // Pass the created listing data to success screen
+      const listing = result.listing;
+      router.push({
+        pathname: "/listing-success",
+        params: {
+          title: listing?.title ?? title,
+          price: String(listing?.price ?? price),
+          location: listing?.location ?? location,
+          image: listing?.images?.[0] ?? imageUrls[0] ?? "",
+          category: categoryConfig?.name ?? category,
+        },
+      } as Href);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to post listing";
+      dispatch(setSubmitError(message));
+      dispatch(setSubmitting(false));
+      Alert.alert("Error", message);
+    }
+  };
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -92,13 +259,15 @@ export function PostAdStep3MediaScreen() {
                 Photos
               </Text>
               <Text className="text-[12px] font-medium text-[#6C7A74]">
-                2 / 10 images
+                {imageUris.length} / 6 images
               </Text>
             </View>
 
-            <View className="flex-row gap-3">
+            <View className="flex-row flex-wrap gap-3">
               {/* Add More */}
+              {imageUris.length < 6 && (
               <Pressable
+                onPress={pickImages}
                 className="items-center justify-center rounded-xl border-2 border-dashed border-[#BBCAC3] bg-[#EFF5F0]"
                 style={{ width: 100, height: 100 }}
               >
@@ -107,36 +276,27 @@ export function PostAdStep3MediaScreen() {
                   Add More
                 </Text>
               </Pressable>
+              )}
 
-              {/* Thumbnail 1 */}
-              <View
-                className="overflow-hidden rounded-xl border border-[#BBCAC3]"
-                style={{ width: 100, height: 100 }}
-              >
-                <Image
-                  source={thumbImage1}
-                  contentFit="cover"
-                  className="h-full w-full"
-                />
-                <Pressable className="absolute right-1 top-1 rounded-full bg-white/70 p-1">
-                  <MaterialIcons name="close" size={16} color="#BA1A1A" />
-                </Pressable>
-              </View>
-
-              {/* Thumbnail 2 */}
-              <View
-                className="overflow-hidden rounded-xl border border-[#BBCAC3]"
-                style={{ width: 100, height: 100 }}
-              >
-                <Image
-                  source={thumbImage2}
-                  contentFit="cover"
-                  className="h-full w-full"
-                />
-                <Pressable className="absolute right-1 top-1 rounded-full bg-white/70 p-1">
-                  <MaterialIcons name="close" size={16} color="#BA1A1A" />
-                </Pressable>
-              </View>
+              {imageUris.map((uri, idx) => (
+                <View
+                  key={uri}
+                  className="overflow-hidden rounded-xl border border-[#BBCAC3]"
+                  style={{ width: 100, height: 100 }}
+                >
+                  <Image
+                    source={uri}
+                    contentFit="cover"
+                    className="h-full w-full"
+                  />
+                  <Pressable
+                    onPress={() => dispatch(removeImageUri(idx))}
+                    className="absolute right-1 top-1 rounded-full bg-white/70 p-1"
+                  >
+                    <MaterialIcons name="close" size={16} color="#BA1A1A" />
+                  </Pressable>
+                </View>
+              ))}
             </View>
             <Text className="mt-2 px-1 text-[12px] text-[#6C7A74]">
               Ads with high-quality photos get 5x more clicks.
@@ -151,6 +311,8 @@ export function PostAdStep3MediaScreen() {
             <View className="mb-3 h-12 flex-row items-center rounded-xl border border-[#BBCAC3] bg-white px-4">
               <MaterialIcons name="location-on" size={20} color="#6C7A74" />
               <TextInput
+                value={location}
+                onChangeText={(v) => dispatch(setLocation(v))}
                 placeholder="Search for neighborhood or city..."
                 placeholderTextColor="#94A3B8"
                 className="ml-2 flex-1 text-[14px] text-[#161D1A]"
@@ -164,19 +326,12 @@ export function PostAdStep3MediaScreen() {
               </Text>
             </Pressable>
 
-            {/* Map */}
-            <View className="h-40 overflow-hidden rounded-2xl border border-[#BBCAC3]">
-              <Image
-                source={mapImage}
-                contentFit="cover"
-                className="h-full w-full"
-              />
-              <View className="absolute bottom-3 left-3 flex-row items-center gap-2 rounded-lg border border-[#BBCAC3] bg-white/90 px-3 py-1.5">
-                <View className="h-2 w-2 rounded-full bg-[#006B55]" />
-                <Text className="text-[11px] font-bold text-[#161D1A]">
-                  Indiranagar, Bangalore
-                </Text>
-              </View>
+            {/* Map placeholder */}
+            <View className="h-40 items-center justify-center overflow-hidden rounded-2xl border border-[#BBCAC3] bg-[#EFF5F0]">
+              <MaterialIcons name="map" size={40} color="#6C7A74" />
+              <Text className="mt-2 text-[12px] text-[#6C7A74]">
+                {location || "Enter location above"}
+              </Text>
             </View>
           </View>
 
@@ -187,13 +342,13 @@ export function PostAdStep3MediaScreen() {
             </Text>
             <View className="flex-row gap-2">
               <View className="h-12 w-24 items-center justify-center rounded-xl border border-[#BBCAC3] bg-white px-3">
-                <Text className="text-[14px] text-[#161D1A]">+91</Text>
+                <Text className="text-[14px] text-[#161D1A]">{phoneCode}</Text>
               </View>
               <View className="h-12 flex-1 flex-row items-center rounded-xl border border-[#BBCAC3] bg-white px-4">
                 <MaterialIcons name="call" size={20} color="#6C7A74" />
                 <TextInput
                   value={phone}
-                  onChangeText={setPhone}
+                  onChangeText={(v) => dispatch(setPhone(v))}
                   placeholder="Mobile number"
                   placeholderTextColor="#94A3B8"
                   keyboardType="phone-pad"
@@ -235,10 +390,12 @@ export function PostAdStep3MediaScreen() {
         }}
       >
         <Pressable
-          onPress={() => router.push("/listing-success")}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
           className="overflow-hidden rounded-2xl"
           style={({ pressed }) => ({
             transform: [{ scale: pressed ? 0.98 : 1 }],
+            opacity: isSubmitting ? 0.7 : 1,
           })}
         >
           <LinearGradient
@@ -253,10 +410,16 @@ export function PostAdStep3MediaScreen() {
               gap: 8,
             }}
           >
-            <Text className="text-[20px] font-semibold text-white">
-              Post Ad Now
-            </Text>
-            <MaterialIcons name="rocket-launch" size={22} color="#FFFFFF" />
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Text className="text-[20px] font-semibold text-white">
+                  Post Ad Now
+                </Text>
+                <MaterialIcons name="rocket-launch" size={22} color="#FFFFFF" />
+              </>
+            )}
           </LinearGradient>
         </Pressable>
       </View>

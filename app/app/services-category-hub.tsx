@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { ServicesCategoryHubScreen } from "@/features/search/screens/services-category-hub-screen";
 

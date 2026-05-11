@@ -1,10 +1,16 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Dimensions, Pressable, ScrollView, Text, View } from "react-native";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Dimensions, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CATEGORY_MAP, type CategorySlug } from "@/constants/categories";
+import {
+  fetchCategoryListings,
+  type ListingItem,
+} from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -22,74 +28,6 @@ type ProductItem = {
   image: string;
   premium?: boolean;
 };
-
-const subcategories = [
-  "All",
-  "Laptops",
-  "Tablets",
-  "Headphones",
-  "Cameras",
-  "Gaming",
-];
-
-const products: ProductItem[] = [
-  {
-    id: "macbook-pro-m2",
-    title: "MacBook Pro M2 - 512GB",
-    price: "₹1,24,990",
-    location: "Bandra, Mumbai",
-    timeAgo: "2h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCbLGKg_VLrCivipA5M1mqlXsTOqme6F41Vq-UknnSRxbahLGbjqBlq4UQA5UDMTwX9KJkJogG7jCUCJ67R_Gw3ea2gn453ZiaI9Wya7CAiG9VXEe_76mLMm_6uoR3VQ48RYOPa7SI5Sh28hyY2q2EfleRJii1ze-ONG0ioNI6kR73b537p8ovXxbYcvZUHSfRMyJkOpPFUzFYnasl-7HC7IgLqkyi2cNgM4_sehXPPMaBzejN0ZHJmWh_XKeeXJPDkHDkvbuwxaJA",
-    premium: true,
-  },
-  {
-    id: "ipad-pro-11",
-    title: "iPad Pro 11-inch (Gen 4)",
-    price: "₹74,500",
-    location: "Indiranagar, BLR",
-    timeAgo: "4h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDyow35OEXh_uvjAffJp2lg7i04735UV0MXGi3Qv242cqTCA3fyUCMHA2HgRVb0nuOyH2t9SFI7nRwdadh1JUSixz-1lSsHTgQyfTynWA7-jhQWxpJgBRLfBHoM8Myk1AePimY_K36dLnuh1MvmLm9bVpTSdoY-DzC7mnSRX9zNQRTt0-QAzjet2Qih8mdbYO58y61wEgf8KpP4AT6NIohjuRCjR2ITv_Ctw_sel2lfoPjWakMKF9TiZAfXPXNBe0lhy4R2bDD72do",
-  },
-  {
-    id: "sony-xm5",
-    title: "Sony WH-1000XM5 ANC",
-    price: "₹18,900",
-    location: "Saket, Delhi",
-    timeAgo: "1h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCNwSJa5uAkoWfdr6cIzgx0ckC4kG8jfjsp4DAEytcQBSV4xJXXw835uMzMxSf--wKvpwSk1JNg7fJFPU1jFzUTkHXIO7SicyvmXuVcPgIyshxf9z6s52iK68JRSYLx1j1OCEXtlwCP7YLqhjiC9aXkIL2NVWnloaAAY1_oZr7W14yxLfZYjY9BRlBOBn0S4fahSBEuGk4LrlA-s6eeBkszUH5zdGRDW9hu3l7kDtFt38RZ4IURvW0LfzFCS--mFpSL8SYgMahwb0k",
-  },
-  {
-    id: "sony-a7iv",
-    title: "Sony A7 IV + 24-70mm Lens",
-    price: "₹2,10,000",
-    location: "Koramangala, BLR",
-    timeAgo: "5h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBQX3oLLzH4N25jOFTA6d_e0yN2L9_PjbDayHlzvWgLT-Vxzw2-lAVovxuGrQaDXHUGKDWDh23-V73uDCcDp4twMi_x-M84N6nB6YqItJ-nU0Di-QxTcZbCcRjC31mS7r1PeiIQ3O7gR6iaWFXYQ8kV2fAUzi5TVgyWf6R3N7fNSg2djsfRj5nFXTnoapsu06VMNMkQXEipTRVueWf_NjiYXnsHtkdNdgddDG2zfmmzYqT_NlxXNb-zCQWqzYxSiEwUTICoYOTwsFk",
-  },
-  {
-    id: "ps5-console",
-    title: "PS5 Console + 2 Controllers",
-    price: "₹39,990",
-    location: "Kolkata, WB",
-    timeAgo: "3h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDtQyOB7BAIRJuv1yoNpSxlXr6SJ7ohydm9TSZ1FWrKZqY2028nwvJdsD5GrE7w48P9ks_JSgZrHldPQ_fyhMen3yPH8_d6vnWc3u8Evu0qPQfaIdOuPIgG_fEGJHtX9c5Y5QLCrF7t9EkhFtePpBqfSVq_SRvCh96kIL_7UN7oct8zH2WieZB4j1vXvd9dDcnp6UEwJuss7oye90KIrfnYBaESSCktK39EMdjiBSF_pXKVAgwzUa_FObJKqLzVJh8rD8gLN7dUm8Q",
-  },
-  {
-    id: "apple-watch-8",
-    title: "Apple Watch Series 8",
-    price: "₹32,500",
-    location: "Pune, MH",
-    timeAgo: "6h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDSbt51JwbYsz8_fionbFdezafxcEsZgkgLRM2YzpQVXFfQDpfJfRku3TbnktoO7YzLi2f5QBrOdKDIxcjSY2_KlQf390UzLr6vI4rqOm-wVBYFMKDnSOoHzb9emcUxMExLRTPP2xInxe3Dacz-G8OnJT5gT_sZoyTa6_KmRlnDFYoeQgIJedLbjV64wJSHaJftWEpSlfk0LetuJd-x8FhyEi9nGKRpVAEAH49yJLHlGSb2Kr3Pmro1CfuFc6LXraPOHZgBVyndGuE",
-  },
-];
-
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
   { id: "search", label: "Search", icon: "search" as const, active: true },
@@ -101,12 +39,61 @@ const bottomTabs = [
 export function CategoryListingTemplateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ category?: string }>();
+  const categorySlug = (params.category ?? "electronics") as CategorySlug;
+  const categoryConfig = CATEGORY_MAP[categorySlug];
+  const categoryName = categoryConfig?.name ?? "Electronics";
+  const subcategories = ["All", ...(categoryConfig?.subcategories ?? [])];
+
   const [selectedSubcategory, setSelectedSubcategory] = useState("All");
+  const [listings, setListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
 
   const handleBottomTabPress = useTabNavigation();
+
+  const loadListings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchCategoryListings(categorySlug, {
+        subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
+      });
+      setListings(res.listings ?? []);
+    } catch {
+      // keep empty
+    } finally {
+      setLoading(false);
+    }
+  }, [categorySlug, selectedSubcategory]);
+
+  useEffect(() => {
+    loadListings();
+  }, [loadListings]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      const res = await fetchCategoryListings(categorySlug, {
+        subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
+      });
+      setListings(res.listings ?? []);
+    } catch {
+      // keep existing
+    }
+  }, [categorySlug, selectedSubcategory]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
+
+  const displayProducts: ProductItem[] = listings.map((item) => ({
+    id: item._id,
+    title: item.title,
+    price: item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "Price on request",
+    location: item.location ?? "",
+    timeAgo: "",
+    image: item.images?.[0] ?? "",
+    premium: false,
+  }));
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -131,7 +118,7 @@ export function CategoryListingTemplateScreen() {
             <MaterialIcons name="arrow-back" size={22} color="#0F172A" />
           </Pressable>
           <Text className="text-[20px] font-black tracking-tight text-[#27BB97]">
-            Electronics
+            {categoryName}
           </Text>
         </View>
 
@@ -158,6 +145,15 @@ export function CategoryListingTemplateScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
+            progressViewOffset={topBarHeight}
+          />
+        }
         contentContainerStyle={{
           paddingTop: topBarHeight + 8,
           paddingBottom: 84 + bottomNavPadding,
@@ -247,10 +243,26 @@ export function CategoryListingTemplateScreen() {
           className="flex-row flex-wrap px-4"
           style={{ columnGap: GRID_GUTTER, rowGap: GRID_GUTTER }}
         >
-          {products.map((product) => (
+          {loading ? (
+            <View className="w-full items-center py-16">
+              <ActivityIndicator size="large" color="#27BB97" />
+              <Text className="mt-3 text-[14px] text-[#6C7A74]">Loading listings...</Text>
+            </View>
+          ) : displayProducts.length === 0 ? (
+            <View className="w-full items-center py-16">
+              <MaterialIcons name="inventory-2" size={56} color="#CBD5E1" />
+              <Text className="mt-3 text-[16px] font-semibold text-[#161D1A]">
+                No listings yet
+              </Text>
+              <Text className="mt-1 text-center text-[13px] text-[#6C7A74]">
+                Be the first to post in {categoryName}!
+              </Text>
+            </View>
+          ) : (
+          displayProducts.map((product) => (
             <Pressable
               key={product.id}
-              onPress={() => router.push("/listing-detail-template")}
+              onPress={() => router.push(`/listing-detail-template?category=${categorySlug}&id=${product.id}` as Href)}
               className="overflow-hidden rounded-xl border border-slate-100 bg-white"
               style={{
                 width: PRODUCT_CARD_WIDTH,
@@ -312,7 +324,8 @@ export function CategoryListingTemplateScreen() {
                 </Text>
               </View>
             </Pressable>
-          ))}
+          ))
+          )}
         </View>
       </ScrollView>
 

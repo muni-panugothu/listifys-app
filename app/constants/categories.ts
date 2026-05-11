@@ -1,0 +1,374 @@
+import type { MaterialIcons } from "@expo/vector-icons";
+
+export type CategorySlug =
+  | "electronics"
+  | "jobs"
+  | "vehicles"
+  | "takecare"
+  | "events"
+  | "properties"
+  | "forsale"
+  | "mobiles"
+  | "furniture"
+  | "fashion"
+  | "sports"
+  | "collectibles"
+  | "pets"
+  | "books"
+  | "beauty"
+  | "others"
+  | "toys";
+
+export type CategoryConfig = {
+  slug: CategorySlug;
+  name: string;
+  icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  apiPath: string;
+  subcategories: string[];
+};
+
+export const CATEGORIES: CategoryConfig[] = [
+  {
+    slug: "electronics",
+    name: "Electronics",
+    icon: "devices",
+    apiPath: "/api/electronics",
+    subcategories: [
+      "TVs, Video - Audio",
+      "Kitchen & Other Appliances",
+      "Fridges",
+      "Washing Machines",
+      "ACs",
+      "Computers & Laptops",
+      "Computer Accessories",
+      "Hard Disks, Printers & Monitors",
+      "Cameras & Lenses",
+    ],
+  },
+  {
+    slug: "jobs",
+    name: "Jobs",
+    icon: "work",
+    apiPath: "/api/jobs",
+    subcategories: ["IT Jobs", "Non IT Jobs", "Part Time", "Contract Type"],
+  },
+  {
+    slug: "vehicles",
+    name: "Vehicles",
+    icon: "directions-car",
+    apiPath: "/api/vehicles",
+    subcategories: ["Cars", "Bikes", "Cycle", "Spare Parts"],
+  },
+  {
+    slug: "takecare",
+    name: "Take Care",
+    icon: "favorite",
+    apiPath: "/api/takecare",
+    subcategories: ["Nanny", "Babysitter", "Elder Care", "Pet Care"],
+  },
+  {
+    slug: "events",
+    name: "Events",
+    icon: "event",
+    apiPath: "/api/events",
+    subcategories: [
+      "Music",
+      "Food & Drink",
+      "Business",
+      "Health & Wellness",
+      "Film",
+      "Comedy",
+      "Art",
+      "Sports",
+      "Theater",
+      "Education",
+      "Community",
+      "Other",
+    ],
+  },
+  {
+    slug: "properties",
+    name: "Properties",
+    icon: "apartment",
+    apiPath: "/api/properties",
+    subcategories: [
+      "Apartments",
+      "Houses",
+      "Condos",
+      "Townhouses",
+      "Commercial",
+      "Office Space",
+      "Single Room",
+      "Shared Room",
+      "Paying Guest",
+      "Other",
+    ],
+  },
+  {
+    slug: "forsale",
+    name: "For Sale",
+    icon: "sell",
+    apiPath: "/api/forsale",
+    subcategories: [
+      "Mobile Phones",
+      "Accessories",
+      "Tablets",
+      "Sofas & Dining",
+      "Beds & Wardrobes",
+      "Tables & Chairs",
+      "Home Decor",
+      "Office Furniture",
+      "Men's Clothing",
+      "Women's Clothing",
+      "Kids Clothing",
+      "Footwear",
+      "Watches",
+      "Fiction",
+      "Non-Fiction",
+      "Children's Books",
+      "Textbooks",
+      "Comics",
+      "Magazines",
+      "Exercise",
+      "Camping",
+      "Sports Equipment",
+      "Gym & Fitness",
+      "Musical Instruments",
+      "Hobbies",
+      "Video Games",
+      "Puzzles",
+      "RC Toys",
+      "Soft Toys & Dolls",
+      "Building Toys",
+      "Baby Toys",
+      "Action Figures",
+      "Antiques",
+      "Art",
+      "Coins",
+      "Memorabilia",
+      "Vintage",
+      "Stamps",
+      "Dog Supplies",
+      "Cat Supplies",
+      "Bird Supplies",
+      "Fish Supplies",
+      "Reptile Supplies",
+      "Makeup",
+      "Skincare",
+      "Hair Care",
+      "Fragrance",
+      "Vitamins",
+      "Personal Care",
+      "Other Items",
+    ],
+  },
+  {
+    slug: "mobiles",
+    name: "Mobiles",
+    icon: "smartphone",
+    apiPath: "/api/mobiles",
+    subcategories: ["Mobile Phones", "Accessories", "Tablets"],
+  },
+  {
+    slug: "furniture",
+    name: "Furniture",
+    icon: "chair",
+    apiPath: "/api/furniture",
+    subcategories: [
+      "Sofas & Dining",
+      "Beds & Wardrobes",
+      "Tables & Chairs",
+      "Home Decor",
+      "Office Furniture",
+    ],
+  },
+  {
+    slug: "fashion",
+    name: "Fashion",
+    icon: "checkroom",
+    apiPath: "/api/fashion",
+    subcategories: [
+      "Men's Clothing",
+      "Women's Clothing",
+      "Kids Clothing",
+      "Footwear",
+      "Watches",
+      "Accessories",
+    ],
+  },
+  {
+    slug: "sports",
+    name: "Sports",
+    icon: "sports-soccer",
+    apiPath: "/api/sports",
+    subcategories: [
+      "Exercise & Gym",
+      "Outdoor Sports",
+      "Indoor Sports",
+      "Water Sports",
+      "Cycling",
+      "Camping & Hiking",
+      "Fitness Accessories",
+      "Team Sports",
+    ],
+  },
+  {
+    slug: "collectibles",
+    name: "Collectibles",
+    icon: "collections",
+    apiPath: "/api/collectibles",
+    subcategories: [
+      "Coins & Currency",
+      "Stamps",
+      "Trading Cards",
+      "Antiques",
+      "Vintage Items",
+      "Memorabilia",
+      "Art & Prints",
+      "Other Collectibles",
+    ],
+  },
+  {
+    slug: "pets",
+    name: "Pets",
+    icon: "pets",
+    apiPath: "/api/pets",
+    subcategories: [
+      "Dogs",
+      "Cats",
+      "Birds",
+      "Fish & Aquarium",
+      "Small Animals",
+      "Reptiles",
+      "Pet Supplies",
+      "Pet Services",
+    ],
+  },
+  {
+    slug: "books",
+    name: "Books",
+    icon: "menu-book",
+    apiPath: "/api/books",
+    subcategories: [
+      "Fiction",
+      "Non-Fiction",
+      "Children's Books",
+      "Textbooks",
+      "Comics",
+      "Magazines",
+    ],
+  },
+  {
+    slug: "beauty",
+    name: "Beauty",
+    icon: "face-retouching-natural",
+    apiPath: "/api/beauty",
+    subcategories: [
+      "Makeup",
+      "Skincare",
+      "Hair Care",
+      "Fragrance",
+      "Vitamins",
+      "Personal Care",
+    ],
+  },
+  {
+    slug: "others",
+    name: "Others",
+    icon: "more-horiz",
+    apiPath: "/api/others",
+    subcategories: ["Other Items"],
+  },
+  {
+    slug: "toys",
+    name: "Toys",
+    icon: "toys",
+    apiPath: "/api/toys",
+    subcategories: [
+      "Video Games",
+      "Puzzles",
+      "RC Toys",
+      "Soft Toys & Dolls",
+      "Building Toys",
+      "Baby Toys",
+      "Action Figures",
+      "Other",
+    ],
+  },
+];
+
+export const CATEGORY_MAP = Object.fromEntries(
+  CATEGORIES.map((c) => [c.slug, c]),
+) as Record<CategorySlug, CategoryConfig>;
+
+/** Condition options shared across product categories */
+export const CONDITION_OPTIONS = ["New", "Like New", "Good", "Fair", "Used"] as const;
+
+/** Categories that do NOT require price (jobs, events might be free) */
+export const PRICE_OPTIONAL_CATEGORIES: CategorySlug[] = ["jobs", "events"];
+
+/** Categories that do NOT require condition */
+export const CONDITION_SKIP_CATEGORIES: CategorySlug[] = [
+  "jobs",
+  "events",
+  "properties",
+  "takecare",
+];
+
+/**
+ * ForSale subcategory → server-expected category sub-group mapping.
+ * The forsale controller expects category to be a sub-group name like
+ * "Mobiles", "Furniture", etc., not "For Sale".
+ */
+export const FORSALE_SUBCATEGORY_TO_CATEGORY: Record<string, string> = {
+  "Mobile Phones": "Mobiles",
+  "Accessories": "Mobiles",
+  "Tablets": "Mobiles",
+  "Sofas & Dining": "Furniture",
+  "Beds & Wardrobes": "Furniture",
+  "Tables & Chairs": "Furniture",
+  "Home Decor": "Furniture",
+  "Office Furniture": "Furniture",
+  "Men's Clothing": "Fashion",
+  "Women's Clothing": "Fashion",
+  "Kids Clothing": "Fashion",
+  "Footwear": "Fashion",
+  "Watches": "Fashion",
+  "Fiction": "Books",
+  "Non-Fiction": "Books",
+  "Children's Books": "Books",
+  "Textbooks": "Books",
+  "Comics": "Books",
+  "Magazines": "Books",
+  "Exercise": "Sports",
+  "Camping": "Sports",
+  "Sports Equipment": "Sports",
+  "Gym & Fitness": "Books, Sports",
+  "Musical Instruments": "Books, Sports",
+  "Hobbies": "Books, Sports",
+  "Video Games": "Toys & Games",
+  "Puzzles": "Toys & Games",
+  "RC Toys": "Toys & Games",
+  "Soft Toys & Dolls": "Toys & Games",
+  "Building Toys": "Toys & Games",
+  "Baby Toys": "Toys & Games",
+  "Action Figures": "Toys & Games",
+  "Antiques": "Collectibles",
+  "Art": "Collectibles",
+  "Coins": "Collectibles",
+  "Memorabilia": "Collectibles",
+  "Vintage": "Collectibles",
+  "Stamps": "Collectibles",
+  "Dog Supplies": "Pets",
+  "Cat Supplies": "Pets",
+  "Bird Supplies": "Pets",
+  "Fish Supplies": "Pets",
+  "Reptile Supplies": "Pets",
+  "Makeup": "Beauty",
+  "Skincare": "Beauty",
+  "Hair Care": "Beauty",
+  "Fragrance": "Beauty",
+  "Vitamins": "Beauty",
+  "Personal Care": "Beauty",
+  "Other Items": "Others",
+};

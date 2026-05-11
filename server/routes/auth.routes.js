@@ -156,6 +156,7 @@ router.get("/check", authController.checkAuth);
 
 // ==================== Seller profile (auth required) ====================
 router.get("/seller/:userId", protect, authController.getSellerProfile);
+router.get("/seller/:userId/listings", protect, authController.getSellerListings);
 
 // ==================== Follow / Unfollow ====================
 router.post("/follow/:userId", protect, authController.toggleFollow);

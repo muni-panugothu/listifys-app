@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { CategoryListingTemplateScreen } from "@/features/category/screens/category-listing-template-screen";
 

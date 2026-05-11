@@ -1,15 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useMemo } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
-
-const previewImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuAHKuRSqBvFz-njyFPuaLRGuY2K8EBqo1tMeABWJW0980o5B2CbGHwlqB0gWK3hmcJ6QkfnFGojFw7PvCsIp2B7QlVzBYn2ZmFGJeks70ffx8iresJ8GyWyjlho24AkxrQE95hDxy2hIBAfeSd8ByLzS66ApdRvC9OzIFwNeYNf5KhgHBWZ7vz-pNUAtXVuw8-pXUbxx29-s5tGenJmSOkpAzqqzcgvdUbEq_vUKGrDP9FY0TJz19jER-WHnP4H1w4kNOzk3jb8cN0";
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -32,6 +29,22 @@ export function ListingSuccessScreen() {
   const bottomNavPadding = Math.max(insets.bottom, 8);
 
   const handleBottomTabPress = useTabNavigation();
+
+  const params = useLocalSearchParams<{
+    title?: string;
+    price?: string;
+    location?: string;
+    image?: string;
+    category?: string;
+  }>();
+
+  const listingTitle = params.title || "Your Listing";
+  const listingPrice = params.price
+    ? `₹${Number(params.price).toLocaleString("en-IN")}`
+    : "";
+  const listingLocation = params.location || "";
+  const listingImage = params.image || "";
+  const listingCategory = params.category || "";
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -102,9 +115,10 @@ export function ListingSuccessScreen() {
               elevation: 2,
             }}
           >
+            {listingImage ? (
             <View className="relative h-48 w-full">
               <Image
-                source={previewImage}
+                source={listingImage}
                 contentFit="cover"
                 transition={200}
                 className="h-full w-full"
@@ -118,12 +132,18 @@ export function ListingSuccessScreen() {
                 </Text>
               </View>
             </View>
+            ) : (
+              <View className="h-48 w-full items-center justify-center bg-slate-100">
+                <MaterialIcons name="image" size={48} color="#94A3B8" />
+              </View>
+            )}
             <View className="p-4">
               <View className="flex-row items-start justify-between">
-                <View className="flex-1">
-                  <Text className="text-[18px] font-semibold text-[#161D1A]">
-                    Elegant Modern Living Sofa
+                <View className="flex-1 pr-3">
+                  <Text className="text-[18px] font-semibold text-[#161D1A]" numberOfLines={2}>
+                    {listingTitle}
                   </Text>
+                  {listingLocation ? (
                   <View className="mt-1 flex-row items-center gap-1">
                     <MaterialIcons
                       name="location-on"
@@ -131,28 +151,36 @@ export function ListingSuccessScreen() {
                       color="#94A3B8"
                     />
                     <Text className="text-[14px] text-[#6C7A74]">
-                      Indiranagar, Bangalore
+                      {listingLocation}
                     </Text>
                   </View>
+                  ) : null}
+                  {listingCategory ? (
+                  <View className="mt-1 flex-row items-center gap-1">
+                    <MaterialIcons name="category" size={14} color="#94A3B8" />
+                    <Text className="text-[12px] text-[#6C7A74]">
+                      {listingCategory}
+                    </Text>
+                  </View>
+                  ) : null}
                 </View>
+                {listingPrice ? (
                 <Text className="text-[20px] font-bold text-[#27BB97]">
-                  ₹24,999
+                  {listingPrice}
                 </Text>
+                ) : null}
               </View>
               <View className="mt-3 flex-row items-center justify-between border-t border-slate-50 pt-3">
-                <View className="flex-row -space-x-2">
-                  <View className="h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-200">
-                    <MaterialIcons name="person" size={12} color="#94A3B8" />
+                <View className="flex-row items-center gap-1.5">
+                  <View className="h-6 w-6 items-center justify-center rounded-full bg-[rgba(39,187,151,0.1)]">
+                    <MaterialIcons name="check-circle" size={14} color="#27BB97" />
                   </View>
-                  <View className="h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-200">
-                    <MaterialIcons name="person" size={12} color="#94A3B8" />
-                  </View>
-                  <View className="h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-100">
-                    <Text className="text-[8px] font-bold">12+</Text>
-                  </View>
+                  <Text className="text-[12px] font-medium text-[#27BB97]">
+                    Published
+                  </Text>
                 </View>
                 <Text className="text-[12px] font-medium text-slate-400">
-                  Listed 1m ago
+                  Just now
                 </Text>
               </View>
             </View>

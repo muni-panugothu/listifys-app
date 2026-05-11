@@ -1,23 +1,31 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { type Href, useFocusEffect, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useState } from "react";
 import {
     Dimensions,
     Pressable,
     RefreshControl,
     ScrollView,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ListifyHomeFeedAssets } from "@/constants/listify-theme";
+import { CATEGORIES } from "@/constants/categories";
+import { getUnreadCount } from "@/features/auth/services/auth-api";
+import {
+  fetchHomeFeed,
+  getRecentlyViewed,
+  toggleSaveListing,
+  type FeedResponse,
+  type ListingItem,
+  type RecentlyViewedItem,
+} from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -25,88 +33,33 @@ const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
 const SELL_BANNER_CAMERA_IMAGE =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80";
 
+// Category images — real product photos for each category
+const CATEGORY_IMAGES: Record<string, string> = {
+  all: "https://images.unsplash.com/photo-1607082349566-187342175e2f?w=120&h=120&fit=crop&q=80",
+  electronics: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=120&h=120&fit=crop&q=80",
+  jobs: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=120&h=120&fit=crop&q=80",
+  vehicles: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=120&h=120&fit=crop&q=80",
+  takecare: "https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=120&h=120&fit=crop&q=80",
+  events: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=120&h=120&fit=crop&q=80",
+  properties: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=120&h=120&fit=crop&q=80",
+  forsale: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=120&h=120&fit=crop&q=80",
+  mobiles: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=120&h=120&fit=crop&q=80",
+  furniture: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=120&h=120&fit=crop&q=80",
+  fashion: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=120&h=120&fit=crop&q=80",
+  sports: "https://images.unsplash.com/photo-1461896836934-bd45ba48bf1d?w=120&h=120&fit=crop&q=80",
+  collectibles: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=120&h=120&fit=crop&q=80",
+  pets: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=120&h=120&fit=crop&q=80",
+  books: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=120&h=120&fit=crop&q=80",
+  beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=120&h=120&fit=crop&q=80",
+  others: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=120&h=120&fit=crop&q=80",
+  toys: "https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=120&h=120&fit=crop&q=80",
+};
+
+const CAT_ITEM_SIZE = 45;
+
 const categories = [
   { id: "all", label: "All", icon: "grid-view" as const },
-  { id: "electronics", label: "Electronics", icon: "devices" as const },
-  { id: "vehicles", label: "Vehicles", icon: "directions-car" as const },
-  { id: "mobiles", label: "Mobiles", icon: "smartphone" as const },
-  { id: "furniture", label: "Furniture", icon: "chair" as const },
-  { id: "fashion", label: "Fashion", icon: "checkroom" as const },
-  { id: "services", label: "Services", icon: "home-repair-service" as const },
-  { id: "properties", label: "Properties", icon: "apartment" as const },
-  { id: "jobs", label: "Jobs", icon: "work" as const },
-  { id: "events", label: "Events", icon: "event" as const },
-];
-
-const recommendations = [
-  {
-    id: "headphones",
-    title: "Wireless Noise Cancelling Headphones - Mint Condition",
-    price: "₹15,000",
-    location: "Bandra, Mumbai",
-    image: ListifyHomeFeedAssets.recommendationHeadphones,
-    liked: false,
-  },
-  {
-    id: "watch",
-    title: "Premium Minimalist Watch Series 4 - Hardly Used",
-    price: "₹8,499",
-    location: "Andheri, Mumbai",
-    image: ListifyHomeFeedAssets.recommendationWatch,
-    liked: true,
-  },
-];
-
-const featuredServices = [
-  {
-    id: "plumber-visit",
-    title: "Expert Plumber Visit",
-    price: "From ₹500",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCvVDeAqfUnThr5rMPGkBOzccH-zYB0x2u8Llq6IMX67bVxcgfeAMeq-9xWVITCmFZvTlbsquIc2igXE46GEROxOH2mrJ0JXVqh_2-xKdHW5P0ypObGDSY32ea_-6WBJkrGC1rgXOEDbyFlpRVeRqeT9yfMCSRI6U6-89-i6J9Q0nKn_m8EEnMpwSLqcsYtxraz53LZAuKNxia_R4f_ZGzssWOuB4KnNU5Gv2-r488y7JU5kMIORSz2Dx2988VY2wdzXgWmU1T2H-E",
-  },
-  {
-    id: "deep-cleaning",
-    title: "Deep Home Cleaning",
-    price: "From ₹1,299",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBe0CDfy2_s56CJFW4z6PgMHbhIy5bCAEJPpKn-Y7PQ-mcJdsO7L49UHFxV6lrgVAMdJhbOn-wSErSrcqRdFiJg7l4aZVEhCLDb7uSGOmPlkRJELNRAW5B4_hoJBXB3m21S7h2ccZnzk4EOQ2mR46mBVSLoXY2O10TB-sCa2GtmGH72BLSlCXjinMag6zse2rQ5mmUNCbm1rkbKeMAdV0PsDsaeSzR1YYA57Nfk7Sk7Upu7Ogq9YdrAFmQxBUVWjfJbJq90VmVnrbE",
-  },
-  {
-    id: "electric-repair",
-    title: "Electric Repair & Fix",
-    price: "From ₹650",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAMClfKgWx-R5cp0hXW2YY3caff5O-4Nou8qBYQ5ay3E7nlJ_Px0Tz-63SBX9neiDWF07oxrAwxLDgcBlPzy-GLoemjdXC9vaT7Zzcqva_WO_RAVLP94O-vE0D8E5An_Z-QskUcJUsdLlkebS8A4bSHHpLKu5baRbHtnv0nRNeq1kA81nOzJBOGQnKkd1AoPD1ybaF1CzhNfhIDH2WWyWSX1OWhB9LCsoUIROmU2UjomR0XrV0flTvXbOLLc-rZHzitc8lUQF7LIro",
-  },
-  {
-    id: "leak-specialist",
-    title: "Leak Detection Specialist",
-    price: "From ₹450",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAojdUCJ2PxDfy74Vbyrz1zJc8WZPw9nQTzVxilu0RyTaefuCHAP_sCWfVsp0LlfcXb37lMnhIK6zudAObvSX0_jkECqQAuxEeKPfPvQt-voljCycnTqKYuhrbwZVp8RzQsemlIcHN5RUZznu0SoRQe7mny9kN04Bdg-zGtqjEgRieXqU4VosW7yXb7vp52hq6fY2xJESuoGTDbv5oLBRwy7QOTkS2Txm1B6F9ew09dKEMPjAzTdqGaqzOJ06XcaZf4AEwVf5BGsk4",
-  },
-];
-
-const recentItems = [
-  {
-    id: "macbook",
-    title: "MacBook Pro 2021",
-    price: "₹85,000",
-    image: ListifyHomeFeedAssets.recentMacbook,
-  },
-  {
-    id: "nike",
-    title: "Nike Air Max Speed",
-    price: "₹4,200",
-    image: ListifyHomeFeedAssets.recentNike,
-  },
-  {
-    id: "sofa",
-    title: "Velvet Modern Sofa",
-    price: "₹22,500",
-    image: ListifyHomeFeedAssets.recentSofa,
-  },
+  ...CATEGORIES.map((c) => ({ id: c.slug, label: c.name, icon: c.icon })),
 ];
 
 const bottomTabs = [
@@ -121,18 +74,84 @@ export function HomeFeedRootScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const [searchQuery, setSearchQuery] = useState("");
+  const user = useAppSelector((s) => s.auth.user);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [feedData, setFeedData] = useState<FeedResponse | null>(null);
+  const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  // Flatten all category listings into a single array for recommendations
+  const allListings: ListingItem[] = feedData?.categories
+    ? Object.values(feedData.categories).flatMap((cat) => cat.listings ?? [])
+    : [];
+
+  // Featured services = takecare + services category from feed
+  const featuredServices: ListingItem[] = [
+    ...(feedData?.categories?.takecare?.listings ?? []),
+    ...(feedData?.categories?.services?.listings ?? []),
+  ].slice(0, 6);
+
+  const loadFeed = useCallback(async () => {
+    try {
+      const res = await fetchHomeFeed({ limit: 10 });
+      setFeedData(res);
+      // Build saved set from all listings
+      const ids = new Set<string>();
+      if (res.categories && user?.id) {
+        for (const cat of Object.values(res.categories)) {
+          for (const l of cat.listings ?? []) {
+            if (l.savedBy?.includes(user.id)) ids.add(l._id);
+          }
+        }
+      }
+      setSavedIds(ids);
+    } catch {
+      // keep existing data on error
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadFeed();
+    getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
+    getUnreadCount().then((r) => setUnreadCount(r.unreadCount ?? 0)).catch(() => {});
+  }, [loadFeed]);
+
+  // Refresh recently viewed + unread count when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
+      getUnreadCount().then((r) => setUnreadCount(r.unreadCount ?? 0)).catch(() => {});
+    }, []),
+  );
 
   const handleRefresh = useCallback(async () => {
-    // Re-fetch user profile + any server-side data to keep the feed fresh
-    await dispatch(fetchProfile()).unwrap().catch(() => {});
-    // Future: fetch listings, recommendations, etc. from API here
-  }, [dispatch]);
+    await Promise.all([
+      dispatch(fetchProfile()).unwrap().catch(() => {}),
+      loadFeed(),
+      getRecentlyViewed().then(setRecentlyViewed).catch(() => {}),
+      getUnreadCount().then((r) => setUnreadCount(r.unreadCount ?? 0)).catch(() => {}),
+    ]);
+  }, [dispatch, loadFeed]);
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
   const handleBottomTabPress = useTabNavigation();
+
+  const handleToggleSave = useCallback(async (item: ListingItem) => {
+    try {
+      const category = (item as any)._source ?? item.category ?? "electronics";
+      const res = await toggleSaveListing(category, item._id);
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        if (res.saved) next.add(item._id);
+        else next.delete(item._id);
+        return next;
+      });
+    } catch {
+      // silently fail
+    }
+  }, []);
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -165,10 +184,18 @@ export function HomeFeedRootScreen() {
         </View>
 
         <Pressable
+          onPress={() => router.push("/notifications-center")}
           className="h-10 w-10 items-center justify-center rounded-full"
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
           <MaterialIcons name="notifications-none" size={24} color="#161D1A" />
+          {unreadCount > 0 && (
+            <View className="absolute -top-0.5 right-0.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 px-1 py-0.5">
+              <Text className="text-[10px] font-bold text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          )}
         </Pressable>
       </View>
 
@@ -190,7 +217,10 @@ export function HomeFeedRootScreen() {
         }}
       >
         {/* Search Section */}
-        <View className="mb-4 flex-row items-center gap-2 px-4">
+        <Pressable
+          onPress={() => router.push("/search-home")}
+          className="mb-4 flex-row items-center gap-2 px-4"
+        >
           <View
             className="h-12 flex-1 flex-row items-center rounded-xl border border-slate-100 bg-white px-4"
             style={{
@@ -202,16 +232,11 @@ export function HomeFeedRootScreen() {
             }}
           >
             <MaterialIcons name="search" size={22} color="#94A3B8" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search product, category..."
-              placeholderTextColor="#94A3B8"
-              className="ml-2 flex-1 text-[14px] leading-5 text-[#161D1A]"
-              style={{ paddingVertical: 0 }}
-            />
+            <Text className="ml-2 flex-1 text-[14px] leading-5 text-[#94A3B8]">
+              Search product, category...
+            </Text>
           </View>
-          <Pressable
+          <View
             className="h-12 w-12 items-center justify-center rounded-xl border border-slate-100 bg-white"
             style={{
               shadowColor: "#000",
@@ -222,86 +247,104 @@ export function HomeFeedRootScreen() {
             }}
           >
             <MaterialIcons name="tune" size={22} color="#27BB97" />
-          </Pressable>
-        </View>
+          </View>
+        </Pressable>
 
-        {/* Horizontal Categories */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
-          className="mb-6"
-        >
-          {categories.map((cat) => {
-            const isActive = selectedCategory === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => {
-                  setSelectedCategory(cat.id);
-                  if (cat.id === "electronics") {
-                    router.push("/category-listing-template");
-                    return;
-                  }
-                  if (cat.id === "services") {
-                    router.push("/services-category-hub");
-                    return;
-                  }
-                  if (cat.id === "properties") {
-                    router.push("/properties-listing");
-                  }
-                  if (cat.id === "jobs") {
-                    router.push("/jobs-listing");
-                  }
-                  if (cat.id === "events") {
-                    router.push("/events-listing");
-                  }
-                }}
-                className="items-center gap-1"
-              >
-                <View
-                  className="h-14 w-14 items-center justify-center rounded-full"
-                  style={
-                    isActive
-                      ? {
-                          backgroundColor: "#27BB97",
-                          shadowColor: "#27BB97",
-                          shadowOffset: { width: 0, height: 3 },
-                          shadowOpacity: 0.3,
-                          shadowRadius: 6,
-                          elevation: 4,
-                        }
-                      : {
-                          backgroundColor: "#FFFFFF",
-                          borderWidth: 1,
-                          borderColor: "#F1F5F9",
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.04,
-                          shadowRadius: 2,
-                          elevation: 1,
-                        }
-                  }
-                >
-                  <MaterialIcons
-                    name={cat.icon}
-                    size={24}
-                    color={isActive ? "#FFFFFF" : "#475569"}
-                  />
+        {/* Two-Row Category Grid */}
+        <View className="mb-6">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+          >
+            {(() => {
+              // Split categories into pairs for two rows
+              const pairs: (typeof categories[0])[][] = [];
+              for (let i = 0; i < categories.length; i += 2) {
+                pairs.push(categories.slice(i, i + 2));
+              }
+              return pairs.map((pair, colIdx) => (
+                <View key={colIdx} style={{ gap: 12 }}>
+                  {pair.map((cat) => {
+                    const isActive = selectedCategory === cat.id;
+                    return (
+                      <Pressable
+                        key={cat.id}
+                        onPress={() => {
+                          setSelectedCategory(cat.id);
+                          if (cat.id === "all") return;
+                          if (cat.id === "services") {
+                            router.push("/services-category-hub");
+                            return;
+                          }
+                          if (cat.id === "properties") {
+                            router.push("/properties-listing");
+                            return;
+                          }
+                          if (cat.id === "jobs") {
+                            router.push("/jobs-listing");
+                            return;
+                          }
+                          if (cat.id === "events") {
+                            router.push("/events-listing");
+                            return;
+                          }
+                          router.push(`/category-listing-template?category=${cat.id}` as Href);
+                        }}
+                        className="items-center"
+                        style={{ width: CAT_ITEM_SIZE }}
+                      >
+                        <View
+                          className="items-center justify-center rounded-2xl"
+                          style={[
+                            {
+                              width: CAT_ITEM_SIZE,
+                              height: CAT_ITEM_SIZE,
+                              overflow: "hidden",
+                            },
+                            isActive
+                              ? {
+                                  backgroundColor: "#DFF7EE",
+                                  borderWidth: 2,
+                                  borderColor: "#27BB97",
+                                }
+                              : {
+                                  backgroundColor: "#FFFFFF",
+                                  borderWidth: 1,
+                                  borderColor: "#F1F5F9",
+                                  shadowColor: "#000",
+                                  shadowOffset: { width: 0, height: 1 },
+                                  shadowOpacity: 0.04,
+                                  shadowRadius: 2,
+                                  elevation: 1,
+                                },
+                          ]}
+                        >
+                          <Image
+                            source={CATEGORY_IMAGES[cat.id] ?? CATEGORY_IMAGES.all}
+                            contentFit="cover"
+                            transition={200}
+                            style={{ width: CAT_ITEM_SIZE, height: CAT_ITEM_SIZE, borderRadius: 14 }}
+                          />
+                        </View>
+                        <Text
+                          className="mt-1 text-center text-[11px] font-medium"
+                          style={{
+                            color: isActive ? "#161D1A" : "#64748B",
+                            letterSpacing: 0.3,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {cat.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-                <Text
-                  className="text-[12px] font-medium"
-                  style={{
-                    color: isActive ? "#161D1A" : "#64748B",
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  {cat.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+              ));
+            })()}
+          </ScrollView>
+        </View>
 
         {/* Sell Banner */}
         <View className="mx-4 mb-6">
@@ -375,17 +418,24 @@ export function HomeFeedRootScreen() {
             <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
               Fresh Recommendations
             </Text>
-            <Pressable>
+            <Pressable onPress={() => router.push("/search-results-entity-tabs?q=" as Href)}>
               <Text className="text-[12px] font-medium text-[#27BB97]">
                 See all
               </Text>
             </Pressable>
           </View>
 
-          <View className="flex-row justify-between">
-            {recommendations.map((item) => (
-              <View
-                key={item.id}
+          {allListings.length === 0 ? (
+            <View className="items-center py-10">
+              <MaterialIcons name="inventory-2" size={48} color="#CBD5E1" />
+              <Text className="mt-2 text-[14px] text-[#6C7A74]">No listings yet. Be the first to post!</Text>
+            </View>
+          ) : (
+          <View className="flex-row flex-wrap justify-between" style={{ gap: 12 }}>
+            {allListings.slice(0, 4).map((item) => (
+              <Pressable
+                key={item._id}
+                onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-white"
                 style={{
                   width: CARD_WIDTH,
@@ -398,12 +448,18 @@ export function HomeFeedRootScreen() {
               >
                 {/* Product Image */}
                 <View style={{ width: CARD_WIDTH, height: CARD_WIDTH }}>
+                  {item.images?.[0] ? (
                   <Image
-                    source={item.image}
+                    source={item.images[0]}
                     contentFit="cover"
                     transition={200}
                     className="h-full w-full"
                   />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-slate-100">
+                      <MaterialIcons name="image" size={32} color="#CBD5E1" />
+                    </View>
+                  )}
                   {/* Trusted Badge */}
                   <View className="absolute left-2 top-2 flex-row items-center gap-1 rounded-full bg-white/90 px-2 py-0.5">
                     <MaterialIcons name="verified" size={13} color="#27BB97" />
@@ -412,11 +468,14 @@ export function HomeFeedRootScreen() {
                     </Text>
                   </View>
                   {/* Favorite Button */}
-                  <Pressable className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/70">
+                  <Pressable
+                    onPress={() => handleToggleSave(item)}
+                    className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/70"
+                  >
                     <MaterialIcons
-                      name={item.liked ? "favorite" : "favorite-border"}
+                      name={savedIds.has(item._id) ? "favorite" : "favorite-border"}
                       size={18}
-                      color={item.liked ? "#EF4444" : "#161D1A"}
+                      color={savedIds.has(item._id) ? "#EF4444" : "#161D1A"}
                     />
                   </Pressable>
                 </View>
@@ -430,25 +489,25 @@ export function HomeFeedRootScreen() {
                     {item.title}
                   </Text>
                   <Text className="mb-2 text-[16px] font-bold leading-5 text-[#161D1A]">
-                    {item.price}
+                    {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "Price on request"}
                   </Text>
+                  {item.location ? (
                   <View className="flex-row items-center gap-1">
-                    <MaterialIcons
-                      name="location-on"
-                      size={13}
-                      color="#94A3B8"
-                    />
+                    <MaterialIcons name="location-on" size={13} color="#94A3B8" />
                     <Text className="text-[10px] font-medium text-[#94A3B8]">
                       {item.location}
                     </Text>
                   </View>
+                  ) : null}
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
+          )}
         </View>
 
         {/* Featured Services */}
+        {featuredServices.length > 0 && (
         <View className="mb-6">
           <View className="mb-4 flex-row items-center justify-between px-4">
             <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
@@ -468,20 +527,26 @@ export function HomeFeedRootScreen() {
           >
             {featuredServices.map((item) => (
               <Pressable
-                key={item.id}
-                onPress={() => router.push("/services-category-hub")}
+                key={item._id}
+                onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
                 className="w-48"
               >
                 <View
                   className="mb-2 overflow-hidden rounded-xl"
                   style={{ aspectRatio: 4 / 3 }}
                 >
-                  <Image
-                    source={item.image}
-                    contentFit="cover"
-                    transition={200}
-                    className="h-full w-full"
-                  />
+                  {item.images?.[0] ? (
+                    <Image
+                      source={item.images[0]}
+                      contentFit="cover"
+                      transition={200}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center rounded-xl bg-slate-100">
+                      <MaterialIcons name="image" size={28} color="#CBD5E1" />
+                    </View>
+                  )}
                 </View>
                 <Text
                   className="text-[14px] leading-5 text-[#161D1A]"
@@ -490,24 +555,21 @@ export function HomeFeedRootScreen() {
                   {item.title}
                 </Text>
                 <Text className="text-[16px] font-bold text-[#27BB97]">
-                  {item.price}
+                  {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "Price on request"}
                 </Text>
               </Pressable>
             ))}
           </ScrollView>
         </View>
+        )}
 
         {/* Recently Viewed */}
+        {recentlyViewed.length > 0 && (
         <View className="mb-6">
           <View className="mb-4 flex-row items-center justify-between px-4">
             <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
               Recently Viewed
             </Text>
-            <Pressable>
-              <Text className="text-[12px] font-medium text-[#27BB97]">
-                Clear
-              </Text>
-            </Pressable>
           </View>
 
           <ScrollView
@@ -515,18 +577,28 @@ export function HomeFeedRootScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
           >
-            {recentItems.map((item) => (
-              <Pressable key={item.id} className="w-40">
+            {recentlyViewed.slice(0, 10).map((item) => (
+              <Pressable
+                key={item._id}
+                onPress={() => router.push(`/listing-detail-template?category=${item.category}&id=${item._id}` as Href)}
+                className="w-40"
+              >
                 <View
                   className="mb-2 overflow-hidden rounded-xl"
                   style={{ aspectRatio: 4 / 3 }}
                 >
+                  {item.images?.[0] ? (
                   <Image
-                    source={item.image}
+                    source={item.images[0]}
                     contentFit="cover"
                     transition={200}
                     className="h-full w-full"
                   />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center rounded-xl bg-slate-100">
+                      <MaterialIcons name="image" size={28} color="#CBD5E1" />
+                    </View>
+                  )}
                 </View>
                 <Text
                   className="text-[14px] leading-5 text-[#161D1A]"
@@ -535,12 +607,97 @@ export function HomeFeedRootScreen() {
                   {item.title}
                 </Text>
                 <Text className="text-[16px] font-bold text-[#27BB97]">
-                  {item.price}
+                  {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "N/A"}
                 </Text>
               </Pressable>
             ))}
           </ScrollView>
         </View>
+        )}
+
+        {/* Per-Category Sections */}
+        {feedData?.categories &&
+          Object.entries(feedData.categories)
+            .filter(([, cat]) => cat.listings?.length > 0)
+            .slice(0, 5)
+            .map(([key, cat]) => {
+              const config = CATEGORIES.find((c) => c.slug === key);
+              if (!config) return null;
+              return (
+                <View key={key} className="mb-6">
+                  <View className="mb-4 flex-row items-center justify-between px-4">
+                    <View className="flex-row items-center gap-2">
+                      <MaterialIcons name={config.icon} size={20} color="#27BB97" />
+                      <Text className="text-[18px] font-semibold tracking-tight text-[#161D1A]">
+                        {config.name}
+                      </Text>
+                      <View className="rounded-full bg-[rgba(39,187,151,0.1)] px-2 py-0.5">
+                        <Text className="text-[10px] font-bold text-[#27BB97]">
+                          {cat.count}
+                        </Text>
+                      </View>
+                    </View>
+                    <Pressable onPress={() => router.push(`/category-listing-template?category=${key}` as Href)}>
+                      <Text className="text-[12px] font-medium text-[#27BB97]">
+                        See all
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                  >
+                    {cat.listings.slice(0, 8).map((item) => (
+                      <Pressable
+                        key={item._id}
+                        onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
+                        className="w-44 overflow-hidden rounded-xl border border-slate-100 bg-white"
+                        style={{
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.04,
+                          shadowRadius: 3,
+                          elevation: 1,
+                        }}
+                      >
+                        <View style={{ width: 176, height: 132 }}>
+                          {item.images?.[0] ? (
+                            <Image
+                              source={item.images[0]}
+                              contentFit="cover"
+                              transition={200}
+                              className="h-full w-full"
+                            />
+                          ) : (
+                            <View className="h-full w-full items-center justify-center bg-slate-100">
+                              <MaterialIcons name="image" size={28} color="#CBD5E1" />
+                            </View>
+                          )}
+                        </View>
+                        <View className="p-2.5">
+                          <Text numberOfLines={1} className="text-[13px] font-semibold text-[#161D1A]">
+                            {item.title}
+                          </Text>
+                          <Text className="text-[15px] font-bold text-[#27BB97]">
+                            {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "N/A"}
+                          </Text>
+                          {item.location ? (
+                            <View className="mt-0.5 flex-row items-center gap-1">
+                              <MaterialIcons name="location-on" size={11} color="#94A3B8" />
+                              <Text className="text-[10px] text-[#94A3B8]" numberOfLines={1}>
+                                {item.location}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              );
+            })}
       </ScrollView>
 
       {/* ===== BOTTOM NAVIGATION BAR ===== */}

@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { ForgotPasswordScreen } from "@/features/auth/screens/forgot-password-screen";
 

@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { SellEntryScreen } from "@/features/search/screens/sell-entry-screen";
 

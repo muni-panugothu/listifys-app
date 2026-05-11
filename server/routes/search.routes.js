@@ -17,6 +17,7 @@ const ListingCache = require('../services/listingcache.service.js');
 const { searchLimiter } = require('../middleware/ratelimiter.middleware.js');
 const { protect, authorize } = require('../middleware/auth.middleware.js');
 const { logger } = require('../utils/logger');
+const { publishSearchAnalytics } = require('../queues/producers/search.producer');
 
 // Models for MongoDB fallback + reindex
 const Electronics = require('../models/electronics.model.js');
@@ -174,6 +175,18 @@ router.get('/', searchLimiter, async (req, res) => {
 
     if (esResults && esResults.listings && esResults.listings.length > 0) {
       await ListingCache.cacheSearchResults(entity, cacheKey, esResults.listings, esResults.pagination);
+
+      // Track search analytics (non-blocking)
+      publishSearchAnalytics({
+        query: q,
+        entity,
+        resultCount: esResults.pagination?.total || esResults.listings.length,
+        source: 'elasticsearch',
+        userId: req.user?._id?.toString(),
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      }).catch(() => {});
+
       return res.status(200).json({
         success: true,
         query: q,
@@ -272,6 +285,17 @@ router.get('/', searchLimiter, async (req, res) => {
     if (results.length > 0) {
       await ListingCache.cacheSearchResults(entity, cacheKey, results, pagination);
     }
+
+    // Track search analytics (non-blocking)
+    publishSearchAnalytics({
+      query: q,
+      entity,
+      resultCount: results.length,
+      source: 'mongodb',
+      userId: req.user?._id?.toString(),
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    }).catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -398,6 +422,96 @@ router.post('/reindex', protect, authorize('admin'), async (req, res) => {
       success: false,
       message: 'Reindex failed',
     });
+  }
+});
+
+// ── Trending / Popular searches ───────────────────────────
+router.get('/trending', searchLimiter, async (req, res) => {
+  try {
+    const { limit = 12 } = req.query;
+
+    // 1. Try Redis cache
+    const cacheKey = 'search:trending';
+    const cached = await ListingCache.getCachedSearchResults('trending', cacheKey);
+    if (cached) {
+      return res.status(200).json({
+        success: true,
+        trending: Array.isArray(cached) ? cached : cached.results || [],
+        source: 'cache',
+      });
+    }
+
+    // 2. Aggregate popular searches from recently created listings across all entities
+    const trendingItems = [];
+
+    // Get recently created listings and extract popular subcategories + titles
+    const popularPromises = Object.entries(MODEL_MAP).map(async ([eName, Model]) => {
+      try {
+        const docs = await Model.find({ status: 'active' })
+          .sort({ views: -1, createdAt: -1 })
+          .select('title subcategory category brand images price location')
+          .limit(Math.ceil(Number(limit) / Object.keys(MODEL_MAP).length) + 1)
+          .lean();
+        return docs.map(d => ({
+          _id: d._id,
+          title: d.title,
+          subcategory: d.subcategory,
+          category: d.category,
+          brand: d.brand,
+          thumbnail: d.images?.[0] || null,
+          price: d.price,
+          location: d.location,
+          _entity: eName,
+        }));
+      } catch { return []; }
+    });
+
+    const arrays = await Promise.all(popularPromises);
+    trendingItems.push(...arrays.flat());
+
+    // Sort by some "trending" heuristic (views would be ideal, but we have limited data)
+    const trending = trendingItems.slice(0, Number(limit));
+
+    // Cache for 10 min
+    if (trending.length > 0) {
+      await ListingCache.cacheSearchResults('trending', cacheKey, trending, { total: trending.length });
+    }
+
+    res.status(200).json({
+      success: true,
+      trending,
+      source: 'mongodb',
+    });
+  } catch (error) {
+    logger.error('Trending error:', error);
+    res.status(200).json({ success: true, trending: [] });
+  }
+});
+
+// ── Trending Search Terms (from analytics) ────────────────
+router.get('/trending-terms', searchLimiter, async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const mongoose = require('mongoose');
+
+    if (!mongoose.models.SearchAnalytics) {
+      return res.status(200).json({ success: true, terms: [] });
+    }
+
+    const SearchAnalytics = mongoose.models.SearchAnalytics;
+    const terms = await SearchAnalytics.find({
+      searchCount: { $gte: 3 }, // Minimum 3 searches
+      lastSearched: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // Last 7 days
+    })
+      .sort({ searchCount: -1 })
+      .limit(Number(limit))
+      .select('query searchCount entity -_id')
+      .lean();
+
+    res.status(200).json({ success: true, terms });
+  } catch (error) {
+    logger.error('Trending terms error:', error);
+    res.status(200).json({ success: true, terms: [] });
   }
 });
 

@@ -1,32 +1,35 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { type Href, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
+import {
+  getConversations,
+  type Conversation,
+} from "@/features/messaging/services/chat-api";
+import {
+  connectSocket,
+  getSocket,
+  requestUnreadCount,
+} from "@/features/messaging/services/socket-service";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { useAppSelector } from "@/store/hooks";
 
-type Chat = {
-  id: string;
-  name: string;
-  avatar: string;
-  message: string;
-  time: string;
-  unread?: number;
-  online?: boolean;
-  read?: boolean;
-  icon?: React.ComponentProps<typeof MaterialIcons>["name"];
-};
-
-const chats: Chat[] = [
-  { id: "1", name: "Priya Sharma", avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuAw5T9JT8xAHK95_hBh4zI4YOfw0miPlVgE6p2rbSdbhBAhXjgcDUowLDaf9NACVTTwmTMAZPgOhXFUxYuLymwKR1MgjrIeLw-L-UagxlPd_PP4Z0tEgW9sI6F8A9S203z9Niiff55i957tCTlFh1CuWehTVerfaML3NmZFTjM_LX9jSv_f6CmmjS9i_L7Bx_Z-H5MhoBRoWxHAqGeIbUkRDAw-4BN_ZYRzTq-9nHG7uUZcGiuDy1phHYtyxI_LzeZ-_vCHkVe7hQg", message: "Is the price negotiable?", time: "2m ago", unread: 1, online: true },
-  { id: "2", name: "Rahul Mehta", avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDrNR7ui7N2n7aTNKMnWRihV7Qo_xL2luZfFN_AigTazYiuSFmnOpbe9JwoJk1PYZMkLUpre5sxZHHm7sFpAWBO98t2N89yY17gySNXLLPTwWVN7-bn4G7H19yp6wAXkBRA1eS555TFne7jH_9NtiEtQOiGMFNFWGeX_M0hSK_mhplhBKSFLpUZeM3tu1UMcx87m-E-m6l9R-6kglzq0K58EUsYSxS6p4-QNhDIxvtjbVovPSiXin9jAiilyZ65TE0Dp0Ojpnqnlmc", message: "I can pick it up tomorrow", time: "1h ago", read: true },
-  { id: "3", name: "Sarah Chen", avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuCPuNf6K1fD0hXu_FMLokrTfNFyMdN0AaNgWAn13AwBXmiQEWfx6d--63GXPt9iLaC9jgfuZK2aTabo8-qBw82u3xjF4ha3wl2nvCVYPykhDFxk_m8lnpOVgKKdjR_9bqkHuN5su6ELeVPVvi2J8bh-Xs8WJwp8p4AOu5f20VRy0RxkL2cbkNCp43A-eVZfpjeO0eaPeCGJ5AVWVaA1XcdQFMVgCBsQJK1GgQ2pERToNoa9pYp4bI7bvZ9WAW1zYJZ9lnPTyFxtzCg", message: "Sent the offer!", time: "Yesterday", icon: "sell" },
-  { id: "4", name: "Michael Scott", avatar: "", message: "Is this still available?", time: "Yesterday" },
-];
-
-const filterChips = ["All", "Unread", "Buying", "Selling"];
+const filterChips = ["All", "Unread", "Buying", "Selling"] as const;
+type FilterChip = (typeof filterChips)[number];
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -36,15 +39,122 @@ const bottomTabs = [
   { id: "profile", label: "Profile", icon: "person" as const },
 ];
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Yesterday";
+  return `${days}d ago`;
+}
+
 export function MessagesInboxScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const user = useAppSelector((s) => s.auth.user);
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState<FilterChip>("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const handleBottomTabPress = useTabNavigation();
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const res = await getConversations();
+      if (res.conversations) setConversations(res.conversations);
+    } catch {
+      // keep existing
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  // Refresh on focus
+  useFocusEffect(
+    useCallback(() => {
+      loadConversations();
+    }, [loadConversations]),
+  );
+
+  // Socket.IO real-time updates
+  useEffect(() => {
+    try {
+      connectSocket();
+    } catch {
+      // no token yet
+      return;
+    }
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewMessage = () => {
+      loadConversations();
+    };
+
+    const handleConversationUpdated = () => {
+      loadConversations();
+    };
+
+    const handleUnreadCount = () => {
+      // Could update a global badge counter
+    };
+
+    socket.on("message:new", handleNewMessage);
+    socket.on("conversation:updated", handleConversationUpdated);
+    socket.on("chat:unreadCount", handleUnreadCount);
+    requestUnreadCount();
+
+    return () => {
+      socket.off("message:new", handleNewMessage);
+      socket.off("conversation:updated", handleConversationUpdated);
+      socket.off("chat:unreadCount", handleUnreadCount);
+    };
+  }, [loadConversations]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadConversations);
+
+  const getOtherParticipant = useCallback(
+    (conv: Conversation) => {
+      return conv.participants.find((p) => {
+        const pid = p.id || p._id;
+        return pid !== user?.id;
+      }) ?? conv.participants[0];
+    },
+    [user?.id],
+  );
+
+  const filtered = useMemo(() => {
+    let list = conversations;
+
+    if (activeFilter === "Unread") {
+      list = list.filter((c) => (c.unreadCount ?? 0) > 0);
+    }
+    if (activeFilter === "Buying") {
+      list = list.filter((c) => Boolean(c.listing?.listingId) && c.lastMessage?.sender !== user?.id);
+    }
+    if (activeFilter === "Selling") {
+      list = list.filter((c) => Boolean(c.listing?.listingId) && c.lastMessage?.sender === user?.id);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((c) => {
+        const other = getOtherParticipant(c);
+        return other?.name?.toLowerCase().includes(q);
+      });
+    }
+    return list;
+  }, [conversations, activeFilter, searchQuery, user?.id, getOtherParticipant]);
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -64,7 +174,11 @@ export function MessagesInboxScreen() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#27BB97"]} tintColor="#27BB97" progressViewOffset={topBarHeight} />}
+        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
+      >
         <View className="px-4">
           {/* Search */}
           <View className="mb-6 h-12 flex-row items-center rounded-xl border border-[#BBCAC3] bg-[#EFF5F0] px-4">
@@ -86,57 +200,88 @@ export function MessagesInboxScreen() {
             ))}
           </ScrollView>
 
-          {/* Chat List */}
-          <View className="gap-1">
-            {chats.map((chat) => (
-              <Pressable
-                key={chat.id}
-                onPress={() => router.push({ pathname: "/chat-conversation", params: { name: chat.name } })}
-                className="flex-row items-center gap-4 rounded-2xl p-4"
-                style={({ pressed }) => ({
-                  backgroundColor: chat.unread ? "rgba(255,255,255,0.7)" : pressed ? "rgba(255,255,255,0.5)" : "transparent",
-                  borderWidth: chat.unread ? 1 : 0,
-                  borderColor: chat.unread ? "#F3F4F6" : "transparent",
-                  shadowColor: chat.unread ? "#000" : "transparent",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: chat.unread ? 0.05 : 0,
-                  shadowRadius: chat.unread ? 3 : 0,
-                  elevation: chat.unread ? 1 : 0,
-                })}
-              >
-                {/* Avatar */}
-                <View className="relative">
-                  {chat.avatar ? (
-                    <Image source={chat.avatar} contentFit="cover" className="h-14 w-14 rounded-full" />
-                  ) : (
-                    <View className="h-14 w-14 items-center justify-center rounded-full bg-[#DDE4DF]">
-                      <MaterialIcons name="person" size={24} color="#6C7A74" />
+          {/* Loading */}
+          {loading ? (
+            <View className="items-center py-10">
+              <ActivityIndicator size="large" color="#27BB97" />
+            </View>
+          ) : filtered.length === 0 ? (
+            <View className="items-center py-10">
+              <MaterialIcons name="chat-bubble-outline" size={48} color="#CBD5E1" />
+              <Text className="mt-2 text-[14px] text-[#6C7A74]">
+                {activeFilter === "Unread" ? "No unread messages" : "No conversations yet"}
+              </Text>
+            </View>
+          ) : (
+            <View className="gap-1">
+              {filtered.map((conv) => {
+                const other = getOtherParticipant(conv);
+                const otherName = other?.name ?? "User";
+                const avatar = resolveAbsoluteMediaUrl(other?.profileImageUrl);
+                const lastMsg = conv.lastMessage;
+                const lastMsgText = lastMsg?.content ?? (lastMsg?.attachments?.length ? "Attachment" : "");
+                const lastMsgTime = lastMsg?.createdAt ? timeAgo(lastMsg.createdAt) : "";
+                const myUnread = conv.unreadCount ?? 0;
+                const isFromMe = lastMsg?.sender === user?.id;
+                const isUnread = myUnread > 0;
+                const showOnlineDot = isUnread;
+
+                return (
+                  <Pressable
+                    key={conv._id}
+                    onPress={() =>
+                      router.push(
+                        `/chat-conversation?conversationId=${conv._id}&name=${encodeURIComponent(otherName)}&listingTitle=${encodeURIComponent(conv.listing?.listingTitle ?? "")}&listingPrice=${conv.listing?.listingPrice ?? ""}&listingImage=${encodeURIComponent(conv.listing?.listingImage ?? "")}&currency=${encodeURIComponent(conv.listing?.currency ?? "₹")}` as Href,
+                      )
+                    }
+                    className="flex-row items-center gap-4 rounded-2xl p-4"
+                    style={({ pressed }) => ({
+                      backgroundColor: isUnread ? "rgba(255,255,255,0.7)" : pressed ? "rgba(255,255,255,0.5)" : "transparent",
+                      borderWidth: isUnread ? 1 : 0,
+                      borderColor: isUnread ? "#F3F4F6" : "transparent",
+                      shadowColor: isUnread ? "#000" : "transparent",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: isUnread ? 0.05 : 0,
+                      shadowRadius: isUnread ? 3 : 0,
+                      elevation: isUnread ? 1 : 0,
+                    })}
+                  >
+                    {/* Avatar */}
+                    <View className="relative">
+                      {avatar ? (
+                        <Image source={avatar} contentFit="cover" className="h-14 w-14 rounded-full" />
+                      ) : (
+                        <View className="h-14 w-14 items-center justify-center rounded-full bg-[#DDE4DF]">
+                          <MaterialIcons name="person" size={24} color="#6C7A74" />
+                        </View>
+                      )}
+                      {showOnlineDot && (
+                        <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500" />
+                      )}
                     </View>
-                  )}
-                  {chat.online && <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500" />}
-                </View>
-                {/* Content */}
-                <View className="flex-1">
-                  <View className="flex-row items-baseline justify-between mb-0.5">
-                    <Text className="text-[18px] font-semibold text-[#161D1A]" numberOfLines={1}>{chat.name}</Text>
-                    <Text className="text-[12px] font-medium" style={{ color: chat.unread ? "#27BB97" : "#6C7A74" }}>{chat.time}</Text>
-                  </View>
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-1 flex-row items-center gap-1">
-                      {chat.read && <MaterialIcons name="done-all" size={16} color="#6C7A74" />}
-                      {chat.icon && <MaterialIcons name={chat.icon} size={16} color="#6C7A74" />}
-                      <Text className="text-[14px]" style={{ color: chat.unread ? "#161D1A" : "#3C4A44", fontWeight: chat.unread ? "600" : "400" }} numberOfLines={1}>{chat.message}</Text>
-                    </View>
-                    {chat.unread && (
-                      <View className="ml-4 h-5 w-5 items-center justify-center rounded-full bg-[#27BB97]">
-                        <Text className="text-[10px] font-bold text-white">{chat.unread}</Text>
+                    {/* Content */}
+                    <View className="flex-1">
+                      <View className="mb-0.5 flex-row items-baseline justify-between">
+                        <Text className="text-[18px] font-semibold text-[#161D1A]" numberOfLines={1}>{otherName}</Text>
+                        <Text className="text-[12px] font-medium" style={{ color: isUnread ? "#27BB97" : "#6C7A74" }}>{lastMsgTime}</Text>
                       </View>
-                    )}
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-1 flex-row items-center gap-1">
+                          {isFromMe && <MaterialIcons name="done-all" size={16} color="#6C7A74" />}
+                          <Text className="text-[14px]" style={{ color: isUnread ? "#161D1A" : "#3C4A44", fontWeight: isUnread ? "600" : "400" }} numberOfLines={1}>{lastMsgText}</Text>
+                        </View>
+                        {isUnread && (
+                          <View className="ml-4 h-5 min-w-5 items-center justify-center rounded-full bg-[#27BB97] px-1">
+                            <Text className="text-[10px] font-bold text-white">{myUnread}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
 

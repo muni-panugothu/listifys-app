@@ -1,84 +1,88 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  requestJson,
+  resolveAbsoluteMediaUrl,
+} from "@/features/auth/services/auth-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 
-type ListingCard = {
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type SellerProfile = {
   id: string;
-  title: string;
-  price: string;
-  condition: string;
-  image: string;
-  liked?: boolean;
-  featured?: boolean;
-  premium?: boolean;
-  subtitle?: string;
+  _id: string;
+  name: string;
+  email?: string;
+  profileImageUrl: string | null;
+  provider?: string;
+  createdAt: string;
+  isFollowedByCurrentUser: boolean;
+  followersCount: number;
+  followingCount: number;
+  listingsCount: number;
 };
 
-const COVER_IMAGE =
+type SellerListing = {
+  _id: string;
+  title: string;
+  price?: number;
+  images: string[];
+  location?: string;
+  condition?: string;
+  category?: string;
+  subcategory?: string;
+  _listingType: string;
+  createdAt?: string;
+};
+
+// ── API helpers ──────────────────────────────────────────────────────────────
+
+async function fetchSellerProfile(sellerId: string): Promise<SellerProfile> {
+  const res = await requestJson<{ seller: SellerProfile }>(
+    `/api/auth/seller/${sellerId}`,
+  );
+  return res.seller;
+}
+
+async function fetchSellerListings(sellerId: string): Promise<SellerListing[]> {
+  const res = await requestJson<{ listings: SellerListing[] }>(
+    `/api/auth/seller/${sellerId}/listings`,
+  );
+  return (res.listings ?? []).map((l) => ({
+    ...l,
+    images: (l.images ?? []).map(
+      (img) => resolveAbsoluteMediaUrl(img) ?? img,
+    ),
+  }));
+}
+
+async function toggleFollowSeller(
+  sellerId: string,
+): Promise<{ isFollowing: boolean; followersCount: number }> {
+  return requestJson(`/api/auth/follow/${sellerId}`, { method: "POST" });
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const DEFAULT_COVER =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuDieOcT68a3pkiyCzXQEpMRO5s3IqzQqlMEkLxYJVcK1hDaT2R3IoV5US6JPwoRd0wuuwyTh5mTeaHfgf5jp-MO5pP69JauU2w5SoHConLSJJMRiYyFT-6B-BCITtsBR__EA_CI4vDEcSLxT40Fu2Zk6Sy55DLONg_tk-OF9ZB1nP1xIVj0xJ4mniLFtDrR-bnXnfwrMxYDxyhs_GfJrjsdEROcRr3_VKffXr-sZluQlca9hMupn70otULVsTB2RJ6OSONsl26NA0g";
 
-const SELLER_AVATAR =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuB6sjmZrFqYeUvnkauYkOGBOiBov1QeXSC1pGtilvnYxZe4nXbfR9KfR6GuaH6cEkIb0rECQLrKdIF7QxnnTm20MR0xwItW6Pm6UIEGutPs-NYYn4stMjXnkyyD7T4FlpsePfSpN1UpywjXCqZJgxvYA7lvEZYkUfUYMU3TYkOGknZ6a4fdW-AUKu9w_7KFXBdOHYxvTTPWZ5nbZMdS-nYH7bedA8uZpdDra9xCLSHRtWpFMHMBxCYYtdNoHwjJCHLaGJXMMTXbKp0";
-
-const listings: ListingCard[] = [
-  {
-    id: "headphones",
-    title: "Sony WH-1000XM4 Headphones",
-    price: "₹18,500",
-    condition: "Like New",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuABf_gn8i_ib5E-ISYEUBENG_hOoNfiC1s7DA_-Ojs6avBF5QbIAYHKAu82t4E3s8gwUB7zWPNhA6xxD0NqktZqYTlYzBqweD_FHIDuw6g2y2_7HQfv9e8-_wo6gC_ToBSVrMLjaoT5qTbSYFTNfmYInMUkqX_V00v4z8Lb59dbbVk3yyRMKP7exbgvFmVRcAXeBedKmbKWE3T6TpcJIT6--Lm8a4_O28Jch_m2huptG2idSjy6QaL25sDO42djTUlACckWIM9eiVE",
-  },
-  {
-    id: "smart-watch",
-    title: "Premium Smart Watch Series 7",
-    price: "₹12,200",
-    condition: "Used",
-    liked: true,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBVkDZQXIGwkNuEf-4f_xFneUCOLNsTLgz0wovkM3XUMkLLR_38hOHEi_FHZiK_BqYov7PZvsDpuv57rKV10EYWftgA1MYxg_SVOxvvMCZAh9rphlmKn2p7TMPcd9UXKIeGPBz8cajerJJpQMEqJqUYnwnRZwy85xIN6YT5nP_022KWE3QHBsZ6HQKZ_XVIHv0teIYlfnQYdQSnBNgfpmvgLKj5HUuMxWnapOFgjBSpL8J-mccjMXDwC7WCIjmrZvNGKvEBTINBDNw",
-  },
-  {
-    id: "macbook",
-    title: 'MacBook Pro 14" M1 Max',
-    subtitle: "32GB RAM, 1TB SSD. Pristine condition.",
-    price: "₹1,45,000",
-    condition: "Premium",
-    premium: true,
-    featured: true,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDEYpjJYqSUVlbviny3_0UQDG4o4rWtIsxKAKXutm0iEwZDybw3eekBIEofkr5CEX5_gdRTGSpt_P306iOqcEmR-dMG0ZV3JhaC4pRc1WjdyFsvbMXt69lFZTv3Z2P_yLyeITUd0Xt5W7cnybabEXII7XE2w4-V1Z8-4U_Zii0XG4lNWlIfquBcoVwIkpQdsFT5man04YTsBzTm4L26RSPg7otqqbVpGval_pdw-jW9d_x2ym18EE5LfgExx2njPwDNqb25YUD1Lu0",
-  },
-  {
-    id: "running-shoes",
-    title: "Performance Running Shoes",
-    price: "₹4,200",
-    condition: "New",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDv5s7KZyWGhAWT9f4GuhYbtCO5x83d3gvUDVb3kvERTtGK6fmaJepLOrLMbKbdzYYgrX4mCT9rFp3lnQqemI7SohpDY-dUCVaM5ZbLOQCdpGSVSTOAFTpnSljNmq7zDKeWWVBzdOLDN-msqbH7eVYtOceHSil7IZnpYkP9ZgkZuD4XbeZG5kgI6-J8Q9EKUCSGY25tLMuvtAA2VffzleQvUaxy-SmT_xTqWz-85DOXZ22UzYXMNu4MjSbZyxbenqYBFusgZe5GTdY",
-  },
-  {
-    id: "film-camera",
-    title: "Retro Film Camera 35mm",
-    price: "₹6,800",
-    condition: "Vintage",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAVN468mu8uSnv-hNH4Xj0qXpAODLML7gdyguFmt_7kFdylDhlYs2ArO0ULBXy74WQt-r9JncnxtPY5vIjZJ9LFJJgZ4L2pitwYmMLen4bYyoNlWJvwNPgHNKn9Mi_wBxJkgj6LLMpT6Nz3kvKXk22pNQ0jI1ljxbwtOZocl1SyALFJmQKt5Vyh5hs0bM21p-JAvuChc9mnjCagfkttjh_7VQhv5-zGNcTjxXPwl3Qv1NWcqe4ML1DvfcwEQCcZgcVFFYZ25imZkqM",
-  },
-];
+const DEFAULT_AVATAR =
+  "https://ui-avatars.com/api/?name=Seller&background=27BB97&color=fff&size=128";
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -88,9 +92,18 @@ const bottomTabs = [
   { id: "profile", label: "Profile", icon: "person" as const, active: true },
 ];
 
-function HalfCard({ item, width }: { item: ListingCard; width: number }) {
+function HalfCard({
+  item,
+  width,
+  onPress,
+}: {
+  item: SellerListing;
+  width: number;
+  onPress: () => void;
+}) {
   return (
-    <View
+    <Pressable
+      onPress={onPress}
       className="overflow-hidden rounded-xl border border-[#dde4df] bg-white"
       style={{
         width,
@@ -102,22 +115,18 @@ function HalfCard({ item, width }: { item: ListingCard; width: number }) {
       }}
     >
       <View className="relative h-44 w-full">
-        <Image
-          source={item.image}
-          contentFit="cover"
-          transition={200}
-          className="h-full w-full"
-        />
-        <Pressable
-          className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/70"
-          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
-        >
-          <MaterialIcons
-            name={item.liked ? "favorite" : "favorite-border"}
-            size={20}
-            color={item.liked ? "#EF4444" : "#161D1A"}
+        {item.images?.[0] ? (
+          <Image
+            source={item.images[0]}
+            contentFit="cover"
+            transition={200}
+            className="h-full w-full"
           />
-        </Pressable>
+        ) : (
+          <View className="h-full w-full items-center justify-center bg-slate-100">
+            <MaterialIcons name="image" size={32} color="#CBD5E1" />
+          </View>
+        )}
       </View>
       <View className="flex-1 p-2">
         <Text
@@ -128,14 +137,18 @@ function HalfCard({ item, width }: { item: ListingCard; width: number }) {
         </Text>
         <View className="mt-2 flex-row items-end justify-between">
           <Text className="text-[16px] font-bold text-[#006b55]">
-            {item.price}
+            {item.price
+              ? `₹${Number(item.price).toLocaleString("en-IN")}`
+              : "Price on request"}
           </Text>
-          <Text className="text-[10px] font-medium text-[#6c7a74]">
-            {item.condition}
-          </Text>
+          {item.condition ? (
+            <Text className="text-[10px] font-medium text-[#6c7a74]">
+              {item.condition}
+            </Text>
+          ) : null}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -143,7 +156,8 @@ export function SellerPublicProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const { refreshing, onRefresh } = usePullToRefresh();
+  const params = useLocalSearchParams<{ sellerId?: string; userId?: string }>();
+  const sellerId = params.sellerId ?? params.userId ?? "";
 
   const topBarHeight = insets.top + 64;
   const halfCardWidth = useMemo(
@@ -151,11 +165,83 @@ export function SellerPublicProfileScreen() {
     [screenWidth],
   );
 
-  const featured = listings.find((item) => item.featured);
-  const firstRow = listings.filter((item) => !item.featured).slice(0, 2);
-  const secondRow = listings.filter((item) => !item.featured).slice(2);
+  const [seller, setSeller] = useState<SellerProfile | null>(null);
+  const [listings, setListings] = useState<SellerListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [following, setFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+
+  const loadData = useCallback(async () => {
+    if (!sellerId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const [profileRes, listingsRes] = await Promise.all([
+        fetchSellerProfile(sellerId),
+        fetchSellerListings(sellerId),
+      ]);
+      setSeller(profileRes);
+      setListings(listingsRes);
+      setFollowing(profileRes.isFollowedByCurrentUser);
+      setFollowersCount(profileRes.followersCount);
+    } catch {
+      // keep existing data
+    } finally {
+      setLoading(false);
+    }
+  }, [sellerId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRefresh = useCallback(async () => {
+    await loadData();
+  }, [loadData]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
+
+  const handleToggleFollow = useCallback(async () => {
+    if (!sellerId) return;
+    try {
+      const res = await toggleFollowSeller(sellerId);
+      setFollowing(res.isFollowing);
+      setFollowersCount(res.followersCount);
+    } catch {
+      // silently fail
+    }
+  }, [sellerId]);
 
   const handleBottomTabPress = useTabNavigation();
+
+  const navigateToListing = useCallback(
+    (item: SellerListing) => {
+      const cat = item._listingType ?? item.category ?? "electronics";
+      router.push(
+        `/listing-detail-template?category=${cat}&id=${item._id}` as Href,
+      );
+    },
+    [router],
+  );
+
+  // Split listings into layout groups
+  const featured = listings.length > 2 ? listings[2] : null;
+  const firstRow = listings.slice(0, 2);
+  const remainingAfterFeatured = listings.slice(3);
+
+  const avatarUri =
+    (seller?.profileImageUrl
+      ? resolveAbsoluteMediaUrl(seller.profileImageUrl) ?? seller.profileImageUrl
+      : null) ?? DEFAULT_AVATAR;
+
+  const displayName = seller?.name ?? "Seller";
+  const memberSince = seller?.createdAt
+    ? new Date(seller.createdAt).toLocaleDateString(undefined, {
+        month: "short",
+        year: "numeric",
+      })
+    : "";
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -215,10 +301,19 @@ export function SellerPublicProfileScreen() {
           paddingBottom: 92 + Math.max(insets.bottom, 16),
         }}
       >
+        {loading ? (
+          <View className="items-center py-32">
+            <ActivityIndicator size="large" color="#27BB97" />
+            <Text className="mt-3 text-[14px] text-[#6C7A74]">
+              Loading seller profile...
+            </Text>
+          </View>
+        ) : (
+          <>
         <View>
           <View className="h-40 w-full overflow-hidden">
             <Image
-              source={COVER_IMAGE}
+              source={DEFAULT_COVER}
               contentFit="cover"
               transition={200}
               className="h-full w-full"
@@ -228,7 +323,7 @@ export function SellerPublicProfileScreen() {
           <View className="-mt-12 px-4">
             <View className="h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-white">
               <Image
-                source={SELLER_AVATAR}
+                source={avatarUri}
                 contentFit="cover"
                 transition={200}
                 className="h-full w-full"
@@ -240,23 +335,24 @@ export function SellerPublicProfileScreen() {
 
             <View className="mt-4">
               <Text className="text-[24px] font-bold leading-8 tracking-tight text-[#161D1A]">
-                Arjun Sharma
+                {displayName}
               </Text>
-              <View className="mt-1 flex-row items-center gap-1">
-                <MaterialIcons name="star" size={14} color="#cba100" />
-                <Text className="text-[12px] font-medium text-[#161D1A]">
-                  4.9
+              {seller?.email ? (
+                <Text className="mt-1 text-[13px] font-medium text-[#6c7a74]">
+                  {seller.email}
                 </Text>
-                <Text className="text-[12px] font-medium text-[#6c7a74]">
-                  (214 Reviews)
+              ) : null}
+              {memberSince ? (
+                <Text className="mt-0.5 text-[12px] font-medium text-[#6c7a74]">
+                  Member since {memberSince}
                 </Text>
-              </View>
+              ) : null}
             </View>
 
             <View className="mt-4 flex-row gap-6 border-y border-[#dde4df]/70 py-2">
               <View>
                 <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  12
+                  {seller?.listingsCount ?? 0}
                 </Text>
                 <Text className="text-[12px] font-medium text-[#6c7a74]">
                   Listings
@@ -264,7 +360,7 @@ export function SellerPublicProfileScreen() {
               </View>
               <View>
                 <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  450
+                  {followersCount}
                 </Text>
                 <Text className="text-[12px] font-medium text-[#6c7a74]">
                   Followers
@@ -272,7 +368,7 @@ export function SellerPublicProfileScreen() {
               </View>
               <View>
                 <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  89
+                  {seller?.followingCount ?? 0}
                 </Text>
                 <Text className="text-[12px] font-medium text-[#6c7a74]">
                   Following
@@ -282,16 +378,31 @@ export function SellerPublicProfileScreen() {
 
             <View className="mt-4 flex-row gap-4">
               <Pressable
-                className="flex-1 items-center rounded-xl bg-[#27BB97] py-3"
+                onPress={handleToggleFollow}
+                className="flex-1 items-center rounded-xl py-3"
                 style={({ pressed }) => ({
+                  backgroundColor: following ? "#DFF7EE" : "#27BB97",
+                  borderWidth: following ? 2 : 0,
+                  borderColor: following ? "#27BB97" : "transparent",
                   transform: [{ scale: pressed ? 0.97 : 1 }],
                 })}
               >
-                <Text className="text-[18px] font-semibold text-white">
-                  Follow
+                <Text
+                  className="text-[18px] font-semibold"
+                  style={{ color: following ? "#27BB97" : "#FFFFFF" }}
+                >
+                  {following ? "Following" : "Follow"}
                 </Text>
               </Pressable>
+
               <Pressable
+                onPress={() => {
+                  if (!sellerId) return;
+                  router.push({
+                    pathname: "/chat-conversation",
+                    params: { recipientId: sellerId, name: displayName },
+                  } as Href);
+                }}
                 className="flex-1 items-center rounded-xl border border-[#bbcac3] bg-white py-3"
                 style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
               >
@@ -328,14 +439,24 @@ export function SellerPublicProfileScreen() {
           </ScrollView>
 
           <View className="mt-4 px-4">
+            {listings.length === 0 ? (
+              <View className="items-center py-16">
+                <MaterialIcons name="inventory-2" size={48} color="#CBD5E1" />
+                <Text className="mt-2 text-[14px] text-[#6C7A74]">
+                  No active listings yet.
+                </Text>
+              </View>
+            ) : (
+              <>
             <View className="flex-row justify-between">
               {firstRow.map((item) => (
-                <HalfCard key={item.id} item={item} width={halfCardWidth} />
+                <HalfCard key={item._id} item={item} width={halfCardWidth} onPress={() => navigateToListing(item)} />
               ))}
             </View>
 
             {featured ? (
-              <View
+              <Pressable
+                onPress={() => navigateToListing(featured)}
                 className="mt-3 overflow-hidden rounded-xl border border-[#dde4df] bg-white"
                 style={{
                   shadowColor: "#000",
@@ -346,29 +467,18 @@ export function SellerPublicProfileScreen() {
                 }}
               >
                 <View className="relative h-56 w-full">
+                  {featured.images?.[0] ? (
                   <Image
-                    source={featured.image}
+                    source={featured.images[0]}
                     contentFit="cover"
                     transition={200}
                     className="h-full w-full"
                   />
-                  {featured.premium ? (
-                    <View className="absolute left-2 top-2 rounded-full bg-[#27BB97] px-3 py-1">
-                      <Text className="text-[12px] font-medium text-white">
-                        Premium
-                      </Text>
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-slate-100">
+                      <MaterialIcons name="image" size={40} color="#CBD5E1" />
                     </View>
-                  ) : null}
-                  <Pressable
-                    className="absolute right-2 top-2 h-10 w-10 items-center justify-center rounded-full bg-white/70"
-                    style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
-                  >
-                    <MaterialIcons
-                      name="favorite-border"
-                      size={24}
-                      color="#161D1A"
-                    />
-                  </Pressable>
+                  )}
                 </View>
                 <View className="p-4">
                   <View className="flex-row items-start justify-between">
@@ -376,27 +486,36 @@ export function SellerPublicProfileScreen() {
                       <Text className="text-[18px] font-semibold text-[#161D1A]">
                         {featured.title}
                       </Text>
-                      {featured.subtitle ? (
-                        <Text className="mt-1 text-[14px] leading-5 text-[#6c7a74]">
-                          {featured.subtitle}
-                        </Text>
+                      {featured.location ? (
+                        <View className="mt-1 flex-row items-center gap-1">
+                          <MaterialIcons name="location-on" size={13} color="#94A3B8" />
+                          <Text className="text-[12px] text-[#6c7a74]">
+                            {featured.location}
+                          </Text>
+                        </View>
                       ) : null}
                     </View>
                     <Text className="text-[20px] font-bold text-[#006b55]">
-                      {featured.price}
+                      {featured.price ? `₹${Number(featured.price).toLocaleString("en-IN")}` : "N/A"}
                     </Text>
                   </View>
                 </View>
-              </View>
+              </Pressable>
             ) : null}
 
-            <View className="mt-3 flex-row justify-between">
-              {secondRow.map((item) => (
-                <HalfCard key={item.id} item={item} width={halfCardWidth} />
+            {remainingAfterFeatured.length > 0 && (
+            <View className="mt-3 flex-row flex-wrap justify-between" style={{ gap: 12 }}>
+              {remainingAfterFeatured.map((item) => (
+                <HalfCard key={item._id} item={item} width={halfCardWidth} onPress={() => navigateToListing(item)} />
               ))}
             </View>
+            )}
+              </>
+            )}
           </View>
         </View>
+          </>
+        )}
       </ScrollView>
 
       <View

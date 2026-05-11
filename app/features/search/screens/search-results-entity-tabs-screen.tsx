@@ -1,7 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
     Dimensions,
     Pressable,
     RefreshControl,
@@ -12,67 +13,48 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import {
+  searchListings,
+  type SearchResultItem,
+  type SearchPagination,
+} from "@/features/search/services/search-api";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
-
-type SearchResultItem = {
-  id: string;
-  title: string;
-  subtitle: string;
-  price: string;
-  location: string;
-  image: string;
-  liked?: boolean;
-};
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GUTTER = 12;
 const GRID_SIDE_PADDING = 20;
 const CARD_WIDTH = (SCREEN_WIDTH - GRID_SIDE_PADDING * 2 - GRID_GUTTER) / 2;
 
-const entityTabs = ["All", "Items (240)", "Services (12)", "Jobs (3)"];
-const filterChips = ["Price: Low to High", "Near by (5km)", "Nearby Map"];
-
-const results: SearchResultItem[] = [
-  {
-    id: "iphone-blue",
-    title: "iPhone 13 - 128GB Blue",
-    subtitle: "Excellent condition",
-    price: "₹42,999",
-    location: "Bandra, Mumbai",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBygftIkUPI5aHY8q3lAAEU7r18zWQNmRIwTXBzkHm2I78K8Ao6zl5C3-lEGSF2P8p0DcMn7ovFPEoRD6hZjQCR-cDb9KHxBMExLnGMxlXtGzzKzKSsUWmaQyEfzXD2VG_P1Mh9672Nf_7VAvG4RiUqrb8NsSAEV7x4QVowFbS1Ra-MEF7g5P3MVu4wsA4Ui6GzQHuRw6p4O3uroblgXTROQN_l52AD-Zl999wIUlrB7t5eYh2kwilAVnJWNtvF3PN54mDFJazTeaU",
-  },
-  {
-    id: "iphone-starlight",
-    title: "iPhone 13 Starlight",
-    subtitle: "6 months warranty",
-    price: "₹44,500",
-    location: "Indiranagar, BLR",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDkcwrJK-xeV0z84Wj9Zy8T93vhIdc7vIOMulf66E2pvX5CWVPH-Mdx0UtUrnYoYp4mTL0__FU2xyCxiFjHinlkmalIF5HGuxOdV3NggooDIiNWvchvA1NKlXFkvYNYFf7HuM3pMW9XmUoVHeHxjBFD0IXDp4bOyLwyEqPC6QOtGOc54az27S6rfK99NG_KDe7h6QI3uCMCGkCeLdCvNUG2-jp6QxZfj6xeZxiVEODJqEVZSG2S3-t6Ng0QiFMO5ElG9R9Cy9Sttmc",
-    liked: true,
-  },
-  {
-    id: "iphone-pink",
-    title: "iPhone 13 Pink - MINT",
-    subtitle: "Full kit available",
-    price: "₹43,200",
-    location: "Salt Lake, Kolkata",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuA1U33AGzQPuq-zU7MkEsuarkCgQI-sJJ2RisYo4SattDV6xr2z6jmwXPBwS8W_V2qveHNyMbjCm7mc6_zrPShk3cpFOhLoo16VWQLKH6oYTD4Gh37Elv8B9sHaqiQV3e3eQbOhR3mxgNwJnEc-jfy1RH3ypLcyfvKcXmKMMWMuQGCPfhhb2yRHeuP7q0A_Lbow-9tJsCN3Ge9BhvpTaDFaypLEB34eqdR2FJilyvia2kjOwvHRsPgbD6jyRaX1zYznbMwvueLzZSk",
-  },
-  {
-    id: "iphone-midnight",
-    title: "iPhone 13 Midnight Black",
-    subtitle: "Battery Health 92%",
-    price: "₹41,800",
-    location: "Adyar, Chennai",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD0YHeP8H0-dOkDda6DxMeeste2sIU1GDJcz382Fv5DOkoyRynABq0aNtv1k8pcUmJXifE34LWmq7JIXhZ-Ue4JdmBbTlJHKVdAGYQ8Kl56j2zLZHpR5L4ftKFFip72DxPhAkmUjnbBT8dYNDFatF7rH04dj12MqkAvruwPTNnbIvhClTTylZIsstfIRBuVO4MRZfCo-4ZG7lrEf6wErfYNq21GVcQ9FTy81Vxl3fB_rNsDR16kojyRb1rAyBNATufO1D6Qo6pS9Gk",
-  },
+const ENTITY_TABS = [
+  { key: "all", label: "All" },
+  { key: "electronics", label: "Electronics" },
+  { key: "mobiles", label: "Mobiles" },
+  { key: "vehicles", label: "Vehicles" },
+  { key: "properties", label: "Properties" },
+  { key: "fashion", label: "Fashion" },
+  { key: "furniture", label: "Furniture" },
+  { key: "jobs", label: "Jobs" },
+  { key: "services", label: "Services" },
+  { key: "events", label: "Events" },
+  { key: "sports", label: "Sports" },
+  { key: "pets", label: "Pets" },
+  { key: "books", label: "Books" },
+  { key: "beauty", label: "Beauty" },
+  { key: "toys", label: "Toys" },
+  { key: "forsale", label: "For Sale" },
+  { key: "collectibles", label: "Collectibles" },
+  { key: "others", label: "Others" },
 ];
+
+const SORT_OPTIONS = [
+  { key: "relevance", label: "Relevant" },
+  { key: "price_asc", label: "Price: Low" },
+  { key: "price_desc", label: "Price: High" },
+  { key: "nearest", label: "Nearest" },
+  { key: "oldest", label: "Oldest" },
+  { key: "views", label: "Most Viewed" },
+] as const;
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -83,26 +65,69 @@ const bottomTabs = [
 ];
 
 function parseQueryParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) {
-    return value[0] ?? "iPhone 13";
-  }
-  return value ?? "iPhone 13";
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
 }
 
 export function SearchResultsEntityTabsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ q?: string | string[] }>();
   const insets = useSafeAreaInsets();
-  const [activeEntityTab, setActiveEntityTab] = useState("Items (240)");
+  const [activeEntity, setActiveEntity] = useState("all");
+  const [activeSort, setActiveSort] = useState<string>("relevance");
   const [searchQuery, setSearchQuery] = useState(() =>
     parseQueryParam(params.q),
   );
-  const { refreshing, onRefresh } = usePullToRefresh();
+  const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [pagination, setPagination] = useState<SearchPagination | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [source, setSource] = useState<string>("");
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
-
   const handleBottomTabPress = useTabNavigation();
+
+  const doSearch = useCallback(
+    async (opts?: { page?: number; isRefresh?: boolean }) => {
+      const q = searchQuery.trim();
+      if (!q) return;
+
+      if (opts?.isRefresh) setRefreshing(true);
+      else setLoading(true);
+
+      try {
+        const res = await searchListings({
+          q,
+          entity: activeEntity === "all" ? undefined : activeEntity,
+          sort: activeSort as any,
+          page: opts?.page ?? 1,
+          limit: 50,
+        });
+        setResults(res.results || []);
+        setPagination(res.pagination || null);
+        setSource(res.source || "");
+      } catch {
+        // keep existing results on error
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [searchQuery, activeEntity, activeSort],
+  );
+
+  useEffect(() => {
+    doSearch();
+  }, [doSearch]);
+
+  const handleRefresh = useCallback(() => {
+    doSearch({ isRefresh: true });
+  }, [doSearch]);
+
+  const handleSubmit = () => {
+    doSearch();
+  };
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -130,6 +155,8 @@ export function SearchResultsEntityTabsScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
+              onSubmitEditing={handleSubmit}
+              returnKeyType="search"
               className="h-10 rounded-full bg-[#EFF5F0] pl-10 pr-4 text-[14px] text-[#161D1A]"
               style={{ paddingVertical: 0 }}
             />
@@ -149,7 +176,7 @@ export function SearchResultsEntityTabsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={handleRefresh}
             colors={["#27BB97"]}
             tintColor="#27BB97"
             progressViewOffset={topBarHeight}
@@ -160,18 +187,19 @@ export function SearchResultsEntityTabsScreen() {
           paddingBottom: 84 + bottomNavPadding,
         }}
       >
+        {/* Entity Tabs */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           className="border-b border-[#DDE4DF] bg-white"
           contentContainerStyle={{ paddingHorizontal: 8 }}
         >
-          {entityTabs.map((tab) => {
-            const isActive = tab === activeEntityTab;
+          {ENTITY_TABS.map((tab) => {
+            const isActive = tab.key === activeEntity;
             return (
               <Pressable
-                key={tab}
-                onPress={() => setActiveEntityTab(tab)}
+                key={tab.key}
+                onPress={() => setActiveEntity(tab.key)}
                 className="px-4 py-3"
                 style={{
                   borderBottomWidth: 2,
@@ -182,13 +210,14 @@ export function SearchResultsEntityTabsScreen() {
                   className="text-[12px] font-medium"
                   style={{ color: isActive ? "#27BB97" : "#6C7A74" }}
                 >
-                  {tab}
+                  {tab.label}
                 </Text>
               </Pressable>
             );
           })}
         </ScrollView>
 
+        {/* Sort & Filter Chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -198,28 +227,28 @@ export function SearchResultsEntityTabsScreen() {
             paddingVertical: 16,
           }}
         >
-          <Pressable className="flex-row items-center gap-1 rounded-full border border-[#DDE4DF] bg-white px-3 py-1.5">
-            <Text className="text-[12px] font-medium text-[#3C4A44]">
-              {filterChips[0]}
-            </Text>
-            <MaterialIcons name="expand-more" size={16} color="#3C4A44" />
-          </Pressable>
-
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: "/nearby-map-view-bottom-sheet",
-                params: { q: searchQuery },
-              })
-            }
-            className="flex-row items-center gap-1 rounded-full border border-[#27BB97]/20 bg-[#27BB97]/10 px-3 py-1.5"
-          >
-            <MaterialIcons name="near-me" size={15} color="#27BB97" />
-            <Text className="text-[12px] font-medium text-[#27BB97]">
-              {filterChips[1]}
-            </Text>
-            <MaterialIcons name="close" size={16} color="#27BB97" />
-          </Pressable>
+          {SORT_OPTIONS.map((opt) => {
+            const isActive = opt.key === activeSort;
+            return (
+              <Pressable
+                key={opt.key}
+                onPress={() => setActiveSort(opt.key)}
+                className="flex-row items-center gap-1 rounded-full px-3 py-1.5"
+                style={{
+                  backgroundColor: isActive ? "rgba(39,187,151,0.1)" : "#FFF",
+                  borderWidth: 1,
+                  borderColor: isActive ? "rgba(39,187,151,0.3)" : "#DDE4DF",
+                }}
+              >
+                <Text
+                  className="text-[12px] font-medium"
+                  style={{ color: isActive ? "#27BB97" : "#3C4A44" }}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
 
           <Pressable
             onPress={() =>
@@ -232,11 +261,46 @@ export function SearchResultsEntityTabsScreen() {
           >
             <MaterialIcons name="map" size={15} color="#27BB97" />
             <Text className="text-[12px] font-medium text-[#27BB97]">
-              {filterChips[2]}
+              Nearby Map
             </Text>
           </Pressable>
         </ScrollView>
 
+        {/* Results meta */}
+        {pagination && (
+          <View className="flex-row items-center justify-between px-5 pb-3">
+            <Text className="text-[12px] text-[#6C7A74]">
+              {pagination.total.toLocaleString()} results
+              {source ? ` • ${source}` : ""}
+            </Text>
+          </View>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <View className="items-center py-16">
+            <ActivityIndicator size="large" color="#27BB97" />
+            <Text className="mt-3 text-[14px] text-[#6C7A74]">
+              Searching...
+            </Text>
+          </View>
+        )}
+
+        {/* No results */}
+        {!loading && results.length === 0 && (
+          <View className="items-center py-16 px-8">
+            <MaterialIcons name="search-off" size={56} color="#CBD5E1" />
+            <Text className="mt-4 text-center text-[18px] font-semibold text-[#161D1A]">
+              No results found
+            </Text>
+            <Text className="mt-2 text-center text-[14px] text-[#6C7A74]">
+              Try different keywords or broaden your filters
+            </Text>
+          </View>
+        )}
+
+        {/* Results Grid */}
+        {!loading && results.length > 0 && (
         <View
           className="flex-row flex-wrap"
           style={{
@@ -247,59 +311,81 @@ export function SearchResultsEntityTabsScreen() {
         >
           {results.map((item) => (
             <Pressable
-              key={item.id}
-              onPress={() => router.push("/listing-detail-template")}
+              key={`${item._entity}_${item._id}`}
+              onPress={() =>
+                router.push({
+                  pathname: "/listing-detail-template",
+                  params: { category: item._entity, id: item._id },
+                })
+              }
               className="overflow-hidden rounded-xl border border-[#E9EFEB] bg-white"
               style={{ width: CARD_WIDTH }}
             >
               <View style={{ width: CARD_WIDTH, height: CARD_WIDTH }}>
-                <Image
-                  source={item.image}
-                  contentFit="cover"
-                  transition={200}
-                  className="h-full w-full"
-                />
+                {item.images?.[0] ? (
+                  <Image
+                    source={item.images[0]}
+                    contentFit="cover"
+                    transition={200}
+                    className="h-full w-full"
+                  />
+                ) : (
+                  <View className="h-full w-full items-center justify-center bg-slate-100">
+                    <MaterialIcons name="image" size={40} color="#CBD5E1" />
+                  </View>
+                )}
                 <Pressable className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/80">
                   <MaterialIcons
-                    name={item.liked ? "favorite" : "favorite-border"}
+                    name="favorite-border"
                     size={18}
-                    color={item.liked ? "#BA1A1A" : "#161D1A"}
+                    color="#161D1A"
                   />
                 </Pressable>
+                {item.distance != null && (
+                  <View className="absolute bottom-2 left-2 rounded-md bg-white/90 px-2 py-0.5">
+                    <Text className="text-[10px] font-bold text-[#161D1A]">
+                      {item.distance} km
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View className="flex-1 p-3">
-                <View>
-                  <Text
-                    numberOfLines={1}
-                    className="text-[14px] text-[#161D1A]"
-                  >
-                    {item.title}
+                <Text
+                  numberOfLines={1}
+                  className="text-[14px] text-[#161D1A]"
+                >
+                  {item.title}
+                </Text>
+                {item.condition && (
+                  <Text className="mt-0.5 text-[11px] text-[#6C7A74]">
+                    {item.condition}
                   </Text>
-                  <Text className="mt-1 text-[12px] text-[#6C7A74]">
-                    {item.subtitle}
-                  </Text>
-                </View>
-
+                )}
                 <View className="mt-2">
                   <Text className="text-[16px] font-bold text-[#27BB97]">
-                    {item.price}
+                    {item.price != null
+                      ? `₹${Number(item.price).toLocaleString("en-IN")}`
+                      : "Price on request"}
                   </Text>
-                  <View className="mt-1 flex-row items-center gap-1">
-                    <MaterialIcons
-                      name="location-on"
-                      size={12}
-                      color="#6C7A74"
-                    />
-                    <Text className="text-[10px] text-[#6C7A74]">
-                      {item.location}
-                    </Text>
-                  </View>
+                  {item.location && (
+                    <View className="mt-1 flex-row items-center gap-1">
+                      <MaterialIcons
+                        name="location-on"
+                        size={12}
+                        color="#6C7A74"
+                      />
+                      <Text numberOfLines={1} className="text-[10px] text-[#6C7A74]">
+                        {item.location}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </Pressable>
           ))}
         </View>
+        )}
       </ScrollView>
 
       <View

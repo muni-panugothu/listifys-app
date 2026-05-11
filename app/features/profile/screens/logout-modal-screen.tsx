@@ -1,5 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { type Href, useRouter } from "expo-router";
+import { type Href, useRouter } from "@/lib/safe-router";
 import { useState } from "react";
 import { ActivityIndicator, Platform, Pressable, Text, ToastAndroid, View } from "react-native";
 

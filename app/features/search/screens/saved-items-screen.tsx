@@ -1,70 +1,33 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useMemo } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { type Href, useFocusEffect, useRouter } from "@/lib/safe-router";
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Dimensions, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  fetchSavedListings,
+  toggleSaveListing,
+  type ListingItem,
+} from "@/features/listing/services/listing-api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 
-type SavedItem = {
-  id: string;
-  title: string;
-  price: string;
-  location: string;
-  timeAgo: string;
-  image: string;
-  wide?: boolean;
-};
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
 
-const savedItems: SavedItem[] = [
-  {
-    id: "1",
-    title: "Elegant Modern Living Sofa",
-    price: "₹24,999",
-    location: "Indiranagar, Bangalore",
-    timeAgo: "2h ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAHKuRSqBvFz-njyFPuaLRGuY2K8EBqo1tMeABWJW0980o5B2CbGHwlqB0gWK3hmcJ6QkfnFGojFw7PvCsIp2B7QlVzBYn2ZmFGJeks70ffx8iresJ8GyWyjlho24AkxrQE95hDxy2hIBAfeSd8ByLzS66ApdRvC9OzIFwNeYNf5KhgHBWZ7vz-pNUAtXVuw8-pXUbxx29-s5tGenJmSOkpAzqqzcgvdUbEq_vUKGrDP9FY0TJz19jER-WHnP4H1w4kNOzk3jb8cN0",
-    wide: true,
-  },
-  {
-    id: "2",
-    title: "Custom Mechanical Keyboard",
-    price: "₹8,499",
-    location: "HSR Layout",
-    timeAgo: "1d ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCXgVpcVwfJEDPZ6ETM5pkAqFxWrP4DIH3VBTZ5LZlCFyOpn6ZtJasBBR8_EA6FaV-zd_P-l4FoCJ_tzxqP38MERCqmsyieRf06H7Lj7CAxXsSeo7jAMVXHqFQRw8GDOnkIaAftz8ZXNFa0WcTXSAXI3-4W00w-2D3B0d0sHEqfo7R7Dq2aMWf1tAOa3NhT1abUb6PBg8HF78H5ljqc4x0X9n7A5BcV-2sw0Z5zNdTVlhaVhFlMnfmJ5qBDhSyxnb8pDClatmD-qwc",
-  },
-  {
-    id: "3",
-    title: "Sony WH-1000XM5",
-    price: "₹24,999",
-    location: "Koramangala",
-    timeAgo: "3d ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBeyypC9Pkdh5GZ1qKRPhQX4yH7GqijYr8hDQh5LJroDA1bzliiq4ZTYZ32-Fac6NuVJSJK6Q7OYxQn9NIp2mEbWtkzYq0sx3m01tm1syRytlskMkOx7msMKHxUGm5zfTq3rQIgqOCdxn6Vy5mN-7tVEB0U1SrPLBHqFQqzDQt_7AVUzq_9CtGTDF819_jSGomEX06yaeshctu101LBsHi7dfb0iVr2JdJC61xw1HSyNn2xenIavWGT2t2Q0yCAcS61l1IO9-DWs5w",
-  },
-  {
-    id: "4",
-    title: "Nike Air Zoom Pulse",
-    price: "₹5,200",
-    location: "MG Road",
-    timeAgo: "5d ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCS23_BQR_idKthAezAeDcFIDhoacF1CAF38RjLvBVBE-YTYCVmYGl1lrMab_i66GqNA2YYfwNTWLKTZGHNMh03sq8Wib7xalZ6kY_nKWg0z90fAqqWtdoCt0t7jQtaz9azz8_bqzbXR21g0szBtvT82R4o3qjUmdRnOx2_RGGxIppGgfJ9GtDs4sg-G0xV9jPCMyLH3hVKQdMvJLGpoPIxuWh8AcmvDxMBbN-LEUk_hCC4kmeyPGObLFWWvABQUpyH_v9yTWKJDmQ",
-  },
-  {
-    id: "5",
-    title: "Vintage Record Player",
-    price: "₹6,500",
-    location: "Jayanagar",
-    timeAgo: "1w ago",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBXuo6LzQc-Mij-_BvqApAiuGeVZjLT0p72YYK7WwfvGNiU5KVk_YPcMe5dG5C6hSyjlfjoAiq47yweiyuCU7KRlR4DtdFL8QeFjvAOPU28CWI0fkj-bczfgdeuRJd98TeOqZt6YRWFlfelf3845KQTVIDCBRuTNc8w_WpvEsiNTLEbcOuBwz_ixJK3qJ32sitTBZZ-pcOvXvuVihZmLqAjdOTZTGzFvlFcZelNgfQY1MTz7IbGJTYzlCGvo2BUx-qmDqmRVEAXkvk",
-  },
-];
+function timeAgo(dateStr?: string) {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -79,11 +42,34 @@ export function SavedItemsScreen() {
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
+  const [items, setItems] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const handleBottomTabPress = useTabNavigation();
 
-  const wideItem = savedItems.find((i) => i.wide);
-  const gridItems = savedItems.filter((i) => !i.wide);
+  const loadSaved = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchSavedListings();
+      setItems(res.listings || []);
+    } catch {
+      // keep existing
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadSaved(); }, [loadSaved]));
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadSaved);
+
+  const handleUnsave = useCallback(async (item: ListingItem) => {
+    try {
+      const category = (item as any)._source ?? item.category ?? "electronics";
+      await toggleSaveListing(category, item._id);
+      setItems((prev) => prev.filter((i) => i._id !== item._id));
+    } catch { /* silently fail */ }
+  }, []);
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -98,57 +84,83 @@ export function SavedItemsScreen() {
           </Pressable>
           <Text className="text-[20px] font-bold tracking-tight text-[#161D1A]">Saved Items</Text>
         </View>
-        <Pressable className="rounded-full p-2">
-          <MaterialIcons name="filter-list" size={24} color="#64748B" />
-        </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#27BB97"]} tintColor="#27BB97" />}
         contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
       >
         <View className="px-4">
           {/* Count */}
           <Text className="mb-6 text-[14px] text-[#6C7A74]">
-            <Text className="font-bold text-[#27BB97]">{savedItems.length}</Text> saved items
+            <Text className="font-bold text-[#27BB97]">{items.length}</Text> saved items
           </Text>
 
-          {/* Wide Card */}
-          {wideItem && (
+          {/* Loading */}
+          {loading && items.length === 0 && (
+            <View className="items-center py-16">
+              <ActivityIndicator size="large" color="#27BB97" />
+            </View>
+          )}
+
+          {/* Empty */}
+          {!loading && items.length === 0 && (
+            <View className="items-center py-16">
+              <MaterialIcons name="favorite-border" size={56} color="#CBD5E1" />
+              <Text className="mt-3 text-[16px] font-semibold text-[#6C7A74]">No saved items yet</Text>
+              <Text className="mt-1 text-[13px] text-[#94A3B8]">Tap the heart icon on listings to save them</Text>
+            </View>
+          )}
+
+          {/* Featured item (first) */}
+          {items.length > 0 && (
             <Pressable
+              onPress={() => router.push(`/listing-detail-template?category=${(items[0] as any)._source ?? items[0].category}&id=${items[0]._id}` as Href)}
               className="mb-4 overflow-hidden rounded-xl border border-slate-100 bg-white"
               style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}
             >
               <View className="relative h-52 w-full">
-                <Image source={wideItem.image} contentFit="cover" className="h-full w-full" />
-                <Pressable className="absolute right-3 top-3 rounded-full bg-white/70 p-2">
+                {items[0].images?.[0] ? (
+                  <Image source={items[0].images[0]} contentFit="cover" className="h-full w-full" />
+                ) : (
+                  <View className="h-full w-full items-center justify-center bg-slate-100">
+                    <MaterialIcons name="image" size={48} color="#CBD5E1" />
+                  </View>
+                )}
+                <Pressable onPress={() => handleUnsave(items[0])} className="absolute right-3 top-3 rounded-full bg-white/70 p-2">
                   <MaterialIcons name="favorite" size={20} color="#EF4444" />
                 </Pressable>
               </View>
               <View className="p-4">
                 <View className="flex-row items-start justify-between">
                   <View className="flex-1">
-                    <Text className="text-[16px] font-semibold text-[#161D1A]">{wideItem.title}</Text>
-                    <View className="mt-1 flex-row items-center gap-1">
-                      <MaterialIcons name="location-on" size={14} color="#94A3B8" />
-                      <Text className="text-[12px] text-[#6C7A74]">{wideItem.location}</Text>
-                    </View>
+                    <Text className="text-[16px] font-semibold text-[#161D1A]">{items[0].title}</Text>
+                    {items[0].location ? (
+                      <View className="mt-1 flex-row items-center gap-1">
+                        <MaterialIcons name="location-on" size={14} color="#94A3B8" />
+                        <Text className="text-[12px] text-[#6C7A74]">{items[0].location}</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  <Text className="text-[18px] font-bold text-[#27BB97]">{wideItem.price}</Text>
+                  <Text className="text-[18px] font-bold text-[#27BB97]">
+                    {items[0].price ? `₹${Number(items[0].price).toLocaleString("en-IN")}` : "N/A"}
+                  </Text>
                 </View>
-                <Text className="mt-2 text-[11px] text-[#94A3B8]">{wideItem.timeAgo}</Text>
+                <Text className="mt-2 text-[11px] text-[#94A3B8]">{timeAgo(items[0].createdAt)}</Text>
               </View>
             </Pressable>
           )}
 
-          {/* 2-Column Grid */}
-          <View className="flex-row flex-wrap gap-3">
-            {gridItems.map((item) => (
+          {/* 2-Column Grid (remaining items) */}
+          <View className="flex-row flex-wrap justify-between" style={{ gap: 12 }}>
+            {items.slice(1).map((item) => (
               <Pressable
-                key={item.id}
+                key={item._id}
+                onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-white"
                 style={{
-                  width: "48%",
+                  width: CARD_WIDTH,
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
                   shadowOpacity: 0.05,
@@ -156,20 +168,30 @@ export function SavedItemsScreen() {
                   elevation: 1,
                 }}
               >
-                <View className="relative aspect-square w-full">
-                  <Image source={item.image} contentFit="cover" className="h-full w-full" />
-                  <Pressable className="absolute right-2 top-2 rounded-full bg-white/70 p-1.5">
+                <View className="relative" style={{ width: CARD_WIDTH, height: CARD_WIDTH }}>
+                  {item.images?.[0] ? (
+                    <Image source={item.images[0]} contentFit="cover" className="h-full w-full" />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-slate-100">
+                      <MaterialIcons name="image" size={32} color="#CBD5E1" />
+                    </View>
+                  )}
+                  <Pressable onPress={() => handleUnsave(item)} className="absolute right-2 top-2 rounded-full bg-white/70 p-1.5">
                     <MaterialIcons name="favorite" size={16} color="#EF4444" />
                   </Pressable>
                 </View>
                 <View className="p-3">
-                  <Text className="text-[14px] font-bold text-[#27BB97]">{item.price}</Text>
+                  <Text className="text-[14px] font-bold text-[#27BB97]">
+                    {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "N/A"}
+                  </Text>
                   <Text className="mt-0.5 text-[12px] font-medium text-[#161D1A]" numberOfLines={1}>{item.title}</Text>
-                  <View className="mt-1 flex-row items-center gap-0.5">
-                    <MaterialIcons name="location-on" size={12} color="#94A3B8" />
-                    <Text className="text-[11px] text-[#6C7A74]" numberOfLines={1}>{item.location}</Text>
-                  </View>
-                  <Text className="mt-1 text-[10px] text-[#94A3B8]">{item.timeAgo}</Text>
+                  {item.location ? (
+                    <View className="mt-1 flex-row items-center gap-0.5">
+                      <MaterialIcons name="location-on" size={12} color="#94A3B8" />
+                      <Text className="text-[11px] text-[#6C7A74]" numberOfLines={1}>{item.location}</Text>
+                    </View>
+                  ) : null}
+                  <Text className="mt-1 text-[10px] text-[#94A3B8]">{timeAgo(item.createdAt)}</Text>
                 </View>
               </Pressable>
             ))}

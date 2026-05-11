@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { ListingSuccessScreen } from "@/features/listing/screens/listing-success-screen";
 

@@ -1,57 +1,69 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/lib/safe-router";
 import { useMemo, useState } from "react";
 import { Dimensions, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CATEGORIES, type CategorySlug } from "@/constants/categories";
 import { Image } from "@/lib/nativewind-interop";
-import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { useAppDispatch } from "@/store/hooks";
+import { setCategory } from "@/store/slices/post-form-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const GRID_GAP = 12;
+const GRID_GAP = 10;
 const HORIZONTAL_PADDING = 16;
+const COLS = 3;
 const CATEGORY_CARD_WIDTH =
-	(SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - GRID_GAP) / 2;
+	(SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - GRID_GAP * (COLS - 1)) / COLS;
+const IMAGE_SIZE = CATEGORY_CARD_WIDTH - 24;
 
-type SellCategory = {
-	id: string;
-	title: string;
-	icon: React.ComponentProps<typeof MaterialIcons>["name"];
+// ── Category image map (real product images for OLX-style feel) ─────────────
+const CATEGORY_IMAGES: Record<CategorySlug, string> = {
+	electronics:
+		"https://images.unsplash.com/photo-1498049794561-7780e7231661?w=200&h=200&fit=crop&q=80",
+	jobs: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=200&h=200&fit=crop&q=80",
+	vehicles:
+		"https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=200&h=200&fit=crop&q=80",
+	takecare:
+		"https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=200&h=200&fit=crop&q=80",
+	events:
+		"https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200&h=200&fit=crop&q=80",
+	properties:
+		"https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=200&h=200&fit=crop&q=80",
+	forsale:
+		"https://images.unsplash.com/photo-1607082349566-187342175e2f?w=200&h=200&fit=crop&q=80",
+	mobiles:
+		"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200&h=200&fit=crop&q=80",
+	furniture:
+		"https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=200&h=200&fit=crop&q=80",
+	fashion:
+		"https://images.unsplash.com/photo-1483985988355-763728e1935b?w=200&h=200&fit=crop&q=80",
+	sports:
+		"https://images.unsplash.com/photo-1461896836934-bd45ba48bf1d?w=200&h=200&fit=crop&q=80",
+	collectibles:
+		"https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=200&h=200&fit=crop&q=80",
+	pets: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop&q=80",
+	books:
+		"https://images.unsplash.com/photo-1512820790803-83ca734da794?w=200&h=200&fit=crop&q=80",
+	beauty:
+		"https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&h=200&fit=crop&q=80",
+	others:
+		"https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=200&h=200&fit=crop&q=80",
+	toys: "https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=200&h=200&fit=crop&q=80",
 };
 
-const categories: SellCategory[] = [
-	{
-		id: "electronics",
-		title: "Electronics",
-		icon: "devices",
-	},
-	{
-		id: "vehicles",
-		title: "Vehicles",
-		icon: "directions-car",
-	},
-	{
-		id: "property",
-		title: "Property",
-		icon: "home-work",
-	},
-	{
-		id: "fashion",
-		title: "Fashion",
-		icon: "checkroom",
-	},
-	{
-		id: "home",
-		title: "Home",
-		icon: "chair",
-	},
-	{
-		id: "jobs",
-		title: "Jobs",
-		icon: "work",
-	},
-];
+type SellCategory = {
+	slug: CategorySlug;
+	title: string;
+	image: string;
+};
+
+const categories: SellCategory[] = CATEGORIES.map((c) => ({
+	slug: c.slug,
+	title: c.name,
+	image: CATEGORY_IMAGES[c.slug],
+}));
 
 const bottomTabs = [
 	{ id: "home", label: "Home", icon: "home" as const },
@@ -67,26 +79,25 @@ const bottomTabs = [
 	{ id: "profile", label: "Profile", icon: "person" as const },
 ];
 
-const featureBannerImage =
-	"https://lh3.googleusercontent.com/aida-public/AB6AXuBitXIseT__b9o7MK-VxwZYKCmFhF0W1GGHZSwnmo92SgG0FDmRBIw2LYPPRkbvVpATytd5KfgFqxTx8CXq3WoLXgB52EYa3sKHGVJ95STgFkYwOxwzrs8c93nz7tzT45gNk_SnExz2EPSnDNrhzh4d8bJnBjc7UkXG0PMoFcNdhCB3u4tao8C_gK2NpZK49RJOcMDPdlPC1jO60JHmr01Wyyr8YtnFjbkzvHaJaFo64tkRT7RGhHsQsXXJqxw7n1_CT9kSFZyYJ-w";
-
 export function SellEntryScreen() {
 	const router = useRouter();
 	const insets = useSafeAreaInsets();
-	const [selectedCategoryId, setSelectedCategoryId] =
-		useState<string>("electronics");
+	const dispatch = useAppDispatch();
+	const [selectedCategorySlug, setSelectedCategorySlug] =
+		useState<CategorySlug>("electronics");
 
 	const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
 	const bottomNavPadding = Math.max(insets.bottom, 8);
 	const selectedCategory =
-		categories.find((category) => category.id === selectedCategoryId) ??
+		categories.find((category) => category.slug === selectedCategorySlug) ??
 		categories[0];
 
-	const openCategoryFlow = (categoryId: string) => {
-		setSelectedCategoryId(categoryId);
+	const openCategoryFlow = (slug: CategorySlug) => {
+		setSelectedCategorySlug(slug);
+		dispatch(setCategory(slug));
 		router.push({
 			pathname: "/post-ad-step1-category",
-			params: { category: categoryId },
+			params: { category: slug },
 		});
 	};
 
@@ -160,86 +171,100 @@ export function SellEntryScreen() {
 					</View>
 
 					<View
-						className="mb-10 flex-row flex-wrap"
+						className="mb-8 flex-row flex-wrap"
 						style={{ columnGap: GRID_GAP, rowGap: GRID_GAP }}
 					>
 						{categories.map((category) => {
-							const isSelected = category.id === selectedCategoryId;
+							const isSelected = category.slug === selectedCategorySlug;
 
 							return (
 								<Pressable
-									key={category.id}
-									onPress={() => openCategoryFlow(category.id)}
-									className="items-center rounded-2xl bg-white px-4 py-5"
+									key={category.slug}
+									onPress={() => openCategoryFlow(category.slug)}
+									className="items-center overflow-hidden rounded-2xl bg-white"
 									style={({ pressed }) => ({
 										width: CATEGORY_CARD_WIDTH,
-										borderWidth: 1,
+										borderWidth: isSelected ? 2 : 1,
 										borderColor: isSelected ? "#27BB97" : "#F1F5F9",
 										shadowColor: isSelected ? "#27BB97" : "#000",
 										shadowOffset: { width: 0, height: 2 },
-										shadowOpacity: isSelected ? 0.16 : 0.05,
+										shadowOpacity: isSelected ? 0.18 : 0.06,
 										shadowRadius: isSelected ? 10 : 4,
-										elevation: isSelected ? 4 : 1,
-										transform: [{ scale: pressed ? 0.97 : 1 }],
+										elevation: isSelected ? 5 : 1,
+										transform: [{ scale: pressed ? 0.96 : 1 }],
 									})}
 								>
 									<View
-										className="mb-3 h-12 w-12 items-center justify-center rounded-full"
+										className="w-full items-center justify-center overflow-hidden"
 										style={{
-											backgroundColor: isSelected ? "#D7F8EF" : "#EEF7F3",
+											height: IMAGE_SIZE,
+											backgroundColor: "#F8FAF9",
 										}}
 									>
-										<MaterialIcons
-											name={category.icon}
-											size={24}
-											color="#27BB97"
+										<Image
+											source={category.image}
+											contentFit="cover"
+											transition={150}
+											className="h-full w-full"
+											style={{
+												width: CATEGORY_CARD_WIDTH - (isSelected ? 4 : 2),
+												height: IMAGE_SIZE,
+												borderTopLeftRadius: 14,
+												borderTopRightRadius: 14,
+											}}
 										/>
+										{isSelected && (
+											<View className="absolute right-1.5 top-1.5 h-5 w-5 items-center justify-center rounded-full bg-[#27BB97]">
+												<MaterialIcons
+													name="check"
+													size={14}
+													color="#FFF"
+												/>
+											</View>
+										)}
 									</View>
-									<Text className="text-center text-[13px] font-semibold text-[#161D1A]">
-										{category.title}
-									</Text>
+									<View
+										className="w-full items-center px-1 py-2.5"
+										style={{
+											backgroundColor: isSelected
+												? "rgba(39,187,151,0.06)"
+												: "#FFF",
+										}}
+									>
+										<Text
+											numberOfLines={1}
+											className="text-center text-[11px] font-semibold"
+											style={{
+												color: isSelected ? "#27BB97" : "#161D1A",
+											}}
+										>
+											{category.title}
+										</Text>
+									</View>
 								</Pressable>
 							);
 						})}
 					</View>
 
-					<View
-						className="relative mb-10 h-48 overflow-hidden rounded-[24px] bg-[#004535] px-6 pb-6"
-						style={{
-							shadowColor: "#004535",
-							shadowOffset: { width: 0, height: 8 },
-							shadowOpacity: 0.18,
-							shadowRadius: 16,
-							elevation: 8,
-						}}
-					>
-						<Image
-							source={featureBannerImage}
-							contentFit="cover"
-							transition={200}
-							className="absolute inset-0 h-full w-full"
-						/>
-						<LinearGradient
-							colors={["rgba(0,69,53,0.12)", "rgba(0,69,53,0.86)"]}
-							start={{ x: 0.5, y: 0.1 }}
-							end={{ x: 0.5, y: 1 }}
-							style={{
-								position: "absolute",
-								top: 0,
-								right: 0,
-								bottom: 0,
-								left: 0,
-							}}
-						/>
-
-						<View className="flex-1 justify-end">
-							<Text className="mb-1 text-[22px] font-semibold tracking-tight text-white">
-								Make money today
-							</Text>
-							<Text className="max-w-60 text-[14px] leading-5 text-[#DCEEE8]">
-								Listing is free and takes less than a minute.
-							</Text>
-						</View>
+					{/* Quick Tips */}
+					<View className="mb-8 rounded-2xl bg-white p-4" style={{ borderWidth: 1, borderColor: "#F1F5F9" }}>
+						<Text className="mb-3 text-[16px] font-bold text-[#161D1A]">
+							Tips to sell faster
+						</Text>
+						{[
+							{ icon: "photo-camera" as const, text: "Add clear, well-lit photos" },
+							{ icon: "description" as const, text: "Write a detailed description" },
+							{ icon: "local-offer" as const, text: "Set a competitive price" },
+						].map((tip) => (
+							<View key={tip.text} className="mb-2 flex-row items-center gap-3">
+								<View className="h-8 w-8 items-center justify-center rounded-lg bg-[#EEF7F3]">
+									<MaterialIcons name={tip.icon} size={16} color="#27BB97" />
+								</View>
+								<Text className="flex-1 text-[13px] text-[#3C4A44]">
+									{tip.text}
+								</Text>
+							</View>
+						))}
 					</View>
 				</View>
 			</ScrollView>
@@ -249,7 +274,7 @@ export function SellEntryScreen() {
 				style={{ bottom: 86 + bottomNavPadding }}
 			>
 				<Pressable
-					onPress={() => openCategoryFlow(selectedCategory.id)}
+					onPress={() => openCategoryFlow(selectedCategory.slug)}
 					className="overflow-hidden rounded-2xl"
 					style={({ pressed }) => ({
 						transform: [{ scale: pressed ? 0.98 : 1 }],

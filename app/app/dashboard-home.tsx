@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { DashboardHomeScreen } from "../features/profile/screens/dashboard-home-screen";
 

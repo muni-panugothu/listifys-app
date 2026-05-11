@@ -241,7 +241,8 @@ exports.protect = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.cookies;
+    // Accept refresh token from cookie (web) OR request body (React Native mobile)
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (!refreshToken) {
       return res.status(401).json({
@@ -297,9 +298,12 @@ exports.refreshToken = async (req, res) => {
     // (consistent secure/sameSite flags based on CLIENT_URL protocol)
     setTokenCookies(res, result.tokens.accessToken, result.tokens.refreshToken);
 
+    // Return tokens in body for React Native (cookies don't persist on mobile)
     return res.status(200).json({
       success: true,
       message: "Token refreshed successfully.",
+      accessToken: result.tokens.accessToken,
+      refreshToken: result.tokens.refreshToken,
     });
   } catch (error) {
     logger.error("Refresh token error:", error);
@@ -315,7 +319,8 @@ exports.refreshToken = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.logout = async (req, res) => {
   try {
-    const { refreshToken } = req.cookies;
+    // Accept from cookie (web) or body (React Native mobile)
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (refreshToken) {
       await revokeRefreshToken(refreshToken);

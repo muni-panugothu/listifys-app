@@ -1,96 +1,207 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    View,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Keyboard,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AUTH_API_BASE_URL, requestJson } from "@/features/auth/services/auth-api";
+import {
+  addToRecentlyViewed,
+  fetchListingById,
+  toggleSaveListing,
+  type ListingItem,
+} from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
+import { useAppSelector } from "@/store/hooks";
+import type { CategorySlug } from "@/constants/categories";
 
-type Review = {
-  id: string;
-  name: string;
-  avatar: string;
-  date: string;
-  rating: number;
-  text: string;
-};
-
-const heroImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuD_iedlRV7Ku-Px5f9Luzmh89j_oISAeZJvN3Ifl6er_uP9W96QA2qLJR3ew3RfZ6u1QKSUUn4tgccUHL6pOp26fvV9wNfgRIrdIzjCohq3Ni2xi57byUq328q5SsEAcL64XCAxlGxwTVJm_6LtROuN2nemuIESDYlkeGryzrVyEilBwLrth8d22svl9uOskUo0yOLG39rlV5Bh15JoOdGuje4Ugb6hAAMxd4wv0c2ZBRQPa8x70HS4yuD6-nR6TVvM3OZsq66Zlpc";
-
-const agentAvatar =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCVzPCCsdyVrEXfxE4rBZ_DWQI53a9vXs4uvu7dIigAoc2dW868d88_ZJu_v3uPzD0OwqrRreqpuF27sDQEy_Kx00Z1w4Be6rRgHyQgew94ywXg86huPWxBAnpok8QeUF7f6_7hftMjyG24w6dcmdB8M0XNu590yGupwC6HYNFub-JsOILaFQZRJ_w5rtccvSjnZGn85KsCnBdID0dxldaR40ORZHDUz00iAvR94jjli87G0WKGG_uLJ03qUUo7vNWVXlQ9QOEGvKI";
-
-const mapImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCxwhpe6eJsnLd_QHbVzcXnlZatAbJ6Rc9VKIJDO57DQ0MjvUHTJBoHMOplb4cEwT0RUW21Q4hFdquI_xWJJgxhifFzcPSLQk7yLWbDfAF17x-fZwoZDsmWHVj8NcB-mLwxEpkjlTBCbrTMwn40YtTaXb26b63RaAUmXw6p-YrCxgMQRw_T6Ng_6hccCfuRplTLGqgt_jGxB8OZZ47M0IjylTfIjMj3imKuXUwfbBhFUCYEY2tDb1XZt5xSyVFRKJfPggbGs6kf9Ug";
-
-const reviews: Review[] = [
-  {
-    id: "rahul",
-    name: "Rahul Mehta",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDSctB2QhHptLZ-gpplqfqBrAI423MtkNpBWjWUL5WiI1RAiPllwt2z8GGaI7h96_Y5WJj6sUjE3IuiXibLrv_hUjfiOs8T4lAo8RKWDhq1GKzv0pHfZu7oz6_f_TsG6ObY_C_7jp9O-tJGdqzNB9P4lFOHBKOjhLDU7fPRYWLZ5Zh0JBJ3nqZcGGhV8pE-kLBPiJZ3GjpCUNj1t10IFyEJevDyWOlpU9npFtF2HvJhJpXbSuPZpzbVu89mplqdSVn53nE6dDCsKvE",
-    date: "2 days ago",
-    rating: 5,
-    text: "Priya completely transformed my studio apartment. Her eye for detail and space utilization is unmatched. Highly recommend!",
-  },
-  {
-    id: "ananya",
-    name: "Ananya Iyer",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDLZCD0j-0uBAJfH30FVDbB8ao7Md9m319IyEZKLhvlUPxrsL4fxGmwPpjw9f0nQt9cppQ14xvNlqx_b1TF-BdIN-xm4E8OMtF96Diy_I6jDh22X6K_vi4YHLTjAZq5PAqCElJIDfnf7haWTE6g7y80Ko7b2C1fJnnYkWmJ7jco29f4sQXudgWc3oP9SYEhvDaOWx_nz6yr5ZMfe2LOuu-ul_p0d7N1yPvV-K7Y1ctd9p1VreAdkmJOjveYII16MCTyjMDvB5XhN1I",
-    date: "1 week ago",
-    rating: 4,
-    text: "Great consultation session. She gave me practical tips that I could implement immediately on a budget.",
-  },
-];
-
-function parseParam(value: string | string[] | undefined, fallback: string) {
-  if (Array.isArray(value)) {
-    return value[0] ?? fallback;
-  }
-  return value ?? fallback;
-}
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export function PropertyDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    title?: string | string[];
-    price?: string | string[];
-    location?: string | string[];
-    bhk?: string | string[];
-    area?: string | string[];
-  }>();
   const insets = useSafeAreaInsets();
-  const { refreshing, onRefresh } = usePullToRefresh();
+  const params = useLocalSearchParams<{ id?: string; category?: string }>();
+  const user = useAppSelector((s) => s.auth.user);
 
-  const title = useMemo(
-    () => parseParam(params.title, "3 BHK Luxury Apartment in Juhu"),
-    [params.title],
-  );
-  const price = useMemo(
-    () => parseParam(params.price, "₹85,000"),
-    [params.price],
-  );
-  const location = useMemo(
-    () => parseParam(params.location, "Juhu, Mumbai"),
-    [params.location],
-  );
-  const bhk = useMemo(() => parseParam(params.bhk, "3 BHK"), [params.bhk]);
-  const area = useMemo(
-    () => parseParam(params.area, "1,850 Sq Ft"),
-    [params.area],
-  );
+  const [listing, setListing] = useState<ListingItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isSaved, setIsSaved] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const categorySlug = (params.category ?? "properties") as CategorySlug;
+  const listingId = params.id;
+
+  const loadListing = useCallback(async () => {
+    if (!listingId) return;
+    setLoading(true);
+    try {
+      const res = await fetchListingById(categorySlug, listingId);
+      if (res.listing) {
+        setListing(res.listing);
+        addToRecentlyViewed(res.listing).catch(() => {});
+        if (user?.id && res.listing.savedBy?.includes(user.id)) {
+          setIsSaved(true);
+        }
+      }
+    } catch {
+      // keep null
+    } finally {
+      setLoading(false);
+    }
+  }, [categorySlug, listingId, user?.id]);
+
+  useEffect(() => {
+    loadListing();
+  }, [loadListing]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadListing);
+
+  const handleToggleSave = useCallback(async () => {
+    if (!listingId) return;
+    try {
+      const res = await toggleSaveListing(categorySlug, listingId);
+      setIsSaved(res.saved);
+    } catch {}
+  }, [categorySlug, listingId]);
+
+  const images = listing?.images?.length ? listing.images : [];
+  const title = listing?.title ?? "";
+  const price = listing?.price
+    ? `₹${Number(listing.price).toLocaleString("en-IN")}`
+    : "";
+  const description = listing?.description ?? "";
+  const locationText = listing?.location ?? "";
+  const bedrooms = listing?.bedrooms ?? 0;
+  const bathrooms = listing?.bathrooms ?? 0;
+  const squareFeet = (listing as any)?.squareFeet ?? 0;
+  const furnishing = (listing as any)?.furnishing ?? "";
+  const features: string[] = (listing as any)?.features ?? [];
+  const availableFrom = (listing as any)?.availableFrom
+    ? new Date((listing as any).availableFrom).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
+  const petFriendly = (listing as any)?.petFriendly ?? false;
+
+  const sellerName = listing?.seller?.name ?? listing?.sellerName ?? "Seller";
+  const sellerProfileImage = listing?.seller?.profileImage
+    ? listing.seller.profileImage.startsWith("http")
+      ? listing.seller.profileImage
+      : `${AUTH_API_BASE_URL}${listing.seller.profileImage}`
+    : null;
+  const sellerJoined = listing?.seller?.createdAt
+    ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
+    : "";
+  const sellerId = listing?.seller?._id;
 
   const topBarHeight = insets.top + 64;
   const footerBottomPadding = Math.max(insets.bottom, 10);
+
+  // ── Make Offer Bottom Sheet ───────────────────────────────────────────
+  const [offerVisible, setOfferVisible] = useState(false);
+  const [offerAmount, setOfferAmount] = useState("");
+  const [selectedChip, setSelectedChip] = useState("");
+  const [sendingOffer, setSendingOffer] = useState(false);
+  const [offerSent, setOfferSent] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  const recommendedOffers = useMemo(() => {
+    if (!listing?.price) return [];
+    const p = Number(listing.price);
+    return [
+      Math.round((p * 0.85) / 100) * 100,
+      Math.round((p * 0.90) / 100) * 100,
+      Math.round((p * 0.95) / 100) * 100,
+    ];
+  }, [listing?.price]);
+
+  const openOfferSheet = useCallback(() => {
+    if (listing?.price) {
+      const defaultOffer = Math.round((Number(listing.price) * 0.90) / 100) * 100;
+      setOfferAmount(String(defaultOffer));
+      setSelectedChip(String(defaultOffer));
+    }
+    setOfferSent(false);
+    setOfferVisible(true);
+    Animated.spring(slideAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, [listing?.price, slideAnim]);
+
+  const closeOfferSheet = useCallback(() => {
+    Keyboard.dismiss();
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setOfferVisible(false));
+  }, [slideAnim]);
+
+  const handleSendOffer = useCallback(async () => {
+    if (!listing || !offerAmount || sendingOffer) return;
+    const sid = listing.seller?._id;
+    if (!sid) return;
+    setSendingOffer(true);
+    try {
+      await requestJson("/api/chat/make-offer", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientId: sid,
+          listingId: listing._id,
+          listingType: categorySlug,
+          listingTitle: listing.title,
+          offerAmount: Number(offerAmount),
+          listingPrice: listing.price,
+          productImage: listing.images?.[0] ?? null,
+        }),
+      });
+      setOfferSent(true);
+      setTimeout(() => closeOfferSheet(), 1800);
+    } catch {
+      // silently fail
+    } finally {
+      setSendingOffer(false);
+    }
+  }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+        <ActivityIndicator size="large" color="#27BB97" />
+      </View>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+        <MaterialIcons name="error-outline" size={48} color="#CBD5E1" />
+        <Text className="mt-2 text-[14px] text-[#6C7A74]">Property not found</Text>
+        <Pressable onPress={() => router.back()} className="mt-4">
+          <Text className="text-[14px] font-semibold text-[#27BB97]">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -107,30 +218,29 @@ export function PropertyDetailScreen() {
         }}
       >
         <View className="h-16 flex-row items-center justify-between">
-          <View className="flex-row items-center gap-2">
-            <Pressable
-              onPress={() => router.back()}
-              className="p-2"
-              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-            >
-              <MaterialIcons name="arrow-back" size={22} color="#161D1A" />
-            </Pressable>
-          </View>
-
+          <Pressable
+            onPress={() => router.back()}
+            className="p-2"
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <MaterialIcons name="arrow-back" size={22} color="#161D1A" />
+          </Pressable>
           <Text className="text-[20px] font-black tracking-tight text-[#27BB97]">
             Listify
           </Text>
-
           <View className="flex-row items-center gap-4 pr-2">
-            <Pressable
-              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-            >
+            <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
               <MaterialIcons name="share" size={22} color="#6C7A74" />
             </Pressable>
             <Pressable
+              onPress={handleToggleSave}
               style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
             >
-              <MaterialIcons name="favorite-border" size={22} color="#6C7A74" />
+              <MaterialIcons
+                name={isSaved ? "favorite" : "favorite-border"}
+                size={22}
+                color={isSaved ? "#EF4444" : "#6C7A74"}
+              />
             </Pressable>
           </View>
         </View>
@@ -152,246 +262,200 @@ export function PropertyDetailScreen() {
           paddingBottom: 112 + footerBottomPadding,
         }}
       >
-        <View className="relative w-full" style={{ aspectRatio: 4 / 3 }}>
-          <Image
-            source={heroImage}
-            contentFit="cover"
-            transition={180}
-            className="h-full w-full"
-          />
-
-          <View
-            className="absolute bottom-4 left-1/2 flex-row gap-2"
-            style={{ transform: [{ translateX: -18 }] }}
-          >
-            <View className="h-1 w-8 rounded-full bg-white" />
-            <View className="h-1 w-2 rounded-full bg-white/50" />
-            <View className="h-1 w-2 rounded-full bg-white/50" />
-          </View>
-
-          <View className="absolute bottom-4 right-4 rounded-full bg-black/50 px-3 py-1">
-            <Text className="text-[12px] text-white">1/12</Text>
-          </View>
-        </View>
-
-        <View className="mt-6 px-4">
-          <View className="gap-1">
-            <Text className="text-[24px] font-bold leading-8 text-[#161D1A]">
-              {title}
-            </Text>
-            <View className="flex-row items-center gap-2">
-              <Text className="text-[20px] font-bold text-[#005FB0]">
-                {price}
+        {/* Image Gallery */}
+        {images.length > 0 ? (
+          <View className="relative w-full" style={{ aspectRatio: 4 / 3 }}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => {
+                const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                setActiveImageIndex(index);
+              }}
+            >
+              {images.map((img, idx) => (
+                <Image
+                  key={idx}
+                  source={img}
+                  contentFit="cover"
+                  transition={180}
+                  style={{ width: SCREEN_WIDTH, height: "100%" }}
+                />
+              ))}
+            </ScrollView>
+            <View className="absolute bottom-4 right-4 rounded-full bg-black/50 px-3 py-1">
+              <Text className="text-[12px] text-white">
+                {activeImageIndex + 1}/{images.length}
               </Text>
-              <Text className="text-[12px] text-[#6C7A74]">/ month</Text>
             </View>
           </View>
+        ) : (
+          <View className="w-full items-center justify-center bg-[#E9EFEB]" style={{ aspectRatio: 4 / 3 }}>
+            <MaterialIcons name="apartment" size={48} color="#CBD5E1" />
+          </View>
+        )}
 
+        <View className="mt-6 px-4">
+          {/* Title & Price */}
+          <View className="gap-1">
+            <Text className="text-[24px] font-bold leading-8 text-[#161D1A]">{title}</Text>
+            <View className="flex-row items-center gap-2">
+              <Text className="text-[20px] font-bold text-[#005FB0]">{price}</Text>
+              {listing.subcategory === "Rentals" && (
+                <Text className="text-[12px] text-[#6C7A74]">/ month</Text>
+              )}
+            </View>
+            {locationText ? (
+              <View className="mt-1 flex-row items-center gap-1">
+                <MaterialIcons name="location-on" size={14} color="#6C7A74" />
+                <Text className="text-[13px] text-[#6C7A74]">{locationText}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Quick Stats */}
           <View className="mt-6 flex-row border-y border-[#BBCAC3]/30 py-4">
             <View className="flex-1 items-center border-r border-[#BBCAC3]/30">
               <MaterialIcons name="bed" size={22} color="#006B55" />
-              <Text className="mt-1 text-[12px] text-[#6C7A74]">{bhk}</Text>
+              <Text className="mt-1 text-[12px] text-[#6C7A74]">
+                {bedrooms} Bed{bedrooms !== 1 ? "s" : ""}
+              </Text>
             </View>
             <View className="flex-1 items-center border-r border-[#BBCAC3]/30">
               <MaterialIcons name="bathtub" size={22} color="#006B55" />
-              <Text className="mt-1 text-[12px] text-[#6C7A74]">3 Bath</Text>
+              <Text className="mt-1 text-[12px] text-[#6C7A74]">
+                {bathrooms} Bath{bathrooms !== 1 ? "s" : ""}
+              </Text>
             </View>
             <View className="flex-1 items-center">
               <MaterialIcons name="square-foot" size={22} color="#006B55" />
-              <Text className="mt-1 text-[12px] text-[#6C7A74]">{area}</Text>
-            </View>
-          </View>
-
-          <View className="mt-6">
-            <Text className="mb-4 text-[18px] font-semibold text-[#161D1A]">
-              Key Amenities
-            </Text>
-            <View
-              className="flex-row flex-wrap"
-              style={{ columnGap: 8, rowGap: 8 }}
-            >
-              {[
-                { icon: "fitness-center", label: "Private Gym" },
-                { icon: "pool", label: "Infinity Pool" },
-                { icon: "local-parking", label: "Valet Parking" },
-                { icon: "elevator", label: "High-speed Lift" },
-              ].map((item) => (
-                <View
-                  key={item.label}
-                  className="flex-row items-center gap-3 rounded-xl border border-[#DDE4DF]/50 bg-[#EFF5F0] p-4"
-                  style={{ width: "48.9%" }}
-                >
-                  <MaterialIcons
-                    name={item.icon as keyof typeof MaterialIcons.glyphMap}
-                    size={22}
-                    color="#006B55"
-                  />
-                  <Text className="text-[14px] text-[#161D1A]">
-                    {item.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View className="mt-6">
-            <Text className="mb-2 text-[18px] font-semibold text-[#161D1A]">
-              Description
-            </Text>
-            <Text className="text-[14px] leading-6 text-[#3C4A44]">
-              Modern sea-facing apartment with high-end finishes throughout.
-              Located in the heart of Juhu, this luxury residence offers
-              panoramic Arabian Sea views, Italian marble flooring, and smart
-              home automation. The spacious layout includes a private deck and
-              premium fixtures.
-            </Text>
-            <Pressable className="mt-2 self-start">
-              <Text className="text-[12px] font-bold text-[#006B55]">
-                Read More
+              <Text className="mt-1 text-[12px] text-[#6C7A74]">
+                {squareFeet ? `${squareFeet.toLocaleString()} Sq Ft` : "—"}
               </Text>
-            </Pressable>
+            </View>
           </View>
 
-          <View className="mt-6 rounded-2xl border border-[#BBCAC3]/30 bg-white p-4">
+          {/* Details */}
+          <View className="mt-6">
+            <Text className="mb-3 text-[18px] font-semibold text-[#161D1A]">Details</Text>
+            <View className="gap-2">
+              {listing.subcategory ? (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-[13px] text-[#6C7A74]">Type</Text>
+                  <Text className="text-[13px] font-medium text-[#161D1A]">{listing.subcategory}</Text>
+                </View>
+              ) : null}
+              {furnishing ? (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-[13px] text-[#6C7A74]">Furnishing</Text>
+                  <Text className="text-[13px] font-medium text-[#161D1A]">{furnishing}</Text>
+                </View>
+              ) : null}
+              {availableFrom ? (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-[13px] text-[#6C7A74]">Available From</Text>
+                  <Text className="text-[13px] font-medium text-[#161D1A]">{availableFrom}</Text>
+                </View>
+              ) : null}
+              <View className="flex-row justify-between py-1">
+                <Text className="text-[13px] text-[#6C7A74]">Pet Friendly</Text>
+                <Text className="text-[13px] font-medium text-[#161D1A]">
+                  {petFriendly ? "Yes" : "No"}
+                </Text>
+              </View>
+              {listing.views != null && (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-[13px] text-[#6C7A74]">Views</Text>
+                  <Text className="text-[13px] font-medium text-[#161D1A]">{listing.views}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Amenities */}
+          {features.length > 0 && (
+            <View className="mt-6">
+              <Text className="mb-4 text-[18px] font-semibold text-[#161D1A]">
+                Key Amenities
+              </Text>
+              <View className="flex-row flex-wrap" style={{ columnGap: 8, rowGap: 8 }}>
+                {features.map((feat) => (
+                  <View
+                    key={feat}
+                    className="flex-row items-center gap-2 rounded-xl border border-[#DDE4DF]/50 bg-[#EFF5F0] px-4 py-3"
+                  >
+                    <MaterialIcons name="check-circle" size={18} color="#006B55" />
+                    <Text className="text-[13px] text-[#161D1A]">{feat}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Description */}
+          {description ? (
+            <View className="mt-6">
+              <Text className="mb-2 text-[18px] font-semibold text-[#161D1A]">Description</Text>
+              <Text className="text-[14px] leading-6 text-[#3C4A44]">{description}</Text>
+            </View>
+          ) : null}
+
+          {/* Seller Card */}
+          <Pressable
+            onPress={() => {
+              if (sellerId) router.push(`/seller-public-profile?userId=${sellerId}` as Href);
+            }}
+            className="mt-6 rounded-2xl border border-[#BBCAC3]/30 bg-white p-4"
+          >
             <View className="flex-row items-center gap-4">
               <View className="relative">
-                <Image
-                  source={agentAvatar}
-                  contentFit="cover"
-                  transition={150}
-                  className="h-16 w-16 rounded-full"
-                />
-                <View className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-green-500" />
-              </View>
-
-              <View className="flex-1">
-                <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  Rajesh Malhotra
-                </Text>
-                <Text className="text-[12px] text-[#6C7A74]">
-                  Expert Real Estate • 12 years exp.
-                </Text>
-              </View>
-
-              <View className="flex-row gap-2">
-                <Pressable
-                  className="h-10 w-10 items-center justify-center rounded-full bg-[#006B55]/10"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                >
-                  <MaterialIcons name="call" size={20} color="#006B55" />
-                </Pressable>
-                <Pressable
-                  className="h-10 w-10 items-center justify-center rounded-full bg-[#006B55]/10"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                >
-                  <MaterialIcons name="chat" size={20} color="#006B55" />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          <View className="mt-6">
-            <Text className="mb-4 text-[18px] font-semibold text-[#161D1A]">
-              Location
-            </Text>
-            <View className="relative h-48 overflow-hidden rounded-2xl">
-              <Image
-                source={mapImage}
-                contentFit="cover"
-                transition={150}
-                className="h-full w-full"
-              />
-              <View className="absolute inset-0 items-center justify-center bg-black/5">
-                <View className="rounded-full bg-white p-2 shadow">
-                  <MaterialIcons name="location-on" size={20} color="#EF4444" />
-                </View>
-              </View>
-            </View>
-            <View className="mt-2 flex-row items-center gap-1">
-              <MaterialIcons name="place" size={16} color="#6C7A74" />
-              <Text className="text-[12px] text-[#6C7A74]">
-                7th Floor, Sea View Apartments, {location}
-              </Text>
-            </View>
-          </View>
-
-          <View className="mt-6">
-            <View className="mb-2 flex-row items-center justify-between">
-              <Text className="text-[18px] font-semibold text-[#161D1A]">
-                Reviews (128)
-              </Text>
-              <Pressable>
-                <Text className="text-[12px] font-medium text-[#006B55]">
-                  Read all
-                </Text>
-              </Pressable>
-            </View>
-
-            <View className="gap-4">
-              {reviews.map((review) => (
-                <View
-                  key={review.id}
-                  className="border-b border-slate-100 pb-4"
-                >
-                  <View className="mb-2 flex-row items-center gap-3">
-                    <Image
-                      source={review.avatar}
-                      contentFit="cover"
-                      transition={150}
-                      className="h-10 w-10 rounded-full"
-                    />
-
-                    <View>
-                      <Text className="text-[14px] font-semibold text-[#161D1A]">
-                        {review.name}
-                      </Text>
-                      <View className="-ml-1 flex-row">
-                        {Array.from({ length: 5 }).map((_, index) => (
-                          <MaterialIcons
-                            key={`${review.id}-${index}`}
-                            name={
-                              index < review.rating ? "star" : "star-border"
-                            }
-                            size={16}
-                            color="#CBA100"
-                          />
-                        ))}
-                      </View>
-                    </View>
-
-                    <Text className="ml-auto text-[12px] text-[#6C7A74]">
-                      {review.date}
-                    </Text>
+                {sellerProfileImage ? (
+                  <Image
+                    source={sellerProfileImage}
+                    contentFit="cover"
+                    transition={150}
+                    className="h-16 w-16 rounded-full"
+                  />
+                ) : (
+                  <View className="h-16 w-16 items-center justify-center rounded-full bg-[#E9EFEB]">
+                    <MaterialIcons name="person" size={28} color="#6C7A74" />
                   </View>
-
-                  <Text className="text-[14px] leading-5 text-[#3C4A44]">
-                    {review.text}
-                  </Text>
-                </View>
-              ))}
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-[18px] font-semibold text-[#161D1A]">{sellerName}</Text>
+                {sellerJoined ? (
+                  <Text className="text-[12px] text-[#6C7A74]">{sellerJoined}</Text>
+                ) : null}
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#6C7A74" />
             </View>
-          </View>
+          </Pressable>
         </View>
       </ScrollView>
 
+      {/* Footer */}
       <View
         className="absolute inset-x-0 bottom-0 z-50 border-t border-[#BBCAC3]/20 bg-white/90 px-4"
-        style={{
-          paddingTop: 12,
-          paddingBottom: footerBottomPadding,
-        }}
+        style={{ paddingTop: 12, paddingBottom: footerBottomPadding }}
       >
         <View className="mx-auto w-full max-w-xl flex-row gap-4">
           <Pressable
+            onPress={() => {
+              if (sellerId) {
+                router.push(
+                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "₹")}` as Href,
+                );
+              }
+            }}
             className="h-12 flex-1 items-center justify-center rounded-xl border border-[#BBCAC3]"
             style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
           >
-            <Text className="text-[18px] font-semibold text-[#161D1A]">
-              Contact Agent
-            </Text>
+            <Text className="text-[16px] font-semibold text-[#161D1A]">Contact Seller</Text>
           </Pressable>
-
           <Pressable
+            onPress={openOfferSheet}
             className="h-12 flex-[1.5] items-center justify-center rounded-xl bg-[#27BB97]"
             style={({ pressed }) => ({
               opacity: pressed ? 0.9 : 1,
@@ -402,12 +466,190 @@ export function PropertyDetailScreen() {
               elevation: 4,
             })}
           >
-            <Text className="text-[18px] font-semibold text-white">
-              Request Visit
-            </Text>
+            <Text className="text-[16px] font-semibold text-white">Make Offer</Text>
           </Pressable>
         </View>
       </View>
+
+      {/* Make Offer Bottom Sheet */}
+      <Modal
+        visible={offerVisible}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={closeOfferSheet}
+      >
+        <Pressable onPress={closeOfferSheet} className="flex-1 bg-black/40">
+          <View style={{ flex: 1, minHeight: 80 }} />
+        </Pressable>
+        <Animated.View
+          style={{
+            transform: [{
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [600, 0],
+              }),
+            }],
+          }}
+        >
+          <View
+            className="rounded-t-3xl border-t border-slate-100 bg-white"
+            style={{
+              paddingBottom: Math.max(insets.bottom, 16),
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -12 },
+              shadowOpacity: 0.15,
+              shadowRadius: 40,
+              elevation: 24,
+            }}
+          >
+            <View className="items-center py-3">
+              <View className="h-1.5 w-12 rounded-full bg-slate-200" />
+            </View>
+
+            <View className="px-4 pb-4">
+              {offerSent ? (
+                <View className="items-center py-8">
+                  <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-[#27BB97]/15">
+                    <MaterialIcons name="check-circle" size={40} color="#27BB97" />
+                  </View>
+                  <Text className="text-[20px] font-bold text-[#161D1A]">Offer Sent!</Text>
+                  <Text className="mt-1 text-center text-[14px] text-[#6C7A74]">
+                    The seller will be notified and can accept or counter.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <View className="mb-5 flex-row items-center justify-between">
+                    <Text className="text-[24px] font-bold tracking-tight text-[#161D1A]">
+                      Make an Offer
+                    </Text>
+                    <Pressable
+                      onPress={closeOfferSheet}
+                      className="rounded-full p-2"
+                      style={({ pressed }) => ({ backgroundColor: pressed ? "#F1F5F9" : "transparent" })}
+                    >
+                      <MaterialIcons name="close" size={24} color="#94A3B8" />
+                    </Pressable>
+                  </View>
+
+                  {/* Product Summary */}
+                  <View className="mb-5 flex-row items-center gap-3 rounded-xl bg-[#EFF5F0] p-3">
+                    {images[0] ? (
+                      <Image source={images[0]} contentFit="cover" className="h-14 w-14 rounded-lg" />
+                    ) : (
+                      <View className="h-14 w-14 items-center justify-center rounded-lg bg-slate-200">
+                        <MaterialIcons name="image" size={24} color="#CBD5E1" />
+                      </View>
+                    )}
+                    <View className="flex-1">
+                      <Text className="text-[13px] font-medium text-[#161D1A]" numberOfLines={1}>
+                        {title}
+                      </Text>
+                      <Text className="mt-0.5 text-[12px] font-medium uppercase text-[#6C7A74]">Listed Price</Text>
+                      <Text className="text-[16px] font-bold text-[#161D1A]">{price}</Text>
+                    </View>
+                  </View>
+
+                  {/* Recommended Offers */}
+                  {recommendedOffers.length > 0 && (
+                    <View className="mb-6">
+                      <Text className="mb-3 text-[12px] font-medium uppercase tracking-wide text-[#6C7A74]">
+                        Recommended Offers
+                      </Text>
+                      <View className="flex-row flex-wrap gap-2">
+                        {recommendedOffers.map((amt) => {
+                          const label = `\u20B9${amt.toLocaleString("en-IN")}`;
+                          const isSelected = selectedChip === String(amt);
+                          return (
+                            <Pressable
+                              key={amt}
+                              onPress={() => {
+                                setSelectedChip(String(amt));
+                                setOfferAmount(String(amt));
+                              }}
+                              className="rounded-full px-4 py-2.5"
+                              style={{
+                                borderWidth: 1.5,
+                                borderColor: isSelected ? "#006B55" : "#E2E8F0",
+                                backgroundColor: isSelected ? "rgba(39,187,151,0.1)" : "#FFFFFF",
+                              }}
+                            >
+                              <Text
+                                className="text-[14px] font-medium"
+                                style={{ color: isSelected ? "#006B55" : "#161D1A" }}
+                              >
+                                {label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Custom Input */}
+                  <View className="mb-6">
+                    <Text className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[#161D1A]">Your Offer</Text>
+                    <View className="h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
+                      <Text className="text-[20px] font-bold text-slate-400">\u20B9</Text>
+                      <TextInput
+                        value={offerAmount}
+                        onChangeText={(val) => {
+                          setOfferAmount(val.replace(/[^0-9]/g, ""));
+                          setSelectedChip("");
+                        }}
+                        keyboardType="numeric"
+                        placeholder="Enter amount"
+                        placeholderTextColor="#CBD5E1"
+                        className="ml-2 flex-1 text-[20px] font-bold text-[#161D1A]"
+                        style={{ paddingVertical: 0 }}
+                      />
+                    </View>
+                    <View className="mt-2 flex-row items-center gap-1">
+                      <MaterialIcons name="info-outline" size={14} color="#6C7A74" />
+                      <Text className="text-[12px] text-[#6C7A74]">Offers are usually 5-15% below listed price</Text>
+                    </View>
+                  </View>
+
+                  {/* Submit */}
+                  <Pressable
+                    onPress={handleSendOffer}
+                    disabled={sendingOffer || !offerAmount}
+                    className="overflow-hidden rounded-xl"
+                    style={({ pressed }) => ({
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                      opacity: !offerAmount ? 0.5 : 1,
+                    })}
+                  >
+                    <LinearGradient
+                      colors={["#27BB97", "#1E9E7E"]}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={{
+                        height: 56,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                      }}
+                    >
+                      {sendingOffer ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Text className="text-[18px] font-semibold text-white">Send Offer</Text>
+                          <MaterialIcons name="send" size={20} color="#FFFFFF" />
+                        </>
+                      )}
+                    </LinearGradient>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          </View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 }

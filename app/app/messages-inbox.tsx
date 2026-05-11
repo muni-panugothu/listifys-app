@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { MessagesInboxScreen } from "../features/messaging/screens/messages-inbox-screen";
 

@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -11,6 +11,7 @@ import {
   markNotificationRead,
 } from "@/features/auth/services/auth-api";
 import { Image } from "@/lib/nativewind-interop";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 
 function getNotifStyle(type: string) {
@@ -56,6 +57,17 @@ export function NotificationsCenterScreen() {
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      const res = await getNotifications();
+      setNotifications(res.notifications || []);
+    } catch {
+      /* silently handle */
+    }
+  }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
+
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead();
@@ -93,7 +105,19 @@ export function NotificationsCenterScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
+            progressViewOffset={topBarHeight}
+          />
+        }
+        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
+      >
         <View className="px-4">
           {/* Tabs */}
           <View className="mb-6 flex-row gap-2">

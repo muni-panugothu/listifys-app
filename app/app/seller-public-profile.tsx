@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 
 import { SellerPublicProfileScreen } from "@/features/search/screens/seller-public-profile-screen";
 

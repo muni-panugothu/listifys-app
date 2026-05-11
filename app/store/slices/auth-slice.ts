@@ -285,6 +285,9 @@ export const updateUserProfile = createAsyncThunk(
 );
 
 export const logout = createAsyncThunk("auth/logout", async () => {
+  // Disconnect Socket.IO before clearing tokens
+  const { disconnectSocket } = await import("@/features/messaging/services/socket-service");
+  disconnectSocket();
   await AsyncStorage.removeItem(USER_STORAGE_KEY);
   await clearTokens();
 });

@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack } from "@/lib/safe-router";
 import { ChangePasswordScreen } from "../features/profile/screens/change-password-screen";
 
 export default function ChangePasswordRoute() {

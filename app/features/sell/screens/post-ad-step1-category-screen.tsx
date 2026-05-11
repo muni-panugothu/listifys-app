@@ -1,120 +1,45 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { type Href, useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackHandler, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Image } from "@/lib/nativewind-interop";
+import { CATEGORY_MAP, type CategorySlug } from "@/constants/categories";
+import { useAppDispatch } from "@/store/hooks";
+import { setCategory, setSubcategory as setSubcategoryAction } from "@/store/slices/post-form-slice";
 
-type Category = {
-  id: string;
-  title: string;
-  icon: React.ComponentProps<typeof MaterialIcons>["name"];
-};
-
-type Subcategory = {
-  id: string;
-  title: string;
-  icon: React.ComponentProps<typeof MaterialIcons>["name"];
-};
-
-type CategoryId =
-  | "electronics"
-  | "vehicles"
-  | "property"
-  | "fashion"
-  | "home"
-  | "jobs"
-  | "furniture";
-
-const categories: Array<Category & { id: CategoryId }> = [
-  { id: "electronics", title: "Electronics", icon: "devices" },
-  { id: "vehicles", title: "Vehicles", icon: "directions-car" },
-  { id: "property", title: "Property", icon: "home" },
-  { id: "fashion", title: "Fashion", icon: "checkroom" },
-  { id: "home", title: "Home", icon: "chair" },
-  { id: "jobs", title: "Jobs", icon: "work" },
-  { id: "furniture", title: "Furniture", icon: "chair" },
-];
-
-const subcategoriesMap: Record<CategoryId, Subcategory[]> = {
-  electronics: [
-    { id: "laptops", title: "Laptops & Computers", icon: "laptop-mac" },
-    { id: "phones", title: "Mobile Phones", icon: "smartphone" },
-    { id: "cameras", title: "Cameras & Photography", icon: "camera" },
-    { id: "audio", title: "Audio & Accessories", icon: "headphones" },
-    { id: "tv", title: "TV & Video Equipment", icon: "tv" },
-  ],
-  vehicles: [
-    { id: "cars", title: "Cars", icon: "directions-car" },
-    { id: "bikes", title: "Motorcycles", icon: "two-wheeler" },
-    { id: "parts", title: "Vehicle Parts", icon: "build" },
-  ],
-  property: [
-    { id: "apartments", title: "Apartments", icon: "apartment" },
-    { id: "houses", title: "Houses & Villas", icon: "home" },
-    { id: "commercial", title: "Commercial Space", icon: "store" },
-  ],
-  fashion: [
-    { id: "menswear", title: "Men's Fashion", icon: "checkroom" },
-    { id: "womenswear", title: "Women's Fashion", icon: "style" },
-    { id: "accessories", title: "Accessories", icon: "watch" },
-  ],
-  home: [
-    { id: "furniture", title: "Furniture", icon: "chair" },
-    { id: "appliances", title: "Home Appliances", icon: "kitchen" },
-    { id: "decor", title: "Home Decor", icon: "light" },
-  ],
-  jobs: [
-    { id: "full-time", title: "Full-Time Jobs", icon: "badge" },
-    { id: "part-time", title: "Part-Time Jobs", icon: "schedule" },
-    { id: "freelance", title: "Freelance Gigs", icon: "laptop" },
-  ],
-  furniture: [
-    { id: "sofas", title: "Sofas & Couches", icon: "chair" },
-    { id: "tables", title: "Tables & Desks", icon: "table-restaurant" },
-    { id: "beds", title: "Beds & Mattresses", icon: "bed" },
-  ],
-};
-
-const defaultCategoryId: CategoryId = "electronics";
+const defaultCategorySlug: CategorySlug = "electronics";
 
 const getCategoryParam = (value?: string | string[]) =>
   typeof value === "string" ? value : value?.[0];
 
-const getValidCategoryId = (value?: string | string[]): CategoryId => {
-  const categoryId = getCategoryParam(value);
-
-  if (categories.some((category) => category.id === categoryId)) {
-    return categoryId as CategoryId;
-  }
-
-  return defaultCategoryId;
+const getValidCategorySlug = (value?: string | string[]): CategorySlug => {
+  const slug = getCategoryParam(value);
+  if (slug && slug in CATEGORY_MAP) return slug as CategorySlug;
+  return defaultCategorySlug;
 };
-
-const featuredBannerImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDqm29wPN47CqCaKKRW4RaY6lmrRz-UsgdBsk160WYD1oUifwnwMfpUf-l7_mgN_ZWSZfpvIzQAj3UxOQ9bH5GIplKBHlapSr_FQUDjag4shYNt9B_ta4fUyPh826ohA333SKCyzn-Wxbq-UL-gCFj3paZfwkFPSibvj_uYvH9fTcOXZpg7l_tS9QczWTfsYPLvnLNGZoxqpVa-Qta8VUrPAx6Lj5qYvnkYQmYCAUNIMYUHoymdweQKimVLE-0uOJ2cWKsBqWFNLO8";
 
 export function PostAdStep1CategoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string | string[] }>();
   const insets = useSafeAreaInsets();
-  const initialCategoryId = getValidCategoryId(params.category);
-  const [selectedCategory, setSelectedCategory] = useState(initialCategoryId);
-  const [selectedSubcategory, setSelectedSubcategory] = useState(
-    subcategoriesMap[initialCategoryId]?.[0]?.id ?? ""
+  const dispatch = useAppDispatch();
+
+  const categorySlug = getValidCategorySlug(params.category);
+  const categoryConfig = CATEGORY_MAP[categorySlug];
+  const subcategories = categoryConfig?.subcategories ?? [];
+
+  const [selectedSubcategory, setSelectedSubcategoryLocal] = useState(
+    subcategories[0] ?? "",
   );
   const [searchQuery, setSearchQuery] = useState("");
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
-  const subcategories = subcategoriesMap[selectedCategory] ?? [];
-  const selectedSubLabel =
-    subcategories.find((s) => s.id === selectedSubcategory)?.title ?? "";
 
   const handleBack = () => {
-    router.replace("/home-feed-root" as Href);
+    router.back();
   };
 
   useFocusEffect(
@@ -123,18 +48,30 @@ export function PostAdStep1CategoryScreen() {
         handleBack();
         return true;
       };
-
       const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
       return () => sub.remove();
     }, [router]),
   );
 
+  // Sync category to redux on mount / param change
   useEffect(() => {
-    const nextCategoryId = getValidCategoryId(params.category);
+    dispatch(setCategory(categorySlug));
+    const firstSub = subcategories[0] ?? "";
+    setSelectedSubcategoryLocal(firstSub);
+    dispatch(setSubcategoryAction(firstSub));
+  }, [categorySlug, dispatch]);
 
-    setSelectedCategory(nextCategoryId);
-    setSelectedSubcategory(subcategoriesMap[nextCategoryId]?.[0]?.id ?? "");
-  }, [params.category]);
+  const handleSubcategorySelect = (sub: string) => {
+    setSelectedSubcategoryLocal(sub);
+    dispatch(setSubcategoryAction(sub));
+  };
+
+  // Filter subcategories by search
+  const filteredSubcategories = searchQuery.trim()
+    ? subcategories.filter((s) =>
+        s.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : subcategories;
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -163,9 +100,12 @@ export function PostAdStep1CategoryScreen() {
             Step 1 of 3
           </Text>
         </View>
-        <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        <Pressable
+          onPress={() => router.push("/sell-entry")}
+          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+        >
           <Text className="text-[12px] font-semibold text-[#27BB97]">
-            Save as Draft
+            Change Category
           </Text>
         </Pressable>
       </View>
@@ -178,121 +118,129 @@ export function PostAdStep1CategoryScreen() {
         }}
       >
         <View className="px-4">
-          {/* Header */}
+          {/* Selected Category Header */}
           <View className="mb-6">
-            <Text className="mb-2 text-[24px] font-bold tracking-tight text-[#161D1A]">
-              Choose category
+            <Text className="mb-1 text-[12px] font-medium uppercase tracking-wider text-[#6C7A74]">
+              Category
             </Text>
-            <Text className="mb-6 text-[14px] leading-5 text-[#6C7A74]">
-              Select a category that best describes what you are selling.
-            </Text>
-            {/* Search */}
-            <View className="h-12 flex-row items-center rounded-lg border border-slate-200 bg-white px-4">
-              <MaterialIcons name="search" size={22} color="#6C7A74" />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search categories (e.g. iPhone, Sofa)"
-                placeholderTextColor="#94A3B8"
-                className="ml-2 flex-1 text-[14px] text-[#161D1A]"
-                style={{ paddingVertical: 0 }}
-              />
+            <View
+              className="flex-row items-center rounded-2xl bg-white p-4"
+              style={{
+                borderWidth: 2,
+                borderColor: "#27BB97",
+                shadowColor: "#27BB97",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 3,
+              }}
+            >
+              <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-[#D7F8EF]">
+                <MaterialIcons
+                  name={categoryConfig?.icon ?? "category"}
+                  size={26}
+                  color="#27BB97"
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[20px] font-bold text-[#161D1A]">
+                  {categoryConfig?.name ?? "Category"}
+                </Text>
+                <Text className="text-[12px] text-[#6C7A74]">
+                  {subcategories.length} subcategories available
+                </Text>
+              </View>
+              <MaterialIcons name="check-circle" size={24} color="#27BB97" />
             </View>
           </View>
 
-          {/* Category Grid */}
-          <View className="mb-8 gap-3">
-            {categories.map((cat) => {
-              const isSelected = cat.id === selectedCategory;
+          {/* Subcategory Selection */}
+          <View className="mb-4">
+            <Text className="mb-2 text-[22px] font-bold tracking-tight text-[#161D1A]">
+              Select subcategory
+            </Text>
+            <Text className="mb-5 text-[14px] leading-5 text-[#6C7A74]">
+              Pick the subcategory that best matches your listing.
+            </Text>
+
+            {/* Search subcategories */}
+            {subcategories.length > 5 && (
+              <View className="mb-4 h-12 flex-row items-center rounded-xl border border-slate-200 bg-white px-4">
+                <MaterialIcons name="search" size={20} color="#6C7A74" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder={`Search in ${categoryConfig?.name ?? "subcategories"}...`}
+                  placeholderTextColor="#94A3B8"
+                  className="ml-2 flex-1 text-[14px] text-[#161D1A]"
+                  style={{ paddingVertical: 0 }}
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery("")}>
+                    <MaterialIcons name="close" size={18} color="#94A3B8" />
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Subcategory List */}
+          <View className="mb-8 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+            {filteredSubcategories.length === 0 && (
+              <View className="items-center py-8">
+                <MaterialIcons name="search-off" size={36} color="#CBD5E1" />
+                <Text className="mt-2 text-[14px] text-[#6C7A74]">
+                  No subcategories match "{searchQuery}"
+                </Text>
+              </View>
+            )}
+            {filteredSubcategories.map((sub, index) => {
+              const isSelected = sub === selectedSubcategory;
               return (
                 <Pressable
-                  key={cat.id}
-                  onPress={() => {
-                    setSelectedCategory(cat.id);
-                    const subs = subcategoriesMap[cat.id];
-                    if (subs?.length) setSelectedSubcategory(subs[0].id);
-                  }}
-                  className="flex-row items-center rounded-xl bg-white p-4"
-                  style={{
-                    borderWidth: isSelected ? 2 : 1,
-                    borderColor: isSelected ? "#27BB97" : "#F1F5F9",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 3,
-                    elevation: 1,
-                  }}
+                  key={sub}
+                  onPress={() => handleSubcategorySelect(sub)}
+                  className="flex-row items-center px-4 py-4"
+                  style={({ pressed }) => ({
+                    backgroundColor: isSelected
+                      ? "rgba(39,187,151,0.06)"
+                      : pressed
+                        ? "#F8FAF9"
+                        : "transparent",
+                    borderBottomWidth: index < filteredSubcategories.length - 1 ? 1 : 0,
+                    borderBottomColor: "#F1F5F9",
+                  })}
                 >
                   <View
-                    className="mr-4 h-12 w-12 items-center justify-center rounded-lg"
+                    className="mr-3 h-9 w-9 items-center justify-center rounded-lg"
                     style={{
-                      backgroundColor: isSelected
-                        ? "rgba(39,187,151,0.1)"
-                        : "#EEF7F3",
+                      backgroundColor: isSelected ? "#D7F8EF" : "#F4F7F5",
                     }}
                   >
                     <MaterialIcons
-                      name={cat.icon}
-                      size={24}
-                      color={isSelected ? "#27BB97" : "#3C4A44"}
+                      name={isSelected ? "check" : "label-outline"}
+                      size={18}
+                      color={isSelected ? "#27BB97" : "#94A3B8"}
                     />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-[18px] font-semibold text-[#161D1A]">
-                      {cat.title}
-                    </Text>
-                    {isSelected && (
-                      <Text className="text-[12px] font-medium text-[#27BB97]">
-                        Selected
-                      </Text>
-                    )}
-                  </View>
-                  {isSelected && (
-                    <MaterialIcons
-                      name="check-circle"
-                      size={24}
-                      color="#27BB97"
-                    />
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Subcategories */}
-          <View className="mb-8 overflow-hidden rounded-2xl border border-slate-100 bg-white">
-            <View className="border-b border-slate-50 px-4 py-3">
-              <Text className="text-[12px] font-medium uppercase tracking-wider text-[#6C7A74]">
-                Subcategories in{" "}
-                {categories.find((c) => c.id === selectedCategory)?.title}
-              </Text>
-            </View>
-            {subcategories.map((sub) => {
-              const isSelected = sub.id === selectedSubcategory;
-              return (
-                <Pressable
-                  key={sub.id}
-                  onPress={() => setSelectedSubcategory(sub.id)}
-                  className="flex-row items-center border-b border-slate-50 px-4 py-4"
-                  style={({ pressed }) => ({
-                    backgroundColor: pressed ? "#EFF5F0" : "transparent",
-                  })}
-                >
-                  <View className="mr-4 h-10 w-10 items-center justify-center rounded-full bg-slate-50">
-                    <MaterialIcons name={sub.icon} size={22} color="#3C4A44" />
-                  </View>
-                  <Text className="flex-1 text-[16px] text-[#161D1A]">
-                    {sub.title}
+                  <Text
+                    className="flex-1 text-[15px]"
+                    style={{
+                      color: isSelected ? "#161D1A" : "#3C4A44",
+                      fontWeight: isSelected ? "600" : "400",
+                    }}
+                  >
+                    {sub}
                   </Text>
                   <View
-                    className="h-5 w-5 items-center justify-center rounded-full border-2"
+                    className="h-5.5 w-5.5 items-center justify-center rounded-full border-2"
                     style={{
                       borderColor: isSelected ? "#27BB97" : "#CBD5E1",
                       backgroundColor: isSelected ? "#27BB97" : "transparent",
                     }}
                   >
                     {isSelected && (
-                      <View className="h-2 w-2 rounded-full bg-white" />
+                      <View className="h-2.5 w-2.5 rounded-full bg-white" />
                     )}
                   </View>
                 </Pressable>
@@ -300,32 +248,17 @@ export function PostAdStep1CategoryScreen() {
             })}
           </View>
 
-          {/* Featured Banner */}
-          <View className="mb-8 h-40 overflow-hidden rounded-2xl">
-            <Image
-              source={featuredBannerImage}
-              contentFit="cover"
-              transition={200}
-              className="h-full w-full"
-            />
-            <LinearGradient
-              colors={["rgba(0,69,53,0.8)", "transparent"]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={{ position: "absolute", inset: 0 }}
-            />
-            <View className="absolute inset-0 justify-center px-6">
-              <Text className="mb-1 text-[12px] font-medium text-white/80">
-                Selling Business Assets?
+          {/* Tip Card */}
+          <View className="mb-8 flex-row items-start gap-3 rounded-2xl bg-[#E8F7F1] px-4 py-4">
+            <MaterialIcons name="lightbulb-outline" size={20} color="#27BB97" />
+            <View className="flex-1">
+              <Text className="mb-1 text-[13px] font-semibold text-[#161D1A]">
+                Tip: Choose the right subcategory
               </Text>
-              <Text className="mb-2 text-[20px] font-semibold text-white">
-                List in Enterprise Category
+              <Text className="text-[12px] leading-4.5 text-[#6C7A74]">
+                Listings in the correct subcategory get up to 3x more views and
+                sell faster.
               </Text>
-              <Pressable className="self-start rounded-full border border-white/30 bg-white/20 px-4 py-1.5">
-                <Text className="text-[12px] font-medium text-white">
-                  Explore Pro Tools
-                </Text>
-              </Pressable>
             </View>
           </View>
         </View>
@@ -344,12 +277,10 @@ export function PostAdStep1CategoryScreen() {
           elevation: 8,
         }}
       >
-        <View className="flex-1">
-          <Text className="text-[12px] text-[#6C7A74]">
-            Selected:{" "}
-            <Text className="font-bold text-[#161D1A]">
-              {selectedSubLabel}
-            </Text>
+        <View className="flex-1 mr-3">
+          <Text className="text-[11px] text-[#6C7A74]">Selected</Text>
+          <Text numberOfLines={1} className="text-[14px] font-bold text-[#161D1A]">
+            {categoryConfig?.name} › {selectedSubcategory}
           </Text>
         </View>
         <Pressable
@@ -364,13 +295,16 @@ export function PostAdStep1CategoryScreen() {
             end={{ x: 1, y: 0.5 }}
             style={{
               height: 48,
-              paddingHorizontal: 40,
-              borderRadius: 8,
+              paddingHorizontal: 36,
+              borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",
+              flexDirection: "row",
+              gap: 6,
             }}
           >
             <Text className="text-[14px] font-bold text-white">Next</Text>
+            <MaterialIcons name="arrow-forward" size={18} color="#FFF" />
           </LinearGradient>
         </Pressable>
       </View>

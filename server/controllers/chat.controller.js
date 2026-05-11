@@ -136,11 +136,19 @@ const formatUser = (u) => {
 
 // ==================== GET OR CREATE CONVERSATION ====================
 // POST /api/chat/conversations
-// Body: { recipientId, listingId?, listingType?, listingTitle? }
+// Body: { recipientId, listingId?, listingType?, listingTitle?, listingPrice?, listingImage?, currency? }
 exports.getOrCreateConversation = async (req, res) => {
   try {
     const senderId = req.user.id;
-    const { recipientId, listingId, listingType, listingTitle } = req.body;
+    const {
+      recipientId,
+      listingId,
+      listingType,
+      listingTitle,
+      listingPrice,
+      listingImage,
+      currency,
+    } = req.body;
 
     if (!recipientId) {
       return res.status(400).json({ success: false, message: "recipientId is required" });
@@ -188,8 +196,22 @@ exports.getOrCreateConversation = async (req, res) => {
 
     if (!conversation) {
       const listingData = listingId
-        ? { listingId, listingType, listingTitle }
-        : { listingId: null, listingType: null, listingTitle: null };
+        ? {
+            listingId,
+            listingType,
+            listingTitle,
+            listingPrice: listingPrice != null ? Number(listingPrice) : null,
+            listingImage: listingImage || null,
+            currency: currency || "₹",
+          }
+        : {
+            listingId: null,
+            listingType: null,
+            listingTitle: null,
+            listingPrice: null,
+            listingImage: null,
+            currency: "₹",
+          };
       const participants = getOrderedParticipantIds(senderId, recipientId);
 
       conversation = await Conversation.create({
@@ -334,6 +356,14 @@ exports.getMessages = async (req, res) => {
         .skip(skip)
         .limit(limit)
         .populate("sender", "name profileImage googleProfileImage avatar provider")
+        .populate({
+          path: "replyTo",
+          select: "content sender attachments createdAt",
+          populate: {
+            path: "sender",
+            select: "name profileImage googleProfileImage avatar provider",
+          },
+        })
         .lean(),
       Message.countDocuments({ conversation: conversationId, deletedFor: { $ne: userId } }),
     ]);
@@ -347,6 +377,16 @@ exports.getMessages = async (req, res) => {
       status: m.status || 'sent',
       deliveredTo: m.deliveredTo?.map((id) => id.toString()) || [],
       readBy: m.readBy?.map((id) => id.toString()) || [],
+      replyTo: m.replyTo
+        ? {
+            _id: m.replyTo._id,
+            sender: formatUser(m.replyTo.sender),
+            content: safeDecrypt(m.replyTo.content || ""),
+            attachments: m.replyTo.attachments || [],
+            createdAt: m.replyTo.createdAt,
+          }
+        : null,
+      reactions: m.reactions || [],
       createdAt: m.createdAt,
     }));
 
@@ -382,7 +422,7 @@ exports.sendMessage = async (req, res) => {
     if (!isValidId(conversationId)) {
       return res.status(400).json({ success: false, message: "Invalid conversationId" });
     }
-    const { content, attachments } = req.body;
+    const { content, attachments, replyTo } = req.body;
 
     const safeAttachments = normalizeAttachments(attachments);
     const plainContent = String(content || "").trim();
@@ -394,6 +434,10 @@ exports.sendMessage = async (req, res) => {
       return res.status(400).json({ success: false, message: `Message content exceeds ${MAX_MESSAGE_LENGTH} characters` });
     }
 
+    if (replyTo && !isValidId(replyTo)) {
+      return res.status(400).json({ success: false, message: "Invalid replyTo message id" });
+    }
+
     // Verify participation
     const conversation = await Conversation.findOne({
       _id: conversationId,
@@ -401,6 +445,15 @@ exports.sendMessage = async (req, res) => {
     });
     if (!conversation) {
       return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    let replyToId = null;
+    if (replyTo) {
+      const parent = await Message.findOne({ _id: replyTo, conversation: conversationId }).select("_id").lean();
+      if (!parent) {
+        return res.status(400).json({ success: false, message: "Reply message not found in this conversation" });
+      }
+      replyToId = parent._id;
     }
 
     // Encrypt content before storing
@@ -412,6 +465,7 @@ exports.sendMessage = async (req, res) => {
       sender: userId,
       content: encryptedContent,
       attachments: safeAttachments,
+      replyTo: replyToId,
       readBy: [userId], // sender has read it
     });
 
@@ -440,6 +494,7 @@ exports.sendMessage = async (req, res) => {
       sender: formatUser(message.sender),
       content: plainContent,
       attachments: message.attachments || [],
+      replyTo: replyToId,
       status: 'sent',
       deliveredTo: [],
       readBy: message.readBy?.map((id) => id.toString()) || [],
@@ -750,7 +805,7 @@ exports.getUnreadCount = async (req, res) => {
 
 // ==================== MAKE OFFER (Chat + Email) ====================
 // POST /api/chat/make-offer
-// Body: { recipientId, listingId, listingType, listingTitle, offerAmount, listingPrice, productImage? }
+// Body: { recipientId, listingId, listingType, listingTitle, offerAmount, listingPrice, productImage?, currency? }
 exports.makeOffer = async (req, res) => {
   try {
     const senderId = req.user.id;
@@ -801,8 +856,22 @@ exports.makeOffer = async (req, res) => {
       conversation = await Conversation.create({
         participants,
         listing: listingId
-          ? { listingId, listingType, listingTitle }
-          : { listingId: null, listingType: null, listingTitle: null },
+          ? {
+              listingId,
+              listingType,
+              listingTitle,
+              listingPrice: listingPrice != null ? Number(listingPrice) : null,
+              listingImage: productImage || null,
+              currency: currency || "₹",
+            }
+          : {
+              listingId: null,
+              listingType: null,
+              listingTitle: null,
+              listingPrice: null,
+              listingImage: null,
+              currency: "₹",
+            },
         unreadCounts: new Map([[recipientId, 0], [senderId, 0]]),
       });
     }
