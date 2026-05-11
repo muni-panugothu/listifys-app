@@ -1,6 +1,6 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { type Href, useRouter } from "@/lib/safe-router";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -61,6 +61,7 @@ function getGoogleSigninModule() {
 
 export function SignInScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ redirectTo?: string | string[] }>();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { status, error, isAuthenticated } = useAppSelector((s) => s.auth);
@@ -71,12 +72,20 @@ export function SignInScreen() {
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
   const isLoading = status === "loading";
+  const redirectTo = useMemo(() => {
+    const raw = params.redirectTo;
+    return Array.isArray(raw) ? raw[0] : raw;
+  }, [params.redirectTo]);
 
   useEffect(() => {
     if (isAuthenticated) {
+      if (redirectTo && redirectTo.startsWith("/")) {
+        router.replace(redirectTo as Href);
+        return;
+      }
       router.replace("/home-feed-root" as Href);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, redirectTo, router]);
 
   useEffect(() => {
     if (error) {

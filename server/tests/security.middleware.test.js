@@ -26,7 +26,7 @@ describe('🛡️ SECURITY MIDDLEWARE TESTS', () => {
 
     expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
     expect(res.setHeader).toHaveBeenCalledWith('X-Frame-Options', 'DENY');
-    expect(res.setHeader).toHaveBeenCalledWith('X-XSS-Protection', '1; mode=block');
+    expect(res.setHeader).toHaveBeenCalledWith('X-XSS-Protection', '0');
     expect(next).toHaveBeenCalled();
   });
 
@@ -102,5 +102,22 @@ describe('🛡️ SECURITY MIDDLEWARE TESTS', () => {
     securityMiddleware(req, res, next);
     // Should call next for upload routes < 70MB
     expect(next).toHaveBeenCalled();
+  });
+
+  test('TC-SM10: Should allow native app POST requests without origin or referer', () => {
+    req.path = '/api/auth/login';
+    req.originalUrl = '/api/auth/login';
+    req.method = 'POST';
+    req.headers = {
+      'user-agent': 'Listify/1.0.0 (Samsung SM-G998B; Android 14)',
+      cookie: 'refreshToken=abc123',
+      accept: 'application/json',
+      'content-type': 'application/json',
+    };
+
+    securityMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
   });
 });

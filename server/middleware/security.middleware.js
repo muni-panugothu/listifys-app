@@ -88,7 +88,7 @@ const securityMiddleware = (req, res, next) => {
     const hasCookieHeader = typeof req.headers.cookie === 'string' && req.headers.cookie.length > 0;
     const hasFetchMetadata = typeof req.headers['sec-fetch-site'] === 'string';
     const apiClientPatterns = ['thunder client', 'postman', 'insomnia', 'curl/', 'httpie', 'paw/'];
-    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp/', 'dart', 'android', 'cfnetwork'];
+    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp/', 'dart', 'android', 'cfnetwork', 'listify/'];
     const isLikelyApiClient = !hasFetchMetadata && apiClientPatterns.some((pattern) => userAgent.includes(pattern));
     const isLikelyMobileApp = !hasFetchMetadata && mobileAppPatterns.some((pattern) => userAgent.includes(pattern));
     const isLikelyNonBrowserClient = isLikelyApiClient || isLikelyMobileApp || (!hasCookieHeader && !hasFetchMetadata);

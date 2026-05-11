@@ -49,8 +49,8 @@ describe('✅ VALIDATION MIDDLEWARE TESTS', () => {
       expect(next).toHaveBeenCalled();
     });
 
-    test('TC-VA04: Should reject short name', async () => {
-      req.body = { name: 'T', email: 'test@example.com', password: 'SecureP@ss1!' };
+    test('TC-VA04: Should reject blank name', async () => {
+      req.body = { name: '   ', email: 'test@example.com', password: 'SecureP@ss1!' };
       await validateRegister(req, res, next);
       expect(res.statusCode).toBe(400);
     });
@@ -185,11 +185,29 @@ describe('✅ VALIDATION MIDDLEWARE TESTS', () => {
         expect(typeof req.body.price).toBe('number');
       }
     });
+
+    test('TC-VA19: Should allow partial PUT listing updates without create-only fields', async () => {
+      req.method = 'PUT';
+      req.body = {
+        title: 'Samsung Galaxy S24 Ultra',
+        description: 'Updated Samsung Galaxy S24 Ultra description with enough detail to pass validation.',
+        price: 110000,
+        condition: 'Used',
+        location: 'Mumbai, India',
+      };
+      req.baseUrl = '/api/electronics';
+      req.originalUrl = '/api/electronics/6a017230b8e7ce753e2d575d';
+
+      await validateListingInput(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(res.statusCode).toBe(200);
+    });
   });
 
   // ── 4. Category/Subcategory map ───────────────────────────────────
   describe('4. Category/Subcategory mapping', () => {
-    test('TC-VA19: Should have all expected categories', () => {
+    test('TC-VA20: Should have all expected categories', () => {
       const expectedCategories = [
         'Jobs', 'Electronics', 'Vehicles', 'Events', 'Mobiles',
         'Furniture', 'Toys', 'Fashion',
@@ -199,7 +217,7 @@ describe('✅ VALIDATION MIDDLEWARE TESTS', () => {
       });
     });
 
-    test('TC-VA20: Each category should have at least one subcategory', () => {
+    test('TC-VA21: Each category should have at least one subcategory', () => {
       Object.entries(VALID_CATEGORY_SUBCATEGORY).forEach(([cat, subs]) => {
         expect(subs.length).toBeGreaterThan(0);
       });

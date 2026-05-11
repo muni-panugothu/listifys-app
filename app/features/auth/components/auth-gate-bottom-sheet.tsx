@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import type { AuthGateAction } from "@/store/slices/auth-gate-slice";
 import { googleLogin, sendPhoneOtp, verifyPhoneOtp } from "@/store/slices/auth-slice";
 
 // ── Google Sign-In dynamic import ──────────────────────────────────────────────
@@ -49,17 +50,27 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   /** What action the user was trying to do (for the title) */
-  action?: "save" | "message" | "offer" | "general";
+  action?: AuthGateAction;
+  onAuthenticated?: () => void;
+  emailSignInHref?: Href;
 };
 
 const ACTION_TITLES: Record<string, string> = {
-  save: "Save this item",
-  message: "Message the seller",
-  offer: "Make an offer",
-  general: "Continue",
+  save: "save this item",
+  message: "message the seller",
+  offer: "make an offer",
+  general: "continue",
+  sell: "start selling",
+  profile: "open your profile",
 };
 
-export function AuthGateBottomSheet({ visible, onClose, action = "general" }: Props) {
+export function AuthGateBottomSheet({
+  visible,
+  onClose,
+  action = "general",
+  onAuthenticated,
+  emailSignInHref = "/sign-in",
+}: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
@@ -77,9 +88,10 @@ export function AuthGateBottomSheet({ visible, onClose, action = "general" }: Pr
   // Close on successful auth
   useEffect(() => {
     if (isAuthenticated && visible) {
+      onAuthenticated?.();
       onClose();
     }
-  }, [isAuthenticated, visible, onClose]);
+  }, [isAuthenticated, visible, onAuthenticated, onClose]);
 
   // Animate in
   useEffect(() => {
@@ -357,7 +369,7 @@ export function AuthGateBottomSheet({ visible, onClose, action = "general" }: Pr
 
             {/* Sign in with email link */}
             <Pressable
-              onPress={() => { onClose(); router.push("/sign-in" as Href); }}
+              onPress={() => { onClose(); router.push(emailSignInHref); }}
               className="items-center py-3"
             >
               <Text className="text-[14px] text-[#6C7A74]">
