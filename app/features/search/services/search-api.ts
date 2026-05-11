@@ -11,7 +11,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import * as Device from "expo-device";
+import { requireOptionalNativeModule } from "expo-modules-core";
 
 import {
   AUTH_API_BASE_URL,
@@ -20,14 +20,23 @@ import {
   resolveAbsoluteMediaUrl,
 } from "@/features/auth/services/auth-api";
 
+type ExpoDeviceModule = {
+  brand?: string | null;
+  modelName?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
+};
+
+const deviceModule = requireOptionalNativeModule<ExpoDeviceModule>("ExpoDevice");
+
 // ── User Agent ──────────────────────────────────────────────────────────────────
 
 function buildUserAgent(): string {
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const brand = Device.brand ?? "Unknown";
-  const modelName = Device.modelName ?? "Unknown";
-  const osName = Device.osName ?? Platform.OS;
-  const osVersion = Device.osVersion ?? Platform.Version?.toString() ?? "";
+  const brand = deviceModule?.brand ?? "Unknown";
+  const modelName = deviceModule?.modelName ?? "Unknown";
+  const osName = deviceModule?.osName ?? Platform.OS;
+  const osVersion = deviceModule?.osVersion ?? Platform.Version?.toString() ?? "";
   return `Listify/${appVersion} (${brand} ${modelName}; ${osName} ${osVersion})`;
 }
 
