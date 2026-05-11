@@ -45,32 +45,33 @@ export function PostAdStep3MediaScreen() {
   const dispatch = useAppDispatch();
 
   const {
-    category,
-    subcategory,
-    title,
-    description,
-    price,
-    condition,
-    location,
-    listingType,
-    bedrooms,
-    bathrooms,
-    furnishing,
-    squareFeet,
-    features,
-    petFriendly,
-    availableFrom,
-    imageUris,
-    phone,
-    phoneCode,
-    isSubmitting,
-    submitError,
+    category, subcategory, title, description, price, condition, location, listingType,
+    bedrooms, bathrooms, furnishing, squareFeet, features, petFriendly, availableFrom,
+    genderPreference, occupancy,
+    brand, model: productModel, warranty, purchaseYear, screenSize, displayType,
+    processor, ram, storage, capacity, energyRating, megapixels, lensType,
+    variant, year, kmDriven, fuelType, transmission, ownership, color, engineCC,
+    cycleType, gearCount, frameSize, compatibleVehicle, partCategory,
+    companyName, companyEmail, applyLink, jobType, experience, education,
+    employmentType, workMode, salaryMin, salaryMax, salaryType, industry, positions,
+    availability, age, languages, certifications,
+    eventDate, eventTime, organizer, venue, ticketsAvailable, ageRestriction, dressCode,
+    batteryHealth,
+    material, dimensions, weight, assemblyRequired, numberOfPieces,
+    size, gender, fabricType,
+    sportType, ageGroup,
+    era, rarity, authenticity, origin,
+    breed, petAge, vaccinated, trained,
+    author, isbn, publisher, edition, language, pages,
+    skinType, shade, volume, ingredients, expiryDate,
+    batteryRequired, playMode, characterTheme,
+    imageUris, phone, phoneCode, isSubmitting, submitError,
   } = useAppSelector((s) => s.postForm);
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
 
   const handleBack = () => {
-    router.replace("/home-feed-root" as Href);
+    router.replace("/post-ad-step2-details" as Href);
   };
 
   useFocusEffect(
@@ -176,6 +177,208 @@ export function PostAdStep3MediaScreen() {
         if (features.length > 0) listingBody.features = features;
         listingBody.petFriendly = petFriendly;
         if (availableFrom) listingBody.availableFrom = availableFrom;
+        if (genderPreference) listingBody.genderPreference = genderPreference;
+        if (occupancy) listingBody.occupancy = occupancy;
+      }
+
+      // Attach electronics-specific fields
+      if (category === "electronics") {
+        if (brand) listingBody.brand = brand;
+        if (productModel) listingBody.model = productModel;
+        if (warranty) listingBody.warranty = warranty;
+        if (purchaseYear) listingBody.purchaseYear = Number(purchaseYear);
+        if (screenSize) listingBody.screenSize = screenSize;
+        if (displayType) listingBody.displayType = displayType;
+        if (processor) listingBody.processor = processor;
+        if (ram) listingBody.ram = ram;
+        if (storage) listingBody.storage = storage;
+        if (capacity) listingBody.capacity = capacity;
+        if (energyRating) listingBody.energyRating = energyRating;
+        if (megapixels) listingBody.megapixels = megapixels;
+        if (lensType) listingBody.lensType = lensType;
+      }
+
+      // Attach vehicle-specific fields
+      if (category === "vehicles") {
+        if (brand) listingBody.brand = brand;
+        if (productModel) listingBody.model = productModel;
+        if (variant) listingBody.variant = variant;
+        if (year) listingBody.year = year;
+        if (kmDriven) listingBody.kmDriven = kmDriven;
+        if (fuelType) listingBody.fuelType = fuelType;
+        if (transmission) listingBody.transmission = transmission;
+        if (ownership) listingBody.ownership = ownership;
+        if (color) listingBody.color = color;
+        if (engineCC) listingBody.engineCC = engineCC;
+        if (cycleType) listingBody.cycleType = cycleType;
+        if (gearCount) listingBody.gearCount = gearCount;
+        if (frameSize) listingBody.frameSize = frameSize;
+        if (compatibleVehicle) listingBody.compatibleVehicle = compatibleVehicle;
+        if (partCategory) listingBody.partCategory = partCategory;
+      }
+
+      // Attach job-specific fields
+      if (category === "jobs") {
+        if (companyName) listingBody.companyName = companyName;
+        if (companyEmail) listingBody.companyEmail = companyEmail;
+        if (applyLink) listingBody.applyLink = applyLink;
+        if (jobType) listingBody.jobType = jobType;
+        if (experience) listingBody.experience = experience;
+        if (education) listingBody.education = education;
+        if (employmentType) listingBody.employmentType = employmentType;
+        if (workMode) listingBody.workMode = workMode;
+        if (salaryMin || salaryMax) {
+          listingBody.salary = {
+            ...(salaryMin ? { min: Number(salaryMin) } : {}),
+            ...(salaryMax ? { max: Number(salaryMax) } : {}),
+            ...(salaryType ? { type: salaryType } : {}),
+          };
+        }
+        if (salaryType) listingBody.salaryType = salaryType;
+        if (industry) listingBody.industry = industry;
+        if (positions) listingBody.positions = Number(positions);
+      }
+
+      // Attach takecare-specific fields
+      if (category === "takecare") {
+        if (experience) listingBody.experience = experience;
+        if (availability) listingBody.availability = availability;
+        if (age) listingBody.age = Number(age);
+        if (languages.length > 0) listingBody.languages = languages;
+        if (certifications.length > 0) listingBody.certifications = certifications;
+      }
+
+      // Attach event-specific fields
+      if (category === "events") {
+        if (eventDate) listingBody.eventDate = eventDate;
+        if (eventTime) listingBody.eventTime = eventTime;
+        if (organizer) listingBody.organizer = organizer;
+        if (venue) listingBody.venue = venue;
+        if (ticketsAvailable) listingBody.ticketsAvailable = Number(ticketsAvailable);
+        if (ageRestriction) listingBody.ageRestriction = ageRestriction;
+        if (dressCode) listingBody.dressCode = dressCode;
+      }
+
+      // Attach mobile-specific fields
+      if (category === "mobiles") {
+        if (brand) listingBody.brand = brand;
+        if (productModel) listingBody.model = productModel;
+        if (storage) listingBody.storage = storage;
+        if (ram) listingBody.ram = ram;
+        if (screenSize) listingBody.screenSize = screenSize;
+        if (batteryHealth) listingBody.batteryHealth = batteryHealth;
+        if (warranty) listingBody.warranty = warranty;
+        if (color) listingBody.color = color;
+      }
+
+      // Attach furniture-specific fields
+      if (category === "furniture") {
+        if (material) listingBody.material = material;
+        if (dimensions) listingBody.dimensions = dimensions;
+        if (weight) listingBody.weight = weight;
+        if (assemblyRequired) listingBody.assemblyRequired = assemblyRequired;
+        if (numberOfPieces) listingBody.numberOfPieces = numberOfPieces;
+        if (color) listingBody.color = color;
+      }
+
+      // Attach fashion-specific fields
+      if (category === "fashion") {
+        if (brand) listingBody.brand = brand;
+        if (size) listingBody.size = size;
+        if (gender) listingBody.gender = gender;
+        if (fabricType) listingBody.fabricType = fabricType;
+        if (color) listingBody.color = color;
+      }
+
+      // Attach sports-specific fields
+      if (category === "sports") {
+        if (brand) listingBody.brand = brand;
+        if (sportType) listingBody.sportType = sportType;
+        if (size) listingBody.size = size;
+        if (material) listingBody.material = material;
+        if (color) listingBody.color = color;
+        if (weight) listingBody.weight = weight;
+        if (ageGroup) listingBody.ageGroup = ageGroup;
+      }
+
+      // Attach collectible-specific fields
+      if (category === "collectibles") {
+        if (brand) listingBody.brand = brand;
+        if (era) listingBody.era = era;
+        if (material) listingBody.material = material;
+        if (color) listingBody.color = color;
+        if (rarity) listingBody.rarity = rarity;
+        if (authenticity) listingBody.authenticity = authenticity;
+        if (origin) listingBody.origin = origin;
+      }
+
+      // Attach pet-specific fields
+      if (category === "pets") {
+        if (breed) listingBody.breed = breed;
+        if (petAge) listingBody.petAge = petAge;
+        if (gender) listingBody.gender = gender;
+        if (vaccinated) listingBody.vaccinated = vaccinated;
+        if (trained) listingBody.trained = trained;
+        if (color) listingBody.color = color;
+        if (weight) listingBody.weight = weight;
+      }
+
+      // Attach book-specific fields
+      if (category === "books") {
+        if (author) listingBody.author = author;
+        if (isbn) listingBody.isbn = isbn;
+        if (publisher) listingBody.publisher = publisher;
+        if (edition) listingBody.edition = edition;
+        if (language) listingBody.language = language;
+        if (pages) listingBody.pages = pages;
+      }
+
+      // Attach beauty-specific fields
+      if (category === "beauty") {
+        if (brand) listingBody.brand = brand;
+        if (skinType) listingBody.skinType = skinType;
+        if (shade) listingBody.shade = shade;
+        if (volume) listingBody.volume = volume;
+        if (ingredients) listingBody.ingredients = ingredients;
+        if (expiryDate) listingBody.expiryDate = expiryDate;
+        if (gender) listingBody.gender = gender;
+      }
+
+      // Attach toy-specific fields
+      if (category === "toys") {
+        if (brand) listingBody.brand = brand;
+        if (ageGroup) listingBody.ageGroup = ageGroup;
+        if (material) listingBody.material = material;
+        if (batteryRequired) listingBody.batteryRequired = batteryRequired;
+        if (playMode) listingBody.playMode = playMode;
+        if (numberOfPieces) listingBody.numberOfPieces = numberOfPieces;
+        if (characterTheme) listingBody.characterTheme = characterTheme;
+        if (color) listingBody.color = color;
+      }
+
+      // Attach forsale-specific fields (multi-category legacy)
+      if (category === "forsale") {
+        if (brand) listingBody.brand = brand;
+        if (productModel) listingBody.model = productModel;
+        if (storage) listingBody.storage = storage;
+        if (ram) listingBody.ram = ram;
+        if (screenSize) listingBody.screenSize = screenSize;
+        if (batteryHealth) listingBody.batteryHealth = batteryHealth;
+        if (warranty) listingBody.warranty = warranty;
+        if (color) listingBody.color = color;
+        if (material) listingBody.material = material;
+        if (dimensions) listingBody.dimensions = dimensions;
+        if (weight) listingBody.weight = weight;
+        if (assemblyRequired) listingBody.assemblyRequired = assemblyRequired;
+        if (numberOfPieces) listingBody.numberOfPieces = numberOfPieces;
+        if (size) listingBody.size = size;
+        if (gender) listingBody.gender = gender;
+        if (fabricType) listingBody.fabricType = fabricType;
+        if (author) listingBody.author = author;
+        if (isbn) listingBody.isbn = isbn;
+        if (publisher) listingBody.publisher = publisher;
+        if (edition) listingBody.edition = edition;
+        if (sportType) listingBody.sportType = sportType;
       }
 
       console.log("[PostAd] createListing body:", JSON.stringify(listingBody));

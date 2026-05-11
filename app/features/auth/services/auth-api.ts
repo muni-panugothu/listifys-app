@@ -1,7 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import * as Device from "expo-device";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
+
+type ExpoDeviceModule = {
+  brand?: string | null;
+  modelName?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
+};
+
+const deviceModule = requireOptionalNativeModule<ExpoDeviceModule>("ExpoDevice");
 
 export type AuthUser = {
   id: string;
@@ -109,10 +118,10 @@ function normalizeAuthUser<T extends {
 // ── Device User-Agent for backend device tracking ───────────────────────────────
 function buildUserAgent(): string {
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const brand = Device.brand ?? "Unknown";
-  const modelName = Device.modelName ?? "Unknown";
-  const osName = Device.osName ?? Platform.OS;
-  const osVersion = Device.osVersion ?? Platform.Version?.toString() ?? "";
+  const brand = deviceModule?.brand ?? "Unknown";
+  const modelName = deviceModule?.modelName ?? "Unknown";
+  const osName = deviceModule?.osName ?? Platform.OS;
+  const osVersion = deviceModule?.osVersion ?? Platform.Version?.toString() ?? "";
   return `Listify/${appVersion} (${brand} ${modelName}; ${osName} ${osVersion})`;
 }
 
