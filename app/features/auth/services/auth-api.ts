@@ -602,6 +602,63 @@ export async function getActivityLog() {
   return { ...res, activities };
 }
 
+export type FollowListType = "followers" | "following";
+
+export type FollowListUser = {
+  id: string;
+  name: string;
+  profileImageUrl?: string | null;
+  provider?: string;
+  createdAt?: string;
+};
+
+export function getFollowList(type: FollowListType) {
+  return requestJson<{
+    success: boolean;
+    type: FollowListType;
+    users: FollowListUser[];
+  }>(`/api/auth/followers?type=${type}`, { method: "GET" }).then((response) => ({
+    ...response,
+    users: (response.users ?? []).map((user) => ({
+      ...user,
+      profileImageUrl: toAbsoluteUrl(user.profileImageUrl),
+    })),
+  }));
+}
+
+export function toggleFollowUser(userId: string) {
+  return requestJson<{ success: boolean; isFollowing: boolean; followersCount: number }>(
+    `/api/auth/follow/${encodeURIComponent(userId)}`,
+    { method: "POST" },
+  );
+}
+
+export type SettingsPreferences = {
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  marketingEmails: boolean;
+  twoFactorAuth: boolean;
+  theme: "light" | "dark" | "auto";
+};
+
+export function getSettingsPreferences() {
+  return requestJson<{
+    success: boolean;
+    preferences: SettingsPreferences;
+  }>("/api/settings/preferences", { method: "GET" });
+}
+
+export function updateSettingsPreferences(preferences: Partial<SettingsPreferences>) {
+  return requestJson<{
+    success: boolean;
+    message?: string;
+    preferences: SettingsPreferences;
+  }>("/api/settings/preferences", {
+    method: "PUT",
+    body: JSON.stringify(preferences),
+  });
+}
+
 export function getLoginHistory() {
   return requestJson<{ success: boolean; loginHistory: unknown[] }>(
     "/api/auth/login-history",

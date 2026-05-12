@@ -1,15 +1,23 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { logoutAllDevices } from "@/features/auth/services/auth-api";
+import {
+  type SettingsPreferences,
+  getSettingsPreferences,
+  logoutAllDevices,
+  updateSettingsPreferences,
+} from "@/features/auth/services/auth-api";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 
 const googleLogo = "https://lh3.googleusercontent.com/aida-public/AB6AXuB0Fv9YujEQndmInZn8UL9wNaXlcju4h_W9rdQi1QXQrNa9Hb3lroDZzejdbsMYJPwiu5Vuo3yihw53J_F-SOC7-wpEImOfx-lMLszse1-wwlYy9vIz5b0UT7T9wD2TH1mSf_CUoC9SmbU_Qf_rQK4pJJ3V7f4VM1tc5Fp7zEe3OWIRbMDTRWsns7Yn2eeQ1zykKB6TQirm7ZMBsp-ZsiUknsCFkMe2Yhns06gIqY1_9m-yc3S1wNNjhMC98OnCxN90Dhs8-benkhc";
+const BIOMETRIC_STORAGE_KEY = "@listify/biometric_login_enabled";
 
 type CheckItem = { label: string; status: "secure" | "warning"; statusLabel: string };
 
@@ -19,8 +27,9 @@ export function SecurityScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
-  const [twoFa, setTwoFa] = useState(false);
+  const [preferences, setPreferences] = useState<SettingsPreferences | null>(null);
   const [biometric, setBiometric] = useState(true);
+  const [savingKey, setSavingKey] = useState<"twoFactorAuth" | "biometric" | null>(null);
   const user = useAppSelector((s) => s.auth.user);
 
   const isGoogleLinked = user?.provider === "google";
@@ -32,6 +41,28 @@ export function SecurityScreen() {
     : "Not added";
 
   const hasPasswordSet = user?.hasPassword !== false;
+
+  const loadSecurityPreferences = useCallback(async () => {
+    try {
+      const [preferencesResponse, biometricRaw] = await Promise.all([
+        getSettingsPreferences(),
+        AsyncStorage.getItem(BIOMETRIC_STORAGE_KEY),
+      ]);
+
+      setPreferences(preferencesResponse.preferences);
+      if (biometricRaw !== null) {
+        setBiometric(biometricRaw === "true");
+      }
+    } catch (error) {
+      Alert.alert("Security", error instanceof Error ? error.message : "Failed to load security settings.");
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadSecurityPreferences();
+    }, [loadSecurityPreferences]),
+  );
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -46,6 +77,43 @@ export function SecurityScreen() {
     { label: "Strong Password", status: hasPasswordSet ? "secure" : "warning", statusLabel: hasPasswordSet ? "Secure" : "Set up now" },
     { label: "Recovery Phone", status: hasPhone ? "secure" : "warning", statusLabel: hasPhone ? (phoneVerified ? "Verified" : "Added") : "Add now" },
   ];
+
+  const twoFaEnabled = preferences?.twoFactorAuth ?? false;
+
+  const updateTwoFactorPreference = async (nextValue: boolean) => {
+    if (!preferences) {
+      return;
+    }
+
+    const previous = preferences;
+    setPreferences({ ...previous, twoFactorAuth: nextValue });
+    setSavingKey("twoFactorAuth");
+
+    try {
+      const response = await updateSettingsPreferences({ twoFactorAuth: nextValue });
+      setPreferences(response.preferences);
+    } catch (error) {
+      setPreferences(previous);
+      Alert.alert("Security", error instanceof Error ? error.message : "Failed to update two-factor authentication.");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const updateBiometricPreference = async (nextValue: boolean) => {
+    const previous = biometric;
+    setBiometric(nextValue);
+    setSavingKey("biometric");
+
+    try {
+      await AsyncStorage.setItem(BIOMETRIC_STORAGE_KEY, String(nextValue));
+    } catch (error) {
+      setBiometric(previous);
+      Alert.alert("Security", error instanceof Error ? error.message : "Failed to save biometric preference.");
+    } finally {
+      setSavingKey(null);
+    }
+  };
 
   const handleSignOutAll = () => {
     Alert.alert("Sign out everywhere?", "You will be signed out from all devices.", [
@@ -67,8 +135,8 @@ export function SecurityScreen() {
 
   const securityOptions: SecurityOption[] = [
     { icon: "lock-reset", label: "Change Password", sublabel: isGoogleLinked && !user?.hasPassword ? "Set up a password" : "Update your login credentials", sublabelColor: "#6C7A74", type: "navigate" },
-    { icon: "verified-user", label: "Two-Factor Authentication", sublabel: twoFa ? "Currently On" : "Currently Off", sublabelColor: twoFa ? "#006B55" : "#BA1A1A", type: "toggle", value: twoFa },
-    { icon: "fingerprint", label: "Biometric Login", sublabel: biometric ? "Currently On" : "Currently Off", sublabelColor: biometric ? "#006B55" : "#BA1A1A", type: "toggle", value: biometric },
+    { icon: "verified-user", label: "Two-Factor Authentication", sublabel: twoFaEnabled ? "Currently On" : "Currently Off", sublabelColor: twoFaEnabled ? "#006B55" : "#BA1A1A", type: "toggle", value: twoFaEnabled },
+    { icon: "fingerprint", label: "Biometric Login", sublabel: biometric ? "This device only" : "Disabled on this device", sublabelColor: biometric ? "#006B55" : "#BA1A1A", type: "toggle", value: biometric },
   ];
 
   return (
@@ -134,7 +202,20 @@ export function SecurityScreen() {
                     </View>
                   </View>
                   {opt.type === "toggle" ? (
-                    <Switch value={opt.value} onValueChange={(v) => opt.label.includes("Two") ? setTwoFa(v) : setBiometric(v)} trackColor={{ false: "#E9EFEB", true: "#006B55" }} thumbColor="#FFFFFF" />
+                    <Switch
+                      value={opt.value}
+                      onValueChange={(value) => {
+                        if (opt.label.includes("Two")) {
+                          void updateTwoFactorPreference(value);
+                          return;
+                        }
+
+                        void updateBiometricPreference(value);
+                      }}
+                      disabled={savingKey !== null}
+                      trackColor={{ false: "#E9EFEB", true: "#006B55" }}
+                      thumbColor="#FFFFFF"
+                    />
                   ) : (
                     <MaterialIcons name="chevron-right" size={22} color="#6C7A74" />
                   )}

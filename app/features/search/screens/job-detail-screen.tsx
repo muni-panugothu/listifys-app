@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import type { CategorySlug } from "@/constants/categories";
 import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
 import {
   addToRecentlyViewed,
@@ -20,6 +21,7 @@ import {
   toggleSaveListing,
   type ListingItem,
 } from "@/features/listing/services/listing-api";
+import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
@@ -34,8 +36,21 @@ export function JobDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
 
-  const categorySlug = (params.category ?? "jobs") as string;
+  const categorySlug = (params.category ?? "jobs") as CategorySlug;
   const listingId = params.id;
+
+  // Auth gate for guest users
+  const [authGateVisible, setAuthGateVisible] = useState(false);
+  const [authGateAction, setAuthGateAction] = useState<"save" | "message">("save");
+
+  const requireAuth = useCallback((action: "save" | "message", callback: () => void) => {
+    if (!user) {
+      setAuthGateAction(action);
+      setAuthGateVisible(true);
+      return;
+    }
+    callback();
+  }, [user]);
 
   const loadListing = useCallback(async () => {
     if (!listingId) return;
@@ -64,11 +79,13 @@ export function JobDetailScreen() {
 
   const handleToggleSave = useCallback(async () => {
     if (!listingId) return;
-    try {
-      const res = await toggleSaveListing(categorySlug, listingId);
-      setIsSaved(res.saved);
-    } catch {}
-  }, [categorySlug, listingId]);
+    requireAuth("save", async () => {
+      try {
+        const res = await toggleSaveListing(categorySlug, listingId);
+        setIsSaved(res.saved);
+      } catch {}
+    });
+  }, [categorySlug, listingId, requireAuth]);
 
   const title = listing?.title ?? "";
   const description = listing?.description ?? "";
@@ -100,6 +117,9 @@ export function JobDetailScreen() {
       : `${AUTH_API_BASE_URL}${listing.seller.profileImage}`
     : null;
   const sellerId = listing?.seller?._id;
+  const sellerJoined = listing?.seller?.createdAt
+    ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
+    : "";
 
   const formatSalary = () => {
     if (salary?.min && salary?.max) {
@@ -110,7 +130,6 @@ export function JobDetailScreen() {
       };
       return `${currency}${fmt(salary.min)} - ${currency}${fmt(salary.max)}`;
     }
-    if (listing?.price) return `${currency}${Number(listing.price).toLocaleString("en-IN")}`;
     return "";
   };
 
@@ -365,34 +384,66 @@ export function JobDetailScreen() {
           ) : null}
 
           {/* Seller / Poster card */}
-          <Pressable
-            onPress={() => { if (sellerId) router.push(`/seller-public-profile?userId=${sellerId}` as Href); }}
-            className="rounded-2xl border border-[#BBCAC3]/30 bg-white p-4"
-          >
-            <View className="flex-row items-center gap-4">
-              {sellerProfileImage ? (
-                <Image source={sellerProfileImage} contentFit="cover" transition={150} className="h-14 w-14 rounded-full" />
-              ) : (
-                <View className="h-14 w-14 items-center justify-center rounded-full bg-[#E9EFEB]">
-                  <MaterialIcons name="person" size={24} color="#6C7A74" />
-                </View>
-              )}
-              <View className="flex-1">
-                <Text className="text-[16px] font-semibold text-[#161D1A]">{sellerName}</Text>
-                <Text className="text-[12px] text-[#6C7A74]">Posted by</Text>
+          <View className="py-1">
+            <Text className="mb-4 text-[18px] font-semibold text-[#161D1A]">Posted By</Text>
+            <Pressable
+              onPress={() => { if (sellerId) router.push(`/seller-public-profile?sellerId=${sellerId}` as Href); }}
+              className="flex-row items-center rounded-xl border border-[#BBCAC3]/20 bg-white p-4"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 3,
+                elevation: 1,
+              }}
+            >
+              <View className="mr-4 h-14 w-14 overflow-hidden rounded-full border-2 border-white">
+                {sellerProfileImage ? (
+                  <Image source={sellerProfileImage} contentFit="cover" transition={200} className="h-full w-full" />
+                ) : (
+                  <View className="h-full w-full items-center justify-center bg-[#27BB97]">
+                    <Text className="text-[20px] font-bold text-white">
+                      {sellerName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
               </View>
-              <MaterialIcons name="chevron-right" size={24} color="#6C7A74" />
-            </View>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-[16px] font-semibold text-[#161D1A]">{sellerName}</Text>
+                  <MaterialIcons name="verified" size={16} color="#005FB0" />
+                </View>
+                {sellerJoined ? (
+                  <Text className="text-[12px] text-[#3C4A44]">{sellerJoined}</Text>
+                ) : null}
+                {listing?.views ? (
+                  <View className="mt-1 flex-row items-center gap-1">
+                    <MaterialIcons name="visibility" size={16} color="#64748B" />
+                    <Text className="text-[12px] text-[#3C4A44]">{listing.views} views</Text>
+                  </View>
+                ) : null}
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color="#161D1A" />
+            </Pressable>
+          </View>
+
+          {/* Report */}
+          <Pressable
+            onPress={() => router.push(`/report-listing-modal?listingId=${listing._id}&category=${categorySlug}` as Href)}
+            className="flex-row items-center justify-center gap-2 py-2"
+          >
+            <MaterialIcons name="flag" size={16} color="#94A3B8" />
+            <Text className="text-[12px] text-slate-400">Report this listing</Text>
           </Pressable>
         </View>
       </ScrollView>
 
       {/* FOOTER */}
       <View
-        className="absolute inset-x-0 bottom-0 z-50 flex-row items-center gap-4 border-t border-slate-100 bg-white/95 px-4"
+        className="absolute inset-x-0 bottom-0 z-50 border-t border-[#BBCAC3]/20 bg-white/95 px-4"
         style={{
           paddingBottom: Math.max(insets.bottom, 16),
-          paddingTop: 16,
+          paddingTop: 12,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.05,
@@ -400,37 +451,55 @@ export function JobDetailScreen() {
           elevation: 8,
         }}
       >
-        <Pressable
-          onPress={handleToggleSave}
-          className="h-12 w-14 items-center justify-center rounded-xl border border-slate-100"
-          style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.95 : 1 }] })}
-        >
-          <MaterialIcons name={isSaved ? "bookmark" : "bookmark-outline"} size={24} color={isSaved ? "#27BB97" : "#64748B"} />
-        </Pressable>
-
-        <Pressable
-          onPress={() => {
-            if (applyLink) Linking.openURL(applyLink).catch(() => {});
-            else if (sellerId) {
-              router.push(
-                `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "₹")}` as Href,
-              );
-            }
-          }}
-          className="flex-1 overflow-hidden rounded-xl"
-          style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }], shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 })}
-        >
-          <LinearGradient
-            colors={["#27BB97", "#1E9E7E"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ height: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12 }}
+        <View className="flex-row gap-3">
+          <Pressable
+            onPress={() => {
+              if (!sellerId) return;
+              requireAuth("message", () => {
+                router.push(
+                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                );
+              });
+            }}
+            className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white px-4"
           >
-            <Text className="text-[16px] font-bold text-white">Apply Now</Text>
-            <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
-          </LinearGradient>
-        </Pressable>
+            <MaterialIcons name="chat" size={20} color="#161D1A" />
+            <Text className="text-[16px] font-semibold text-[#161D1A]">Message</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (applyLink) Linking.openURL(applyLink).catch(() => {});
+              else if (sellerId) {
+                requireAuth("message", () => {
+                  router.push(
+                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                  );
+                });
+              }
+            }}
+            className="flex-1 overflow-hidden rounded-xl"
+            style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }], shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 })}
+          >
+            <LinearGradient
+              colors={["#27BB97", "#1E9E7E"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ height: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12 }}
+            >
+              <Text className="text-[16px] font-bold text-white">Apply Now</Text>
+              <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
+            </LinearGradient>
+          </Pressable>
+        </View>
       </View>
+
+      {/* Auth Gate for guest users */}
+      <AuthGateBottomSheet
+        visible={authGateVisible}
+        onClose={() => setAuthGateVisible(false)}
+        action={authGateAction}
+      />
     </View>
   );
 }

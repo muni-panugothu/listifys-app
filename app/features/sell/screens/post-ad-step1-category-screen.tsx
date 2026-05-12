@@ -101,7 +101,7 @@ export function PostAdStep1CategoryScreen() {
           </Text>
         </View>
         <Pressable
-          onPress={() => router.push("/sell-entry")}
+          onPress={() => router.replace("/sell-entry")}
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
           <Text className="text-[12px] font-semibold text-[#27BB97]">

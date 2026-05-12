@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CategorySlug } from "@/constants/categories";
+import { CONDITION_SKIP_CATEGORIES, PRICE_OPTIONAL_CATEGORIES } from "@/constants/categories";
 import {
   deleteListing,
   fetchListingById,
@@ -53,6 +54,35 @@ export function EditListingScreen() {
   const [condition, setCondition] = useState("");
   const [location, setLocation] = useState("");
 
+  // Event-specific editable fields
+  const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
+  const [organizer, setOrganizer] = useState("");
+  const [venue, setVenue] = useState("");
+  const [ticketsAvailable, setTicketsAvailable] = useState("");
+  const [ageRestriction, setAgeRestriction] = useState("");
+  const [dressCode, setDressCode] = useState("");
+
+  // Job-specific editable fields
+  const [companyName, setCompanyName] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [applyLink, setApplyLink] = useState("");
+  const [jobType, setJobType] = useState("");
+  const [experience, setExperience] = useState("");
+  const [education, setEducation] = useState("");
+  const [employmentType, setEmploymentType] = useState("");
+  const [workMode, setWorkMode] = useState("");
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
+  const [salaryType, setSalaryType] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [positions, setPositions] = useState("");
+
+  const isEvent = categorySlug === "events";
+  const isJob = categorySlug === "jobs";
+  const skipCondition = CONDITION_SKIP_CATEGORIES.includes(categorySlug);
+  const showPriceSection = !PRICE_OPTIONAL_CATEGORIES.includes(categorySlug);
+
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
 
   // Load listing data
@@ -69,6 +99,29 @@ export function EditListingScreen() {
           setDescription(res.listing.description || "");
           setCondition(res.listing.condition || "");
           setLocation(res.listing.location || "");
+          // Event-specific fields
+          const l = res.listing as any;
+          if (l.eventDate) setEventDate(l.eventDate);
+          if (l.eventTime) setEventTime(l.eventTime);
+          if (l.organizer) setOrganizer(l.organizer);
+          if (l.venue) setVenue(l.venue);
+          if (l.ticketsAvailable) setTicketsAvailable(String(l.ticketsAvailable));
+          if (l.ageRestriction) setAgeRestriction(l.ageRestriction);
+          if (l.dressCode) setDressCode(l.dressCode);
+          // Job-specific fields
+          if (l.companyName) setCompanyName(l.companyName);
+          if (l.companyEmail) setCompanyEmail(l.companyEmail);
+          if (l.applyLink) setApplyLink(l.applyLink);
+          if (l.jobType) setJobType(l.jobType);
+          if (l.experience) setExperience(l.experience);
+          if (l.education) setEducation(l.education);
+          if (l.employmentType) setEmploymentType(l.employmentType);
+          if (l.workMode) setWorkMode(l.workMode);
+          if (l.salary?.min) setSalaryMin(String(l.salary.min));
+          if (l.salary?.max) setSalaryMax(String(l.salary.max));
+          if (l.salaryType || l.salary?.type) setSalaryType(l.salaryType || l.salary?.type || "");
+          if (l.industry) setIndustry(l.industry);
+          if (l.positions) setPositions(String(l.positions));
         }
       } catch {
         Alert.alert("Error", "Failed to load listing data.");
@@ -85,13 +138,45 @@ export function EditListingScreen() {
     }
     setSaving(true);
     try {
-      await updateListing(categorySlug, listingId, {
+      const body: Record<string, unknown> = {
         title: title.trim(),
         price: price ? Number(price) : undefined,
         description: description.trim(),
         condition: condition || undefined,
         location: location.trim() || undefined,
-      });
+      };
+      // Event-specific fields
+      if (isEvent) {
+        if (eventDate) body.eventDate = eventDate;
+        if (eventTime) body.eventTime = eventTime;
+        if (organizer) body.organizer = organizer.trim();
+        if (venue) body.venue = venue.trim();
+        if (ticketsAvailable) body.ticketsAvailable = Number(ticketsAvailable);
+        if (ageRestriction) body.ageRestriction = ageRestriction.trim();
+        if (dressCode) body.dressCode = dressCode.trim();
+      }
+      // Job-specific fields
+      if (isJob) {
+        if (companyName) body.companyName = companyName.trim();
+        if (companyEmail) body.companyEmail = companyEmail.trim();
+        if (applyLink) body.applyLink = applyLink.trim();
+        if (jobType) body.jobType = jobType.trim();
+        if (experience) body.experience = experience.trim();
+        if (education) body.education = education.trim();
+        if (employmentType) body.employmentType = employmentType.trim();
+        if (workMode) body.workMode = workMode.trim();
+        if (salaryMin || salaryMax) {
+          body.salary = {
+            min: salaryMin ? Number(salaryMin) : undefined,
+            max: salaryMax ? Number(salaryMax) : undefined,
+            type: salaryType || "monthly",
+          };
+        }
+        if (salaryType) body.salaryType = salaryType;
+        if (industry) body.industry = industry.trim();
+        if (positions) body.positions = Number(positions);
+      }
+      await updateListing(categorySlug, listingId, body);
       Alert.alert("Updated", "Your listing has been updated successfully.", [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -100,7 +185,7 @@ export function EditListingScreen() {
     } finally {
       setSaving(false);
     }
-  }, [categorySlug, listingId, title, price, description, condition, location, router]);
+  }, [categorySlug, listingId, title, price, description, condition, location, isEvent, eventDate, eventTime, organizer, venue, ticketsAvailable, ageRestriction, dressCode, isJob, companyName, companyEmail, applyLink, jobType, experience, education, employmentType, workMode, salaryMin, salaryMax, salaryType, industry, positions, router]);
 
   const handleDelete = useCallback(() => {
     if (!listingId) return;
@@ -230,22 +315,23 @@ export function EditListingScreen() {
             </View>
           )}
 
-          {/* Pricing Section */}
-          <View className="mb-6 rounded-2xl border border-[#DDE4DF] bg-white p-5">
-            <Text className="text-[18px] font-semibold text-[#161D1A]">Pricing</Text>
-            <Text className="mb-4 text-[14px] text-[#6C7A74]">Set a competitive price to sell faster.</Text>
-            <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Selling Price</Text>
-            <View className="mb-4 h-12 flex-row items-center rounded-lg border border-[#BBCAC3] bg-[#EFF5F0] px-4">
-              <Text className="mr-2 text-[20px] font-bold text-[#3C4A44]">₹</Text>
-              <TextInput
-                value={price}
-                onChangeText={(v) => setPrice(v.replace(/[^0-9]/g, ""))}
-                keyboardType="numeric"
-                className="flex-1 text-[20px] font-bold text-[#161D1A]"
-                style={{ paddingVertical: 0 }}
-              />
+          {showPriceSection && (
+            <View className="mb-6 rounded-2xl border border-[#DDE4DF] bg-white p-5">
+              <Text className="text-[18px] font-semibold text-[#161D1A]">Pricing</Text>
+              <Text className="mb-4 text-[14px] text-[#6C7A74]">Set a competitive price to sell faster.</Text>
+              <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Selling Price</Text>
+              <View className="mb-4 h-12 flex-row items-center rounded-lg border border-[#BBCAC3] bg-[#EFF5F0] px-4">
+                <Text className="mr-2 text-[20px] font-bold text-[#3C4A44]">₹</Text>
+                <TextInput
+                  value={price}
+                  onChangeText={(v) => setPrice(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="numeric"
+                  className="flex-1 text-[20px] font-bold text-[#161D1A]"
+                  style={{ paddingVertical: 0 }}
+                />
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Details Section */}
           <View className="mb-6">
@@ -278,7 +364,8 @@ export function EditListingScreen() {
             </View>
           </View>
 
-          {/* Condition */}
+          {/* Condition — skip for events and other exempt categories */}
+          {!skipCondition && (
           <View className="mb-6">
             <Text className="mb-3 px-1 text-[18px] font-semibold text-[#161D1A]">Condition</Text>
             <View className="flex-row flex-wrap gap-2">
@@ -303,6 +390,228 @@ export function EditListingScreen() {
               ))}
             </View>
           </View>
+          )}
+
+          {/* Event-specific fields */}
+          {isEvent && (
+            <View className="mb-6">
+              <Text className="mb-4 px-1 text-[18px] font-semibold text-[#161D1A]">Event Details</Text>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Event Date</Text>
+                <TextInput
+                  value={eventDate}
+                  onChangeText={setEventDate}
+                  placeholder="e.g. 2026-06-15"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Event Time</Text>
+                <TextInput
+                  value={eventTime}
+                  onChangeText={setEventTime}
+                  placeholder="e.g. 07:00 PM"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Organizer</Text>
+                <TextInput
+                  value={organizer}
+                  onChangeText={setOrganizer}
+                  placeholder="Organizer name"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Venue</Text>
+                <TextInput
+                  value={venue}
+                  onChangeText={setVenue}
+                  placeholder="Venue name"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Tickets Available</Text>
+                <TextInput
+                  value={ticketsAvailable}
+                  onChangeText={(v) => setTicketsAvailable(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="numeric"
+                  placeholder="e.g. 100"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Age Restriction</Text>
+                <TextInput
+                  value={ageRestriction}
+                  onChangeText={setAgeRestriction}
+                  placeholder="e.g. 18+"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View>
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Dress Code</Text>
+                <TextInput
+                  value={dressCode}
+                  onChangeText={setDressCode}
+                  placeholder="e.g. Smart Casual"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Job-specific fields */}
+          {isJob && (
+            <View className="mb-6">
+              <Text className="mb-4 px-1 text-[18px] font-semibold text-[#161D1A]">Job Details</Text>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Company Name</Text>
+                <TextInput
+                  value={companyName}
+                  onChangeText={setCompanyName}
+                  placeholder="Company or business name"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Company Email</Text>
+                <TextInput
+                  value={companyEmail}
+                  onChangeText={setCompanyEmail}
+                  placeholder="hr@company.com"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Apply Link</Text>
+                <TextInput
+                  value={applyLink}
+                  onChangeText={setApplyLink}
+                  placeholder="https://careers.company.com/apply"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="none"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Job Type</Text>
+                <TextInput
+                  value={jobType}
+                  onChangeText={setJobType}
+                  placeholder="e.g. Full Time, Part Time, Contract"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Work Mode</Text>
+                <TextInput
+                  value={workMode}
+                  onChangeText={setWorkMode}
+                  placeholder="e.g. Remote, On-site, Hybrid"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Experience</Text>
+                <TextInput
+                  value={experience}
+                  onChangeText={setExperience}
+                  placeholder="e.g. 2-5 years"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Education</Text>
+                <TextInput
+                  value={education}
+                  onChangeText={setEducation}
+                  placeholder="e.g. Bachelor's, Master's"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Industry</Text>
+                <TextInput
+                  value={industry}
+                  onChangeText={setIndustry}
+                  placeholder="e.g. Technology, Healthcare"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View className="mb-4 flex-row gap-3">
+                <View className="flex-1">
+                  <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Salary Min</Text>
+                  <View className="h-12 flex-row items-center rounded-lg border border-[#BBCAC3] bg-white px-4">
+                    <Text className="mr-2 text-[16px] font-bold text-[#3C4A44]">₹</Text>
+                    <TextInput
+                      value={salaryMin}
+                      onChangeText={(v) => setSalaryMin(v.replace(/[^0-9]/g, ""))}
+                      keyboardType="numeric"
+                      placeholder="Min"
+                      placeholderTextColor="#94A3B8"
+                      className="flex-1 text-[16px] text-[#161D1A]"
+                      style={{ paddingVertical: 0 }}
+                    />
+                  </View>
+                </View>
+                <View className="flex-1">
+                  <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Salary Max</Text>
+                  <View className="h-12 flex-row items-center rounded-lg border border-[#BBCAC3] bg-white px-4">
+                    <Text className="mr-2 text-[16px] font-bold text-[#3C4A44]">₹</Text>
+                    <TextInput
+                      value={salaryMax}
+                      onChangeText={(v) => setSalaryMax(v.replace(/[^0-9]/g, ""))}
+                      keyboardType="numeric"
+                      placeholder="Max"
+                      placeholderTextColor="#94A3B8"
+                      className="flex-1 text-[16px] text-[#161D1A]"
+                      style={{ paddingVertical: 0 }}
+                    />
+                  </View>
+                </View>
+              </View>
+              <View className="mb-4">
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Salary Type</Text>
+                <TextInput
+                  value={salaryType}
+                  onChangeText={setSalaryType}
+                  placeholder="e.g. monthly, yearly, hourly"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+              <View>
+                <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Open Positions</Text>
+                <TextInput
+                  value={positions}
+                  onChangeText={(v) => setPositions(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="numeric"
+                  placeholder="e.g. 3"
+                  placeholderTextColor="#94A3B8"
+                  className="rounded-lg border border-[#BBCAC3] bg-white px-4 py-3 text-[16px] text-[#161D1A]"
+                />
+              </View>
+            </View>
+          )}
 
           {/* Location */}
           <View className="mb-6">

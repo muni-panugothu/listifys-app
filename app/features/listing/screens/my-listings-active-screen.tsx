@@ -167,7 +167,12 @@ export function MyListingsActiveScreen() {
             {listings.map((listing) => (
               <Pressable
                 key={listing._id}
-                onPress={() => router.push(`/listing-detail-template?category=${(listing as any)._source ?? listing.category}&id=${listing._id}` as any)}
+                onPress={() => {
+                  const cat = (listing as any)._source ?? listing.category;
+                  const specialRoutes: Record<string, string> = { events: "/event-detail", properties: "/property-detail", jobs: "/job-detail", services: "/service-detail" };
+                  const route = specialRoutes[cat] ? `${specialRoutes[cat]}?id=${listing._id}&category=${cat}` : `/listing-detail-template?category=${cat}&id=${listing._id}`;
+                  router.push(route as any);
+                }}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-white"
                 style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 }}
               >

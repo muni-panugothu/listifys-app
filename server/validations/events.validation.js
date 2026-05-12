@@ -17,7 +17,7 @@ const EVENT_SUBCATEGORIES = [
 const createEventSchema = Joi.object({
   title: title.required(),
   description: description.required(),
-  price: price.required(),
+  price: price.optional(),
   category: Joi.string().valid('Events').default('Events'),
   subcategory: Joi.string().valid(...EVENT_SUBCATEGORIES).required().messages({
     'any.only': `Subcategory must be one of: ${EVENT_SUBCATEGORIES.join(', ')}`,

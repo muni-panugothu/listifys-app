@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "@/lib/safe-router";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showAuthGate, type AuthGateAction } from "@/store/slices/auth-gate-slice";
@@ -28,6 +28,7 @@ export function useTabNavigation() {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const lastNavigationRef = useRef<{ target: string; timestamp: number } | null>(null);
 
   const handleTabPress = useCallback(
     (tabId: string) => {
@@ -37,12 +38,24 @@ export function useTabNavigation() {
       // Already on this screen — do nothing
       if (pathname === target) return;
 
+      // Ignore rapid repeated presses for the same target before navigation settles.
+      const now = Date.now();
+      const lastNavigation = lastNavigationRef.current;
+      if (
+        lastNavigation &&
+        lastNavigation.target === target &&
+        now - lastNavigation.timestamp < 800
+      ) {
+        return;
+      }
+
       const authGateAction = AUTH_GATED_TABS[tabId];
       if (authGateAction && !isAuthenticated) {
         dispatch(showAuthGate({ action: authGateAction, redirectTo: target }));
         return;
       }
 
+      lastNavigationRef.current = { target, timestamp: now };
       router.replace(target as any);
     },
     [dispatch, isAuthenticated, pathname, router],

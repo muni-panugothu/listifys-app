@@ -312,12 +312,16 @@ export function SearchResultsEntityTabsScreen() {
           {results.map((item) => (
             <Pressable
               key={`${item._entity}_${item._id}`}
-              onPress={() =>
-                router.push({
-                  pathname: "/listing-detail-template",
-                  params: { category: item._entity, id: item._id },
-                })
-              }
+              onPress={() => {
+                const cat = item._entity;
+                const specialRoutes: Record<string, string> = { events: "/event-detail", properties: "/property-detail", jobs: "/job-detail", services: "/service-detail" };
+                const specialRoute = specialRoutes[cat];
+                if (specialRoute) {
+                  router.push({ pathname: specialRoute as any, params: { category: cat, id: item._id } });
+                } else {
+                  router.push({ pathname: "/listing-detail-template", params: { category: cat, id: item._id } });
+                }
+              }}
               className="overflow-hidden rounded-xl border border-[#E9EFEB] bg-white"
               style={{ width: CARD_WIDTH }}
             >
