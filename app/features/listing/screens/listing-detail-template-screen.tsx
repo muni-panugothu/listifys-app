@@ -209,6 +209,35 @@ export function ListingDetailTemplateScreen() {
     if (listing.area) rows.push({ label: "Area", value: listing.area, icon: "square-foot" });
     if (listing.propertyType) rows.push({ label: "Type", value: listing.propertyType, icon: "apartment" });
     if (listing.furnished) rows.push({ label: "Furnished", value: listing.furnished, icon: "weekend" });
+    // Event-specific fields
+    const l = listing as any;
+    if (l.eventDate) rows.push({ label: "Event Date", value: l.eventDate, icon: "calendar-today" });
+    if (l.eventTime) rows.push({ label: "Event Time", value: l.eventTime, icon: "schedule" });
+    if (l.venue) rows.push({ label: "Venue", value: l.venue, icon: "place" });
+    if (l.organizer) rows.push({ label: "Organizer", value: l.organizer, icon: "person" });
+    if (l.ticketsAvailable) rows.push({ label: "Tickets", value: String(l.ticketsAvailable), icon: "confirmation-number" });
+    if (l.ageRestriction) rows.push({ label: "Age Restriction", value: l.ageRestriction, icon: "person" });
+    if (l.dressCode) rows.push({ label: "Dress Code", value: l.dressCode, icon: "checkroom" });
+    // Job-specific fields
+    if (l.companyName) rows.push({ label: "Company", value: l.companyName, icon: "business" });
+    if (l.jobType) rows.push({ label: "Job Type", value: l.jobType, icon: "work" });
+    if (l.workMode) rows.push({ label: "Work Mode", value: l.workMode, icon: "wifi" });
+    if (l.experience) rows.push({ label: "Experience", value: l.experience, icon: "trending-up" });
+    if (l.education) rows.push({ label: "Education", value: l.education, icon: "school" });
+    if (l.industry) rows.push({ label: "Industry", value: l.industry, icon: "domain" });
+    if (l.department) rows.push({ label: "Department", value: l.department, icon: "group-work" });
+    if (l.employmentType) rows.push({ label: "Employment", value: l.employmentType, icon: "assignment-ind" });
+    if (l.positions && l.positions > 1) rows.push({ label: "Positions", value: String(l.positions), icon: "people" });
+    if (l.salary?.min && l.salary?.max) {
+      const fmt = (n: number) => {
+        if (n >= 100000) return `${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)}L`;
+        if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
+        return n.toLocaleString("en-IN");
+      };
+      const cur = listing.currency ?? "\u20B9";
+      rows.push({ label: "Salary", value: `${cur}${fmt(l.salary.min)} - ${cur}${fmt(l.salary.max)}`, icon: "payments" });
+    }
+    if (l.salaryType) rows.push({ label: "Salary Type", value: l.salaryType, icon: "schedule" });
     if (listing.subcategory) rows.push({ label: "Category", value: listing.subcategory, icon: "category" });
     return rows;
   }, [listing]);

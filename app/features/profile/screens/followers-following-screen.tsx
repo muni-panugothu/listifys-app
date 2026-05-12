@@ -1,113 +1,22 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  type FollowListUser,
+  getFollowList,
+  toggleFollowUser,
+} from "@/features/auth/services/auth-api";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { useAppSelector } from "@/store/hooks";
 
 type FollowTab = "followers" | "following";
 
-type FollowUser = {
-  id: string;
-  name: string;
-  handle: string;
-  avatar: string;
-  verified?: boolean;
-  following: boolean;
-};
-
-const followers: FollowUser[] = [
-  {
-    id: "alex-rivers",
-    name: "Alex Rivers",
-    handle: "@arivers_tech",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuATSfOZy2LxowK-ihM1zArGUBLK5_3ZUD0Bzma6im8yb3YtrbNgqlfjt7Zp60bYDOc5bOONtWw_uap03KoATMC6iVrAEKE9ogjwsPc9FgMWt-W7r6E8KJ0y64iOC_Wqd9yyvDkqHscCXPBHHOVOtVrAYbLK85k_Z9bhEVzG3mv0VCjbxPIY4VP2ga0xdVNyLu4IjLqepT_udUqiW_hjSkt9o8kroUTaUD-Yzy6ydJjaBD_qVdtVC9FkYtH4cBENVORJ5TMhgVRIIIU",
-    verified: true,
-    following: false,
-  },
-  {
-    id: "sarah-chen",
-    name: "Sarah Chen",
-    handle: "@sarah_designs",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDvwuQjR5HTm_osKBP8C-ypNMgY2pBHZEwULOAHDmaxdrzsCOYuLH8nj-iTxfOfE-6CZrkoD0BFiHuPCOu93BusK24nfFs2pC079Hwwe5q8cGksG8_W-bNikUSo5QmmMT1u-_OgvR_a5C590KMCUf7p5cnxzXUbgk6_KdTr7rYthzHZ3qDCk6rv0nUxJ_NF3UHkC6GUaQ4xSP_jDiGcB02Ya3vwspdPQVnhxLu8ALe55qNTq7cPvllWzNS1L3Rc35AtrP75OnMu6Fw",
-    following: true,
-  },
-  {
-    id: "marcus-thorne",
-    name: "Marcus Thorne",
-    handle: "@mthorne_photo",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCIkhks3zHlbxBgsTsRaJsubuQU_GoboQYhz4xvqwgvfoJJHKA6djuYyi-ma_9VLhZpLVKLkRedyusBQyQron7OzdZuBFN8Gt1JpZs7JNUtJ-QgOimLraASWQW5lhKdHjnbpDgqap1hRxdpjiBvAt6ljFhIRLs3BUUwaEgO5DTcKnR-iqB_TwMX0a1mjQqblumrB9T67YxjtuwXaDR2sV2c6bPFcwyB6nc2tLQ1UGkGiy5Pm2DlZLP0iXoEYpqdv9FO765M5nX6RzE",
-    verified: true,
-    following: false,
-  },
-  {
-    id: "elena-rodriguez",
-    name: "Elena Rodriguez",
-    handle: "@elena_rod",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBsAg-RhZv-STWhVQGijTErxsUiIwQmjv8V1kjarTYuDwgVD11szxXtH5i7ZMczF_V8wm1_9B8cSb4gt_aaQHqv9SQBLqlzczw_mB8TElXWTJwP4S86tBjepRQbxEiCQXsVTF9_vc2hLa_wIB2D6YQqxGAyUUEKDHNFOXcc3mDeaK-oQf9GPBIIWyPcYP7_dPL61vk1Vt5qlm_rMNzNh5VQbUxOw1VzX1h4Vm3UZ16lAUuTYNnKI80OJ8OeiVq2qtmYrFiMLiPZ6ck",
-    following: false,
-  },
-  {
-    id: "david-kim",
-    name: "David Kim",
-    handle: "@dkim_art",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDgok-iEj0XLM2TM5jCiON9zk16aA8oI-YFdZJ1iPiHMIpvMrHZBDcYyCzOWrs6XLpxc0YbawvH6uN7q7f8i36WdPa3DaxxYneG4J3EqOF7eqxkqUjW0pnFaTFxVGsMBLeXH5Q3wnNlo1JJhsPHwS9ZTYI6fGPjBbm9TzNjeDjM8ij8dUCyhj5lY0_hjuJUjs5V_SkzeRK_AWnB8H1vjNecXaVgeeNPVHmDUgpBxW7yLeWJ-gPKU6skDH2UbXpgWyafbjN6Yd1xmg0",
-    following: true,
-  },
-  {
-    id: "zoe-baker",
-    name: "Zoe Baker",
-    handle: "@zoebaker_off",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBZ0NHBEkXWNqBNpvHFeI0QWA_TE5eD1W862pbI54UWF05AW0uQXtAjuXO53St1prkFcqlKV3oJdGCrq_JTmMspz33TC_0haN6EsLT7xCqHwkHyl6Fnt6ew8DH6IE0zatwmrTN0seQRIXd9iRF6BwOGrVOrB4HCH08g4VDRr0yK1-pRp-4xDbF76Gx1Nqpg5bmWnwYpCznUmInsor7lpfInGtkObJCQ3SJt7MynTw1TM73M6zqXjSZDiPVMGTrg6exw_hw0thWenUU",
-    verified: true,
-    following: false,
-  },
-];
-
-const followingUsers: FollowUser[] = [
-  {
-    id: "priya-sharma",
-    name: "Priya Sharma",
-    handle: "@priya_market",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAKB4fqc9xbdNy-01QszLtRtNDj0GmIoizp83AO6hQtuiyOQ8CtfbRIHOugU1k7CctviY0ZpBrjX_zgVJV5QZEmWi9xjPlNQgxs97wWC2AIfZL-QwvAw6z81Ps5ducgUMWd9fooGp2ofPtjGH0clxPT9MzzGGlS1HpeeL_LFUylfO8qfvGLLEgoj33DUZrHiqXRXoswrMe9o_URnrfpQD7StgOgCnCPDqf0N4RQUDvlmCh8QLFzTySzamJ3JlUs2wH8qCc3DKks8WA",
-    verified: true,
-    following: true,
-  },
-  {
-    id: "sarah-chen",
-    name: "Sarah Chen",
-    handle: "@sarah_designs",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDvwuQjR5HTm_osKBP8C-ypNMgY2pBHZEwULOAHDmaxdrzsCOYuLH8nj-iTxfOfE-6CZrkoD0BFiHuPCOu93BusK24nfFs2pC079Hwwe5q8cGksG8_W-bNikUSo5QmmMT1u-_OgvR_a5C590KMCUf7p5cnxzXUbgk6_KdTr7rYthzHZ3qDCk6rv0nUxJ_NF3UHkC6GUaQ4xSP_jDiGcB02Ya3vwspdPQVnhxLu8ALe55qNTq7cPvllWzNS1L3Rc35AtrP75OnMu6Fw",
-    following: true,
-  },
-  {
-    id: "david-kim",
-    name: "David Kim",
-    handle: "@dkim_art",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDgok-iEj0XLM2TM5jCiON9zk16aA8oI-YFdZJ1iPiHMIpvMrHZBDcYyCzOWrs6XLpxc0YbawvH6uN7q7f8i36WdPa3DaxxYneG4J3EqOF7eqxkqUjW0pnFaTFxVGsMBLeXH5Q3wnNlo1JJhsPHwS9ZTYI6fGPjBbm9TzNjeDjM8ij8dUCyhj5lY0_hjuJUjs5V_SkzeRK_AWnB8H1vjNecXaVgeeNPVHmDUgpBxW7yLeWJ-gPKU6skDH2UbXpgWyafbjN6Yd1xmg0",
-    following: true,
-  },
-  {
-    id: "zoe-baker",
-    name: "Zoe Baker",
-    handle: "@zoebaker_off",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBZ0NHBEkXWNqBNpvHFeI0QWA_TE5eD1W862pbI54UWF05AW0uQXtAjuXO53St1prkFcqlKV3oJdGCrq_JTmMspz33TC_0haN6EsLT7xCqHwkHyl6Fnt6ew8DH6IE0zatwmrTN0seQRIXd9iRF6BwOGrVOrB4HCH08g4VDRr0yK1-pRp-4xDbF76Gx1Nqpg5bmWnwYpCznUmInsor7lpfInGtkObJCQ3SJt7MynTw1TM73M6zqXjSZDiPVMGTrg6exw_hw0thWenUU",
-    verified: true,
-    following: true,
-  },
-];
+const defaultAvatar = "https://ui-avatars.com/api/?name=User&background=27BB97&color=fff&size=128";
 
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
@@ -122,25 +31,74 @@ const getTabParam = (value?: string | string[]): FollowTab => {
   return nextValue === "following" ? "following" : "followers";
 };
 
+const formatFollowMeta = (user: FollowListUser) => {
+  if (user.createdAt) {
+    const joinedDate = new Date(user.createdAt);
+    if (!Number.isNaN(joinedDate.getTime())) {
+      return `Joined ${joinedDate.toLocaleDateString(undefined, {
+        month: "short",
+        year: "numeric",
+      })}`;
+    }
+  }
+
+  if (user.provider === "google") {
+    return "Google account";
+  }
+
+  return "Listifys member";
+};
+
 export function FollowersFollowingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string | string[] }>();
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
+  const currentUser = useAppSelector((s) => s.auth.user);
   const [activeTab, setActiveTab] = useState<FollowTab>(getTabParam(params.tab));
   const [searchQuery, setSearchQuery] = useState("");
-  const [followState, setFollowState] = useState<Record<string, boolean>>(() => {
-    const allUsers = [...followers, ...followingUsers];
-    return allUsers.reduce<Record<string, boolean>>((acc, user) => {
-      acc[user.id] = user.following;
-      return acc;
-    }, {});
-  });
+  const [followers, setFollowers] = useState<FollowListUser[]>([]);
+  const [followingUsers, setFollowingUsers] = useState<FollowListUser[]>([]);
+  const [followState, setFollowState] = useState<Record<string, boolean>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveTab(getTabParam(params.tab));
   }, [params.tab]);
+
+  const loadFollowData = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const [followersResponse, followingResponse] = await Promise.all([
+        getFollowList("followers"),
+        getFollowList("following"),
+      ]);
+
+      const nextFollowers = followersResponse.users ?? [];
+      const nextFollowing = followingResponse.users ?? [];
+      const nextFollowState = nextFollowing.reduce<Record<string, boolean>>((acc, user) => {
+        acc[user.id] = true;
+        return acc;
+      }, {});
+
+      setFollowers(nextFollowers);
+      setFollowingUsers(nextFollowing);
+      setFollowState(nextFollowState);
+    } catch (error) {
+      Alert.alert("Followers", error instanceof Error ? error.message : "Failed to load follow data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFollowData();
+  }, [loadFollowData]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadFollowData);
 
   const visibleUsers = useMemo(() => {
     const source = activeTab === "followers" ? followers : followingUsers;
@@ -153,7 +111,7 @@ export function FollowersFollowingScreen() {
     return source.filter((user) => {
       return (
         user.name.toLowerCase().includes(normalizedQuery) ||
-        user.handle.toLowerCase().includes(normalizedQuery)
+        formatFollowMeta(user).toLowerCase().includes(normalizedQuery)
       );
     });
   }, [activeTab, searchQuery]);
@@ -165,11 +123,44 @@ export function FollowersFollowingScreen() {
     router.replace({ pathname: "/followers-following", params: { tab } });
   };
 
-  const toggleFollow = (userId: string) => {
-    setFollowState((current) => ({
-      ...current,
-      [userId]: !current[userId],
-    }));
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/dashboard-home" as Href);
+  };
+
+  const toggleFollow = async (user: FollowListUser) => {
+    if (pendingUserId) {
+      return;
+    }
+
+    setPendingUserId(user.id);
+
+    try {
+      const response = await toggleFollowUser(user.id);
+      const isFollowing = response.isFollowing;
+
+      setFollowState((current) => ({
+        ...current,
+        [user.id]: isFollowing,
+      }));
+
+      setFollowingUsers((current) => {
+        const exists = current.some((entry) => entry.id === user.id);
+        if (isFollowing) {
+          return exists ? current : [user, ...current];
+        }
+
+        return current.filter((entry) => entry.id !== user.id);
+      });
+    } catch (error) {
+      Alert.alert("Follow", error instanceof Error ? error.message : "Failed to update follow status.");
+    } finally {
+      setPendingUserId(null);
+    }
   };
 
   return (
@@ -187,11 +178,11 @@ export function FollowersFollowingScreen() {
         }}
       >
         <View className="flex-row items-center gap-4">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+          <Pressable onPress={handleBack} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
             <MaterialIcons name="arrow-back" size={24} color="#161D1A" />
           </Pressable>
           <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
-            John Doe
+            {currentUser?.name || "Followers"}
           </Text>
         </View>
         <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
@@ -201,6 +192,15 @@ export function FollowersFollowingScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
+            progressViewOffset={topBarHeight}
+          />
+        }
         contentContainerStyle={{
           paddingTop: topBarHeight,
           paddingBottom: 84 + bottomNavPadding,
@@ -209,8 +209,8 @@ export function FollowersFollowingScreen() {
         <View className="border-b border-slate-100 bg-white">
           <View className="flex-row">
             {[
-              { key: "followers" as const, count: "450", label: "Followers" },
-              { key: "following" as const, count: "89", label: "Following" },
+              { key: "followers" as const, count: String(followers.length), label: "Followers" },
+              { key: "following" as const, count: String(followingUsers.length), label: "Following" },
             ].map((tab) => {
               const isActive = activeTab === tab.key;
               return (
@@ -247,44 +247,65 @@ export function FollowersFollowingScreen() {
         </View>
 
         <View className="gap-2 px-4">
+          {!isLoading && visibleUsers.length === 0 ? (
+            <View className="items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10">
+              <MaterialIcons name="group-off" size={30} color="#94A3B8" />
+              <Text className="mt-3 text-[16px] font-semibold text-[#161D1A]">
+                {activeTab === "followers" ? "No followers yet" : "Not following anyone yet"}
+              </Text>
+              <Text className="mt-1 text-center text-[13px] leading-5 text-slate-500">
+                {searchQuery.trim()
+                  ? "Try a different name search."
+                  : activeTab === "followers"
+                    ? "People who follow you will appear here."
+                    : "Profiles you follow will appear here."}
+              </Text>
+            </View>
+          ) : null}
+
           {visibleUsers.map((user) => {
-            const isFollowing = followState[user.id];
+            const isFollowing = !!followState[user.id];
+            const buttonLabel = activeTab === "followers" && !isFollowing ? "Follow back" : isFollowing ? "Unfollow" : "Follow";
             return (
               <View
                 key={user.id}
                 className="flex-row items-center justify-between rounded-xl border border-transparent px-3 py-3"
                 style={{ backgroundColor: "transparent" }}
               >
-                <View className="flex-row items-center gap-3">
+                <Pressable
+                  onPress={() => router.push({ pathname: "/seller-public-profile", params: { userId: user.id } })}
+                  className="flex-1 flex-row items-center gap-3"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+                >
                   <View className="h-12 w-12 overflow-hidden rounded-full border border-slate-100 bg-slate-200">
-                    <Image source={user.avatar} contentFit="cover" className="h-full w-full" />
+                    <Image source={user.profileImageUrl || defaultAvatar} contentFit="cover" className="h-full w-full" />
                   </View>
                   <View>
                     <View className="flex-row items-center gap-1">
                       <Text className="text-[18px] font-semibold text-[#161D1A]">{user.name}</Text>
-                      {user.verified ? (
+                      {user.provider === "google" ? (
                         <MaterialIcons name="verified" size={18} color="#27BB97" />
                       ) : null}
                     </View>
-                    <Text className="text-[12px] font-medium text-slate-500">{user.handle}</Text>
+                    <Text className="text-[12px] font-medium text-slate-500">{formatFollowMeta(user)}</Text>
                   </View>
-                </View>
+                </Pressable>
 
                 <Pressable
-                  onPress={() => toggleFollow(user.id)}
+                  onPress={() => void toggleFollow(user)}
                   className="rounded-full px-5 py-2"
                   style={({ pressed }) => ({
                     backgroundColor: isFollowing ? "#FFFFFF" : "#27BB97",
                     borderWidth: isFollowing ? 1 : 0,
                     borderColor: isFollowing ? "#E2E8F0" : "transparent",
-                    opacity: pressed ? 0.8 : 1,
+                    opacity: pressed || pendingUserId === user.id ? 0.8 : 1,
                   })}
                 >
                   <Text
                     className="text-[12px] font-semibold"
                     style={{ color: isFollowing ? "#475569" : "#FFFFFF" }}
                   >
-                    {isFollowing ? "Unfollow" : "Follow"}
+                    {pendingUserId === user.id ? "Updating..." : buttonLabel}
                   </Text>
                 </Pressable>
               </View>

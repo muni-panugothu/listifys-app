@@ -1,13 +1,16 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { Alert, Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  type SettingsPreferences,
+  getSettingsPreferences,
+  updateSettingsPreferences,
+} from "@/features/auth/services/auth-api";
 import { useAppSelector } from "@/store/hooks";
-
-const SETTINGS_KEY = "@listify/app_settings";
 
 export function SettingsScreen() {
   const router = useRouter();
@@ -15,29 +18,56 @@ export function SettingsScreen() {
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const user = useAppSelector((s) => s.auth.user);
 
-  const [darkMode, setDarkMode] = useState(false);
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [emailUpdates, setEmailUpdates] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [preferences, setPreferences] = useState<SettingsPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<keyof SettingsPreferences | null>(null);
 
-  useEffect(() => {
-    AsyncStorage.getItem(SETTINGS_KEY).then((raw) => {
-      if (raw) {
-        try {
-          const saved = JSON.parse(raw);
-          if (saved.darkMode !== undefined) setDarkMode(saved.darkMode);
-          if (saved.pushNotifications !== undefined) setPushNotifications(saved.pushNotifications);
-          if (saved.emailUpdates !== undefined) setEmailUpdates(saved.emailUpdates);
-        } catch { /* ignore */ }
-      }
-      setLoaded(true);
-    });
+  const loadPreferences = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const response = await getSettingsPreferences();
+      setPreferences(response.preferences);
+    } catch (error) {
+      Alert.alert("Settings", error instanceof Error ? error.message : "Failed to load settings.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    if (!loaded) return;
-    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ darkMode, pushNotifications, emailUpdates }));
-  }, [darkMode, pushNotifications, emailUpdates, loaded]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadPreferences();
+    }, [loadPreferences]),
+  );
+
+  const updatePreference = useCallback(
+    async <K extends keyof SettingsPreferences>(key: K, value: SettingsPreferences[K]) => {
+      if (!preferences) {
+        return;
+      }
+
+      const previous = preferences;
+      const next = { ...previous, [key]: value };
+      setPreferences(next);
+      setSavingKey(key);
+
+      try {
+        const response = await updateSettingsPreferences({ [key]: value });
+        setPreferences(response.preferences);
+      } catch (error) {
+        setPreferences(previous);
+        Alert.alert("Settings", error instanceof Error ? error.message : "Failed to update settings.");
+      } finally {
+        setSavingKey(null);
+      }
+    },
+    [preferences],
+  );
+
+  const darkModeEnabled = preferences?.theme === "dark";
+  const pushNotificationsEnabled = preferences?.pushNotifications ?? true;
+  const emailUpdatesEnabled = preferences?.marketingEmails ?? false;
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -47,7 +77,17 @@ export function SettingsScreen() {
     router.replace("/home-feed-root" as Href);
   };
 
-  type SettingRow = { icon: React.ComponentProps<typeof MaterialIcons>["name"]; label: string; subtitle?: string; type: "toggle" | "navigate"; value?: boolean; onToggle?: (v: boolean) => void; route?: string; onPress?: () => void };
+  type SettingRow = {
+    icon: React.ComponentProps<typeof MaterialIcons>["name"];
+    label: string;
+    subtitle?: string;
+    type: "toggle" | "navigate";
+    value?: boolean;
+    onToggle?: (v: boolean) => void;
+    route?: string;
+    onPress?: () => void;
+    disabled?: boolean;
+  };
 
   const sections: { title: string; items: SettingRow[] }[] = [
     {
@@ -56,21 +96,29 @@ export function SettingsScreen() {
         { icon: "person-outline", label: "Edit Profile", type: "navigate", route: "/profile-details-edit" },
         { icon: "lock-reset", label: user?.hasPassword === false ? "Set Password" : "Change Password", subtitle: user?.hasPassword === false ? "Add password to your account" : "Old password → New password", type: "navigate", route: "/change-password" },
         { icon: "lock-open", label: "Forgot Password", subtitle: "Reset via email OTP verification", type: "navigate", route: "/forgot-password" },
-        { icon: "shield", label: "Security", subtitle: "2FA, biometrics, devices", type: "navigate", route: "/security" },
-      ],
-    },
-    {
-      title: "Preferences",
-      items: [
-        { icon: "dark-mode", label: "Dark Mode", type: "toggle", value: darkMode, onToggle: setDarkMode },
-        { icon: "language", label: "Language", subtitle: "English (US)", type: "navigate" },
       ],
     },
     {
       title: "Notifications",
       items: [
-        { icon: "notifications-active", label: "Push notifications", type: "toggle", value: pushNotifications, onToggle: setPushNotifications },
-        { icon: "mail", label: "Email updates", type: "toggle", value: emailUpdates, onToggle: setEmailUpdates },
+        {
+          icon: "notifications-active",
+          label: "Push notifications",
+          subtitle: "Order, message, and activity alerts",
+          type: "toggle",
+          value: pushNotificationsEnabled,
+          onToggle: (value) => void updatePreference("pushNotifications", value),
+          disabled: loading || savingKey === "pushNotifications",
+        },
+        {
+          icon: "mail",
+          label: "Email updates",
+          subtitle: "Product news and marketplace updates",
+          type: "toggle",
+          value: emailUpdatesEnabled,
+          onToggle: (value) => void updatePreference("marketingEmails", value),
+          disabled: loading || savingKey === "marketingEmails",
+        },
       ],
     },
     {
@@ -125,7 +173,13 @@ export function SettingsScreen() {
                         </View>
                       </View>
                       {item.type === "toggle" ? (
-                        <Switch value={item.value} onValueChange={item.onToggle} trackColor={{ false: "#E2E8F0", true: "#27BB97" }} thumbColor="#FFFFFF" />
+                        <Switch
+                          value={item.value}
+                          onValueChange={item.onToggle}
+                          disabled={item.disabled}
+                          trackColor={{ false: "#E2E8F0", true: "#27BB97" }}
+                          thumbColor="#FFFFFF"
+                        />
                       ) : (
                         <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
                       )}
@@ -157,8 +211,6 @@ export function SettingsScreen() {
             <MaterialIcons name="logout" size={22} color="#BA1A1A" />
             <Text className="text-[18px] font-semibold text-[#BA1A1A]">Sign Out</Text>
           </Pressable>
-
-          <Text className="text-center text-[12px] text-[#94A3B8]">Made with passion in Bangalore</Text>
         </View>
       </ScrollView>
     </View>

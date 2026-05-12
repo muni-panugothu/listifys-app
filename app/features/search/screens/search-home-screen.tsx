@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BackHandler,
     Dimensions,
     Keyboard,
     Pressable,
@@ -169,6 +171,18 @@ export function SearchHomeScreen() {
 
   const handleBottomTabPress = useTabNavigation();
 
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        handleBottomTabPress("home");
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    }, [handleBottomTabPress]),
+  );
+
   return (
     <View className="flex-1 bg-[#F4FBF6]">
       <View
@@ -185,7 +199,7 @@ export function SearchHomeScreen() {
       >
         <View className="flex-row items-center gap-3">
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => handleBottomTabPress("home")}
             className="h-9 w-9 items-center justify-center"
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >

@@ -4,6 +4,7 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -63,6 +64,18 @@ export function MessagesInboxScreen() {
   const [loading, setLoading] = useState(true);
 
   const handleBottomTabPress = useTabNavigation();
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        handleBottomTabPress("home");
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    }, [handleBottomTabPress]),
+  );
 
   const loadConversations = useCallback(async () => {
     try {
@@ -164,7 +177,7 @@ export function MessagesInboxScreen() {
         style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}
       >
         <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+          <Pressable onPress={() => handleBottomTabPress("home")} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
             <MaterialIcons name="arrow-back" size={24} color="#27BB97" />
           </Pressable>
           <Text className="text-[14px] font-semibold tracking-tight text-[#161D1A]">Messages</Text>

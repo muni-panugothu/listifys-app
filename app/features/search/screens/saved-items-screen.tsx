@@ -116,7 +116,12 @@ export function SavedItemsScreen() {
           {/* Featured item (first) */}
           {items.length > 0 && (
             <Pressable
-              onPress={() => router.push(`/listing-detail-template?category=${(items[0] as any)._source ?? items[0].category}&id=${items[0]._id}` as Href)}
+              onPress={() => {
+                const cat = (items[0] as any)._source ?? items[0].category;
+                const specialRoutes: Record<string, string> = { events: "/event-detail", properties: "/property-detail", jobs: "/job-detail", services: "/service-detail" };
+                const route = specialRoutes[cat] ? `${specialRoutes[cat]}?id=${items[0]._id}&category=${cat}` : `/listing-detail-template?category=${cat}&id=${items[0]._id}`;
+                router.push(route as Href);
+              }}
               className="mb-4 overflow-hidden rounded-xl border border-slate-100 bg-white"
               style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}
             >
@@ -157,7 +162,12 @@ export function SavedItemsScreen() {
             {items.slice(1).map((item) => (
               <Pressable
                 key={item._id}
-                onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
+                onPress={() => {
+                  const cat = (item as any)._source ?? item.category;
+                  const specialRoutes: Record<string, string> = { events: "/event-detail", properties: "/property-detail", jobs: "/job-detail", services: "/service-detail" };
+                  const route = specialRoutes[cat] ? `${specialRoutes[cat]}?id=${item._id}&category=${cat}` : `/listing-detail-template?category=${cat}&id=${item._id}`;
+                  router.push(route as Href);
+                }}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-white"
                 style={{
                   width: CARD_WIDTH,

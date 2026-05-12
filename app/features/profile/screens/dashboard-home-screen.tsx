@@ -1,9 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { BackHandler, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { getUnreadCount as getNotificationUnreadCount } from "@/features/auth/services/auth-api";
+import { fetchSavedListings } from "@/features/listing/services/listing-api";
+import { getUnreadCount as getChatUnreadCount } from "@/features/messaging/services/chat-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 import { Image } from "@/lib/nativewind-interop";
@@ -20,21 +24,6 @@ type MenuItem = {
   badge?: string;
 };
 
-const accountMenuItems: MenuItem[] = [
-  { icon: "person", label: "My Profile", route: "/profile-details-edit" },
-  { icon: "list-alt", label: "My Listings", route: "/my-listings-active", badge: "12" },
-  { icon: "favorite", label: "Saved Items", route: "/saved-items", badge: "3" },
-  { icon: "chat", label: "Messages", route: "/messages-inbox", badge: "5" },
-];
-
-const settingsMenuItems: MenuItem[] = [
-  { icon: "devices", label: "Devices", route: "/devices" },
-  { icon: "history", label: "Activity Log", route: "/activity-log" },
-  { icon: "notifications", label: "Notifications", route: "/notifications-center", badge: "2" },
-  { icon: "settings", label: "Settings", route: "/app-settings" },
-  { icon: "security", label: "Security", route: "/security" },
-];
-
 const bottomTabs = [
   { id: "home", label: "Home", icon: "home" as const },
   { id: "search", label: "Search", icon: "search" as const },
@@ -50,14 +39,37 @@ export function DashboardHomeScreen() {
   const bottomNavPadding = Math.max(insets.bottom, 8);
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const [menuCounts, setMenuCounts] = useState({
+    savedItems: 0,
+    unreadMessages: 0,
+    unreadNotifications: 0,
+  });
 
-  useEffect(() => {
-    dispatch(fetchProfile());
+  const loadDashboardData = useCallback(async () => {
+    const [savedResult, chatResult, notificationResult] = await Promise.allSettled([
+      fetchSavedListings(),
+      getChatUnreadCount(),
+      getNotificationUnreadCount(),
+    ]);
+
+    await dispatch(fetchProfile()).unwrap().catch(() => {});
+
+    setMenuCounts({
+      savedItems: savedResult.status === "fulfilled" ? savedResult.value.listings.length : 0,
+      unreadMessages: chatResult.status === "fulfilled" ? chatResult.value.unreadCount ?? 0 : 0,
+      unreadNotifications: notificationResult.status === "fulfilled" ? notificationResult.value.unreadCount ?? 0 : 0,
+    });
   }, [dispatch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDashboardData();
+    }, [loadDashboardData]),
+  );
 
   const handleRefresh = useCallback(async () => {
-    await dispatch(fetchProfile()).unwrap().catch(() => {});
-  }, [dispatch]);
+    await loadDashboardData();
+  }, [loadDashboardData]);
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
@@ -84,7 +96,54 @@ export function DashboardHomeScreen() {
     },
   ];
 
+  const accountMenuItems: MenuItem[] = [
+    { icon: "person", label: "My Profile", route: "/profile-details-edit" },
+    {
+      icon: "list-alt",
+      label: "My Listings",
+      route: "/my-listings-active",
+      badge: user?.listingsCount ? String(user.listingsCount) : undefined,
+    },
+    {
+      icon: "favorite",
+      label: "Saved Items",
+      route: "/saved-items",
+      badge: menuCounts.savedItems ? String(menuCounts.savedItems) : undefined,
+    },
+    {
+      icon: "chat",
+      label: "Messages",
+      route: "/messages-inbox",
+      badge: menuCounts.unreadMessages ? String(menuCounts.unreadMessages) : undefined,
+    },
+  ];
+
+  const settingsMenuItems: MenuItem[] = [
+    { icon: "devices", label: "Devices", route: "/devices" },
+    { icon: "history", label: "Activity Log", route: "/activity-log" },
+    {
+      icon: "notifications",
+      label: "Notifications",
+      route: "/notifications-center",
+      badge: menuCounts.unreadNotifications ? String(menuCounts.unreadNotifications) : undefined,
+    },
+    { icon: "settings", label: "Settings", route: "/app-settings" },
+    { icon: "security", label: "Security", route: "/security" },
+  ];
+
   const handleBottomTabPress = useTabNavigation();
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        handleBottomTabPress("home");
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    }, [handleBottomTabPress]),
+  );
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -94,7 +153,7 @@ export function DashboardHomeScreen() {
         style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}
       >
         <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+          <Pressable onPress={() => handleBottomTabPress("home")} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
             <MaterialIcons name="arrow-back" size={24} color="#27BB97" />
           </Pressable>
           <Text className="text-[14px] font-semibold tracking-tight text-[#27BB97]">Profile</Text>

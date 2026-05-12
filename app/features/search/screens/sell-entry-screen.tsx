@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "@/lib/safe-router";
-import { useMemo, useState } from "react";
-import { Dimensions, Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { BackHandler, Dimensions, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CATEGORIES, type CategorySlug } from "@/constants/categories";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppDispatch } from "@/store/hooks";
 import { setCategory } from "@/store/slices/post-form-slice";
@@ -83,6 +85,7 @@ export function SellEntryScreen() {
 	const router = useRouter();
 	const insets = useSafeAreaInsets();
 	const dispatch = useAppDispatch();
+	const handleBottomTabPress = useTabNavigation();
 	const [selectedCategorySlug, setSelectedCategorySlug] =
 		useState<CategorySlug | null>(null);
 
@@ -101,27 +104,17 @@ export function SellEntryScreen() {
 		});
 	};
 
-	const handleBottomTabPress = (tabId: string) => {
-		if (tabId === "home") {
-			router.push("/home-feed-root");
-			return;
-		}
+	useFocusEffect(
+		useCallback(() => {
+			const onHardwareBack = () => {
+				handleBottomTabPress("home");
+				return true;
+			};
 
-		if (tabId === "search") {
-			router.push("/search-home");
-			return;
-		}
-
-		if (tabId === "messages") {
-			router.push("/messages-inbox");
-			return;
-		}
-
-		if (tabId === "profile") {
-			router.push("/dashboard-home");
-			return;
-		}
-	};
+			const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+			return () => sub.remove();
+		}, [handleBottomTabPress]),
+	);
 
 	return (
 		<View className="flex-1 bg-[#F4FBF6]">
@@ -138,7 +131,7 @@ export function SellEntryScreen() {
 				}}
 			>
 				<Pressable
-					onPress={() => router.back()}
+					onPress={() => handleBottomTabPress("home")}
 					className="h-10 w-10 items-center justify-center rounded-full"
 					style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
 				>

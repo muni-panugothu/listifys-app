@@ -389,29 +389,30 @@ export function PostAdStep2DetailsScreen() {
             </Text>
           </View>
 
-          {/* ── Price ── */}
-          <View className="mb-6">
-            <Label text="Price" />
-            <View
-              className="h-12 flex-row items-center rounded-lg bg-white px-4"
-              style={{ borderWidth: 1, borderColor: priceError ? "#BA1A1A" : "#E2E8F0" }}
-            >
-              <Text className="mr-1 text-[16px] font-semibold text-[#161D1A]">₹</Text>
-              <TextInput
-                value={price}
-                onChangeText={(v) => dispatch(setPrice(v))}
-                keyboardType="numeric"
-                className="flex-1 text-[16px] font-bold text-[#161D1A]"
-                style={{ paddingVertical: 0, color: priceError ? "#BA1A1A" : "#161D1A" }}
-              />
-            </View>
-            {priceError && (
-              <View className="mt-1 flex-row items-center gap-1 px-1">
-                <MaterialIcons name="error" size={14} color="#BA1A1A" />
-                <Text className="text-[11px] text-[#BA1A1A]">Price must be greater than ₹100</Text>
+          {!priceOptional && (
+            <View className="mb-6">
+              <Label text="Price" />
+              <View
+                className="h-12 flex-row items-center rounded-lg bg-white px-4"
+                style={{ borderWidth: 1, borderColor: priceError ? "#BA1A1A" : "#E2E8F0" }}
+              >
+                <Text className="mr-1 text-[16px] font-semibold text-[#161D1A]">₹</Text>
+                <TextInput
+                  value={price}
+                  onChangeText={(v) => dispatch(setPrice(v))}
+                  keyboardType="numeric"
+                  className="flex-1 text-[16px] font-bold text-[#161D1A]"
+                  style={{ paddingVertical: 0, color: priceError ? "#BA1A1A" : "#161D1A" }}
+                />
               </View>
-            )}
-          </View>
+              {priceError && (
+                <View className="mt-1 flex-row items-center gap-1 px-1">
+                  <MaterialIcons name="error" size={14} color="#BA1A1A" />
+                  <Text className="text-[11px] text-[#BA1A1A]">Price must be greater than ₹100</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* ── Condition ── */}
           {showCondition && (

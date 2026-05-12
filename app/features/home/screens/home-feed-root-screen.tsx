@@ -81,6 +81,38 @@ export function HomeFeedRootScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
+  // Route to the correct detail screen based on category
+  const SPECIAL_DETAIL_ROUTES: Record<string, string> = {
+    events: "/event-detail",
+    properties: "/property-detail",
+    jobs: "/job-detail",
+    services: "/service-detail",
+  };
+  const SPECIAL_LISTING_ROUTES: Record<string, string> = {
+    events: "/events-listing",
+    properties: "/properties-listing",
+    jobs: "/jobs-listing",
+    services: "/services-category-hub",
+  };
+
+  const pushToDetail = useCallback((cat: string, id: string) => {
+    const specialRoute = SPECIAL_DETAIL_ROUTES[cat];
+    if (specialRoute) {
+      router.push(`${specialRoute}?id=${id}&category=${cat}` as Href);
+    } else {
+      router.push(`/listing-detail-template?category=${cat}&id=${id}` as Href);
+    }
+  }, [router]);
+
+  const pushToListing = useCallback((cat: string) => {
+    const specialRoute = SPECIAL_LISTING_ROUTES[cat];
+    if (specialRoute) {
+      router.push(specialRoute as Href);
+    } else {
+      router.push(`/category-listing-template?category=${cat}` as Href);
+    }
+  }, [router]);
+
   // Flatten all category listings into a single array for recommendations
   const allListings: ListingItem[] = feedData?.categories
     ? Object.values(feedData.categories).flatMap((cat) => cat.listings ?? [])
@@ -435,7 +467,7 @@ export function HomeFeedRootScreen() {
             {allListings.slice(0, 4).map((item) => (
               <Pressable
                 key={item._id}
-                onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
+                onPress={() => pushToDetail((item as any)._source ?? item.category, item._id)}
                 className="overflow-hidden rounded-xl border border-slate-100 bg-white"
                 style={{
                   width: CARD_WIDTH,
@@ -528,7 +560,7 @@ export function HomeFeedRootScreen() {
             {featuredServices.map((item) => (
               <Pressable
                 key={item._id}
-                onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
+                onPress={() => pushToDetail((item as any)._source ?? item.category, item._id)}
                 className="w-48"
               >
                 <View
@@ -580,7 +612,7 @@ export function HomeFeedRootScreen() {
             {recentlyViewed.slice(0, 10).map((item) => (
               <Pressable
                 key={item._id}
-                onPress={() => router.push(`/listing-detail-template?category=${item.category}&id=${item._id}` as Href)}
+                onPress={() => pushToDetail(item.category, item._id)}
                 className="w-40"
               >
                 <View
@@ -637,7 +669,7 @@ export function HomeFeedRootScreen() {
                         </Text>
                       </View>
                     </View>
-                    <Pressable onPress={() => router.push(`/category-listing-template?category=${key}` as Href)}>
+                    <Pressable onPress={() => pushToListing(key)}>
                       <Text className="text-[12px] font-medium text-[#27BB97]">
                         See all
                       </Text>
@@ -652,7 +684,7 @@ export function HomeFeedRootScreen() {
                     {cat.listings.slice(0, 8).map((item) => (
                       <Pressable
                         key={item._id}
-                        onPress={() => router.push(`/listing-detail-template?category=${(item as any)._source ?? item.category}&id=${item._id}` as Href)}
+                        onPress={() => pushToDetail((item as any)._source ?? item.category, item._id)}
                         className="w-44 overflow-hidden rounded-xl border border-slate-100 bg-white"
                         style={{
                           shadowColor: "#000",
