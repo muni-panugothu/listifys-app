@@ -799,8 +799,6 @@ export function HomeFeedRootScreen() {
           </ScrollView>
         </View>
         )}
-<<<<<<< HEAD
-=======
 
         {/* Per-Category Sections */}
         {feedData?.categories &&
@@ -885,7 +883,6 @@ export function HomeFeedRootScreen() {
                 </View>
               );
             })}
->>>>>>> 6bb5ad6d92f5b6fc7fe22622c4af17bc56e61087
       </ScrollView>
 
       {/* ===== BOTTOM NAVIGATION BAR ===== */}
