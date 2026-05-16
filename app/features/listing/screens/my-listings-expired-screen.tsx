@@ -166,7 +166,7 @@ export function MyListingsExpiredScreen() {
                     </Text>
                   </View>
                   <Text className="mt-1 text-[12px] font-medium text-[#EF4444]">
-                    Expired {timeAgo(listing.updatedAt ?? listing.createdAt)}
+                    Expired {timeAgo(typeof listing.updatedAt === "string" ? listing.updatedAt : typeof listing.createdAt === "string" ? listing.createdAt : undefined)}
                   </Text>
                   <Text className="text-[12px] text-[#6C7A74]">
                     {(listing as any)._source ?? listing.category}

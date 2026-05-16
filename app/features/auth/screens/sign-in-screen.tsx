@@ -1,6 +1,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { type Href, useRouter } from "@/lib/safe-router";
+import { StatusBar } from "expo-status-bar";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,

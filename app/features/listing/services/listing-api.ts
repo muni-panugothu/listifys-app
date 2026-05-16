@@ -192,25 +192,37 @@ export async function fetchHomeFeed(params?: {
   if (params?.search) query.set("search", params.search);
 
   const qs = query.toString();
-<<<<<<< HEAD
-  const data = await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`);
-  const normalisedData = normaliseFeedResponse(data);
+  const feedCacheKey = [
+    cacheKeys.feed(params?.page),
+    `limit:${params?.limit ?? "default"}`,
+    `search:${encodeURIComponent(params?.search ?? "")}`,
+  ].join(":");
 
-  if ((!params?.page || params.page === 1) && !params?.search) {
-    try {
-      await AsyncStorage.setItem(
-        HOME_FEED_CACHE_KEY,
-        JSON.stringify({
-          savedAt: Date.now(),
-          data: normalisedData,
-        } satisfies CachedHomeFeed),
+  return withCache(
+    feedCacheKey,
+    async () => {
+      const data = normaliseFeedResponse(
+        await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`),
       );
-    } catch {
-      // silently fail cache writes
-    }
-  }
 
-  return normalisedData;
+      if ((!params?.page || params.page === 1) && !params?.search) {
+        try {
+          await AsyncStorage.setItem(
+            HOME_FEED_CACHE_KEY,
+            JSON.stringify({
+              savedAt: Date.now(),
+              data,
+            } satisfies CachedHomeFeed),
+          );
+        } catch {
+          // silently fail cache writes
+        }
+      }
+
+      return data;
+    },
+    60_000,
+  );
 }
 
 export async function getCachedHomeFeed(): Promise<CachedHomeFeed | null> {
@@ -232,26 +244,6 @@ export async function getCachedHomeFeed(): Promise<CachedHomeFeed | null> {
   } catch {
     return null;
   }
-=======
-
-  return withCache(
-    cacheKeys.feed(params?.page),
-    async () => {
-      const data = await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`);
-      // Normalise all images in each category
-      if (data.categories) {
-        for (const category of Object.keys(data.categories)) {
-          const cat = data.categories[category];
-          if (cat?.listings) {
-            cat.listings = cat.listings.map(normaliseListingImages);
-          }
-        }
-      }
-      return data;
-    },
-    60_000, // 1 minute TTL
-  );
->>>>>>> 6bb5ad6d92f5b6fc7fe22622c4af17bc56e61087
 }
 
 // ── Category Listings ──────────────────────────────────────────────────────────

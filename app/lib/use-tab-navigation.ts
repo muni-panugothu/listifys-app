@@ -4,8 +4,6 @@ import { useCallback, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showAuthGate, type AuthGateAction } from "@/store/slices/auth-gate-slice";
 
-import { useAppSelector } from "@/store/hooks";
-
 const TAB_ROUTES: Record<string, string> = {
   home: "/home-feed-root",
   sell: "/sell-entry",
@@ -36,13 +34,9 @@ const AUTH_REQUIRED_TABS = new Set(["sell"]);
 export function useTabNavigation(onAuthRequired?: () => void) {
   const router = useRouter();
   const pathname = usePathname();
-<<<<<<< HEAD
-  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
-=======
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const lastNavigationRef = useRef<{ target: string; timestamp: number } | null>(null);
->>>>>>> 6bb5ad6d92f5b6fc7fe22622c4af17bc56e61087
 
   const handleTabPress = useCallback(
     (tabId: string) => {
@@ -78,11 +72,7 @@ export function useTabNavigation(onAuthRequired?: () => void) {
       lastNavigationRef.current = { target, timestamp: now };
       router.replace(target as any);
     },
-<<<<<<< HEAD
-    [router, pathname, isAuthenticated, onAuthRequired],
-=======
-    [dispatch, isAuthenticated, pathname, router],
->>>>>>> 6bb5ad6d92f5b6fc7fe22622c4af17bc56e61087
+    [dispatch, isAuthenticated, onAuthRequired, pathname, router],
   );
 
   return handleTabPress;

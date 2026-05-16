@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React from 'react'
 import { View, Text, Image, TouchableOpacity } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -190,5 +189,3 @@ const App = () => {
 
 export { App as OnboardingSlideThreeScreen }
 export default App
-=======
->>>>>>> 6bb5ad6d92f5b6fc7fe22622c4af17bc56e61087

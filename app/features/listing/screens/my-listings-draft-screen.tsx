@@ -166,7 +166,7 @@ export function MyListingsDraftScreen() {
                     </Text>
                   </View>
                   <Text className="mt-1 text-[12px] text-[#6C7A74]">
-                    {(listing as any)._source ?? listing.category ?? "Uncategorized"} • Edited {timeAgo(listing.updatedAt ?? listing.createdAt)}
+                    {(listing as any)._source ?? listing.category ?? "Uncategorized"} • Edited {timeAgo(typeof listing.updatedAt === "string" ? listing.updatedAt : typeof listing.createdAt === "string" ? listing.createdAt : undefined)}
                   </Text>
                   {/* Stats */}
                   <View className="mt-3 flex-row gap-4">

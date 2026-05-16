@@ -102,6 +102,25 @@ export function SignUpScreen() {
     });
   }, []);
 
+  const showGoogleDeveloperError = () => {
+    Alert.alert(
+      "Google Sign In",
+      "Google Sign-In is misconfigured for this Android build. Check that the app package is com.listifys.app, that the SHA-1 for this build is added in Firebase or Google Cloud, and that the web client ID is the Web OAuth client.",
+    );
+  };
+
+  const handleCreateAccount = () => {
+    const name = fullName.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!name || !normalizedEmail || !password) {
+      Alert.alert("Missing Details", "Please enter your name, email, and password.");
+      return;
+    }
+
+    dispatch(register({ name, email: normalizedEmail, password }));
+  };
+
   const handleGoogleSignIn = async () => {
     const googleModule = getGoogleSigninModule();
     if (!googleModule) {

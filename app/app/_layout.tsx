@@ -13,6 +13,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { store } from "@/store";
 
 export default function RootLayout() {
