@@ -27,6 +27,7 @@
     "@aws-sdk/s3-request-presigner": "^3.993.0",
     "@elastic/elasticsearch": "^9.3.4",
     "@google-cloud/vertexai": "^1.12.0",
+    "@google-cloud/vision": "^5.3.6",
     "@smithy/signature-v4": "^5.3.14",
     "@socket.io/redis-adapter": "^8.3.0",
     "@upstash/redis": "^1.36.1",

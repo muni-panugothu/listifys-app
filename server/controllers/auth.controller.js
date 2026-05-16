@@ -1177,10 +1177,40 @@ exports.initiateRegister = async (req, res) => {
       const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
 
       if (now < expiresAt) {
+        // Resend OTP instead of silently returning
+        const lastResendTime = pendingRegistration.lastResendTime;
+        if (lastResendTime) {
+          const timeSinceLastResend = (now - new Date(lastResendTime)) / 1000;
+          if (timeSinceLastResend < 60) {
+            return res.status(200).json({
+              success: true,
+              message: "OTP sent to your email. Please verify to complete registration.",
+              email,
+              expiresIn: Math.ceil((expiresAt - now) / 1000),
+            });
+          }
+        }
+
+        const newOtp = OTPGenerator.generateOTP();
+        await RedisService.storeOTP(email, newOtp);
+        pendingRegistration.lastResendTime = now.toISOString();
+        pendingRegistration.resendCount = (pendingRegistration.resendCount || 0) + 1;
+        await RedisService.storePendingRegistration(email, pendingRegistration);
+
+        logger.info(`📤 Re-queuing OTP email for pending registration: ${email}`);
+        const otpQueued = await publishOTPEmail({ email, username: pendingRegistration.name, otp: newOtp, type: 'registration' });
+        if (!otpQueued) {
+          try {
+            await EmailService.sendOTPEmail(email, pendingRegistration.name, newOtp);
+            logger.info(`✅ OTP re-sent directly (queue fallback) to ${email}`);
+          } catch (emailError) {
+            logger.error("❌ Failed to resend OTP email:", emailError.message);
+          }
+        }
+
         return res.status(200).json({
           success: true,
-          message:
-            "OTP sent to your email. Please verify to complete registration.",
+          message: "OTP sent to your email. Please verify to complete registration.",
           email,
           expiresIn: Math.ceil((expiresAt - now) / 1000),
         });

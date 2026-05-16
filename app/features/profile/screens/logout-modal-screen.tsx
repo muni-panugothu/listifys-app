@@ -28,7 +28,7 @@ export function LogoutModalScreen() {
     await dispatch(logout());
     showToast("Logged out successfully");
     setLoading(false);
-    router.replace("/sign-in" as Href);
+    router.replace("/onboarding-slide-3" as Href);
   };
 
   return (

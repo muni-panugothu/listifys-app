@@ -122,7 +122,7 @@ function buildUserAgent(): string {
   const modelName = deviceModule?.modelName ?? "Unknown";
   const osName = deviceModule?.osName ?? Platform.OS;
   const osVersion = deviceModule?.osVersion ?? Platform.Version?.toString() ?? "";
-  return `Listify/${appVersion} (${brand} ${modelName}; ${osName} ${osVersion})`;
+  return `Listify/${appVersion} React-Native (${brand} ${modelName}; ${osName} ${osVersion})`;
 }
 
 const APP_USER_AGENT = buildUserAgent();

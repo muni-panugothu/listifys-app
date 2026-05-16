@@ -14,6 +14,7 @@ const routeMap = [
   ["/api/cache", "./cache.routes"],
   ["/api/images", "./image.routes"],
   ["/api/s3", "./s3.routes"],
+  ["/api/moderation", "./moderation.routes"],
   ["/api/notifications", "./notification.routes"],
   ["/api/settings", "./settings.routes"],
   ["/api/chat", "./chat.routes"],

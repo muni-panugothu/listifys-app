@@ -18,6 +18,7 @@ import {
   type SearchResultItem,
   type SearchPagination,
 } from "@/features/search/services/search-api";
+import { fetchHomeFeed } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 
@@ -69,6 +70,36 @@ function parseQueryParam(value: string | string[] | undefined) {
   return value ?? "";
 }
 
+function sortLocalResults(items: SearchResultItem[], sortKey: string) {
+  const copy = [...items];
+
+  if (sortKey === "price_asc") {
+    copy.sort((a, b) => Number(a.price ?? Number.MAX_SAFE_INTEGER) - Number(b.price ?? Number.MAX_SAFE_INTEGER));
+    return copy;
+  }
+
+  if (sortKey === "price_desc") {
+    copy.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
+    return copy;
+  }
+
+  if (sortKey === "oldest") {
+    copy.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
+    return copy;
+  }
+
+  if (sortKey === "views") {
+    copy.sort((a, b) => Number(b.views ?? 0) - Number(a.views ?? 0));
+    return copy;
+  }
+
+  return copy;
+}
+
 export function SearchResultsEntityTabsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ q?: string | string[] }>();
@@ -91,12 +122,56 @@ export function SearchResultsEntityTabsScreen() {
   const doSearch = useCallback(
     async (opts?: { page?: number; isRefresh?: boolean }) => {
       const q = searchQuery.trim();
-      if (!q) return;
 
       if (opts?.isRefresh) setRefreshing(true);
       else setLoading(true);
 
       try {
+        if (!q) {
+          const feed = await fetchHomeFeed({ limit: 40 });
+          const feedListings = feed?.categories
+            ? Object.values(feed.categories).flatMap((cat) => cat.listings ?? [])
+            : [];
+
+          const mapped: SearchResultItem[] = feedListings.map((item) => ({
+            _id: item._id,
+            title: item.title,
+            description: item.description,
+            price: item.price,
+            currency: item.currency,
+            category: item.category,
+            subcategory: item.subcategory,
+            condition: item.condition,
+            location: item.location,
+            images: item.images ?? [],
+            brand: typeof item.brand === "string" ? item.brand : undefined,
+            model: typeof item.model === "string" ? item.model : undefined,
+            sellerName: item.sellerName,
+            seller: item.seller,
+            views: item.views,
+            status: item.status,
+            createdAt: item.createdAt,
+            _entity: String((item as any)._source ?? item.category ?? "others"),
+          }));
+
+          const filtered =
+            activeEntity === "all"
+              ? mapped
+              : mapped.filter((item) => item._entity === activeEntity);
+
+          const sorted = sortLocalResults(filtered, activeSort);
+
+          setResults(sorted);
+          setPagination({
+            total: sorted.length,
+            page: 1,
+            pages: 1,
+            limit: 50,
+          });
+          setSource("home_feed");
+          return;
+        }
+
         const res = await searchListings({
           q,
           entity: activeEntity === "all" ? undefined : activeEntity,
