@@ -112,6 +112,11 @@ export type FeedResponse = {
   };
 };
 
+export type CachedHomeFeed = {
+  savedAt: number;
+  data: FeedResponse;
+};
+
 export type ListingsResponse = {
   success: boolean;
   listings: ListingItem[];
@@ -157,6 +162,23 @@ function normaliseListingImages(listing: ListingItem): ListingItem {
   };
 }
 
+function normaliseFeedResponse(data: FeedResponse): FeedResponse {
+  return {
+    ...data,
+    categories: Object.fromEntries(
+      Object.entries(data.categories ?? {}).map(([category, categoryData]) => [
+        category,
+        {
+          ...categoryData,
+          listings: (categoryData.listings ?? []).map(normaliseListingImages),
+        },
+      ]),
+    ),
+  };
+}
+
+const HOME_FEED_CACHE_KEY = "@listify/home_feed_cache";
+
 // ── Feed API (aggregated home feed) ────────────────────────────────────────────
 
 export async function fetchHomeFeed(params?: {
@@ -170,24 +192,58 @@ export async function fetchHomeFeed(params?: {
   if (params?.search) query.set("search", params.search);
 
   const qs = query.toString();
+  const feedCacheKey = [
+    cacheKeys.feed(params?.page),
+    `limit:${params?.limit ?? "default"}`,
+    `search:${encodeURIComponent(params?.search ?? "")}`,
+  ].join(":");
 
   return withCache(
-    cacheKeys.feed(params?.page),
+    feedCacheKey,
     async () => {
-      const data = await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`);
-      // Normalise all images in each category
-      if (data.categories) {
-        for (const category of Object.keys(data.categories)) {
-          const cat = data.categories[category];
-          if (cat?.listings) {
-            cat.listings = cat.listings.map(normaliseListingImages);
-          }
+      const data = normaliseFeedResponse(
+        await apiRequest<FeedResponse>(`/api/feed${qs ? `?${qs}` : ""}`),
+      );
+
+      if ((!params?.page || params.page === 1) && !params?.search) {
+        try {
+          await AsyncStorage.setItem(
+            HOME_FEED_CACHE_KEY,
+            JSON.stringify({
+              savedAt: Date.now(),
+              data,
+            } satisfies CachedHomeFeed),
+          );
+        } catch {
+          // silently fail cache writes
         }
       }
+
       return data;
     },
-    60_000, // 1 minute TTL
+    60_000,
   );
+}
+
+export async function getCachedHomeFeed(): Promise<CachedHomeFeed | null> {
+  try {
+    const raw = await AsyncStorage.getItem(HOME_FEED_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<CachedHomeFeed> | null;
+    if (!parsed || typeof parsed.savedAt !== "number" || !parsed.data) {
+      return null;
+    }
+
+    return {
+      savedAt: parsed.savedAt,
+      data: normaliseFeedResponse(parsed.data),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── Category Listings ──────────────────────────────────────────────────────────
@@ -309,6 +365,70 @@ export async function toggleSaveListing(
   return apiRequest(`/api/${categorySlug}/${id}/toggle-save`, {
     method: "POST",
   });
+}
+
+// ── Image Moderation ──────────────────────────────────────────────────────────
+
+export type ModerationResult = {
+  filename: string;
+  decision: "allow" | "review" | "block";
+  categories: Record<string, string>;
+};
+
+export type ModerationResponse = {
+  success: boolean;
+  overallDecision: "allow" | "review" | "block";
+  results: ModerationResult[];
+};
+
+export async function checkImageModeration(
+  imageUris: string[],
+): Promise<ModerationResponse> {
+  const formData = new FormData();
+  for (const uri of imageUris) {
+    const filename = uri.split("/").pop() || `image_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1] : "jpg";
+    const mimeType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+
+    formData.append("images", {
+      uri: Platform.OS === "android" ? uri : uri.replace("file://", ""),
+      name: filename,
+      type: mimeType,
+    } as unknown as Blob);
+  }
+
+  const token = getAccessToken();
+  const response = await fetch(`${AUTH_API_BASE_URL}/api/moderation/check-images`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "User-Agent": APP_USER_AGENT,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const retryToken = getAccessToken();
+      const retryResponse = await fetch(`${AUTH_API_BASE_URL}/api/moderation/check-images`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": APP_USER_AGENT,
+          ...(retryToken ? { Authorization: `Bearer ${retryToken}` } : {}),
+        },
+        body: formData,
+      });
+      const data = await retryResponse.json();
+      return data as ModerationResponse;
+    }
+  }
+
+  const data = await response.json().catch(() => ({ success: false, overallDecision: "allow", results: [] }));
+  return data as ModerationResponse;
 }
 
 // ── Upload Images to S3 ───────────────────────────────────────────────────────

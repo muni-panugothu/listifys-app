@@ -19,11 +19,19 @@ const AUTH_GATED_TABS: Partial<Record<string, AuthGateAction>> = {
 };
 
 /**
+ * Tabs that require authentication. If the user is not logged in,
+ * the optional `onAuthRequired` callback fires instead of navigating.
+ */
+const AUTH_REQUIRED_TABS = new Set(["sell"]);
+
+/**
  * Shared bottom-tab navigation handler.
  * Uses `router.replace` to avoid stacking duplicate screens
  * and guards against navigating to the current route.
+ *
+ * @param onAuthRequired – fired when an unauthenticated user taps a protected tab (e.g. Sell)
  */
-export function useTabNavigation() {
+export function useTabNavigation(onAuthRequired?: () => void) {
   const router = useRouter();
   const pathname = usePathname();
   const dispatch = useAppDispatch();
@@ -34,6 +42,12 @@ export function useTabNavigation() {
     (tabId: string) => {
       const target = TAB_ROUTES[tabId];
       if (!target) return;
+
+      // Guard protected tabs
+      if (AUTH_REQUIRED_TABS.has(tabId) && !isAuthenticated) {
+        onAuthRequired?.();
+        return;
+      }
 
       // Already on this screen — do nothing
       if (pathname === target) return;
@@ -58,7 +72,7 @@ export function useTabNavigation() {
       lastNavigationRef.current = { target, timestamp: now };
       router.replace(target as any);
     },
-    [dispatch, isAuthenticated, pathname, router],
+    [dispatch, isAuthenticated, onAuthRequired, pathname, router],
   );
 
   return handleTabPress;

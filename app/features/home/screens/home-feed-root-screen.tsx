@@ -4,6 +4,7 @@ import { type Href, useFocusEffect, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     Dimensions,
+    Modal,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -16,6 +17,7 @@ import { CATEGORIES } from "@/constants/categories";
 import { getUnreadCount } from "@/features/auth/services/auth-api";
 import {
   fetchHomeFeed,
+  getCachedHomeFeed,
   getRecentlyViewed,
   toggleSaveListing,
   type FeedResponse,
@@ -27,9 +29,11 @@ import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
+import { clearSlowRequestSignal, reportSlowRequest } from "@/store/slices/network-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
+const SLOW_HOME_FEED_MS = 3500;
 const SELL_BANNER_CAMERA_IMAGE =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80";
 
@@ -70,16 +74,74 @@ const bottomTabs = [
   { id: "profile", label: "Profile", icon: "person" as const },
 ];
 
+function buildSavedIds(feedData: FeedResponse | null, userId?: string | null) {
+  const ids = new Set<string>();
+
+  if (!feedData?.categories || !userId) {
+    return ids;
+  }
+
+  for (const category of Object.values(feedData.categories)) {
+    for (const listing of category.listings ?? []) {
+      if (listing.savedBy?.includes(userId)) {
+        ids.add(listing._id);
+      }
+    }
+  }
+
+  return ids;
+}
+
+function formatFeedSyncLabel(savedAt: number | null) {
+  if (!savedAt) {
+    return "Synced recently";
+  }
+
+  const diffMs = Math.max(0, Date.now() - savedAt);
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) {
+    return "Synced just now";
+  }
+
+  if (diffMinutes < 60) {
+    return `Synced ${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `Synced ${diffHours}h ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `Synced ${diffDays}d ago`;
+}
+
 export function HomeFeedRootScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const network = useAppSelector((s) => s.network);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [feedData, setFeedData] = useState<FeedResponse | null>(null);
+  const [lastFeedSyncAt, setLastFeedSyncAt] = useState<number | null>(null);
+  const [isUsingCachedFeed, setIsUsingCachedFeed] = useState(false);
   const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [showLoginSheet, setShowLoginSheet] = useState(false);
+  const isOffline = !network.isConnected || network.isInternetReachable === false;
+
+  const applyFeedSnapshot = useCallback(
+    (response: FeedResponse, options: { source: "cache" | "live"; savedAt: number }) => {
+      setFeedData(response);
+      setSavedIds(buildSavedIds(response, user?.id));
+      setLastFeedSyncAt(options.savedAt);
+      setIsUsingCachedFeed(options.source === "cache");
+    },
+    [user?.id],
+  );
 
   // Route to the correct detail screen based on category
   const SPECIAL_DETAIL_ROUTES: Record<string, string> = {
@@ -124,30 +186,59 @@ export function HomeFeedRootScreen() {
     ...(feedData?.categories?.services?.listings ?? []),
   ].slice(0, 6);
 
-  const loadFeed = useCallback(async () => {
+  const loadFeed = useCallback(async (options?: { allowCacheFallback?: boolean }) => {
+    const startedAt = Date.now();
+
     try {
       const res = await fetchHomeFeed({ limit: 10 });
-      setFeedData(res);
-      // Build saved set from all listings
-      const ids = new Set<string>();
-      if (res.categories && user?.id) {
-        for (const cat of Object.values(res.categories)) {
-          for (const l of cat.listings ?? []) {
-            if (l.savedBy?.includes(user.id)) ids.add(l._id);
-          }
-        }
+      const duration = Date.now() - startedAt;
+
+      if (duration >= SLOW_HOME_FEED_MS) {
+        dispatch(reportSlowRequest(duration));
+      } else {
+        dispatch(clearSlowRequestSignal());
       }
-      setSavedIds(ids);
+
+      applyFeedSnapshot(res, { source: "live", savedAt: Date.now() });
     } catch {
-      // keep existing data on error
+      const duration = Date.now() - startedAt;
+
+      if (duration >= SLOW_HOME_FEED_MS) {
+        dispatch(reportSlowRequest(duration));
+      } else {
+        dispatch(clearSlowRequestSignal());
+      }
+
+      if (options?.allowCacheFallback === false) {
+        return;
+      }
+
+      const cached = await getCachedHomeFeed();
+      if (cached) {
+        applyFeedSnapshot(cached.data, { source: "cache", savedAt: cached.savedAt });
+      }
     }
-  }, [user?.id]);
+  }, [applyFeedSnapshot, dispatch]);
 
   useEffect(() => {
-    loadFeed();
+    (async () => {
+      const cached = await getCachedHomeFeed().catch(() => null);
+      if (cached) {
+        applyFeedSnapshot(cached.data, { source: "cache", savedAt: cached.savedAt });
+      }
+
+      await loadFeed({ allowCacheFallback: !cached });
+    })().catch(() => {});
+
     getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
     getUnreadCount().then((r) => setUnreadCount(r.unreadCount ?? 0)).catch(() => {});
-  }, [loadFeed]);
+  }, [applyFeedSnapshot, loadFeed]);
+
+  useEffect(() => {
+    if (!isOffline && isUsingCachedFeed) {
+      loadFeed({ allowCacheFallback: false }).catch(() => {});
+    }
+  }, [isOffline, isUsingCachedFeed, loadFeed]);
 
   // Refresh recently viewed + unread count when screen is focused
   useFocusEffect(
@@ -168,9 +259,13 @@ export function HomeFeedRootScreen() {
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
-  const handleBottomTabPress = useTabNavigation();
+  const handleBottomTabPress = useTabNavigation(() => setShowLoginSheet(true));
 
   const handleToggleSave = useCallback(async (item: ListingItem) => {
+    if (isOffline) {
+      return;
+    }
+
     try {
       const category = (item as any)._source ?? item.category ?? "electronics";
       const res = await toggleSaveListing(category, item._id);
@@ -183,7 +278,7 @@ export function HomeFeedRootScreen() {
     } catch {
       // silently fail
     }
-  }, []);
+  }, [isOffline]);
 
   return (
     <View className="flex-1 bg-[#F4FBF6]">
@@ -248,6 +343,52 @@ export function HomeFeedRootScreen() {
           paddingBottom: 80 + Math.max(insets.bottom, 16),
         }}
       >
+        {(isOffline || isUsingCachedFeed) && (
+          <View className="mb-4 px-4">
+            <View
+              className="rounded-2xl border px-4 py-4"
+              style={{
+                borderColor: isOffline ? "rgba(16,35,29,0.08)" : "rgba(39,187,151,0.18)",
+                backgroundColor: isOffline ? "#EDF4F1" : "#F5FFFA",
+              }}
+            >
+              <View className="flex-row items-start gap-3">
+                <View
+                  className="h-11 w-11 items-center justify-center rounded-2xl"
+                  style={{ backgroundColor: isOffline ? "#10231D" : "rgba(39,187,151,0.12)" }}
+                >
+                  <MaterialIcons
+                    name={isOffline ? "cloud-off" : "sync"}
+                    size={20}
+                    color={isOffline ? "#F8FAFC" : "#1D9477"}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[15px] font-semibold text-[#161D1A]">
+                    {isOffline
+                      ? feedData
+                        ? "Offline mode"
+                        : "No internet connection"
+                      : "Refreshing saved feed"}
+                  </Text>
+                  <Text className="mt-1 text-[13px] leading-5 text-[#587168]">
+                    {isOffline
+                      ? feedData
+                        ? "You’re browsing the last synced homepage. New activity will appear again once the connection is back."
+                        : "Reconnect to load the latest homepage listings and activity."
+                      : "Showing your saved homepage while the latest listings are being fetched."}
+                  </Text>
+                  {lastFeedSyncAt ? (
+                    <Text className="mt-2 text-[12px] font-medium text-[#1D9477]">
+                      {formatFeedSyncLabel(lastFeedSyncAt)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Search Section */}
         <Pressable
           onPress={() => router.push("/search-home")}
@@ -459,8 +600,16 @@ export function HomeFeedRootScreen() {
 
           {allListings.length === 0 ? (
             <View className="items-center py-10">
-              <MaterialIcons name="inventory-2" size={48} color="#CBD5E1" />
-              <Text className="mt-2 text-[14px] text-[#6C7A74]">No listings yet. Be the first to post!</Text>
+              <MaterialIcons
+                name={isOffline ? "cloud-off" : "inventory-2"}
+                size={48}
+                color="#CBD5E1"
+              />
+              <Text className="mt-2 text-[14px] text-[#6C7A74]">
+                {isOffline
+                  ? "You’re offline. Reconnect to load fresh recommendations."
+                  : "No listings yet. Be the first to post!"}
+              </Text>
             </View>
           ) : (
           <View className="flex-row flex-wrap justify-between" style={{ gap: 12 }}>
@@ -501,8 +650,12 @@ export function HomeFeedRootScreen() {
                   </View>
                   {/* Favorite Button */}
                   <Pressable
-                    onPress={() => handleToggleSave(item)}
+                    onPress={(e) => { e.stopPropagation(); handleToggleSave(item); }}
+                    onStartShouldSetResponder={() => true}
+                    hitSlop={8}
                     className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/70"
+                    disabled={isOffline}
+                    style={({ pressed }) => ({ opacity: isOffline ? 0.45 : pressed ? 0.72 : 1 })}
                   >
                     <MaterialIcons
                       name={savedIds.has(item._id) ? "favorite" : "favorite-border"}
@@ -565,7 +718,7 @@ export function HomeFeedRootScreen() {
               >
                 <View
                   className="mb-2 overflow-hidden rounded-xl"
-                  style={{ aspectRatio: 4 / 3 }}
+                  style={{ aspectRatio: 3 / 2.5 }}
                 >
                   {item.images?.[0] ? (
                     <Image
@@ -795,6 +948,52 @@ export function HomeFeedRootScreen() {
           })}
         </View>
       </View>
+
+      {/* Login Required Bottom Sheet */}
+      <Modal
+        visible={showLoginSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLoginSheet(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40"
+          onPress={() => setShowLoginSheet(false)}
+        />
+        <View
+          className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-6 pt-6"
+          style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+        >
+          <View className="mb-4 self-center h-1 w-10 rounded-full bg-slate-200" />
+          <View className="items-center mb-4">
+            <View className="mb-3 h-16 w-16 items-center justify-center rounded-full bg-[rgba(39,187,151,0.1)]">
+              <MaterialIcons name="lock-outline" size={32} color="#27BB97" />
+            </View>
+            <Text className="text-[20px] font-bold text-[#161D1A] mb-1">
+              Login Required
+            </Text>
+            <Text className="text-[14px] text-center text-[#6C7A74] leading-5">
+              Please sign in to post your products and start selling on Listify.
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => { setShowLoginSheet(false); router.push("/sign-in" as Href); }}
+            className="mb-3 h-14 items-center justify-center rounded-2xl bg-[#27BB97]"
+          >
+            <Text className="text-[16px] font-semibold text-white">
+              Sign In
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setShowLoginSheet(false); router.push("/sign-up" as Href); }}
+            className="mb-2 h-14 items-center justify-center rounded-2xl border border-[#27BB97]"
+          >
+            <Text className="text-[16px] font-semibold text-[#27BB97]">
+              Create Account
+            </Text>
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }

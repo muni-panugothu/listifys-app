@@ -23,6 +23,7 @@ import {
   FORSALE_SUBCATEGORY_TO_CATEGORY,
 } from "@/constants/categories";
 import {
+  checkImageModeration,
   createListing,
   uploadListingImages,
 } from "@/features/listing/services/listing-api";
@@ -126,6 +127,33 @@ export function PostAdStep3MediaScreen() {
     dispatch(setSubmitError(null));
 
     try {
+      // 0. Moderate images before upload
+      const moderationResult = await checkImageModeration(imageUris);
+      if (moderationResult.overallDecision === "block") {
+        const blockedFiles = moderationResult.results
+          .filter((r) => r.decision === "block")
+          .map((r) => r.filename)
+          .join(", ");
+        dispatch(setSubmitting(false));
+        Alert.alert(
+          "Image Blocked",
+          `One or more images contain inappropriate content and cannot be posted. Please remove or replace them.\n\nAffected: ${blockedFiles}`,
+        );
+        return;
+      }
+      if (moderationResult.overallDecision === "review") {
+        const reviewFiles = moderationResult.results
+          .filter((r) => r.decision === "review")
+          .map((r) => r.filename)
+          .join(", ");
+        dispatch(setSubmitting(false));
+        Alert.alert(
+          "Image Under Review",
+          `Some images may contain sensitive content and need to be reviewed. Please remove or replace them before posting.\n\nAffected: ${reviewFiles}`,
+        );
+        return;
+      }
+
       // 1. Upload images to S3
       const uploadResult = await uploadListingImages(category, imageUris);
       const imageUrls = uploadResult.images ?? [];
