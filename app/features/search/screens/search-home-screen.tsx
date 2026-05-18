@@ -28,7 +28,12 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
-import { useAppSelector } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  hydrateAppLocation,
+  selectLocationLabel,
+  setProfileFallbackLocation,
+} from "@/store/slices/location-slice";
 import type { Href } from "@/lib/safe-router";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -52,7 +57,9 @@ const searchCategoriesOrdered = [
 export function SearchHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const displayLocation = useAppSelector(selectLocationLabel);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -62,9 +69,6 @@ export function SearchHomeScreen() {
 
   const bottomNavPadding = Math.max(insets.bottom, 8);
   const suggestionsTop = insets.top + 12;
-
-  const displayLocation =
-    (user as { address?: string } | null)?.address?.trim() || "Mumbai, IN";
 
   const loadSavedCount = useCallback(async () => {
     try {
@@ -78,6 +82,16 @@ export function SearchHomeScreen() {
   useEffect(() => {
     void loadSavedCount();
   }, [loadSavedCount]);
+
+  useEffect(() => {
+    void dispatch(hydrateAppLocation());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (user?.address?.trim()) {
+      dispatch(setProfileFallbackLocation(user.address.trim()));
+    }
+  }, [dispatch, user?.address]);
 
   const handleQueryChange = useCallback((text: string) => {
     setQuery(text);
@@ -239,22 +253,26 @@ export function SearchHomeScreen() {
         {/* Address + saved */}
         <View className="mb-4 flex-row items-center justify-between ">
           <Pressable
-            onPress={() => router.push("/profile-details-edit" as Href)}
+            onPress={() => router.push("/location-picker" as Href)}
             className="flex-1 pr-3"
             style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
           >
-            <Text
-              className="text-[16px] text-[#1A1A1A]"
-              style={{ fontFamily: ListifyFonts.bold }}
-              numberOfLines={1}
-            >
-              {displayLocation}
-            </Text>
+            <View className="flex-row items-center gap-0.5">
+              <MaterialIcons name="location-on" size={16} color="#27BB97" />
+              <Text
+                className="flex-1 text-[16px] text-[#1A1A1A]"
+                style={{ fontFamily: ListifyFonts.bold }}
+                numberOfLines={1}
+              >
+                {displayLocation}
+              </Text>
+              <MaterialIcons name="keyboard-arrow-down" size={20} color="#9CA3AF" />
+            </View>
             <Text
               className="mt-0.5 text-[13px] text-[#9CA3AF]"
               style={{ fontFamily: ListifyFonts.regular }}
             >
-              Your address
+              Tap to change location
             </Text>
           </Pressable>
 

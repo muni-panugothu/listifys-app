@@ -1,68 +1,80 @@
 import { type Href, useRouter } from "@/lib/safe-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { configureGoogleSignIn } from "@/lib/google-sign-in";
+import { useAppDispatch } from "@/store/hooks";
+import { store } from "@/store";
 import { restoreSession } from "@/store/slices/auth-slice";
 import { checkOnboarding } from "@/store/slices/onboarding-slice";
+
+const HOME_ROUTE = "/(tabs)/home-feed-root" as Href;
 
 export function SplashScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { isAuthenticated } = useAppSelector((s) => s.auth);
-  const { hasCompletedOnboarding } = useAppSelector((s) => s.onboarding);
   const hasNavigatedRef = useRef(false);
-  const [isBootstrapped, setIsBootstrapped] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
+    let cancelled = false;
 
-    // Fail-safe: never allow splash to block forever.
-    const fallback = setTimeout(() => {
-      if (isMounted) {
-        setIsBootstrapped(true);
-      }
-    }, 2200);
-
-    Promise.all([dispatch(checkOnboarding()), dispatch(restoreSession())]).finally(
-      () => {
-        if (isMounted) {
-          setIsBootstrapped(true);
+    const bootstrap = async () => {
+      const fallback = setTimeout(() => {
+        if (!cancelled && !hasNavigatedRef.current) {
+          finishNavigation(false);
         }
+      }, 4000);
+
+      try {
+        await dispatch(checkOnboarding());
+        const sessionResult = await dispatch(restoreSession());
+        await configureGoogleSignIn().catch(() => {});
+
+        if (cancelled) return;
+
+        const authenticated =
+          restoreSession.fulfilled.match(sessionResult) &&
+          sessionResult.payload.isAuthenticated;
+
+        finishNavigation(authenticated);
+      } catch {
+        if (!cancelled) {
+          finishNavigation(false);
+        }
+      } finally {
         clearTimeout(fallback);
-      },
-    );
-
-    return () => {
-      isMounted = false;
-      clearTimeout(fallback);
-    };
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (!isBootstrapped || hasNavigatedRef.current) return;
-
-    // If onboarding state is unresolved, treat as first-time user.
-    const onboardingCompleted = hasCompletedOnboarding === true;
-
-    const timeout = setTimeout(() => {
-      hasNavigatedRef.current = true;
-      if (isAuthenticated) {
-        router.replace("/home-feed-root" as Href);
-      } else if (!onboardingCompleted) {
-        router.replace("/onboarding-slide-3" as Href);
-      } else {
-        router.replace("/sign-in" as Href);
       }
-    }, 700);
+    };
+
+    const finishNavigation = (authenticated: boolean) => {
+      if (hasNavigatedRef.current) return;
+      hasNavigatedRef.current = true;
+
+      const onboardingCompleted =
+        store.getState().onboarding.hasCompletedOnboarding === true;
+
+      if (authenticated) {
+        router.replace(HOME_ROUTE);
+        return;
+      }
+
+      if (!onboardingCompleted) {
+        router.replace("/onboarding-slide-3" as Href);
+        return;
+      }
+
+      router.replace("/sign-in" as Href);
+    };
+
+    void bootstrap();
 
     return () => {
-      clearTimeout(timeout);
+      cancelled = true;
     };
-  }, [isBootstrapped, hasCompletedOnboarding, isAuthenticated, router]);
+  }, [dispatch, router]);
 
   return (
     <View

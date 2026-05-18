@@ -1,12 +1,12 @@
 import { Stack } from "@/lib/safe-router";
 
-import { MyListingsExpiredScreen } from "@/features/listing/screens/my-listings-expired-screen";
+import { MyListingsScreen } from "@/features/listing/screens/my-listings-screen";
 
 export default function MyListingsExpiredRoute() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <MyListingsExpiredScreen />
+      <MyListingsScreen initialTab="Expired" />
     </>
   );
 }

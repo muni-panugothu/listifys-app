@@ -43,7 +43,7 @@ export function MobileAuthScreen() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/home-feed-root" as Href);
+      router.replace("/(tabs)/home-feed-root" as Href);
     }
   }, [isAuthenticated, router]);
 

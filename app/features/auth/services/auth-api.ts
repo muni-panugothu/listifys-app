@@ -1,5 +1,8 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import {
+  readStoredTokens,
+  writeStoredTokens,
+} from "@/lib/secure-auth-storage";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
 
@@ -31,6 +34,7 @@ export type AuthUser = {
   listingsCount?: number;
   createdAt?: string;
   bio?: string | null;
+  address?: string | null;
 };
 
 export type AuthResponse = {
@@ -59,18 +63,35 @@ export class AuthApiError extends Error {
   }
 }
 
+const API_REQUEST_TIMEOUT_MS = 15_000;
+
+function getExpoDevHost() {
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost ??
+    Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  const host = hostUri?.split(":")[0];
+  if (host && host !== "localhost" && host !== "127.0.0.1") {
+    return host;
+  }
+  return undefined;
+}
+
 function resolveApiBaseUrl() {
+  const devHost = getExpoDevHost();
+
+  // In dev on a physical device, use the same LAN IP Metro uses (avoids stale .env IPs).
+  if (typeof __DEV__ !== "undefined" && __DEV__ && devHost) {
+    return `http://${devHost}:5000`;
+  }
+
   const explicitBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/$/, "");
   }
 
-  // In development, Expo injects the dev server host (e.g. "192.168.1.5:8081")
-  const hostUri = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  const host = hostUri?.split(":")[0];
-
-  if (host && host !== "localhost" && host !== "127.0.0.1") {
-    return `http://${host}:5000`;
+  if (devHost) {
+    return `http://${devHost}:5000`;
   }
 
   if (Platform.OS === "android") {
@@ -81,6 +102,29 @@ function resolveApiBaseUrl() {
 }
 
 export const AUTH_API_BASE_URL = resolveApiBaseUrl();
+
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = API_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AuthApiError(
+        `Request timed out. Cannot reach ${AUTH_API_BASE_URL}. Start the server (cd server && npm run dev) and use the same Wi‑Fi as your phone.`,
+        0,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 function toAbsoluteUrl(url?: string | null) {
   if (!url) return url;
@@ -100,14 +144,20 @@ export function resolveAbsoluteMediaUrl(url?: string | null) {
   return toAbsoluteUrl(url);
 }
 
-function normalizeAuthUser<T extends {
-  avatar?: string | null;
-  profileImage?: string | null;
-  googleProfileImage?: string | null;
-  profileImageUrl?: string | null;
-}>(user: T): T {
+function normalizeAuthUser<
+  T extends {
+    id?: string;
+    _id?: string;
+    avatar?: string | null;
+    profileImage?: string | null;
+    googleProfileImage?: string | null;
+    profileImageUrl?: string | null;
+  },
+>(user: T): T & { id?: string } {
+  const id = user.id ?? user._id;
   return {
     ...user,
+    ...(id != null ? { id: String(id) } : {}),
     avatar: toAbsoluteUrl(user.avatar),
     profileImage: toAbsoluteUrl(user.profileImage),
     googleProfileImage: toAbsoluteUrl(user.googleProfileImage),
@@ -127,40 +177,51 @@ function buildUserAgent(): string {
 
 const APP_USER_AGENT = buildUserAgent();
 
-// ── Token management ────────────────────────────────────────────────────────────
-const TOKEN_STORAGE_KEY = "@listify/auth_tokens";
-
+// ── Token management (SecureStore + in-memory cache) ───────────────────────────
 let _accessToken: string | null = null;
 let _refreshToken: string | null = null;
 let _refreshPromise: Promise<boolean> | null = null;
 
 export async function setTokens(access: string | null | undefined, refresh: string | null | undefined) {
-  _accessToken = access ?? null;
-  _refreshToken = refresh ?? null;
-  if (_accessToken || _refreshToken) {
-    await AsyncStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify({ accessToken: _accessToken, refreshToken: _refreshToken }));
-  } else {
-    await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
+  const nextAccess = access?.trim() ? access.trim() : null;
+  const nextRefresh = refresh?.trim() ? refresh.trim() : null;
+
+  if (!nextAccess && !nextRefresh) {
+    return;
   }
+
+  _accessToken = nextAccess;
+  _refreshToken = nextRefresh;
+  await writeStoredTokens({
+    accessToken: _accessToken,
+    refreshToken: _refreshToken,
+  });
 }
 
 export async function restoreTokens() {
-  const json = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
-  if (json) {
-    const { accessToken, refreshToken } = JSON.parse(json);
-    _accessToken = accessToken ?? null;
-    _refreshToken = refreshToken ?? null;
+  const stored = await readStoredTokens();
+  if (stored) {
+    _accessToken = stored.accessToken ?? null;
+    _refreshToken = stored.refreshToken ?? null;
   }
 }
 
 export async function clearTokens() {
   _accessToken = null;
   _refreshToken = null;
-  await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
+  await writeStoredTokens(null);
 }
 
 export function getAccessToken() {
   return _accessToken;
+}
+
+export function getRefreshToken() {
+  return _refreshToken;
+}
+
+export function hasStoredSessionTokens() {
+  return Boolean(_accessToken || _refreshToken);
 }
 
 export async function refreshAccessToken(): Promise<boolean> {
@@ -175,7 +236,7 @@ export async function refreshAccessToken(): Promise<boolean> {
 
   _refreshPromise = (async () => {
     try {
-      const res = await fetch(`${AUTH_API_BASE_URL}/api/auth/refresh`, {
+      const res = await fetchWithTimeout(`${AUTH_API_BASE_URL}/api/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -275,7 +336,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     ...(init?.headers ?? {}),
   });
 
-  let response = await fetch(url, {
+  let response = await fetchWithTimeout(url, {
     ...init,
     credentials: "include",
     headers: buildHeaders(),
@@ -285,7 +346,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   if (response.status === 401) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      response = await fetch(url, {
+      response = await fetchWithTimeout(url, {
         ...init,
         credentials: "include",
         headers: buildHeaders(),
@@ -311,7 +372,14 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
 
 export function getAuthErrorMessage(error: unknown) {
   if (error instanceof AuthApiError) {
+    if (error.status === 0 || error.message.toLowerCase().includes("network")) {
+      return `Cannot reach the server at ${AUTH_API_BASE_URL}. Check EXPO_PUBLIC_API_BASE_URL and that the API is running.`;
+    }
     return error.message;
+  }
+
+  if (error instanceof TypeError) {
+    return `Cannot reach the server at ${AUTH_API_BASE_URL}. Check your network and API URL.`;
   }
 
   if (error instanceof Error && error.message) {
@@ -422,16 +490,28 @@ export function resetPasswordWithToken(resetToken: string, password: string, ema
 }
 
 export async function getGoogleClientIds() {
-  const response = await requestJson<{
-    success: boolean;
+  const response = await fetch(`${AUTH_API_BASE_URL}/api/auth/google/client-ids`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "User-Agent": APP_USER_AGENT,
+    },
+  });
+  const data = (await parseJsonSafe(response)) as {
+    success?: boolean;
     clientIds?: GoogleClientIds;
-  }>("/api/auth/google/client-ids", { method: "GET" });
+    message?: string;
+  } | null;
 
-  if (!response.clientIds) {
-    throw new AuthApiError("Google sign-in is not configured on the server.");
+  if (!response.ok || !data?.clientIds) {
+    throw new AuthApiError(
+      extractErrorMessage(data),
+      response.status,
+      data,
+    );
   }
 
-  return response.clientIds;
+  return data.clientIds;
 }
 
 export function loginWithGoogleToken(idToken: string) {
@@ -487,34 +567,71 @@ export function updateProfile(data: {
 
 export function uploadProfileImage(formData: FormData) {
   const normalizedPath = "/api/auth/profile/upload-image";
-  return fetch(`${AUTH_API_BASE_URL}${normalizedPath}`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": APP_USER_AGENT,
-      ...(_accessToken ? { Authorization: `Bearer ${_accessToken}` } : {}),
-    },
-    body: formData,
-  }).then(async (res) => {
-    const data = await parseJsonSafe(res);
-    if (!res.ok) throw new AuthApiError(extractErrorMessage(data), res.status, data);
-    const payload = (data ?? {}) as {
-      success: boolean;
-      profileImage?: string;
-      profileImageUrl?: string;
-      imageUrl?: string;
-      user?: AuthUser;
-    };
+  const uploadUrl = `${AUTH_API_BASE_URL}${normalizedPath}`;
 
-    return {
-      ...payload,
-      profileImage: toAbsoluteUrl(payload.profileImage),
-      profileImageUrl: toAbsoluteUrl(payload.profileImageUrl),
-      imageUrl: toAbsoluteUrl(payload.imageUrl),
-      user: payload.user ? normalizeAuthUser(payload.user) : payload.user,
-    };
-  });
+  const doUpload = () => {
+    const token = getAccessToken();
+    return fetchWithTimeout(
+      uploadUrl,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": APP_USER_AGENT,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      },
+      60_000,
+    );
+  };
+
+  return doUpload()
+    .then(async (res) => {
+      if (res.status === 401) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return doUpload();
+        }
+      }
+      return res;
+    })
+    .then(async (res) => {
+      const data = await parseJsonSafe(res);
+      const payload = (data ?? {}) as {
+        success?: boolean;
+        message?: string;
+        profileImage?: string;
+        profileImageUrl?: string;
+        imageUrl?: string;
+        user?: AuthUser & { _id?: string };
+      };
+
+      const imageUrl = toAbsoluteUrl(payload.imageUrl);
+      const uploadSucceeded =
+        res.ok && (payload.success !== false || Boolean(imageUrl));
+
+      if (!uploadSucceeded) {
+        throw new AuthApiError(extractErrorMessage(data), res.status, data);
+      }
+
+      const user = payload.user ? normalizeAuthUser(payload.user) : undefined;
+      const resolvedImageUrl =
+        imageUrl ??
+        toAbsoluteUrl(user?.profileImageUrl ?? user?.profileImage ?? null);
+
+      return {
+        ...payload,
+        success: true,
+        profileImage: toAbsoluteUrl(payload.profileImage ?? user?.profileImage),
+        profileImageUrl:
+          toAbsoluteUrl(payload.profileImageUrl ?? user?.profileImageUrl) ??
+          resolvedImageUrl,
+        imageUrl: resolvedImageUrl,
+        user,
+      };
+    });
 }
 
 // ── Devices / Sessions ──────────────────────────────────────────────────────────

@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { DUMMY_PROFILE_AVATAR_URI } from "@/constants/dummy-profile";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
@@ -76,34 +75,6 @@ function dedup(msgs: ChatMessage[]): ChatMessage[] {
   return Array.from(seen.values());
 }
 
-function buildDemoMessages(userId: string): ChatMessage[] {
-  const base = new Date();
-  const at = (h: number, m: number) => {
-    const d = new Date(base);
-    d.setHours(h, m, 0, 0);
-    return d.toISOString();
-  };
-
-  return [
-    {
-      _id: "demo-1",
-      conversation: "demo",
-      sender: "demo-other",
-      content: "Hey, is this still available?",
-      status: "read",
-      createdAt: at(14, 15),
-    },
-    {
-      _id: "demo-2",
-      conversation: "demo",
-      sender: userId || "demo-me",
-      content: "Yes it is! Are you interested in picking it up today?",
-      status: "read",
-      createdAt: at(14, 16),
-    },
-  ];
-}
-
 function isFromMe(
   item: ChatMessage,
   userId: string | undefined,
@@ -113,8 +84,7 @@ function isFromMe(
       ? item.sender
       : (item.sender as { id?: string; _id?: string })?.id ||
         (item.sender as { id?: string; _id?: string })?._id;
-  if (senderId === "demo-other") return false;
-  return senderId === userId || senderId === "demo-me";
+  return senderId === userId;
 }
 
 export function ChatConversationScreen() {
@@ -133,20 +103,14 @@ export function ChatConversationScreen() {
   const insets = useSafeAreaInsets();
   const user = useAppSelector((s) => s.auth.user);
 
-  const recipientIdParam = Array.isArray(params.recipientId)
-    ? params.recipientId[0]
-    : params.recipientId;
-  const isDummyChat = Boolean(recipientIdParam?.startsWith("dummy-"));
-
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [messageText, setMessageText] = useState("");
-  const [loading, setLoading] = useState(!isDummyChat);
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingUser, setTypingUser] = useState<string | null>(null);
-  const [isOnline, setIsOnline] = useState(isDummyChat);
+  const [isOnline, setIsOnline] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,18 +151,7 @@ export function ChatConversationScreen() {
   const inputBottomInset =
     keyboardHeight > 0 ? keyboardHeight + 22 : footerPadding;
 
-  const seedDemoMessages = useMemo(
-    () => buildDemoMessages(user?.id ?? "demo-me"),
-    [user?.id],
-  );
-
   useEffect(() => {
-    if (isDummyChat) {
-      setLoading(false);
-      setIsOnline(true);
-      return;
-    }
-
     (async () => {
       setLoading(true);
       try {
@@ -242,22 +195,21 @@ export function ChatConversationScreen() {
       }
     })();
   }, [
-    isDummyChat,
     params.conversationId,
     params.recipientId,
     params.listingId,
     params.listingType,
     params.listingTitle,
+    params.listingPrice,
+    params.listingImage,
+    params.currency,
   ]);
 
-  const displayMessages = useMemo(() => {
-    const base = messages.length > 0 ? messages : isDummyChat ? seedDemoMessages : [];
-    return dedup([...base, ...localMessages]);
-  }, [isDummyChat, localMessages, messages, seedDemoMessages]);
+  const displayMessages = useMemo(() => dedup(messages), [messages]);
 
   useEffect(() => {
     const convId = conversation?._id;
-    if (!convId || isDummyChat) return;
+    if (!convId) return;
 
     try {
       connectSocket();
@@ -369,13 +321,13 @@ export function ChatConversationScreen() {
       socket.off("message:status", handleMessageStatus);
       socket.off("messages:read", handleMessagesRead);
     };
-  }, [conversation?._id, isDummyChat, user?.id, params.recipientId]);
+  }, [conversation?._id, user?.id, params.recipientId]);
 
   const handleTextChange = useCallback(
     (text: string) => {
       setMessageText(text);
       const convId = conversation?._id;
-      if (!convId || isDummyChat) return;
+      if (!convId) return;
 
       if (!isTyping) {
         setIsTyping(true);
@@ -388,22 +340,7 @@ export function ChatConversationScreen() {
         emitTypingStop(convId);
       }, 2000);
     },
-    [conversation?._id, isDummyChat, isTyping],
-  );
-
-  const appendLocalMessage = useCallback(
-    (text: string) => {
-      const optimisticMsg: ChatMessage = {
-        _id: `local_${Date.now()}`,
-        conversation: conversation?._id ?? "demo",
-        sender: user?.id ?? "demo-me",
-        content: text,
-        status: "sent",
-        createdAt: new Date().toISOString(),
-      };
-      setLocalMessages((prev) => [...prev, optimisticMsg]);
-    },
-    [conversation?._id, user?.id],
+    [conversation?._id, isTyping],
   );
 
   const handleSend = useCallback(async () => {
@@ -418,8 +355,7 @@ export function ChatConversationScreen() {
       emitTypingStop(conversation._id);
     }
 
-    if (isDummyChat || !conversation?._id) {
-      appendLocalMessage(text);
+    if (!conversation?._id) {
       setSending(false);
       return;
     }
@@ -447,15 +383,7 @@ export function ChatConversationScreen() {
     } finally {
       setSending(false);
     }
-  }, [
-    appendLocalMessage,
-    conversation?._id,
-    isDummyChat,
-    isTyping,
-    messageText,
-    sending,
-    user?.id,
-  ]);
+  }, [conversation?._id, isTyping, messageText, sending, user?.id]);
 
   useEffect(() => {
     if (displayMessages.length > 0) {
@@ -464,14 +392,13 @@ export function ChatConversationScreen() {
   }, [displayMessages.length]);
 
   const otherAvatar = useMemo(() => {
-    if (isDummyChat) return DUMMY_PROFILE_AVATAR_URI;
     if (!conversation?.participants) return null;
     const other = conversation.participants.find((p) => {
       const pid = p.id || p._id;
       return pid !== user?.id;
     });
     return resolveAbsoluteMediaUrl(other?.profileImageUrl);
-  }, [conversation?.participants, isDummyChat, user?.id]);
+  }, [conversation?.participants, user?.id]);
 
   const statusLabel = typingUser
     ? "typing..."

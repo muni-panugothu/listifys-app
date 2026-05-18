@@ -13,8 +13,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { DUMMY_CONVERSATIONS } from "@/constants/dummy-chats";
-import { DUMMY_PROFILE_AVATAR_URI } from "@/constants/dummy-profile";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
@@ -53,15 +51,6 @@ function formatChatTime(dateStr: string) {
   });
 }
 
-function mergeWithDummyConversations(api: Conversation[]): Conversation[] {
-  const seen = new Set(api.map((c) => c._id));
-  const merged = [...api];
-  for (const dummy of DUMMY_CONVERSATIONS) {
-    if (!seen.has(dummy._id)) merged.push(dummy);
-  }
-  return merged.length > 0 ? merged : DUMMY_CONVERSATIONS;
-}
-
 export function MessagesInboxScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -70,12 +59,10 @@ export function MessagesInboxScreen() {
 
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(
-    () => new Set(["dummy-conv-1", "dummy-conv-3"]),
-  );
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    mergeWithDummyConversations([]),
-  );
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useFocusEffect(
     useCallback(() => {
       const onHardwareBack = () => {
@@ -90,11 +77,11 @@ export function MessagesInboxScreen() {
   const loadConversations = useCallback(async () => {
     try {
       const res = await getConversations();
-      setConversations(mergeWithDummyConversations(res.conversations ?? []));
+      setConversations(res.conversations ?? []);
+      setLoadError(null);
     } catch {
-      setConversations((prev) =>
-        prev.length > 0 ? prev : mergeWithDummyConversations([]),
-      );
+      setConversations([]);
+      setLoadError("Could not load chats. Pull to refresh.");
     }
   }, []);
 
@@ -185,15 +172,15 @@ export function MessagesInboxScreen() {
     (conv: Conversation) => {
       const other = getOtherParticipant(conv);
       const otherName = other?.name ?? "User";
-      const otherId = other?.id || other?._id || "dummy-seller";
+      const otherId = other?.id || other?._id;
 
-      const isDummy = conv._id.startsWith("dummy-");
+      if (!otherId) return;
 
       router.push({
         pathname: "/chat-conversation",
         params: {
-          conversationId: isDummy ? "" : conv._id,
-          recipientId: isDummy ? otherId : otherId,
+          conversationId: conv._id,
+          recipientId: otherId,
           name: otherName,
           listingTitle: conv.listing?.listingTitle ?? "",
           listingPrice: String(conv.listing?.listingPrice ?? ""),
@@ -231,15 +218,6 @@ export function MessagesInboxScreen() {
               Chats
             </Text>
           </View>
-          <Pressable
-            className="h-11 w-11 items-center justify-center rounded-full"
-            style={({ pressed }) => ({
-              backgroundColor: BRAND,
-              opacity: pressed ? 0.9 : 1,
-            })}
-          >
-            <MaterialIcons name="add" size={26} color="#FFFFFF" />
-          </Pressable>
         </View>
 
         <View
@@ -286,12 +264,6 @@ export function MessagesInboxScreen() {
               </Pressable>
             );
           })}
-          <Pressable
-            className="h-9 w-9 items-center justify-center rounded-full"
-            style={{ backgroundColor: "#F3F4F6" }}
-          >
-            <MaterialIcons name="add" size={20} color="#6B7280" />
-          </Pressable>
         </ScrollView>
       </View>
 
@@ -316,16 +288,22 @@ export function MessagesInboxScreen() {
               className="mt-3 text-[15px] text-[#6B7280]"
               style={{ fontFamily: ListifyFonts.regular }}
             >
-              No chats yet
+              {loadError ?? "No chats yet"}
             </Text>
+            {!loadError ? (
+              <Text
+                className="mt-1 text-center text-[13px] text-[#9CA3AF]"
+                style={{ fontFamily: ListifyFonts.regular }}
+              >
+                Message a seller from a listing to start a conversation
+              </Text>
+            ) : null}
           </View>
         ) : (
           filtered.map((conv) => {
             const other = getOtherParticipant(conv);
             const otherName = other?.name ?? "User";
-            const avatar =
-              resolveAbsoluteMediaUrl(other?.profileImageUrl) ??
-              DUMMY_PROFILE_AVATAR_URI;
+            const avatar = resolveAbsoluteMediaUrl(other?.profileImageUrl);
             const lastMsg = conv.lastMessage;
             const lastMsgText =
               lastMsg?.content ??
@@ -342,11 +320,17 @@ export function MessagesInboxScreen() {
                 className="flex-row items-center px-5 py-3.5"
                 style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
               >
-                <Image
-                  source={avatar}
-                  contentFit="cover"
-                  className="h-14 w-14 rounded-full"
-                />
+                {avatar ? (
+                  <Image
+                    source={avatar}
+                    contentFit="cover"
+                    className="h-14 w-14 rounded-full"
+                  />
+                ) : (
+                  <View className="h-14 w-14 items-center justify-center rounded-full bg-[#F3F4F6]">
+                    <MaterialIcons name="person" size={28} color="#9CA3AF" />
+                  </View>
+                )}
 
                 <View className="ml-3.5 min-w-0 flex-1">
                   <View className="flex-row items-start justify-between gap-2">

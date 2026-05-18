@@ -122,7 +122,7 @@ export function FollowersFollowingScreen() {
       return;
     }
 
-    router.replace("/dashboard-home" as Href);
+    router.replace("/(tabs)/dashboard-home" as Href);
   };
 
   const toggleFollow = async (user: FollowListUser) => {

@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Listify uses your location to show nearby listings and distances."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +26,9 @@
       "package": "com.listifys.app",
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -55,7 +60,13 @@
       ],
       "@react-native-google-signin/google-signin",
       "expo-asset",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Listify uses your location to show nearby listings and distances."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
+import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts } from "@/constants/typography";
 import type { ListingItem } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
@@ -43,6 +44,10 @@ export function JobListingCard({
         elevation: 2,
       })}
     >
+      <ListingTimeBadge
+        date={job.createdAt}
+        style={{ left: 12, top: 12, position: "absolute", zIndex: 3 }}
+      />
       <View className="p-4">
         <View className="mb-3 flex-row items-start gap-3">
           <View className="h-12 w-12 overflow-hidden rounded-xl bg-[#F3F4F6]">

@@ -1,12 +1,12 @@
 import { Stack } from "@/lib/safe-router";
 
-import { MyListingsDraftScreen } from "@/features/listing/screens/my-listings-draft-screen";
+import { MyListingsScreen } from "@/features/listing/screens/my-listings-screen";
 
 export default function MyListingsDraftsRoute() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <MyListingsDraftScreen />
+      <MyListingsScreen initialTab="Drafts" />
     </>
   );
 }

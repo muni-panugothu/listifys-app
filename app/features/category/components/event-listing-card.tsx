@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
+import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts } from "@/constants/typography";
 import type { ListingItem } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
@@ -68,6 +69,10 @@ export function EventListingCard({
             <MaterialIcons name="event" size={40} color="#D1D5DB" />
           </View>
         )}
+        <ListingTimeBadge
+          date={event.createdAt}
+          style={featured ? { left: 8, top: 40 } : undefined}
+        />
         {featured ? (
           <View className="absolute left-3 top-3 rounded-md bg-[#27BB97] px-2 py-1">
             <Text

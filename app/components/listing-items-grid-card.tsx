@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
+import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import { Image } from "@/lib/nativewind-interop";
 
@@ -19,10 +20,24 @@ type ListingItemsGridCardProps = {
   price?: number | null;
   image?: string;
   width: number;
+  distanceLabel?: string;
+  createdAt?: string | null;
   isSaved?: boolean;
   onPress: () => void;
   onToggleSave?: () => void;
 };
+
+function formatPrice(price?: number | null) {
+  if (price == null) return "On request";
+  return `₹${Number(price).toLocaleString("en-IN")}`;
+}
+
+const priceTextBase = {
+  fontFamily: ListifyFonts.bold,
+  color: "#1A1A1A",
+  lineHeight: 24,
+  ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+} as const;
 
 export function ListingItemsGridCard({
   title,
@@ -30,6 +45,8 @@ export function ListingItemsGridCard({
   price,
   image,
   width,
+  distanceLabel,
+  createdAt,
   isSaved = false,
   onPress,
   onToggleSave,
@@ -71,7 +88,7 @@ export function ListingItemsGridCard({
   return (
     <Pressable
       onPress={onPress}
-      className="overflow-hidden rounded-[24px] bg-white px-3.5 pb-4"
+      className="rounded-[24px] bg-white px-3.5 pb-4"
       style={{
         width,
         shadowColor: "#000",
@@ -81,7 +98,10 @@ export function ListingItemsGridCard({
         elevation: 3,
       }}
     >
-      <View className="items-center justify-center" style={{ height: imageSize }}>
+      <View
+        className="overflow-hidden rounded-2xl"
+        style={{ height: imageSize, width: imageSize, alignSelf: "center" }}
+      >
         {image ? (
           <Image
             source={image}
@@ -90,22 +110,49 @@ export function ListingItemsGridCard({
             style={{
               width: imageSize,
               height: imageSize,
-              alignSelf: "center",
             }}
           />
         ) : (
-          <View
-            className="items-center justify-center rounded-2xl bg-[#F3F4F6]"
-            style={{ width: imageSize, height: imageSize }}
-          >
+          <View className="h-full w-full items-center justify-center bg-[#F3F4F6]">
             <MaterialIcons name="image" size={36} color="#D1D5DB" />
           </View>
         )}
+
+        <ListingTimeBadge date={createdAt} />
+
+        {onToggleSave ? (
+          <AnimatedPressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onToggleSave();
+            }}
+            hitSlop={8}
+            className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full"
+            style={buttonBgStyle}
+          >
+            <Animated.View
+              style={[{ position: "absolute" }, plusIconStyle]}
+              pointerEvents="none"
+            >
+              <MaterialIcons name="add" size={20} color="#FFFFFF" />
+            </Animated.View>
+            <Animated.View
+              style={[{ position: "absolute" }, checkIconStyle]}
+              pointerEvents="none"
+            >
+              <MaterialIcons name="check" size={20} color="#FFFFFF" />
+            </Animated.View>
+          </AnimatedPressable>
+        ) : null}
       </View>
 
       <Text
         className="mt-3 text-[15px]"
-        style={{ fontFamily: ListifyFonts.medium, color: "#1A1A1A" }}
+        style={{
+          fontFamily: ListifyFonts.medium,
+          color: "#1A1A1A",
+          ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+        }}
         numberOfLines={2}
       >
         {title}
@@ -121,38 +168,29 @@ export function ListingItemsGridCard({
         </Text>
       ) : null}
 
-      <View className="mt-3 flex-row items-end justify-between">
+      <View className="mt-2.5 w-full flex-row items-end justify-between gap-2">
         <Text
-          className="text-[17px]"
-          style={{ fontFamily: ListifyFonts.bold, color: "#1A1A1A" }}
+          className="min-w-0 flex-1 text-[16px]"
+          style={priceTextBase}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+          numberOfLines={2}
         >
-          {price != null
-            ? `₹${Number(price).toLocaleString("en-IN")}`
-            : "On request"}
+          {formatPrice(price)}
         </Text>
-
-        <AnimatedPressable
-          onPress={(e) => {
-            e.stopPropagation();
-            onToggleSave?.();
-          }}
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center rounded-full"
-          style={buttonBgStyle}
-        >
-          <Animated.View
-            style={[{ position: "absolute" }, plusIconStyle]}
-            pointerEvents="none"
+        {distanceLabel ? (
+          <Text
+            className="shrink-0 pb-0.5 text-[12px]"
+            style={{
+              fontFamily: ListifyFonts.medium,
+              color: "#6B7280",
+              lineHeight: 16,
+              ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+            }}
           >
-            <MaterialIcons name="add" size={20} color="#FFFFFF" />
-          </Animated.View>
-          <Animated.View
-            style={[{ position: "absolute" }, checkIconStyle]}
-            pointerEvents="none"
-          >
-            <MaterialIcons name="check" size={20} color="#FFFFFF" />
-          </Animated.View>
-        </AnimatedPressable>
+            {distanceLabel}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );

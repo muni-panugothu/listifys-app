@@ -16,42 +16,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthSkipButton } from "@/features/auth/components/auth-skip-button";
+import { validateSignUpInput } from "@/lib/auth-validation";
+import {
+  GoogleSignInError,
+  configureGoogleSignIn,
+  signInWithGoogleNative,
+} from "@/lib/google-sign-in";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, googleLogin, register } from "@/store/slices/auth-slice";
-
-function isGoogleNativeModuleAvailable(): boolean {
-  const proxy = (global as any).__turboModuleProxy;
-  if (proxy != null) {
-    return proxy("RNGoogleSignin") != null;
-  }
-  try {
-    const { NativeModules } = require("react-native");
-    return NativeModules.RNGoogleSignin != null;
-  } catch {
-    return false;
-  }
-}
-
-let _googleModule: any = null;
-let _googleChecked = false;
-
-function getGoogleSigninModule() {
-  if (_googleChecked) return _googleModule;
-  _googleChecked = true;
-
-  if (!isGoogleNativeModuleAvailable()) {
-    _googleModule = null;
-    return null;
-  }
-
-  try {
-    _googleModule = require("@react-native-google-signin/google-signin");
-  } catch {
-    _googleModule = null;
-  }
-
-  return _googleModule;
-}
 
 export function SignUpScreen() {
   const router = useRouter();
@@ -73,7 +45,7 @@ export function SignUpScreen() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/home-feed-root" as Href);
+      router.replace("/(tabs)/home-feed-root" as Href);
     }
   }, [isAuthenticated, router]);
 
@@ -91,115 +63,39 @@ export function SignUpScreen() {
   }, [error, dispatch]);
 
   useEffect(() => {
-    const googleModule = getGoogleSigninModule();
-    if (!googleModule) {
+    void configureGoogleSignIn().catch(() => {});
+  }, []);
+
+  const handleCreateAccount = () => {
+    const validation = validateSignUpInput(fullName, email, password);
+    if (!validation.ok) {
+      Alert.alert("Sign Up", validation.message);
       return;
     }
 
-    googleModule.GoogleSignin.configure({
-      webClientId:
-        "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
-      offlineAccess: false,
-    });
-  }, []);
-
-  const showGoogleDeveloperError = () => {
-    Alert.alert(
-      "Google Sign In",
-      "Google Sign-In is misconfigured for this Android build. Check that the app package is com.listifys.app, that the SHA-1 for this build is added in Firebase or Google Cloud, and that the web client ID is the Web OAuth client.",
+    dispatch(
+      register({
+        name: validation.name,
+        email: validation.email,
+        password: validation.password,
+      }),
     );
   };
 
-  const handleCreateAccount = () => {
-    const name = fullName.trim();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!name || !normalizedEmail || !password) {
-      Alert.alert("Missing Details", "Please enter your name, email, and password.");
-      return;
-    }
-
-    dispatch(register({ name, email: normalizedEmail, password }));
-  };
-
   const handleGoogleSignIn = async () => {
-    const googleModule = getGoogleSigninModule();
-    if (!googleModule) {
-      Alert.alert(
-        "Google Sign In",
-        "Native Google Sign-In module is missing in this build. Rebuild and reinstall the Android app.",
-      );
-      return;
-    }
-
-    const { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } =
-      googleModule;
-
     try {
       setIsGoogleLoading(true);
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-
-      try {
-        await GoogleSignin.signOut();
-      } catch {
-        // ignore
-      }
-
-      const response = await GoogleSignin.signIn();
-
-      if (isSuccessResponse(response)) {
-        const idToken = response.data.idToken;
-        if (idToken) {
-          dispatch(googleLogin({ idToken }));
-        } else {
-          Alert.alert("Google Sign In", "Failed to get authentication token.");
-        }
-      }
-    } catch (err: any) {
-      if (isErrorWithCode(err)) {
-        const message = typeof err?.message === "string" ? err.message : "";
-        const isDeveloperError =
-          err?.code === 10 ||
-          message.includes("DEVELOPER_ERROR") ||
-          message.includes("Developer console is not set up correctly") ||
-          message.toLowerCase().includes("developer error");
-
-        if (isDeveloperError) {
-          Alert.alert(
-            "Google Sign In",
-            "Google Sign-In is not configured correctly for this Android build. Verify the Android package name and SHA-1 in Firebase or Google Cloud, then rebuild the app.",
-          );
-          return;
-        }
-
-        switch (err.code) {
-          case statusCodes.IN_PROGRESS:
-            break;
-          case statusCodes.SIGN_IN_CANCELLED:
-            break;
-          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
-            Alert.alert("Google Sign In", "Google Play Services not available.");
-            break;
-          default:
-            if (
-              typeof err?.message === "string" &&
-              (err.message.includes("DEVELOPER_ERROR") || err.message.includes("code: 10"))
-            ) {
-              showGoogleDeveloperError();
-            } else {
-              Alert.alert("Google Sign In", err?.message || "Something went wrong.");
-            }
-        }
-      } else {
-        if (
-          typeof err?.message === "string" &&
-          (err.message.includes("DEVELOPER_ERROR") || err.message.includes("code: 10"))
-        ) {
-          showGoogleDeveloperError();
-        } else {
-          Alert.alert("Google Sign In", err?.message || "Failed to connect.");
-        }
-      }
+      const idToken = await signInWithGoogleNative();
+      await dispatch(googleLogin({ idToken })).unwrap();
+    } catch (err) {
+      if (err instanceof GoogleSignInError && err.cancelled) return;
+      const message =
+        err instanceof GoogleSignInError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Google sign-in failed.";
+      Alert.alert("Google Sign In", message);
     } finally {
       setIsGoogleLoading(false);
     }

@@ -14,18 +14,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ProfileAvatarImage } from "@/components/profile-avatar-image";
 import { ProfileHeaderArt } from "@/components/profile-header-art";
-import {
-  DUMMY_PROFILE_AVATAR_URI,
-  DUMMY_PROFILE_NAME,
-  DUMMY_PROFILE_TITLE,
-} from "@/constants/dummy-profile";
+import { DUMMY_PROFILE_NAME } from "@/constants/dummy-profile";
 import { ListifyFonts } from "@/constants/typography";
 import { getUnreadCount as getNotificationUnreadCount } from "@/features/auth/services/auth-api";
 import { fetchSavedListings } from "@/features/listing/services/listing-api";
 import { getUnreadCount as getChatUnreadCount } from "@/features/messaging/services/chat-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
@@ -147,22 +143,20 @@ export function DashboardHomeScreen() {
   );
 
   const displayName = user?.name?.trim() || DUMMY_PROFILE_NAME;
-  const displayRole =
-    (user as { bio?: string } | null)?.bio?.trim() ||
-    DUMMY_PROFILE_TITLE;
+  const displayEmail = user?.email?.trim() || "";
 
   const stats = useMemo(
     () => [
       {
         value: String(user?.listingsCount ?? 0),
         label: "Listings",
-        onPress: () => router.push("/my-listings-active" as Href),
+        onPress: () => navigateProtected("/my-listings-active" as Href),
       },
       {
         value: String(user?.followersCount ?? 0),
         label: "Followers",
         onPress: () =>
-          router.push({
+          navigateProtected({
             pathname: "/followers-following",
             params: { tab: "followers" },
           } as Href),
@@ -171,13 +165,13 @@ export function DashboardHomeScreen() {
         value: String(user?.followingCount ?? 0),
         label: "Following",
         onPress: () =>
-          router.push({
+          navigateProtected({
             pathname: "/followers-following",
             params: { tab: "following" },
           } as Href),
       },
     ],
-    [router, user?.followersCount, user?.followingCount, user?.listingsCount],
+    [navigateProtected, user?.followersCount, user?.followingCount, user?.listingsCount],
   );
 
   const handleInviteFriend = useCallback(async () => {
@@ -190,15 +184,22 @@ export function DashboardHomeScreen() {
     }
   }, []);
 
-  const requireAuth = useCallback(
-    (action: () => void) => {
+  const navigate = useCallback(
+    (href: Href) => {
+      router.push(href);
+    },
+    [router],
+  );
+
+  const navigateProtected = useCallback(
+    (href: Href) => {
       if (isAuthenticated) {
-        action();
+        router.push(href);
         return;
       }
-      dispatch(showAuthGate({ action: "profile", redirectTo: "/dashboard-home" }));
+      dispatch(showAuthGate({ action: "profile", redirectTo: href as string }));
     },
-    [dispatch, isAuthenticated],
+    [dispatch, isAuthenticated, router],
   );
 
   return (
@@ -218,7 +219,7 @@ export function DashboardHomeScreen() {
         </Pressable>
 
         <Pressable
-          onPress={() => requireAuth(() => router.push("/profile-details-edit" as Href))}
+          onPress={() => navigateProtected("/profile-details-edit" as Href)}
           className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
           style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
         >
@@ -268,10 +269,11 @@ export function DashboardHomeScreen() {
                 elevation: 8,
               }}
             >
-              <Image
-                source={DUMMY_PROFILE_AVATAR_URI}
-                contentFit="cover"
+              <ProfileAvatarImage
+                user={user}
+                fallbackName={displayName}
                 className="h-full w-full"
+                iconSize={44}
               />
             </View>
           </View>
@@ -294,19 +296,22 @@ export function DashboardHomeScreen() {
           >
             {displayName}
           </Text>
-          <Text
-            className="mt-1 text-[15px] text-[#9CA3AF]"
-            style={{ fontFamily: ListifyFonts.regular }}
-          >
-            {displayRole}
-          </Text>
+          {displayEmail ? (
+            <Text
+              className="mt-1 text-[15px] text-[#9CA3AF]"
+              style={{ fontFamily: ListifyFonts.regular }}
+              numberOfLines={1}
+            >
+              {displayEmail}
+            </Text>
+          ) : null}
 
           <View className="mt-5 flex-row items-center self-start">
             {stats.map((stat, index) => (
               <View key={stat.label} className="flex-row items-center">
                 {index > 0 ? <StatDivider /> : null}
                 <Pressable
-                  onPress={() => requireAuth(stat.onPress)}
+                  onPress={stat.onPress}
                   style={({ pressed }) => ({
                     opacity: pressed ? 0.8 : 1,
                     alignItems: "flex-start",
@@ -329,17 +334,6 @@ export function DashboardHomeScreen() {
                 </Pressable>
               </View>
             ))}
-            <StatDivider />
-            <Pressable
-              onPress={() => requireAuth(() => router.push("/notifications-center" as Href))}
-              className="pl-4"
-              style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
-            >
-              <MaterialIcons name="more-horiz" size={26} color="#9CA3AF" />
-              {menuCounts.unreadNotifications > 0 ? (
-                <View className="absolute -right-0.5 top-0 h-2 w-2 rounded-full bg-[#F43F9C]" />
-              ) : null}
-            </Pressable>
           </View>
         </View>
 
@@ -350,14 +344,14 @@ export function DashboardHomeScreen() {
             iconBg="rgba(244,63,156,0.15)"
             iconColor={PRO_BADGE_COLOR}
             label="Edit profile"
-            onPress={() => requireAuth(() => router.push("/profile-details-edit" as Href))}
+            onPress={() => navigateProtected("/profile-details-edit" as Href)}
           />
           <MenuRow
             icon="bar-chart"
             iconBg="rgba(139,92,246,0.15)"
             iconColor="#8B5CF6"
-            label="My stats"
-            onPress={() => requireAuth(() => router.push("/my-listings-active" as Href))}
+            label="My listings"
+            onPress={() => navigateProtected("/my-listings-active" as Href)}
           />
           <MenuRow
             icon="favorite-border"
@@ -365,7 +359,7 @@ export function DashboardHomeScreen() {
             iconColor="#F472B6"
             label="Saved items"
             badge={menuCounts.savedItems}
-            onPress={() => requireAuth(() => router.push("/saved-items" as Href))}
+            onPress={() => navigateProtected("/saved-items" as Href)}
           />
           <MenuRow
             icon="chat-bubble-outline"
@@ -373,14 +367,29 @@ export function DashboardHomeScreen() {
             iconColor="#3B82F6"
             label="Messages"
             badge={menuCounts.unreadMessages}
-            onPress={() => requireAuth(() => router.push("/messages-inbox" as Href))}
+            onPress={() => navigate("/messages-inbox" as Href)}
+          />
+          <MenuRow
+            icon="notifications-none"
+            iconBg="rgba(39,187,151,0.15)"
+            iconColor="#27BB97"
+            label="Notifications"
+            badge={menuCounts.unreadNotifications}
+            onPress={() => navigate("/notifications-center" as Href)}
           />
           <MenuRow
             icon="settings"
             iconBg="rgba(251,146,60,0.2)"
             iconColor="#FB923C"
             label="Settings"
-            onPress={() => router.push("/app-settings" as Href)}
+            onPress={() => navigate("/app-settings" as Href)}
+          />
+          <MenuRow
+            icon="security"
+            iconBg="rgba(99,102,241,0.15)"
+            iconColor="#6366F1"
+            label="Security"
+            onPress={() => navigateProtected("/security" as Href)}
           />
 
           <View className="my-2 h-px bg-[#F0F0F0]" />
@@ -403,7 +412,12 @@ export function DashboardHomeScreen() {
           {!isAuthenticated ? (
             <Pressable
               onPress={() =>
-                dispatch(showAuthGate({ action: "profile", redirectTo: "/dashboard-home" }))
+                dispatch(
+                  showAuthGate({
+                    action: "profile",
+                    redirectTo: "/(tabs)/dashboard-home",
+                  }),
+                )
               }
               className="mt-4 items-center rounded-2xl py-4"
               style={{ backgroundColor: PRO_BADGE_COLOR }}

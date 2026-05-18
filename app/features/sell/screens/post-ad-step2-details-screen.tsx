@@ -1,10 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useMemo } from "react";
-import { BackHandler, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useCallback } from "react";
+import { BackHandler, Pressable, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { SellFlowLayout } from "@/components/sell-flow-layout";
+import { ListifyFonts } from "@/constants/typography";
 
 import {
   CONDITION_OPTIONS,
@@ -108,12 +109,12 @@ function PillRow({ options, value, onSelect }: { options: string[]; value: strin
             onPress={() => onSelect(isActive ? "" : opt)}
             className="rounded-full px-5 py-2.5"
             style={{
-              backgroundColor: isActive ? "#27BB97" : "#FFFFFF",
+              backgroundColor: isActive ? "#1A1A1A" : "#FFFFFF",
               borderWidth: 1,
-              borderColor: isActive ? "#27BB97" : "#E2E8F0",
+              borderColor: isActive ? "#1A1A1A" : "#E5E7EB",
             }}
           >
-            <Text className="text-[12px] font-medium" style={{ color: isActive ? "#FFFFFF" : "#161D1A" }}>
+            <Text className="text-[12px] font-medium" style={{ color: isActive ? "#FFFFFF" : "#1A1A1A" }}>
               {opt}
             </Text>
           </Pressable>
@@ -135,17 +136,17 @@ function ChipRow({ options, selected, onToggle }: { options: string[]; selected:
             onPress={() => onToggle(item)}
             className="flex-row items-center gap-1.5 rounded-full px-4 py-2"
             style={{
-              backgroundColor: isActive ? "rgba(39,187,151,0.1)" : "#FFFFFF",
+              backgroundColor: isActive ? "#F3F4F6" : "#FFFFFF",
               borderWidth: 1,
-              borderColor: isActive ? "#27BB97" : "#E2E8F0",
+              borderColor: isActive ? "#1A1A1A" : "#E5E7EB",
             }}
           >
             <MaterialIcons
               name={isActive ? "check-circle" : "add-circle-outline"}
               size={16}
-              color={isActive ? "#27BB97" : "#94A3B8"}
+              color={isActive ? "#1A1A1A" : "#9CA3AF"}
             />
-            <Text className="text-[12px] font-medium" style={{ color: isActive ? "#006B55" : "#161D1A" }}>
+            <Text className="text-[12px] font-medium" style={{ color: isActive ? "#1A1A1A" : "#4B5563" }}>
               {item}
             </Text>
           </Pressable>
@@ -165,7 +166,7 @@ function IconField({ icon, value, onChangeText, placeholder, numeric, maxLength 
   maxLength?: number;
 }) {
   return (
-    <View className="h-12 flex-row items-center rounded-lg border border-slate-200 bg-white px-4">
+    <View className="h-12 flex-row items-center rounded-2xl border border-[#E5E7EB] bg-white px-4">
       <MaterialIcons name={icon} size={20} color="#6C7A74" />
       <TextInput
         value={value}
@@ -183,17 +184,30 @@ function IconField({ icon, value, onChangeText, placeholder, numeric, maxLength 
 
 /** Section label */
 function Label({ text }: { text: string }) {
-  return <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">{text}</Text>;
+  return (
+    <Text
+      className="mb-2 text-[12px] text-[#1A1A1A]"
+      style={{ fontFamily: ListifyFonts.medium }}
+    >
+      {text}
+    </Text>
+  );
 }
 function LabelPill({ text }: { text: string }) {
-  return <Text className="mb-3 text-[12px] font-medium text-[#161D1A]">{text}</Text>;
+  return (
+    <Text
+      className="mb-3 text-[12px] text-[#1A1A1A]"
+      style={{ fontFamily: ListifyFonts.medium }}
+    >
+      {text}
+    </Text>
+  );
 }
 
 // ── Main Screen ─────────────────────────────────────────────────────────────────
 
 export function PostAdStep2DetailsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
 
   const pf = useAppSelector((s) => s.postForm);
@@ -251,7 +265,6 @@ export function PostAdStep2DetailsScreen() {
   const showCondition = !CONDITION_SKIP_CATEGORIES.includes(category);
   const priceOptional = PRICE_OPTIONAL_CATEGORIES.includes(category);
 
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const priceError =
     !priceOptional && price.length > 0 && (Number(price) <= 100 || Number(price) === 0);
 
@@ -274,63 +287,20 @@ export function PostAdStep2DetailsScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#F6F7F8]">
-      {/* Top Bar */}
-      <View
-        className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
-        style={{
-          paddingTop: insets.top,
-          height: topBarHeight,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-          elevation: 2,
-        }}
-      >
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            onPress={handleBack}
-            className="h-9 w-9 items-center justify-center rounded-full"
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <MaterialIcons name="arrow-back" size={23} color="#0F172A" />
-          </Pressable>
-          <Text className="text-[18px] font-semibold tracking-tight text-[#0F172A]">
-            Step 2 of 3
-          </Text>
-        </View>
-        <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-          <Text className="text-[12px] font-semibold text-[#27BB97]">Save as Draft</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingTop: topBarHeight + 16,
-          paddingBottom: 100 + Math.max(insets.bottom, 8),
-        }}
-      >
-        <View className="px-4">
-          {/* Progress Bar */}
-          <View className="mb-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
-            <View className="h-full w-2/3 rounded-full bg-[#27BB97]" />
-          </View>
-
-          {/* Header */}
-          <View className="mb-6">
-            <Text className="text-[24px] font-bold tracking-tight text-[#0F172A]">Listing Details</Text>
-            <Text className="mt-1 text-[14px] text-[#6C7A74]">
-              Provide accurate details to help buyers find your item.
-            </Text>
-          </View>
+    <SellFlowLayout
+      step={2}
+      title="Listing details"
+      subtitle="Title, price & item info"
+      onBack={handleBack}
+      primaryLabel="Continue"
+      onPrimaryPress={() => router.push("/post-ad-step3-media")}
+    >
 
           {/* Property Listing Type */}
           {isProperty && (
             <View className="mb-6">
               <Label text="Listing Type" />
-              <View className="rounded-xl bg-[#E9EFEB] p-1 flex-row">
+              <View className="rounded-xl bg-[#F3F4F6] p-1 flex-row">
                 {["Properties", "Rentals"].map((t) => (
                   <Pressable
                     key={t}
@@ -345,7 +315,7 @@ export function PostAdStep2DetailsScreen() {
                       elevation: listingType === t ? 1 : 0,
                     }}
                   >
-                    <Text className="text-center text-[14px] font-semibold" style={{ color: listingType === t ? "#006B55" : "#6C7A74" }}>
+                    <Text className="text-center text-[14px] font-semibold" style={{ color: listingType === t ? "#1A1A1A" : "#6B7280" }}>
                       {t === "Properties" ? "For Sale" : "For Rent"}
                     </Text>
                   </Pressable>
@@ -455,7 +425,7 @@ export function PostAdStep2DetailsScreen() {
                         key={String(val)}
                         onPress={() => dispatch(setPetFriendly(val))}
                         className="rounded-full px-6 py-2.5"
-                        style={{ backgroundColor: isActive ? "#27BB97" : "#FFFFFF", borderWidth: 1, borderColor: isActive ? "#27BB97" : "#E2E8F0" }}
+                        style={{ backgroundColor: isActive ? "#1A1A1A" : "#FFFFFF", borderWidth: 1, borderColor: isActive ? "#1A1A1A" : "#E5E7EB" }}
                       >
                         <Text className="text-[12px] font-medium" style={{ color: isActive ? "#FFFFFF" : "#161D1A" }}>
                           {val ? "Yes" : "No"}
@@ -1243,54 +1213,17 @@ export function PostAdStep2DetailsScreen() {
             </>
           )}
 
-          {/* ── Tip Box ── */}
-          <View className="flex-row gap-4 rounded-xl border border-slate-100 bg-white/70 p-4">
-            <View className="h-10 w-10 items-center justify-center rounded-full bg-[rgba(39,187,151,0.1)]">
-              <MaterialIcons name="lightbulb" size={22} color="#27BB97" />
-            </View>
-            <View className="flex-1">
-              <Text className="mb-1 text-[12px] font-semibold text-[#0F172A]">Seller Pro-Tip</Text>
-              <Text className="text-[12px] leading-5 text-[#6C7A74]">
-                Ads with a clear title and fair pricing receive 3x more inquiries. Consider checking similar listings to stay competitive.
-              </Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Footer — Next button only, right-aligned */}
-      <View
-        className="absolute inset-x-0 bottom-0 z-50 flex-row items-center justify-end border-t border-slate-100 bg-white px-4"
+      <Text
         style={{
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 16,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 8,
+          marginTop: 8,
+          fontFamily: ListifyFonts.regular,
+          fontSize: 13,
+          lineHeight: 20,
+          color: "#6B7280",
         }}
       >
-        <Pressable
-          onPress={() => router.push("/post-ad-step3-media")}
-          style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.95 : 1 }] })}
-        >
-          <LinearGradient
-            colors={["#27BB97", "#1E9E7E"]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={{
-              height: 48,
-              paddingHorizontal: 32,
-              borderRadius: 8,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text className="text-[14px] font-bold text-white">Next</Text>
-          </LinearGradient>
-        </Pressable>
-      </View>
-    </View>
+        Clear titles and fair pricing help buyers find your listing faster.
+      </Text>
+    </SellFlowLayout>
   );
 }

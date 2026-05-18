@@ -1,7 +1,5 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "expo-status-bar";
 import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,42 +16,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthSkipButton } from "@/features/auth/components/auth-skip-button";
+import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
+import { validateSignInInput } from "@/lib/auth-validation";
+import {
+  GoogleSignInError,
+  configureGoogleSignIn,
+  signInWithGoogleNative,
+} from "@/lib/google-sign-in";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, googleLogin, login } from "@/store/slices/auth-slice";
-
-function isGoogleNativeModuleAvailable(): boolean {
-  const proxy = (global as any).__turboModuleProxy;
-  if (proxy != null) {
-    return proxy("RNGoogleSignin") != null;
-  }
-  try {
-    const { NativeModules } = require("react-native");
-    return NativeModules.RNGoogleSignin != null;
-  } catch {
-    return false;
-  }
-}
-
-let _googleModule: any = null;
-let _googleChecked = false;
-
-function getGoogleSigninModule() {
-  if (_googleChecked) return _googleModule;
-  _googleChecked = true;
-
-  if (!isGoogleNativeModuleAvailable()) {
-    _googleModule = null;
-    return null;
-  }
-
-  try {
-    _googleModule = require("@react-native-google-signin/google-signin");
-  } catch {
-    _googleModule = null;
-  }
-
-  return _googleModule;
-}
 
 export function SignInScreen() {
   const router = useRouter();
@@ -76,129 +47,49 @@ export function SignInScreen() {
   }, [params.redirectTo]);
 
   useEffect(() => {
+    void configureGoogleSignIn().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) {
       if (redirectTo && redirectTo.startsWith("/")) {
         router.replace(redirectTo as Href);
         return;
       }
-      router.replace("/home-feed-root" as Href);
+      router.replace("/(tabs)/home-feed-root" as Href);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, redirectTo, router]);
 
   useEffect(() => {
     if (error) {
       Alert.alert("Sign In Failed", error);
       dispatch(clearError());
     }
-  }, [error, dispatch]);
-
-  useEffect(() => {
-    const googleModule = getGoogleSigninModule();
-    if (!googleModule) {
-      return;
-    }
-
-    googleModule.GoogleSignin.configure({
-      webClientId:
-        "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
-      offlineAccess: false,
-    });
-  }, []);
-
-  const showGoogleDeveloperError = () => {
-    Alert.alert(
-      "Google Sign In",
-      "Google Sign-In is misconfigured for this Android build. Check that the app package is com.listifys.app, that the SHA-1 for this build is added in Firebase/Google Cloud, and that the web client ID is the Web OAuth client.",
-    );
-  };
+  }, [dispatch, error]);
 
   const handleSignIn = () => {
-    const identity = credential.trim();
-    if (!identity || !password) {
-      Alert.alert("Missing Details", "Please enter your email/phone and password.");
+    const validation = validateSignInInput(credential, password);
+    if (!validation.ok) {
+      Alert.alert("Missing Details", validation.message);
       return;
     }
-    dispatch(login({ identity, password }));
+    dispatch(login({ identity: validation.identity, password: validation.password }));
   };
 
   const handleGoogleSignIn = async () => {
-    const googleModule = getGoogleSigninModule();
-    if (!googleModule) {
-      Alert.alert(
-        "Google Sign In",
-        "Native Google Sign-In module is missing in this build. Rebuild and reinstall the Android app.",
-      );
-      return;
-    }
-
-    const { GoogleSignin, isErrorWithCode, isSuccessResponse, statusCodes } =
-      googleModule;
-
     try {
       setIsGoogleLoading(true);
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-
-      try {
-        await GoogleSignin.signOut();
-      } catch {
-        // ignore
-      }
-
-      const response = await GoogleSignin.signIn();
-
-      if (isSuccessResponse(response)) {
-        const idToken = response.data.idToken;
-        if (idToken) {
-          dispatch(googleLogin({ idToken }));
-        } else {
-          Alert.alert("Google Sign In", "Failed to get authentication token.");
-        }
-      }
-    } catch (err: any) {
-      if (isErrorWithCode(err)) {
-        const message = typeof err?.message === "string" ? err.message : "";
-        const isDeveloperError =
-          err?.code === 10 ||
-          message.includes("DEVELOPER_ERROR") ||
-          message.includes("Developer console is not set up correctly") ||
-          message.toLowerCase().includes("developer error");
-
-        if (isDeveloperError) {
-          Alert.alert(
-            "Google Sign In",
-            "Google Sign-In is not configured correctly for this Android build. Verify the Android package name and SHA-1 in Firebase or Google Cloud, then rebuild the app.",
-          );
-          return;
-        }
-
-        switch (err.code) {
-          case statusCodes.IN_PROGRESS:
-            break;
-          case statusCodes.SIGN_IN_CANCELLED:
-            break;
-          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
-            Alert.alert("Google Sign In", "Google Play Services not available.");
-            break;
-          default:
-            if (
-              typeof err?.message === "string" &&
-              (err.message.includes("DEVELOPER_ERROR") || err.message.includes("code: 10"))
-            ) {
-              showGoogleDeveloperError();
-            } else {
-              Alert.alert("Google Sign In", err?.message || "Something went wrong.");
-            }
-        }
-      } else {
-        if (
-          typeof err?.message === "string" &&
-          (err.message.includes("DEVELOPER_ERROR") || err.message.includes("code: 10"))
-        ) {
-          showGoogleDeveloperError();
-        } else {
-          Alert.alert("Google Sign In", err?.message || "Failed to connect.");
-        }
-      }
+      const idToken = await signInWithGoogleNative();
+      await dispatch(googleLogin({ idToken })).unwrap();
+    } catch (err) {
+      if (err instanceof GoogleSignInError && err.cancelled) return;
+      const message =
+        err instanceof GoogleSignInError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Google sign-in failed.";
+      Alert.alert("Google Sign In", message);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -226,19 +117,18 @@ export function SignInScreen() {
         >
           <View className="w-full self-center" style={{ maxWidth: 430 }}>
             <View className="w-full items-center">
-              <Text className="text-gray-800 text-[30px] font-extrabold mb-5">
-                Login
-              </Text>
+              <Text className="mb-5 text-[30px] font-extrabold text-gray-800">Login</Text>
 
-              <View className="w-full flex flex-col gap-3">
+              <View className="w-full flex-col gap-3">
                 <TextInput
                   value={credential}
                   onChangeText={setCredential}
-                  placeholder="Email"
+                  placeholder="Email or phone"
                   placeholderTextColor="#9CA3AF"
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  className="border border-gray-300 p-4 rounded-full w-full text-gray-800"
+                  autoComplete="username"
+                  className="w-full rounded-full border border-gray-300 p-4 text-gray-800"
                 />
                 <TextInput
                   value={password}
@@ -246,64 +136,53 @@ export function SignInScreen() {
                   placeholder="Password"
                   placeholderTextColor="#9CA3AF"
                   secureTextEntry
-                  className="border border-gray-300 p-4 rounded-full w-full text-gray-800"
+                  autoComplete="password"
+                  className="w-full rounded-full border border-gray-300 p-4 text-gray-800"
                 />
               </View>
 
-              <Pressable
-                onPress={() => {
-                  router.push("/forgot-password" as Href);
-                }}
-              >
-                <Text className="text-gray-800 font-bold underline my-5">
-                  Forgot Password?
-                </Text>
+              <Pressable onPress={() => router.push("/forgot-password" as Href)}>
+                <Text className="my-5 font-bold text-gray-800 underline">Forgot Password?</Text>
               </Pressable>
 
               <Pressable
                 onPress={handleSignIn}
                 disabled={isLoading || isGoogleLoading}
-                style={({ pressed }) => [
-                  { opacity: pressed ? 0.9 : 1 },
-                  { opacity: isLoading ? 0.7 : 1 },
-                ]}
-                className="bg-black text-white px-5 py-3 rounded-full w-full items-center"
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.9 : isLoading ? 0.7 : 1,
+                })}
+                className="w-full items-center rounded-full bg-black px-5 py-3"
               >
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text className="text-white text-center font-semibold">Login</Text>
+                  <Text className="text-center font-semibold text-white">Login</Text>
                 )}
               </Pressable>
             </View>
 
-            <View className="flex-row items-center gap-3 w-full my-7">
-              <View className="flex-1 bg-gray-400 h-px" />
+            <View className="my-7 w-full flex-row items-center gap-3">
+              <View className="h-px flex-1 bg-gray-400" />
               <Text className="text-gray-400">or</Text>
-              <View className="flex-1 bg-gray-400 h-px" />
+              <View className="h-px flex-1 bg-gray-400" />
             </View>
 
-            <View className="w-full flex flex-col gap-2">
+            <View className="w-full flex-col gap-2">
               <Pressable
                 onPress={handleGoogleSignIn}
                 disabled={isLoading || isGoogleLoading}
-                style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
-                className="bg-gray-200 text-black px-6 py-3 rounded-full flex-row items-center justify-center gap-4"
+                style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+                className="flex-row items-center justify-center gap-4 rounded-full bg-gray-200 px-6 py-3"
               >
-                <Image
-                  source={require("../../../assets/google.webp")}
-                  className="h-8 w-8"
-                />
+                <Image source={require("../../../assets/google.webp")} className="h-8 w-8" />
                 <Text className="font-semibold text-black">
                   {isGoogleLoading ? "Connecting..." : "Continue with Google"}
                 </Text>
               </Pressable>
 
               <Pressable
-                onPress={() => {
-                  router.push("/mobile" as Href);
-                }}
-                className="bg-gray-200 text-black px-6 py-3 rounded-full flex-row items-center justify-center gap-4"
+                onPress={() => router.push("/mobile" as Href)}
+                className="flex-row items-center justify-center gap-4 rounded-full bg-gray-200 px-6 py-3"
               >
                 <Image
                   source={require("../../../assets/mobile.png")}
@@ -314,17 +193,21 @@ export function SignInScreen() {
               </Pressable>
             </View>
 
-            <Text className="text-gray-500 text-center mt-4">
+            <Text className="mt-4 text-center text-gray-500">
               Don&apos;t have an account?{" "}
               <Text
                 className="text-[17px] font-bold text-gray-800"
-                onPress={() => {
-                  router.push("/sign-up" as Href);
-                }}
+                onPress={() => router.push("/sign-up" as Href)}
               >
                 Sign Up
               </Text>
             </Text>
+
+            {__DEV__ ? (
+              <Text className="mt-6 text-center text-[11px] text-gray-400">
+                API: {AUTH_API_BASE_URL}
+              </Text>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

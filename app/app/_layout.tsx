@@ -4,9 +4,9 @@ import {
     DefaultTheme,
     ThemeProvider,
 } from "@react-navigation/native";
-import { type Href, Stack, useRouter } from "@/lib/safe-router";
+import { type Href, Stack, usePathname, useRouter } from "@/lib/safe-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import "react-native-reanimated";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -29,11 +29,35 @@ export default function RootLayout() {
   );
 }
 
+const AUTH_ENTRY_ROUTES = [
+  "/sign-in",
+  "/sign-up",
+  "/onboarding-slide-1",
+  "/onboarding-slide-2",
+  "/onboarding-slide-3",
+  "/mobile",
+  "/otp-verification",
+];
+
 function AppLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { visible, action, redirectTo } = useAppSelector((state) => state.authGate);
+  const { isAuthenticated, sessionHydrated } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    if (!sessionHydrated || !isAuthenticated) return;
+
+    const onAuthEntryScreen = AUTH_ENTRY_ROUTES.some(
+      (route) => pathname === route || pathname.endsWith(route),
+    );
+
+    if (onAuthEntryScreen) {
+      router.replace("/(tabs)/home-feed-root" as Href);
+    }
+  }, [isAuthenticated, pathname, router, sessionHydrated]);
 
   const handleCloseAuthGate = useCallback(() => {
     dispatch(hideAuthGate());
@@ -194,6 +218,10 @@ function AppLayout() {
           />
           <Stack.Screen
             name="profile-details-edit"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="location-picker"
             options={{ headerShown: false }}
           />
           <Stack.Screen

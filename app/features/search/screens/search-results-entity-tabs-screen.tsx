@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { TopSaveToast } from "@/components/top-save-toast";
 import { CATEGORIES } from "@/constants/categories";
 import { DUMMY_TRENDING_LISTINGS } from "@/constants/dummy-trending-listings";
@@ -202,6 +203,7 @@ export function SearchResultsEntityTabsScreen() {
     q?: string | string[];
     entity?: string | string[];
     title?: string | string[];
+    hideTabs?: string | string[];
   }>();
   const insets = useSafeAreaInsets();
   const initialEntity = useMemo(
@@ -213,7 +215,10 @@ export function SearchResultsEntityTabsScreen() {
     const raw = parseQueryParam(params.entity);
     return raw && raw !== "all" ? raw : null;
   }, [params.entity]);
-  const showEntityTabs = !lockedEntity;
+  const hideEntityTabs =
+    parseQueryParam(params.hideTabs) === "1" ||
+    parseQueryParam(params.hideTabs) === "true";
+  const showEntityTabs = !lockedEntity && !hideEntityTabs;
   const [activeEntity, setActiveEntity] = useState(initialEntity);
   const [activeSort, setActiveSort] = useState<string>("relevance");
   const [searchQuery, setSearchQuery] = useState(() => parseQueryParam(params.q));
@@ -658,24 +663,36 @@ export function SearchResultsEntityTabsScreen() {
             className="flex-row flex-wrap px-4"
             style={{ columnGap: GRID_GUTTER, rowGap: GRID_GUTTER }}
           >
-            {displayResults.map((item) => (
-              <ListingItemsGridCard
-                key={`${item._entity}_${item._id}`}
-                width={CARD_WIDTH}
-                title={item.title}
-                subtitle={
-                  item.condition ||
-                  item.subcategory ||
-                  item.location ||
-                  undefined
-                }
-                price={item.price}
-                image={item.images?.[0]}
-                isSaved={savedIds.has(item._id)}
-                onPress={() => openDetail(item)}
-                onToggleSave={() => handleToggleSave(item)}
-              />
-            ))}
+            {displayResults.map((item) => {
+              const distanceLabel = getListingDistanceLabel({
+                _id: item._id,
+                category: item._entity ?? item.category,
+                distance: item.distance,
+              });
+              const metaSubtitle = [
+                item.condition,
+                item.subcategory,
+                !distanceLabel ? item.location : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+
+              return (
+                <ListingItemsGridCard
+                  key={`${item._entity}_${item._id}`}
+                  width={CARD_WIDTH}
+                  title={item.title}
+                  subtitle={metaSubtitle || undefined}
+                  price={item.price}
+                  image={item.images?.[0]}
+                  createdAt={item.createdAt}
+                  distanceLabel={distanceLabel}
+                  isSaved={savedIds.has(item._id)}
+                  onPress={() => openDetail(item)}
+                  onToggleSave={() => handleToggleSave(item)}
+                />
+              );
+            })}
           </View>
         ) : null}
 

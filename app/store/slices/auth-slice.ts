@@ -5,7 +5,10 @@ import {
   type AuthUser,
   clearTokens,
   getAuthErrorMessage,
+  getAccessToken,
   getProfile,
+  getRefreshToken,
+  logoutFromServer,
   initiateForgotPassword,
   sendPhoneOtp as sendPhoneOtpRequest,
   initiateRegistration,
@@ -14,6 +17,7 @@ import {
   resendForgotPasswordOtp,
   resendRegistrationOtp,
   resetPasswordWithToken,
+  refreshAccessToken,
   restoreTokens,
   resolveAbsoluteMediaUrl,
   setTokens,
@@ -31,6 +35,7 @@ export type AuthStatus = "idle" | "loading" | "succeeded" | "failed";
 type AuthState = {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  sessionHydrated: boolean;
   status: AuthStatus;
   error: string | null;
   // Registration flow
@@ -44,6 +49,7 @@ type AuthState = {
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
+  sessionHydrated: false,
   status: "idle",
   error: null,
   registrationEmail: null,
@@ -73,6 +79,9 @@ export const login = createAsyncThunk(
   ) => {
     try {
       const response = await loginWithPassword(identity, password);
+      if (!response.accessToken) {
+        return rejectWithValue("Sign in succeeded but no session token was returned.");
+      }
       if (response.user) {
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user));
       }
@@ -89,6 +98,9 @@ export const googleLogin = createAsyncThunk(
   async ({ idToken }: { idToken: string }, { rejectWithValue }) => {
     try {
       const response = await loginWithGoogleToken(idToken);
+      if (!response.accessToken) {
+        return rejectWithValue("Google sign in succeeded but no session token was returned.");
+      }
       if (response.user) {
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user));
       }
@@ -123,6 +135,9 @@ export const verifyOtp = createAsyncThunk(
   ) => {
     try {
       const response = await verifyRegistrationOtp(email, otp);
+      if (!response.accessToken) {
+        return rejectWithValue("Verification succeeded but no session token was returned.");
+      }
       if (response.user) {
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user));
       }
@@ -157,6 +172,9 @@ export const verifyPhoneOtp = createAsyncThunk(
   ) => {
     try {
       const response = await verifyPhoneOtpRequest(phone, otp, name);
+      if (!response.accessToken) {
+        return rejectWithValue("Verification succeeded but no session token was returned.");
+      }
       if (response.user) {
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user));
       }
@@ -238,7 +256,7 @@ export const restoreSession = createAsyncThunk(
       AsyncStorage.getItem(USER_STORAGE_KEY),
       AsyncStorage.getItem(FLOW_STATE_KEY),
     ]);
-    const user = json ? normalizeStoredUser(JSON.parse(json) as AuthUser) : null;
+
     const flow = flowJson
       ? (JSON.parse(flowJson) as {
           registrationEmail?: string;
@@ -247,7 +265,50 @@ export const restoreSession = createAsyncThunk(
           resetToken?: string;
         })
       : null;
-    return { user, flow };
+
+    const cachedUser = json ? normalizeStoredUser(JSON.parse(json) as AuthUser) : null;
+    const hasTokens = Boolean(getAccessToken() || getRefreshToken());
+
+    if (!hasTokens) {
+      if (cachedUser) {
+        await AsyncStorage.removeItem(USER_STORAGE_KEY);
+      }
+      return { user: null, flow, isAuthenticated: false };
+    }
+
+    const loadProfile = async () => {
+      const profile = await getProfile();
+      if (profile.user) {
+        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile.user));
+        return profile.user;
+      }
+      return null;
+    };
+
+    try {
+      const liveUser = await loadProfile();
+      if (liveUser) {
+        return { user: liveUser, flow, isAuthenticated: true };
+      }
+    } catch {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        try {
+          const liveUser = await loadProfile();
+          if (liveUser) {
+            return { user: liveUser, flow, isAuthenticated: true };
+          }
+        } catch {
+          // Fall through to cached session below.
+        }
+      }
+    }
+
+    if (cachedUser) {
+      return { user: cachedUser, flow, isAuthenticated: true };
+    }
+
+    return { user: null, flow, isAuthenticated: true };
   },
 );
 
@@ -285,11 +346,20 @@ export const updateUserProfile = createAsyncThunk(
 );
 
 export const logout = createAsyncThunk("auth/logout", async () => {
-  // Disconnect Socket.IO before clearing tokens
   const { disconnectSocket } = await import("@/features/messaging/services/socket-service");
   disconnectSocket();
-  await AsyncStorage.removeItem(USER_STORAGE_KEY);
-  await clearTokens();
+
+  try {
+    if (getAccessToken() || getRefreshToken()) {
+      await logoutFromServer();
+    }
+  } catch {
+    // Still clear local session if server logout fails (offline, expired token, etc.)
+  } finally {
+    await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    await AsyncStorage.removeItem(FLOW_STATE_KEY);
+    await clearTokens();
+  }
 });
 
 // ── Slice ───────────────────────────────────────────────────────────────────────
@@ -299,6 +369,12 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     clearError(state) {
+      state.error = null;
+    },
+    resetAuthStatus(state) {
+      if (state.status !== "succeeded") {
+        state.status = "idle";
+      }
       state.error = null;
     },
     setAuthUser(state, action: PayloadAction<AuthUser | null>) {
@@ -322,6 +398,7 @@ const authSlice = createSlice({
         state.status = "succeeded";
         state.user = action.payload.user ?? null;
         state.isAuthenticated = true;
+        state.sessionHydrated = true;
         state.error = null;
       })
       .addCase(login.rejected, (state, action) => {
@@ -339,6 +416,7 @@ const authSlice = createSlice({
         state.status = "succeeded";
         state.user = action.payload.user ?? null;
         state.isAuthenticated = true;
+        state.sessionHydrated = true;
         state.error = null;
       })
       .addCase(googleLogin.rejected, (state, action) => {
@@ -374,6 +452,7 @@ const authSlice = createSlice({
         state.status = "succeeded";
         state.user = action.payload.user ?? null;
         state.isAuthenticated = true;
+        state.sessionHydrated = true;
         state.registrationEmail = null;
         state.registrationPhone = null;
         state.error = null;
@@ -412,6 +491,7 @@ const authSlice = createSlice({
         state.status = "succeeded";
         state.user = action.payload.user ?? null;
         state.isAuthenticated = true;
+        state.sessionHydrated = true;
         state.registrationPhone = null;
         state.registrationEmail = null;
         state.error = null;
@@ -475,18 +555,23 @@ const authSlice = createSlice({
       });
 
     // Restore session
-    builder.addCase(restoreSession.fulfilled, (state, action) => {
-      if (action.payload.user) {
+    builder
+      .addCase(restoreSession.fulfilled, (state, action) => {
         state.user = action.payload.user;
-        state.isAuthenticated = true;
-      }
-      if (action.payload.flow) {
-        state.registrationEmail = action.payload.flow.registrationEmail ?? null;
-        state.registrationPhone = action.payload.flow.registrationPhone ?? null;
-        state.resetEmail = action.payload.flow.resetEmail ?? null;
-        state.resetToken = action.payload.flow.resetToken ?? null;
-      }
-    });
+        state.isAuthenticated = action.payload.isAuthenticated;
+        state.sessionHydrated = true;
+        if (action.payload.flow) {
+          state.registrationEmail = action.payload.flow.registrationEmail ?? null;
+          state.registrationPhone = action.payload.flow.registrationPhone ?? null;
+          state.resetEmail = action.payload.flow.resetEmail ?? null;
+          state.resetToken = action.payload.flow.resetToken ?? null;
+        }
+      })
+      .addCase(restoreSession.rejected, (state) => {
+        state.sessionHydrated = true;
+        state.isAuthenticated = false;
+        state.user = null;
+      });
 
     // Fetch profile
     builder
@@ -514,6 +599,7 @@ const authSlice = createSlice({
     builder.addCase(logout.fulfilled, (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      state.sessionHydrated = true;
       state.status = "idle";
       state.error = null;
       state.registrationEmail = null;
@@ -524,5 +610,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setAuthUser, clearResetFlow } = authSlice.actions;
+export const { clearError, resetAuthStatus, setAuthUser, clearResetFlow } =
+  authSlice.actions;
 export default authSlice.reducer;

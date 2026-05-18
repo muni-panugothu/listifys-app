@@ -1,21 +1,23 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useMemo, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useState } from "react";
+import { Alert, Linking, Pressable, Text, View } from "react-native";
 
+import {
+  ProfileSectionCard,
+  ProfileSubScreenLayout,
+} from "@/components/profile-sub-screen-layout";
+import { SettingsMenuRow } from "@/components/settings-menu-row";
 import {
   type SettingsPreferences,
   getSettingsPreferences,
   updateSettingsPreferences,
 } from "@/features/auth/services/auth-api";
+import { ListifyFonts } from "@/constants/typography";
 import { useAppSelector } from "@/store/hooks";
 
 export function SettingsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const user = useAppSelector((s) => s.auth.user);
 
   const [preferences, setPreferences] = useState<SettingsPreferences | null>(null);
@@ -24,12 +26,14 @@ export function SettingsScreen() {
 
   const loadPreferences = useCallback(async () => {
     setLoading(true);
-
     try {
       const response = await getSettingsPreferences();
       setPreferences(response.preferences);
     } catch (error) {
-      Alert.alert("Settings", error instanceof Error ? error.message : "Failed to load settings.");
+      Alert.alert(
+        "Settings",
+        error instanceof Error ? error.message : "Failed to load settings.",
+      );
     } finally {
       setLoading(false);
     }
@@ -43,9 +47,7 @@ export function SettingsScreen() {
 
   const updatePreference = useCallback(
     async <K extends keyof SettingsPreferences>(key: K, value: SettingsPreferences[K]) => {
-      if (!preferences) {
-        return;
-      }
+      if (!preferences) return;
 
       const previous = preferences;
       const next = { ...previous, [key]: value };
@@ -57,7 +59,10 @@ export function SettingsScreen() {
         setPreferences(response.preferences);
       } catch (error) {
         setPreferences(previous);
-        Alert.alert("Settings", error instanceof Error ? error.message : "Failed to update settings.");
+        Alert.alert(
+          "Settings",
+          error instanceof Error ? error.message : "Failed to update settings.",
+        );
       } finally {
         setSavingKey(null);
       }
@@ -65,154 +70,154 @@ export function SettingsScreen() {
     [preferences],
   );
 
-  const darkModeEnabled = preferences?.theme === "dark";
-  const pushNotificationsEnabled = preferences?.pushNotifications ?? true;
-  const emailUpdatesEnabled = preferences?.marketingEmails ?? false;
-
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace("/home-feed-root" as Href);
-  };
-
-  type SettingRow = {
-    icon: React.ComponentProps<typeof MaterialIcons>["name"];
-    label: string;
-    subtitle?: string;
-    type: "toggle" | "navigate";
-    value?: boolean;
-    onToggle?: (v: boolean) => void;
-    route?: string;
-    onPress?: () => void;
-    disabled?: boolean;
-  };
-
-  const sections: { title: string; items: SettingRow[] }[] = [
-    {
-      title: "Account",
-      items: [
-        { icon: "person-outline", label: "Edit Profile", type: "navigate", route: "/profile-details-edit" },
-        { icon: "lock-reset", label: user?.hasPassword === false ? "Set Password" : "Change Password", subtitle: user?.hasPassword === false ? "Add password to your account" : "Old password → New password", type: "navigate", route: "/change-password" },
-        { icon: "lock-open", label: "Forgot Password", subtitle: "Reset via email OTP verification", type: "navigate", route: "/forgot-password" },
-      ],
-    },
-    {
-      title: "Notifications",
-      items: [
-        {
-          icon: "notifications-active",
-          label: "Push notifications",
-          subtitle: "Order, message, and activity alerts",
-          type: "toggle",
-          value: pushNotificationsEnabled,
-          onToggle: (value) => void updatePreference("pushNotifications", value),
-          disabled: loading || savingKey === "pushNotifications",
-        },
-        {
-          icon: "mail",
-          label: "Email updates",
-          subtitle: "Product news and marketplace updates",
-          type: "toggle",
-          value: emailUpdatesEnabled,
-          onToggle: (value) => void updatePreference("marketingEmails", value),
-          disabled: loading || savingKey === "marketingEmails",
-        },
-      ],
-    },
-    {
-      title: "Support",
-      items: [
-        { icon: "help-outline", label: "Help & Support", type: "navigate", onPress: () => Linking.openURL("mailto:support@listifys.com") },
-        { icon: "bug-report", label: "Report a Problem", type: "navigate", onPress: () => Linking.openURL("mailto:bugs@listifys.com?subject=Bug%20Report") },
-      ],
-    },
-    {
-      title: "App Info",
-      items: [
-        { icon: "info", label: "About Listifys", type: "navigate" },
-        { icon: "policy", label: "Privacy Policy", type: "navigate" },
-        { icon: "description", label: "Terms of Service", type: "navigate" },
-      ],
-    },
-  ];
+  const push = (route: string) => router.push(route as Href);
 
   return (
-    <View className="flex-1 bg-[#F6F7F8]">
-      {/* Top Bar */}
-      <View className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4" style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
-        <View className="flex-row items-center gap-4">
-          <Pressable onPress={handleBack} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="arrow-back" size={24} color="#161D1A" /></Pressable>
-          <Text className="text-[20px] font-bold text-[#161D1A]">Settings</Text>
-        </View>
-        <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="help-outline" size={24} color="#161D1A" /></Pressable>
-      </View>
+    <ProfileSubScreenLayout title="Settings">
+      <ProfileSectionCard title="Account">
+        <SettingsMenuRow
+          icon="person-outline"
+          iconBg="rgba(39,187,151,0.12)"
+          iconColor="#27BB97"
+          label="Edit profile"
+          type="navigate"
+          onPress={() => push("/profile-details-edit")}
+        />
+        <SettingsMenuRow
+          icon="lock-reset"
+          iconBg="rgba(139,92,246,0.12)"
+          iconColor="#8B5CF6"
+          label={user?.hasPassword === false ? "Set password" : "Change password"}
+          subtitle={
+            user?.hasPassword === false
+              ? "Add a password to your account"
+              : "Update your login password"
+          }
+          type="navigate"
+          onPress={() => push("/change-password")}
+          showDivider
+        />
+        <SettingsMenuRow
+          icon="lock-open"
+          iconBg="rgba(244,63,156,0.12)"
+          iconColor="#F43F9C"
+          label="Forgot password"
+          subtitle="Reset via email OTP"
+          type="navigate"
+          onPress={() => push("/forgot-password")}
+        />
+      </ProfileSectionCard>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 40 + Math.max(insets.bottom, 8) }}>
-        <View className="px-4 gap-8">
-          {sections.map((section) => (
-            <View key={section.title}>
-              <Text className="mb-3 px-1 text-[18px] font-semibold text-[#3C4A44]">{section.title}</Text>
-              <View className="overflow-hidden rounded-xl border border-slate-100 bg-white" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
-                {section.items.map((item, index) => (
-                  <View key={item.label}>
-                    <Pressable
-                      onPress={() => {
-                        if (item.onPress) item.onPress();
-                        else if (item.route) router.push(item.route as Href);
-                      }}
-                      className="flex-row items-center justify-between p-4"
-                      style={({ pressed }) => ({ backgroundColor: pressed ? "#F8FAFC" : "transparent" })}
-                    >
-                      <View className="flex-row items-center gap-4">
-                        <View className="h-10 w-10 items-center justify-center rounded-full bg-teal-50"><MaterialIcons name={item.icon} size={22} color="#006B55" /></View>
-                        <View>
-                          <Text className="text-[16px] text-[#161D1A]">{item.label}</Text>
-                          {item.subtitle && <Text className="text-[12px] text-[#3C4A44]">{item.subtitle}</Text>}
-                        </View>
-                      </View>
-                      {item.type === "toggle" ? (
-                        <Switch
-                          value={item.value}
-                          onValueChange={item.onToggle}
-                          disabled={item.disabled}
-                          trackColor={{ false: "#E2E8F0", true: "#27BB97" }}
-                          thumbColor="#FFFFFF"
-                        />
-                      ) : (
-                        <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
-                      )}
-                    </Pressable>
-                    {index < section.items.length - 1 && <View className="mx-4 h-[1px] bg-slate-100" />}
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
+      <ProfileSectionCard title="Notifications">
+        <SettingsMenuRow
+          icon="notifications-active"
+          iconBg="rgba(59,130,246,0.12)"
+          iconColor="#3B82F6"
+          label="Push notifications"
+          subtitle="Orders, messages, and activity"
+          type="toggle"
+          value={preferences?.pushNotifications ?? true}
+          onToggle={(value) => void updatePreference("pushNotifications", value)}
+          disabled={loading || savingKey === "pushNotifications"}
+        />
+        <SettingsMenuRow
+          icon="mail"
+          iconBg="rgba(244,63,156,0.12)"
+          iconColor="#F472B6"
+          label="Email updates"
+          subtitle="News and marketplace updates"
+          type="toggle"
+          value={preferences?.marketingEmails ?? false}
+          onToggle={(value) => void updatePreference("marketingEmails", value)}
+          disabled={loading || savingKey === "marketingEmails"}
+          showDivider
+        />
+      </ProfileSectionCard>
 
-          {/* Version */}
-          <View className="overflow-hidden rounded-xl border border-slate-100 bg-white" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
-            <View className="flex-row items-center justify-between bg-slate-50/50 p-4">
-              <View className="flex-row items-center gap-4">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-slate-100"><MaterialIcons name="terminal" size={22} color="#94A3B8" /></View>
-                <Text className="text-[16px] text-[#161D1A]">Version</Text>
-              </View>
-              <View className="rounded bg-slate-200 px-2 py-1"><Text className="text-[12px] font-bold text-[#64748B]">2.4.1</Text></View>
+      <ProfileSectionCard title="Support">
+        <SettingsMenuRow
+          icon="help-outline"
+          iconBg="#F3F4F6"
+          iconColor="#6B7280"
+          label="Help & support"
+          type="navigate"
+          onPress={() => Linking.openURL("mailto:support@listifys.com")}
+        />
+        <SettingsMenuRow
+          icon="bug-report"
+          iconBg="#F3F4F6"
+          iconColor="#6B7280"
+          label="Report a problem"
+          type="navigate"
+          onPress={() =>
+            Linking.openURL("mailto:bugs@listifys.com?subject=Bug%20Report")
+          }
+          showDivider
+        />
+      </ProfileSectionCard>
+
+      <ProfileSectionCard title="Legal">
+        <SettingsMenuRow
+          icon="info"
+          iconBg="#F3F4F6"
+          iconColor="#6B7280"
+          label="About Listify"
+          type="navigate"
+          onPress={() => {}}
+        />
+        <SettingsMenuRow
+          icon="policy"
+          iconBg="#F3F4F6"
+          iconColor="#6B7280"
+          label="Privacy policy"
+          type="navigate"
+          onPress={() => {}}
+          showDivider
+        />
+        <SettingsMenuRow
+          icon="description"
+          iconBg="#F3F4F6"
+          iconColor="#6B7280"
+          label="Terms of service"
+          type="navigate"
+          onPress={() => {}}
+        />
+      </ProfileSectionCard>
+
+      <ProfileSectionCard>
+        <View className="flex-row items-center justify-between px-4 py-3.5">
+          <View className="flex-row items-center gap-3">
+            <View className="h-11 w-11 items-center justify-center rounded-2xl bg-[#F3F4F6]">
+              <Text style={{ fontFamily: ListifyFonts.bold, color: "#9CA3AF" }}>v</Text>
             </View>
+            <Text
+              className="text-[16px] text-[#1A1A1A]"
+              style={{ fontFamily: ListifyFonts.medium }}
+            >
+              App version
+            </Text>
           </View>
-
-          {/* Sign Out */}
-          <Pressable
-            onPress={() => router.push("/logout-modal")}
-            className="flex-row items-center justify-center gap-2 rounded-xl border border-red-100 bg-white p-4"
-            style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }], shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 })}
+          <Text
+            className="rounded-lg bg-[#F6F7F8] px-2.5 py-1 text-[12px] text-[#6B7280]"
+            style={{ fontFamily: ListifyFonts.semiBold }}
           >
-            <MaterialIcons name="logout" size={22} color="#BA1A1A" />
-            <Text className="text-[18px] font-semibold text-[#BA1A1A]">Sign Out</Text>
-          </Pressable>
+            2.4.1
+          </Text>
         </View>
-      </ScrollView>
-    </View>
+      </ProfileSectionCard>
+
+      <Pressable
+        onPress={() => router.push("/logout-modal" as Href)}
+        className="mt-2 h-14 items-center justify-center rounded-2xl border border-red-100 bg-white"
+        style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+      >
+        <Text
+          className="text-[16px] text-red-600"
+          style={{ fontFamily: ListifyFonts.semiBold }}
+        >
+          Sign out
+        </Text>
+      </Pressable>
+    </ProfileSubScreenLayout>
   );
 }

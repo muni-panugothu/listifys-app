@@ -185,17 +185,28 @@ export async function fetchHomeFeed(params?: {
   limit?: number;
   page?: number;
   search?: string;
+  location?: string;
+  lat?: number;
+  lng?: number;
+  radius?: number;
 }): Promise<FeedResponse> {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", String(params.limit));
   if (params?.page) query.set("page", String(params.page));
   if (params?.search) query.set("search", params.search);
+  if (params?.location) query.set("location", params.location);
+  if (params?.lat != null) query.set("lat", String(params.lat));
+  if (params?.lng != null) query.set("lng", String(params.lng));
+  if (params?.radius != null) query.set("radius", String(params.radius));
 
   const qs = query.toString();
   const feedCacheKey = [
     cacheKeys.feed(params?.page),
     `limit:${params?.limit ?? "default"}`,
     `search:${encodeURIComponent(params?.search ?? "")}`,
+    `lat:${params?.lat ?? ""}`,
+    `lng:${params?.lng ?? ""}`,
+    `loc:${encodeURIComponent(params?.location ?? "")}`,
   ].join(":");
 
   return withCache(
@@ -520,6 +531,7 @@ export type RecentlyViewedItem = {
   price?: number;
   images: string[];
   category: string;
+  createdAt?: string;
   viewedAt: number;
 };
 
@@ -535,6 +547,7 @@ export async function addToRecentlyViewed(item: ListingItem): Promise<void> {
       price: item.price,
       images: item.images,
       category: item.category,
+      createdAt: item.createdAt,
       viewedAt: Date.now(),
     });
     // Cap at max

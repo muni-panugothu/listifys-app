@@ -25,8 +25,11 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { ListingLocationSection } from "@/components/listing-location-section";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
+import { selectLocationCoords } from "@/store/slices/location-slice";
 import type { CategorySlug } from "@/constants/categories";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -36,6 +39,7 @@ export function PropertyDetailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; category?: string }>();
   const user = useAppSelector((s) => s.auth.user);
+  const userCoords = useAppSelector(selectLocationCoords);
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +88,19 @@ export function PropertyDetailScreen() {
     ? `₹${Number(listing.price).toLocaleString("en-IN")}`
     : "";
   const description = listing?.description ?? "";
-  const locationText = listing?.location ?? "";
+  const distanceLabel = listing
+    ? getListingDistanceLabel(
+        {
+          _id: listing._id,
+          category: categorySlug,
+          distance: listing.distance as number | undefined,
+          coordinates: listing.coordinates,
+        },
+        userCoords.lat != null && userCoords.lng != null
+          ? { lat: userCoords.lat, lng: userCoords.lng }
+          : null,
+      )
+    : undefined;
   const bedrooms = listing?.bedrooms ?? 0;
   const bathrooms = listing?.bathrooms ?? 0;
   const squareFeet = (listing as any)?.squareFeet ?? 0;
@@ -306,13 +322,19 @@ export function PropertyDetailScreen() {
                 <Text className="text-[12px] text-[#6C7A74]">/ month</Text>
               )}
             </View>
-            {locationText ? (
+            {distanceLabel ? (
               <View className="mt-1 flex-row items-center gap-1">
-                <MaterialIcons name="location-on" size={14} color="#6C7A74" />
-                <Text className="text-[13px] text-[#6C7A74]">{locationText}</Text>
+                <MaterialIcons name="near-me" size={14} color="#27BB97" />
+                <Text className="text-[13px] font-semibold text-[#27BB97]">
+                  {distanceLabel} away
+                </Text>
               </View>
             ) : null}
           </View>
+
+          {listing ? (
+            <ListingLocationSection listing={listing} category={categorySlug} />
+          ) : null}
 
           {/* Quick Stats */}
           <View className="mt-6 flex-row border-y border-[#BBCAC3]/30 py-4">

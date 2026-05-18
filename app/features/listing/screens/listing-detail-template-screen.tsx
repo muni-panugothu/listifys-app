@@ -29,8 +29,11 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { ListingLocationSection } from "@/components/listing-location-section";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
+import { selectLocationCoords } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HORIZONTAL_PAD = 16;
@@ -91,6 +94,7 @@ export function ListingDetailTemplateScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ category?: string; id?: string }>();
   const user = useAppSelector((s) => s.auth.user);
+  const userCoords = useAppSelector(selectLocationCoords);
 
   const categorySlug = (params.category ?? "electronics") as CategorySlug;
   const listingId = params.id;
@@ -305,6 +309,19 @@ export function ListingDetailTemplateScreen() {
   const priceLabel = listing?.price
     ? `₹${Number(listing.price).toLocaleString("en-IN")}`
     : "Price on request";
+  const distanceLabel = listing
+    ? getListingDistanceLabel(
+        {
+          _id: listing._id,
+          category: categorySlug,
+          distance: listing.distance as number | undefined,
+          coordinates: listing.coordinates,
+        },
+        userCoords.lat != null && userCoords.lng != null
+          ? { lat: userCoords.lat, lng: userCoords.lng }
+          : null,
+      )
+    : undefined;
   const condition = listing?.condition ?? "Like New";
   const description =
     listing?.description ??
@@ -336,7 +353,6 @@ export function ListingDetailTemplateScreen() {
     if (listing.brand) rows.push({ label: "Brand", value: String(listing.brand) });
     if (listing.model) rows.push({ label: "Model", value: String(listing.model) });
     if (listing.subcategory) rows.push({ label: "Category", value: listing.subcategory });
-    if (listing.location) rows.push({ label: "Location", value: listing.location });
     if (listing.year) rows.push({ label: "Year", value: String(listing.year) });
     return rows;
   }, [listing]);
@@ -440,12 +456,25 @@ export function ListingDetailTemplateScreen() {
           >
             {title}
           </Text>
-          <Text
-            className="text-[22px] text-[#1A1A1A]"
-            style={{ fontFamily: ListifyFonts.bold }}
-          >
-            {priceLabel}
-          </Text>
+          <View className="items-end">
+            <Text
+              className="text-[22px] text-[#1A1A1A]"
+              style={{ fontFamily: ListifyFonts.bold }}
+            >
+              {priceLabel}
+            </Text>
+            {distanceLabel ? (
+              <View className="mt-1 flex-row items-center gap-0.5">
+                <MaterialIcons name="near-me" size={14} color="#27BB97" />
+                <Text
+                  className="text-[13px] text-[#27BB97]"
+                  style={{ fontFamily: ListifyFonts.semiBold }}
+                >
+                  {distanceLabel} away
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {/* Condition (replaces size / no product rating) */}
@@ -486,7 +515,9 @@ export function ListingDetailTemplateScreen() {
           </View>
         </View>
 
-        
+        {listing ? (
+          <ListingLocationSection listing={listing} category={categorySlug} />
+        ) : null}
 
         {/* Tab content */}
         <View className="mt-4 px-4">

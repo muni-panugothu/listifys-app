@@ -615,6 +615,7 @@ export function SellerPublicProfileScreen() {
                             subtitle={item.condition}
                             price={item.price ?? null}
                             image={item.images?.[0]}
+                            createdAt={item.createdAt}
                             width={CARD_WIDTH}
                             onPress={() => navigateToListing(item)}
                           />

@@ -412,6 +412,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     subtitle={item.condition || item.subcategory || item.location}
                     price={item.price ?? null}
                     image={item.images?.[0]}
+                    createdAt={item.createdAt}
                     width={CARD_WIDTH}
                     isSaved={savedIds.has(item._id)}
                     onPress={() => openDetail(item)}

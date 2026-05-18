@@ -17,6 +17,7 @@ import {
   HomeCategoryMoreTile,
   HomeCategoryTile,
 } from "@/components/home-category-tile";
+import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { TrendingListingCard } from "@/components/trending-listing-card";
 import { CATEGORIES, type CategorySlug } from "@/constants/categories";
 import { DUMMY_TRENDING_LISTINGS } from "@/constants/dummy-trending-listings";
@@ -33,21 +34,27 @@ import {
   type RecentlyViewedItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { ProfileAvatarImage } from "@/components/profile-avatar-image";
 import { Image } from "@/lib/nativewind-interop";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
+import {
+  hydrateAppLocation,
+  refreshDeviceLocation,
+  selectLocationCoords,
+  selectLocationLabel,
+  setProfileFallbackLocation,
+} from "@/store/slices/location-slice";
 import { clearSlowRequestSignal, reportSlowRequest } from "@/store/slices/network-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
+const GRID_CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 14) / 2;
 const SLOW_HOME_FEED_MS = 3500;
 const SELL_BANNER_CAMERA_IMAGE =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80";
-const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?name=User&background=27BB97&color=fff&size=128";
-
 const GRID_GAP = 10;
 const GRID_H_PADDING = 16;
 const HOME_GRID_COLS = 4;
@@ -82,39 +89,16 @@ function buildSavedIds(feedData: FeedResponse | null, userId?: string | null) {
   return ids;
 }
 
-function formatFeedSyncLabel(savedAt: number | null) {
-  if (!savedAt) {
-    return "Synced recently";
-  }
-
-  const diffMs = Math.max(0, Date.now() - savedAt);
-  const diffMinutes = Math.floor(diffMs / 60000);
-
-  if (diffMinutes < 1) {
-    return "Synced just now";
-  }
-
-  if (diffMinutes < 60) {
-    return `Synced ${diffMinutes}m ago`;
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `Synced ${diffHours}h ago`;
-  }
-
-  const diffDays = Math.floor(diffHours / 24);
-  return `Synced ${diffDays}d ago`;
-}
-
 export function HomeFeedRootScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const network = useAppSelector((s) => s.network);
+  const displayLocation = useAppSelector(selectLocationLabel);
+  const locationCoords = useAppSelector(selectLocationCoords);
+  const locationHydrated = useAppSelector((s) => s.location.hydrated);
   const [feedData, setFeedData] = useState<FeedResponse | null>(null);
-  const [lastFeedSyncAt, setLastFeedSyncAt] = useState<number | null>(null);
   const [isUsingCachedFeed, setIsUsingCachedFeed] = useState(false);
   const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedItem[]>([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
@@ -124,11 +108,12 @@ export function HomeFeedRootScreen() {
   const isOffline = !network.isConnected || network.isInternetReachable === false;
 
   const applyFeedSnapshot = useCallback(
-    (response: FeedResponse, options: { source: "cache" | "live"; savedAt: number }) => {
+    (response: FeedResponse, options?: { source?: "cache" | "live" }) => {
       setFeedData(response);
       setSavedIds(buildSavedIds(response, user?.id));
-      setLastFeedSyncAt(options.savedAt);
-      setIsUsingCachedFeed(options.source === "cache");
+      if (options?.source) {
+        setIsUsingCachedFeed(options.source === "cache");
+      }
     },
     [user?.id],
   );
@@ -149,29 +134,22 @@ export function HomeFeedRootScreen() {
     }
   }, [router]);
 
-  const pushToListing = useCallback(
-    (cat: string) => {
-      router.push(getCategoryHref(cat as CategorySlug));
-    },
-    [router],
-  );
-
   // Flatten all category listings into a single array for recommendations
   const allListings: ListingItem[] = feedData?.categories
     ? Object.values(feedData.categories).flatMap((cat) => cat.listings ?? [])
     : [];
 
-  // Featured services = takecare + services category from feed
-  const featuredServices: ListingItem[] = [
-    ...(feedData?.categories?.takecare?.listings ?? []),
-    ...(feedData?.categories?.services?.listings ?? []),
-  ].slice(0, 6);
-
   const loadFeed = useCallback(async (options?: { allowCacheFallback?: boolean }) => {
     const startedAt = Date.now();
 
     try {
-      const res = await fetchHomeFeed({ limit: 10 });
+      const res = await fetchHomeFeed({
+        limit: 10,
+        location: locationCoords.label,
+        lat: locationCoords.lat ?? undefined,
+        lng: locationCoords.lng ?? undefined,
+        radius: 50,
+      });
       const duration = Date.now() - startedAt;
 
       if (duration >= SLOW_HOME_FEED_MS) {
@@ -180,7 +158,7 @@ export function HomeFeedRootScreen() {
         dispatch(clearSlowRequestSignal());
       }
 
-      applyFeedSnapshot(res, { source: "live", savedAt: Date.now() });
+      applyFeedSnapshot(res, { source: "live" });
     } catch {
       const duration = Date.now() - startedAt;
 
@@ -196,16 +174,32 @@ export function HomeFeedRootScreen() {
 
       const cached = await getCachedHomeFeed();
       if (cached) {
-        applyFeedSnapshot(cached.data, { source: "cache", savedAt: cached.savedAt });
+        applyFeedSnapshot(cached.data, { source: "cache" });
       }
     }
-  }, [applyFeedSnapshot, dispatch]);
+  }, [applyFeedSnapshot, dispatch, locationCoords.label, locationCoords.lat, locationCoords.lng]);
+
+  useEffect(() => {
+    void dispatch(hydrateAppLocation());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (user?.address?.trim()) {
+      dispatch(setProfileFallbackLocation(user.address.trim()));
+    }
+  }, [dispatch, user?.address]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void dispatch(refreshDeviceLocation());
+    }, [dispatch]),
+  );
 
   useEffect(() => {
     (async () => {
       const cached = await getCachedHomeFeed().catch(() => null);
       if (cached) {
-        applyFeedSnapshot(cached.data, { source: "cache", savedAt: cached.savedAt });
+        applyFeedSnapshot(cached.data, { source: "cache" });
       }
 
       await loadFeed({ allowCacheFallback: !cached });
@@ -219,6 +213,17 @@ export function HomeFeedRootScreen() {
       .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
       .catch(() => {});
   }, [applyFeedSnapshot, loadFeed]);
+
+  useEffect(() => {
+    if (!locationHydrated) return;
+    loadFeed({ allowCacheFallback: false }).catch(() => {});
+  }, [
+    locationHydrated,
+    locationCoords.lat,
+    locationCoords.lng,
+    locationCoords.label,
+    loadFeed,
+  ]);
 
   useEffect(() => {
     if (!isOffline && isUsingCachedFeed) {
@@ -257,37 +262,64 @@ export function HomeFeedRootScreen() {
 
   const handleBottomTabPress = useTabNavigation(() => setShowLoginSheet(true));
 
-  const profileImageUri =
-    user?.profileImageUrl ??
-    user?.profileImage ??
-    user?.googleProfileImage ??
-    user?.avatar ??
-    DEFAULT_AVATAR;
   const displayName = user?.name?.trim() || "Guest";
-  const displayLocation =
-    (user as { address?: string } | null)?.address?.trim() || "Mumbai, IN";
 
   const topBarHeight = insets.top + 80;
 
   const trendingCardWidth = SCREEN_WIDTH * 0.58;
 
-  const trendingListings = useMemo(() => {
-    const fromFeed = allListings.slice(0, 6).map((item) => ({
-      id: item._id,
-      title: item.title,
-      price: item.price ?? null,
-      image: item.images?.[0] ?? DUMMY_TRENDING_LISTINGS[0].image,
-      category:
-        (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics",
-      isDummy: false as const,
-    }));
+  type FreshRecommendationItem = {
+    id: string;
+    title: string;
+    price: number | null;
+    image: string;
+    category: string;
+    createdAt?: string;
+    distanceLabel?: string;
+    isDummy: boolean;
+  };
+
+  const freshRecommendations = useMemo((): FreshRecommendationItem[] => {
+    const fromFeed: FreshRecommendationItem[] = allListings.slice(0, 12).map((item) => {
+      const category =
+        (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics";
+      return {
+        id: item._id,
+        title: item.title,
+        price: item.price ?? null,
+        image: item.images?.[0] ?? DUMMY_TRENDING_LISTINGS[0].image,
+        createdAt: item.createdAt,
+        category,
+        distanceLabel: getListingDistanceLabel(
+          {
+            _id: item._id,
+            category,
+            distance: (item as { distance?: number }).distance,
+            coordinates: item.coordinates,
+          },
+          locationCoords.lat != null && locationCoords.lng != null
+            ? { lat: locationCoords.lat, lng: locationCoords.lng }
+            : null,
+        ),
+        isDummy: false,
+      };
+    });
 
     if (fromFeed.length >= 4) {
       return fromFeed;
     }
 
-    return DUMMY_TRENDING_LISTINGS.map((item) => ({ ...item, isDummy: true as const }));
-  }, [allListings]);
+    return DUMMY_TRENDING_LISTINGS.map((item) => ({
+      id: item.id,
+      title: item.title,
+      price: item.price,
+      image: item.image,
+      category: item.category,
+      createdAt: undefined,
+      distanceLabel: getListingDistanceLabel({ _id: item.id, category: item.category }),
+      isDummy: true,
+    }));
+  }, [allListings, locationCoords.lat, locationCoords.lng]);
 
   const navigateToCategory = useCallback(
     (catId: CategorySlug) => {
@@ -346,7 +378,12 @@ export function HomeFeedRootScreen() {
                 elevation: 3,
               })}
             >
-              <Image source={profileImageUri} contentFit="cover" className="h-full w-full" />
+              <ProfileAvatarImage
+                user={user}
+                fallbackName={displayName}
+                className="h-full w-full"
+                iconSize={24}
+              />
             </Pressable>
           </View>
 
@@ -413,7 +450,7 @@ export function HomeFeedRootScreen() {
 </View>
 
         <Pressable
-              onPress={() => router.push("/profile-details-edit" as Href)}
+              onPress={() => router.push("/location-picker" as Href)}
               className="my-1 flex-row items-center gap-1"
               style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
             >
@@ -425,6 +462,7 @@ export function HomeFeedRootScreen() {
               >
                 {displayLocation}
               </Text>
+              <MaterialIcons name="keyboard-arrow-down" size={18} color="#9CA3AF" />
             </Pressable>
   </View>
 
@@ -450,52 +488,6 @@ export function HomeFeedRootScreen() {
           paddingBottom: 80 + Math.max(insets.bottom, 16),
         }}
       >
-        {(isOffline || isUsingCachedFeed) && (
-          <View className="mb-4 px-4">
-            <View
-              className="rounded-2xl border px-4 py-4"
-              style={{
-                borderColor: isOffline ? "rgba(16,35,29,0.08)" : "rgba(39,187,151,0.18)",
-                backgroundColor: isOffline ? "#ECEEF0" : "#F6F7F8",
-              }}
-            >
-              <View className="flex-row items-start gap-3">
-                <View
-                  className="h-11 w-11 items-center justify-center rounded-2xl"
-                  style={{ backgroundColor: isOffline ? "#10231D" : "rgba(39,187,151,0.12)" }}
-                >
-                  <MaterialIcons
-                    name={isOffline ? "cloud-off" : "sync"}
-                    size={20}
-                    color={isOffline ? "#F8FAFC" : "#1D9477"}
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-[15px] font-semibold text-[#161D1A]">
-                    {isOffline
-                      ? feedData
-                        ? "Offline mode"
-                        : "No internet connection"
-                      : "Refreshing saved feed"}
-                  </Text>
-                  <Text className="mt-1 text-[13px] leading-5 text-[#587168]">
-                    {isOffline
-                      ? feedData
-                        ? "You’re browsing the last synced homepage. New activity will appear again once the connection is back."
-                        : "Reconnect to load the latest homepage listings and activity."
-                      : "Showing your saved homepage while the latest listings are being fetched."}
-                  </Text>
-                  {lastFeedSyncAt ? (
-                    <Text className="mt-2 text-[12px] font-medium text-[#1D9477]">
-                      {formatFeedSyncLabel(lastFeedSyncAt)}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
         <View className="mb-5 px-4">
           <Text
             className="mb-4 text-[26px] leading-8"
@@ -605,17 +597,21 @@ export function HomeFeedRootScreen() {
           </View>
         </View> */}
 
-        {/* Trending listings */}
+        {/* Fresh recommendations */}
         <View className="mb-6 mt-5">
           <View className="mb-4 flex-row items-center justify-between px-4">
-            <Text className="text-[22px]" style={ListifyTypography.sectionTitle}>
-              Trending Listings
+            <Text className="text-[22px] text-gray-600 font-bold" >
+              Fresh recommendations
             </Text>
             <Pressable
               onPress={() =>
                 router.push({
                   pathname: "/search-results-entity-tabs",
-                  params: { q: "", title: "Trending" },
+                  params: {
+                    q: "",
+                    title: "Fresh recommendations",
+                    hideTabs: "1",
+                  },
                 } as Href)
               }
             >
@@ -628,7 +624,7 @@ export function HomeFeedRootScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
           >
-            {trendingListings.map((item) => (
+            {freshRecommendations.map((item) => (
               <TrendingListingCard
                 key={item.id}
                 id={item.id}
@@ -636,6 +632,8 @@ export function HomeFeedRootScreen() {
                 price={item.price}
                 image={item.image}
                 cardWidth={trendingCardWidth}
+                createdAt={item.createdAt}
+                distanceLabel={item.distanceLabel}
                 isSaved={savedIds.has(item.id)}
                 isOffline={isOffline}
                 onPress={() => pushToDetail(item.category, item.id)}
@@ -649,198 +647,62 @@ export function HomeFeedRootScreen() {
           </ScrollView>
         </View>
 
-        {/* Featured Services */}
-        {featuredServices.length > 0 && (
-        <View className="mb-6">
-          <View className="mb-4 flex-row items-center justify-between px-4">
-            <Text className="text-[20px] tracking-tight" style={ListifyTypography.sectionTitle}>
-              Featured Services
-            </Text>
-            <Pressable onPress={() => router.push("/services-category-hub")}>
-              <Text className="text-[12px] font-medium text-[#27BB97]">
-                See all
-              </Text>
-            </Pressable>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-          >
-            {featuredServices.map((item) => (
-              <Pressable
-                key={item._id}
-                onPress={() => pushToDetail((item as any)._source ?? item.category, item._id)}
-                className="w-48"
-              >
-                <View
-                  className="mb-2 overflow-hidden rounded-xl"
-                  style={{ aspectRatio: 3 / 2.5 }}
-                >
-                  {item.images?.[0] ? (
-                    <Image
-                      source={item.images[0]}
-                      contentFit="cover"
-                      transition={200}
-                      className="h-full w-full"
-                    />
-                  ) : (
-                    <View className="h-full w-full items-center justify-center rounded-xl bg-slate-100">
-                      <MaterialIcons name="image" size={28} color="#CBD5E1" />
-                    </View>
-                  )}
-                </View>
-                <Text
-                  className="text-[14px] leading-5 text-[#161D1A]"
-                  numberOfLines={2}
-                >
-                  {item.title}
-                </Text>
-                <Text className="text-[16px] font-bold text-[#27BB97]">
-                  {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "Price on request"}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-        )}
-
-        {/* Recently Viewed */}
-        {recentlyViewed.length > 0 && (
-        <View className="mb-6">
-          <View className="mb-4 flex-row items-center justify-between px-4">
-            <Text className="text-[20px] tracking-tight" style={ListifyTypography.sectionTitle}>
-              Recently Viewed
+        {/* Recently viewed — same card style as See all grid */}
+        <View className="mb-8">
+          <View className="mb-4 px-4">
+            <Text className="text-[22px] text-gray-600 font-bold">
+              Recently viewed
             </Text>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-          >
-            {recentlyViewed.slice(0, 10).map((item) => (
-              <Pressable
-                key={item._id}
-                onPress={() => pushToDetail(item.category, item._id)}
-                className="w-40"
-              >
-                <View
-                  className="mb-2 overflow-hidden rounded-xl"
-                  style={{ aspectRatio: 4 / 3 }}
-                >
-                  {item.images?.[0] ? (
-                  <Image
-                    source={item.images[0]}
-                    contentFit="cover"
-                    transition={200}
-                    className="h-full w-full"
+          {recentlyViewed.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
+            >
+              {recentlyViewed.slice(0, 12).map((item) => {
+                const distanceLabel = getListingDistanceLabel(
+                  {
+                    _id: item._id,
+                    category: item.category,
+                  },
+                  locationCoords.lat != null && locationCoords.lng != null
+                    ? { lat: locationCoords.lat, lng: locationCoords.lng }
+                    : null,
+                );
+
+                return (
+                  <ListingItemsGridCard
+                    key={item._id}
+                    width={GRID_CARD_WIDTH}
+                    title={item.title}
+                    price={item.price}
+                    image={item.images?.[0]}
+                    createdAt={item.createdAt}
+                    distanceLabel={distanceLabel}
+                    isSaved={savedIds.has(item._id)}
+                    onPress={() => pushToDetail(item.category, item._id)}
+                    onToggleSave={() => {
+                      const listing = allListings.find((l) => l._id === item._id);
+                      if (listing) void handleToggleSave(listing);
+                    }}
                   />
-                  ) : (
-                    <View className="h-full w-full items-center justify-center rounded-xl bg-slate-100">
-                      <MaterialIcons name="image" size={28} color="#CBD5E1" />
-                    </View>
-                  )}
-                </View>
-                <Text
-                  className="text-[14px] leading-5 text-[#161D1A]"
-                  numberOfLines={1}
-                >
-                  {item.title}
-                </Text>
-                <Text className="text-[16px] font-bold text-[#27BB97]">
-                  {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "N/A"}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View className="mx-4 items-center rounded-2xl bg-white px-6 py-10">
+              <MaterialIcons name="history" size={36} color="#D1D5DB" />
+              <Text
+                className="mt-3 text-center text-[14px] text-[#6B7280]"
+                style={ListifyTypography.label}
+              >
+                Items you view will appear here
+              </Text>
+            </View>
+          )}
         </View>
-        )}
-
-        {/* Per-Category Sections */}
-        {feedData?.categories &&
-          Object.entries(feedData.categories)
-            .filter(([, cat]) => cat.listings?.length > 0)
-            .slice(0, 5)
-            .map(([key, cat]) => {
-              const config = CATEGORIES.find((c) => c.slug === key);
-              if (!config) return null;
-              return (
-                <View key={key} className="mb-6">
-                  <View className="mb-4 flex-row items-center justify-between px-4">
-                    <View className="flex-row items-center gap-2">
-                      <MaterialIcons name={config.icon} size={20} color="#27BB97" />
-                      <Text className="text-[18px] font-semibold tracking-tight text-[#161D1A]">
-                        {config.name}
-                      </Text>
-                      <View className="rounded-full bg-[rgba(39,187,151,0.1)] px-2 py-0.5">
-                        <Text className="text-[10px] font-bold text-[#27BB97]">
-                          {cat.count}
-                        </Text>
-                      </View>
-                    </View>
-                    <Pressable onPress={() => pushToListing(key)}>
-                      <Text className="text-[12px] font-medium text-[#27BB97]">
-                        See all
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-                  >
-                    {cat.listings.slice(0, 8).map((item) => (
-                      <Pressable
-                        key={item._id}
-                        onPress={() => pushToDetail((item as any)._source ?? item.category, item._id)}
-                        className="w-44 overflow-hidden rounded-xl border border-slate-100 bg-white"
-                        style={{
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.04,
-                          shadowRadius: 3,
-                          elevation: 1,
-                        }}
-                      >
-                        <View style={{ width: 176, height: 132 }}>
-                          {item.images?.[0] ? (
-                            <Image
-                              source={item.images[0]}
-                              contentFit="cover"
-                              transition={200}
-                              className="h-full w-full"
-                            />
-                          ) : (
-                            <View className="h-full w-full items-center justify-center bg-slate-100">
-                              <MaterialIcons name="image" size={28} color="#CBD5E1" />
-                            </View>
-                          )}
-                        </View>
-                        <View className="p-2.5">
-                          <Text numberOfLines={1} className="text-[13px] font-semibold text-[#161D1A]">
-                            {item.title}
-                          </Text>
-                          <Text className="text-[15px] font-bold text-[#27BB97]">
-                            {item.price ? `₹${Number(item.price).toLocaleString("en-IN")}` : "N/A"}
-                          </Text>
-                          {item.location ? (
-                            <View className="mt-0.5 flex-row items-center gap-1">
-                              <MaterialIcons name="location-on" size={11} color="#94A3B8" />
-                              <Text className="text-[10px] text-[#94A3B8]" numberOfLines={1}>
-                                {item.location}
-                              </Text>
-                            </View>
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              );
-            })}
       </ScrollView>
 
       {/* Login Required Bottom Sheet */}

@@ -19,32 +19,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  GoogleSignInError,
+  configureGoogleSignIn,
+  signInWithGoogleNative,
+} from "@/lib/google-sign-in";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { AuthGateAction } from "@/store/slices/auth-gate-slice";
 import { googleLogin, sendPhoneOtp, verifyPhoneOtp } from "@/store/slices/auth-slice";
-
-// ── Google Sign-In dynamic import ──────────────────────────────────────────────
-function isGoogleNativeModuleAvailable(): boolean {
-  const proxy = (global as any).__turboModuleProxy;
-  if (proxy != null) return proxy("RNGoogleSignin") != null;
-  try {
-    const { NativeModules } = require("react-native");
-    return NativeModules.RNGoogleSignin != null;
-  } catch {
-    return false;
-  }
-}
-
-let _googleModule: any = null;
-let _googleChecked = false;
-
-function getGoogleSigninModule() {
-  if (_googleChecked) return _googleModule;
-  _googleChecked = true;
-  if (!isGoogleNativeModuleAvailable()) { _googleModule = null; return null; }
-  try { _googleModule = require("@react-native-google-signin/google-signin"); } catch { _googleModule = null; }
-  return _googleModule;
-}
 
 type Props = {
   visible: boolean;
@@ -115,16 +97,11 @@ export function AuthGateBottomSheet({
     }
   }, [visible, slideAnim]);
 
-  // Configure Google Sign-In once
   useEffect(() => {
-    const gm = getGoogleSigninModule();
-    if (gm) {
-      gm.GoogleSignin.configure({
-        webClientId: "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
-        offlineAccess: false,
-      });
+    if (visible) {
+      void configureGoogleSignIn().catch(() => {});
     }
-  }, []);
+  }, [visible]);
 
   const handleSendOtp = useCallback(async () => {
     const cleaned = phone.trim().replace(/\s+/g, "");
@@ -160,30 +137,16 @@ export function AuthGateBottomSheet({
   }, [otp, phone, dispatch]);
 
   const handleGoogleSignIn = useCallback(async () => {
-    const gm = getGoogleSigninModule();
-    if (!gm) {
-      Alert.alert("Google Sign In", "Google Sign-In not available in this build.");
-      return;
-    }
-
-    const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = gm;
-
     try {
       setIsGoogleLoading(true);
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      try { await GoogleSignin.signOut(); } catch { /* ok */ }
-      const response = await GoogleSignin.signIn();
-      if (isSuccessResponse(response)) {
-        const idToken = response.data.idToken;
-        if (idToken) {
-          await dispatch(googleLogin({ idToken })).unwrap();
-        }
-      }
-    } catch (err: any) {
-      if (isErrorWithCode(err)) {
-        if (err.code === statusCodes.SIGN_IN_CANCELLED || err.code === statusCodes.IN_PROGRESS) return;
-      }
-      Alert.alert("Google Sign In", "Sign in failed. Please try again.");
+      const idToken = await signInWithGoogleNative();
+      await dispatch(googleLogin({ idToken })).unwrap();
+    } catch (err) {
+      if (err instanceof GoogleSignInError && err.cancelled) return;
+      Alert.alert(
+        "Google Sign In",
+        err instanceof GoogleSignInError ? err.message : "Sign in failed. Please try again.",
+      );
     } finally {
       setIsGoogleLoading(false);
     }
