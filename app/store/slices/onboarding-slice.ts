@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 const ONBOARDING_KEY = "@listify/onboarding_complete";
+const ONBOARDING_VERSION = "v2";
 
 type OnboardingState = {
   hasCompletedOnboarding: boolean | null; // null = not yet loaded
@@ -15,14 +16,14 @@ export const checkOnboarding = createAsyncThunk(
   "onboarding/check",
   async () => {
     const value = await AsyncStorage.getItem(ONBOARDING_KEY);
-    return value === "true";
+    return value === ONBOARDING_VERSION;
   },
 );
 
 export const completeOnboarding = createAsyncThunk(
   "onboarding/complete",
   async () => {
-    await AsyncStorage.setItem(ONBOARDING_KEY, "true");
+    await AsyncStorage.setItem(ONBOARDING_KEY, ONBOARDING_VERSION);
     return true;
   },
 );
