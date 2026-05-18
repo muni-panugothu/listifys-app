@@ -83,7 +83,7 @@ export function NewPasswordScreen() {
   };
 
   return (
-    <View className="flex-1 items-center bg-[#F4FBF6]">
+    <View className="flex-1 items-center bg-[#F6F7F8]">
       <View className="absolute inset-0 overflow-hidden">
         <View className="absolute -right-24 -top-24 h-75 w-75 rounded-full bg-[#27BB97]/5 blur-[100px]" />
         <View className="absolute -bottom-24 -left-24 h-75 w-75 rounded-full bg-[#5BA2FF]/5 blur-[100px]" />
@@ -131,7 +131,7 @@ export function NewPasswordScreen() {
         >
           <View className="mx-auto flex-1 w-full max-w-md">
             <View
-              className="mb-6 overflow-hidden rounded-xl border border-slate-100 bg-[#EFF5F0] shadow-sm"
+              className="mb-6 overflow-hidden rounded-xl border border-slate-100 bg-[#F3F4F6] shadow-sm"
               style={{ aspectRatio: 16 / 9 }}
             >
               <Image

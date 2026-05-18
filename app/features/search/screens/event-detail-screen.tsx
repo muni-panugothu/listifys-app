@@ -118,7 +118,7 @@ export function EventDetailScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <ActivityIndicator size="large" color="#27BB97" />
       </View>
     );
@@ -126,7 +126,7 @@ export function EventDetailScreen() {
 
   if (!listing) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <MaterialIcons name="error-outline" size={48} color="#CBD5E1" />
         <Text className="mt-2 text-[14px] text-[#6C7A74]">Event not found</Text>
         <Pressable onPress={() => router.back()} className="mt-4">
@@ -137,7 +137,7 @@ export function EventDetailScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* TOP BAR */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
@@ -349,11 +349,9 @@ export function EventDetailScreen() {
           <Pressable
             onPress={() => {
               if (!sellerId) return;
-              requireAuth("message", () => {
-                router.push(
-                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
-                );
-              });
+              router.push(
+                `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+              );
             }}
             className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white"
           >

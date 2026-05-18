@@ -62,7 +62,7 @@ export function CreateOfferModalScreen() {
           </View>
 
           {/* Product Summary */}
-          <View className="mb-6 flex-row items-center gap-3 rounded-lg bg-[#EFF5F0] p-3">
+          <View className="mb-6 flex-row items-center gap-3 rounded-lg bg-[#F3F4F6] p-3">
             <Image
               source={productThumb}
               contentFit="cover"

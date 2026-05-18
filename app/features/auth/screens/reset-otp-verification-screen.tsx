@@ -103,7 +103,7 @@ export function ResetOtpVerificationScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View className="absolute inset-0 overflow-hidden">
         <View className="absolute right-0 top-0 h-64 w-64 rounded-full bg-[#27BB97]/5 blur-[100px]" />
         <View className="absolute bottom-0 left-0 h-96 w-96 rounded-full bg-[#5BA2FF]/5 blur-[120px]" />

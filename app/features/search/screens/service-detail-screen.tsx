@@ -134,7 +134,7 @@ export function ServiceDetailScreen() {
   const footerBottom = Math.max(insets.bottom, 12);
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View
         className="absolute inset-x-0 top-0 z-50 bg-white/80 px-4"
         style={{

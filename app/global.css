@@ -1,5 +1,32 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
- 
+
 @import "nativewind/theme";
+
+@theme {
+  --font-sans: Poppins_400Regular;
+  --font-medium: Poppins_500Medium;
+  --font-semibold: Poppins_600SemiBold;
+  --font-bold: Poppins_700Bold;
+
+  --color-heading: #1b3022;
+  --color-name: #1a1a1a;
+  --color-body: #4b5563;
+  --color-muted: #9ca3af;
+}
+
+/* Map Tailwind weight utilities to Poppins files (RN needs fontFamily per weight). */
+@layer utilities {
+  .font-medium {
+    font-family: Poppins_500Medium;
+  }
+  .font-semibold {
+    font-family: Poppins_600SemiBold;
+  }
+  .font-bold,
+  .font-extrabold,
+  .font-black {
+    font-family: Poppins_700Bold;
+  }
+}

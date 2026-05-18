@@ -12,7 +12,9 @@ import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
+import { ListifyFonts } from "@/constants/typography";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { TypographyProvider } from "@/providers/typography-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { store } from "@/store";
@@ -20,7 +22,9 @@ import { store } from "@/store";
 export default function RootLayout() {
   return (
     <Provider store={store}>
-      <AppLayout />
+      <TypographyProvider>
+        <AppLayout />
+      </TypographyProvider>
     </Provider>
   );
 }
@@ -49,9 +53,20 @@ function AppLayout() {
     } as Href;
   }, [redirectTo]);
 
+  const navigationTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const themeWithFonts = {
+    ...navigationTheme,
+    fonts: {
+      regular: { fontFamily: ListifyFonts.regular, fontWeight: "400" as const },
+      medium: { fontFamily: ListifyFonts.medium, fontWeight: "500" as const },
+      bold: { fontFamily: ListifyFonts.bold, fontWeight: "700" as const },
+      heavy: { fontFamily: ListifyFonts.bold, fontWeight: "700" as const },
+    },
+  };
+
   return (
     <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={themeWithFonts}>
         <Stack
           screenOptions={{
             headerShown: false,
@@ -86,8 +101,8 @@ function AppLayout() {
           />
           <Stack.Screen name="new-password" options={{ headerShown: false }} />
           <Stack.Screen
-            name="home-feed-root"
-            options={{ headerShown: false }}
+            name="(tabs)"
+            options={{ headerShown: false, animation: "fade" }}
           />
           <Stack.Screen
             name="category-listing-template"
@@ -97,7 +112,6 @@ function AppLayout() {
             name="listing-detail-template"
             options={{ headerShown: false }}
           />
-          <Stack.Screen name="search-home" options={{ headerShown: false }} />
           <Stack.Screen
             name="search-results-entity-tabs"
             options={{ headerShown: false }}
@@ -124,10 +138,6 @@ function AppLayout() {
           />
           <Stack.Screen
             name="property-detail"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="sell-entry"
             options={{ headerShown: false }}
           />
           <Stack.Screen
@@ -179,10 +189,6 @@ function AppLayout() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="dashboard-home"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
             name="followers-following"
             options={{ headerShown: false }}
           />
@@ -223,6 +229,13 @@ function AppLayout() {
             options={{ headerShown: false, presentation: "transparentModal", animation: "fade" }}
           />
         </Stack>
+        <AuthGateBottomSheet
+          visible={visible}
+          onClose={handleCloseAuthGate}
+          action={action}
+          onAuthenticated={handleAuthenticated}
+          emailSignInHref={authGateEmailSignInHref()}
+        />
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>

@@ -6,7 +6,7 @@ export const ListifyColors = {
   accentYellow: "#FFCE32",
   background: "#FFFFFF",
   cardBorder: "#F3F4F6",
-  heading: "#111827",
+  heading: "#1B3022",
   body: "#4B5563",
   muted: "#9CA3AF",
   error: "#EF4444",

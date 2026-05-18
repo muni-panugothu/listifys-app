@@ -7,25 +7,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
 const draftWatch =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuB--Hv0YCRxdKoyj70pGILS6dra7OUTKVvOo_iA2JbP8uxaY3WzIPwwjGG5BJ3KkJd4MHXR-XHMRPQw5Jq4YQyIEQS_rbpuXmlxra01bn0LIqhb8SstrFyPzx4K7xQUAOxlI8kM1Y1NXSCysS4wYTDFSI8VCXAbCocBmz3m9hfrRz4VYgmTvSnz3gQfc0j-XofuTDDXRAE8XjuzaUbK4UP85YBwh7vXwtDSO7ylwenu9M1JJoCPVL8nmI0txuRShFZtXW9c11x4LAg";
 const draftHeadphones =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuBXuo6LzQc-Mij-_BvqApAiuGeVZjLT0p72YYK7WwfvGNiU5KVk_YPcMe5dG5C6hSyjlfjoAiq47yweiyuCU7KRlR4DtdFL8QeFjvAOPU28CWI0fkj-bczfgdeuRJd98TeOqZt6YRWFlfelf3845KQTVIDCBRuTNc8w_WpvEsiNTLEbcOuBwz_ixJK3qJ32sitTBZZ-pcOvXvuVihZmLqAjdOTZTGzFvlFcZelNgfQY1MTz7IbGJTYzlCGvo2BUx-qmDqmRVEAXkvk";
-
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const },
-  {
-    id: "sell",
-    label: "Sell",
-    icon: "add-circle" as const,
-    highlight: true,
-    active: true,
-  },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const },
-];
 
 export function ListingDraftSavedScreen() {
   const router = useRouter();
@@ -36,7 +23,7 @@ export function ListingDraftSavedScreen() {
   const handleBottomTabPress = useTabNavigation();
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* Top Bar */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
@@ -198,70 +185,7 @@ export function ListingDraftSavedScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom Nav */}
-      <View
-        className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white"
-        style={{
-          paddingTop: 12,
-          paddingBottom: bottomNavPadding,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 8,
-        }}
-      >
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => handleBottomTabPress(tab.id)}
-                  className="items-center justify-center"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                >
-                  <View
-                    className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5"
-                    style={{
-                      shadowColor: "#27BB97",
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 8,
-                      elevation: 6,
-                    }}
-                  >
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-semibold tracking-wide text-[#27BB97]">
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            }
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => handleBottomTabPress(tab.id)}
-                className="items-center py-1"
-                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-              >
-                <MaterialIcons
-                  name={tab.icon}
-                  size={24}
-                  color={tab.active ? "#27BB97" : "#94A3B8"}
-                />
-                <Text
-                  className="text-[11px] font-medium tracking-wide"
-                  style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <FloatingBottomNav activeTabId="sell" onTabPress={handleBottomTabPress} />
     </View>
   );
 }

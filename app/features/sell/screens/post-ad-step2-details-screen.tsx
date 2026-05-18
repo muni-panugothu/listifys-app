@@ -274,7 +274,7 @@ export function PostAdStep2DetailsScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* Top Bar */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"

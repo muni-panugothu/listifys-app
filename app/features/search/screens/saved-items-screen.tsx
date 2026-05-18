@@ -12,6 +12,7 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
@@ -28,14 +29,6 @@ function timeAgo(dateStr?: string) {
   if (days < 7) return `${days}d ago`;
   return `${Math.floor(days / 7)}w ago`;
 }
-
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const },
-];
 
 export function SavedItemsScreen() {
   const router = useRouter();
@@ -72,7 +65,7 @@ export function SavedItemsScreen() {
   }, []);
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* Top Bar */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
@@ -210,28 +203,7 @@ export function SavedItemsScreen() {
       </ScrollView>
 
       {/* Bottom Nav */}
-      <View className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white" style={{ paddingTop: 12, paddingBottom: bottomNavPadding, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 8 }}>
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center justify-center" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                  <View className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}>
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">{tab.label}</Text>
-                </Pressable>
-              );
-            }
-            return (
-              <Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center py-1" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                <MaterialIcons name={tab.icon} size={24} color="#94A3B8" />
-                <Text className="text-[11px] font-medium tracking-wide text-[#94A3B8]">{tab.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <FloatingBottomNav activeTabId="home" onTabPress={handleBottomTabPress} />
     </View>
   );
 }

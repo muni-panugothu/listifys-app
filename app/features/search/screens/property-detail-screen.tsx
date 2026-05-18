@@ -185,7 +185,7 @@ export function PropertyDetailScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <ActivityIndicator size="large" color="#27BB97" />
       </View>
     );
@@ -193,7 +193,7 @@ export function PropertyDetailScreen() {
 
   if (!listing) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <MaterialIcons name="error-outline" size={48} color="#CBD5E1" />
         <Text className="mt-2 text-[14px] text-[#6C7A74]">Property not found</Text>
         <Pressable onPress={() => router.back()} className="mt-4">
@@ -204,7 +204,7 @@ export function PropertyDetailScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View
         className="absolute inset-x-0 top-0 z-50 border-b border-slate-100 bg-white/80 px-4"
         style={{
@@ -383,7 +383,7 @@ export function PropertyDetailScreen() {
                 {features.map((feat) => (
                   <View
                     key={feat}
-                    className="flex-row items-center gap-2 rounded-xl border border-[#DDE4DF]/50 bg-[#EFF5F0] px-4 py-3"
+                    className="flex-row items-center gap-2 rounded-xl border border-[#DDE4DF]/50 bg-[#F3F4F6] px-4 py-3"
                   >
                     <MaterialIcons name="check-circle" size={18} color="#006B55" />
                     <Text className="text-[13px] text-[#161D1A]">{feat}</Text>
@@ -534,7 +534,7 @@ export function PropertyDetailScreen() {
                   </View>
 
                   {/* Product Summary */}
-                  <View className="mb-5 flex-row items-center gap-3 rounded-xl bg-[#EFF5F0] p-3">
+                  <View className="mb-5 flex-row items-center gap-3 rounded-xl bg-[#F3F4F6] p-3">
                     {images[0] ? (
                       <Image source={images[0]} contentFit="cover" className="h-14 w-14 rounded-lg" />
                     ) : (

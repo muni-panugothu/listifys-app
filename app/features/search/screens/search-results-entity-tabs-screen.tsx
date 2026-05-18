@@ -2,68 +2,60 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { TopSaveToast } from "@/components/top-save-toast";
+import { CATEGORIES } from "@/constants/categories";
+import { DUMMY_TRENDING_LISTINGS } from "@/constants/dummy-trending-listings";
+import { ListifyFonts, ListifyTypography } from "@/constants/typography";
+import {
+  fetchHomeFeed,
+  fetchSavedListings,
+  toggleSaveListing,
+} from "@/features/listing/services/listing-api";
 import {
   searchListings,
   type SearchResultItem,
   type SearchPagination,
 } from "@/features/search/services/search-api";
-import { fetchHomeFeed } from "@/features/listing/services/listing-api";
-import { Image } from "@/lib/nativewind-interop";
-import { useTabNavigation } from "@/lib/use-tab-navigation";
+import type { Href } from "@/lib/safe-router";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const GRID_GUTTER = 12;
-const GRID_SIDE_PADDING = 20;
+const GRID_GUTTER = 14;
+const GRID_SIDE_PADDING = 16;
 const CARD_WIDTH = (SCREEN_WIDTH - GRID_SIDE_PADDING * 2 - GRID_GUTTER) / 2;
 
-const ENTITY_TABS = [
+const CATEGORY_TABS = [
   { key: "all", label: "All" },
-  { key: "electronics", label: "Electronics" },
-  { key: "mobiles", label: "Mobiles" },
-  { key: "vehicles", label: "Vehicles" },
-  { key: "properties", label: "Properties" },
-  { key: "fashion", label: "Fashion" },
-  { key: "furniture", label: "Furniture" },
-  { key: "jobs", label: "Jobs" },
-  { key: "services", label: "Services" },
-  { key: "events", label: "Events" },
-  { key: "sports", label: "Sports" },
-  { key: "pets", label: "Pets" },
-  { key: "books", label: "Books" },
-  { key: "beauty", label: "Beauty" },
-  { key: "toys", label: "Toys" },
-  { key: "forsale", label: "For Sale" },
-  { key: "collectibles", label: "Collectibles" },
-  { key: "others", label: "Others" },
+  ...CATEGORIES.map((c) => ({ key: c.slug, label: c.name })),
 ];
+
+function parseEntityParam(value: string | string[] | undefined) {
+  const entity = parseQueryParam(value);
+  if (entity && CATEGORY_TABS.some((tab) => tab.key === entity)) {
+    return entity;
+  }
+  return "all";
+}
 
 const SORT_OPTIONS = [
   { key: "relevance", label: "Relevant" },
-  { key: "price_asc", label: "Price: Low" },
-  { key: "price_desc", label: "Price: High" },
-  { key: "nearest", label: "Nearest" },
+  { key: "price_asc", label: "Low to High" },
+  { key: "price_desc", label: "High to Low" },
+  { key: "nearest", label: "Nearby" },
   { key: "oldest", label: "Oldest" },
   { key: "views", label: "Most Viewed" },
 ] as const;
-
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const, active: true },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const },
-];
 
 function parseQueryParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -74,12 +66,25 @@ function sortLocalResults(items: SearchResultItem[], sortKey: string) {
   const copy = [...items];
 
   if (sortKey === "price_asc") {
-    copy.sort((a, b) => Number(a.price ?? Number.MAX_SAFE_INTEGER) - Number(b.price ?? Number.MAX_SAFE_INTEGER));
+    copy.sort(
+      (a, b) =>
+        Number(a.price ?? Number.MAX_SAFE_INTEGER) -
+        Number(b.price ?? Number.MAX_SAFE_INTEGER),
+    );
     return copy;
   }
 
   if (sortKey === "price_desc") {
     copy.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
+    return copy;
+  }
+
+  if (sortKey === "nearest") {
+    copy.sort(
+      (a, b) =>
+        Number(a.distance ?? Number.MAX_SAFE_INTEGER) -
+        Number(b.distance ?? Number.MAX_SAFE_INTEGER),
+    );
     return copy;
   }
 
@@ -100,66 +105,183 @@ function sortLocalResults(items: SearchResultItem[], sortKey: string) {
   return copy;
 }
 
+function mapFeedToResults(
+  feedListings: Array<{
+    _id: string;
+    title: string;
+    description?: string;
+    price?: number | null;
+    currency?: string;
+    category?: string;
+    subcategory?: string;
+    condition?: string;
+    location?: string;
+    images?: string[];
+    brand?: string;
+    model?: string;
+    sellerName?: string;
+    seller?: unknown;
+    views?: number;
+    status?: string;
+    createdAt?: string;
+    savedBy?: string[];
+  }>,
+): SearchResultItem[] {
+  return feedListings.map((item) => ({
+    _id: item._id,
+    title: item.title,
+    description: item.description,
+    price: item.price,
+    currency: item.currency,
+    category: item.category,
+    subcategory: item.subcategory,
+    condition: item.condition,
+    location: item.location,
+    images: item.images ?? [],
+    brand: typeof item.brand === "string" ? item.brand : undefined,
+    model: typeof item.model === "string" ? item.model : undefined,
+    sellerName: item.sellerName,
+    seller: item.seller,
+    views: item.views,
+    status: item.status,
+    createdAt: item.createdAt,
+    _entity: String((item as { _source?: string })._source ?? item.category ?? "others"),
+  }));
+}
+
+const FEED_FETCH_TIMEOUT_MS = 10_000;
+
+function buildDummySearchResults(): SearchResultItem[] {
+  return DUMMY_TRENDING_LISTINGS.map((d) => ({
+    _id: d.id,
+    title: d.title,
+    price: d.price,
+    images: [d.image],
+    category: d.category,
+    _entity: d.category,
+    condition: "Featured",
+  }));
+}
+
+/** Always merge dummy trending listings (deduped) for browse / trending views. */
+function mergeDummyResults(items: SearchResultItem[]): SearchResultItem[] {
+  const dummyMapped = buildDummySearchResults();
+  const existingIds = new Set(items.map((i) => i._id));
+  const merged = [...items];
+  for (const d of dummyMapped) {
+    if (!existingIds.has(d._id)) merged.push(d);
+  }
+  return merged;
+}
+
+function applyEntityAndSort(
+  items: SearchResultItem[],
+  entity: string,
+  sortKey: string,
+): SearchResultItem[] {
+  const merged = mergeDummyResults(items);
+  const filtered =
+    entity === "all" ? merged : merged.filter((item) => item._entity === entity);
+  const sorted = sortLocalResults(filtered, sortKey);
+  if (sorted.length > 0) return sorted;
+  return sortLocalResults(buildDummySearchResults(), sortKey);
+}
+
+async function fetchHomeFeedWithTimeout(limit: number) {
+  return Promise.race([
+    fetchHomeFeed({ limit }),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("feed_timeout")), FEED_FETCH_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 export function SearchResultsEntityTabsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ q?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    q?: string | string[];
+    entity?: string | string[];
+    title?: string | string[];
+  }>();
   const insets = useSafeAreaInsets();
-  const [activeEntity, setActiveEntity] = useState("all");
-  const [activeSort, setActiveSort] = useState<string>("relevance");
-  const [searchQuery, setSearchQuery] = useState(() =>
-    parseQueryParam(params.q),
+  const initialEntity = useMemo(
+    () => parseEntityParam(params.entity),
+    [params.entity],
   );
-  const [results, setResults] = useState<SearchResultItem[]>([]);
-  const [pagination, setPagination] = useState<SearchPagination | null>(null);
-  const [loading, setLoading] = useState(true);
+  /** When opening a single category (e.g. Electronics), hide All/Jobs/Vehicles tabs. */
+  const lockedEntity = useMemo(() => {
+    const raw = parseQueryParam(params.entity);
+    return raw && raw !== "all" ? raw : null;
+  }, [params.entity]);
+  const showEntityTabs = !lockedEntity;
+  const [activeEntity, setActiveEntity] = useState(initialEntity);
+  const [activeSort, setActiveSort] = useState<string>("relevance");
+  const [searchQuery, setSearchQuery] = useState(() => parseQueryParam(params.q));
+  const [appliedQuery, setAppliedQuery] = useState(() => parseQueryParam(params.q));
+  const [results, setResults] = useState<SearchResultItem[]>(() =>
+    applyEntityAndSort(mergeDummyResults([]), "all", "relevance"),
+  );
+  const [pagination, setPagination] = useState<SearchPagination | null>(() => ({
+    total: DUMMY_TRENDING_LISTINGS.length,
+    page: 1,
+    pages: 1,
+    limit: 50,
+  }));
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [source, setSource] = useState<string>("");
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [saveToastVisible, setSaveToastVisible] = useState(false);
+  const [saveToastKey, setSaveToastKey] = useState(0);
 
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
-  const bottomNavPadding = Math.max(insets.bottom, 8);
-  const handleBottomTabPress = useTabNavigation();
+  const headerHeight = insets.top + 12 + 52;
+  const categoryTabsHeight = 52;
+  const stickyTopOffset =
+    headerHeight + (showEntityTabs ? categoryTabsHeight : 0);
+
+  const loadSaved = useCallback(async () => {
+    try {
+      const res = await fetchSavedListings();
+      setSavedIds(new Set((res.listings ?? []).map((l) => l._id)));
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const doSearch = useCallback(
-    async (opts?: { page?: number; isRefresh?: boolean }) => {
-      const q = searchQuery.trim();
+    async (opts?: { isRefresh?: boolean }) => {
+      const q = appliedQuery.trim();
+      const isBrowse = !q;
 
-      if (opts?.isRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (opts?.isRefresh) {
+        setRefreshing(true);
+      } else if (!isBrowse) {
+        setLoading(true);
+      }
+
+      if (isBrowse) {
+        setResults((prev) =>
+          prev.length > 0
+            ? applyEntityAndSort(mergeDummyResults(prev), activeEntity, activeSort)
+            : applyEntityAndSort(mergeDummyResults([]), activeEntity, activeSort),
+        );
+      }
 
       try {
-        if (!q) {
-          const feed = await fetchHomeFeed({ limit: 40 });
-          const feedListings = feed?.categories
-            ? Object.values(feed.categories).flatMap((cat) => cat.listings ?? [])
-            : [];
+        if (isBrowse) {
+          let mapped: SearchResultItem[] = [];
 
-          const mapped: SearchResultItem[] = feedListings.map((item) => ({
-            _id: item._id,
-            title: item.title,
-            description: item.description,
-            price: item.price,
-            currency: item.currency,
-            category: item.category,
-            subcategory: item.subcategory,
-            condition: item.condition,
-            location: item.location,
-            images: item.images ?? [],
-            brand: typeof item.brand === "string" ? item.brand : undefined,
-            model: typeof item.model === "string" ? item.model : undefined,
-            sellerName: item.sellerName,
-            seller: item.seller,
-            views: item.views,
-            status: item.status,
-            createdAt: item.createdAt,
-            _entity: String((item as any)._source ?? item.category ?? "others"),
-          }));
+          try {
+            const feed = await fetchHomeFeedWithTimeout(60);
+            const feedListings = feed?.categories
+              ? Object.values(feed.categories).flatMap((cat) => cat.listings ?? [])
+              : [];
+            mapped = mapFeedToResults(feedListings);
+          } catch {
+            mapped = [];
+          }
 
-          const filtered =
-            activeEntity === "all"
-              ? mapped
-              : mapped.filter((item) => item._entity === activeEntity);
-
-          const sorted = sortLocalResults(filtered, activeSort);
+          mapped = mergeDummyResults(mapped);
+          const sorted = applyEntityAndSort(mapped, activeEntity, activeSort);
 
           setResults(sorted);
           setPagination({
@@ -168,83 +290,267 @@ export function SearchResultsEntityTabsScreen() {
             pages: 1,
             limit: 50,
           });
-          setSource("home_feed");
           return;
         }
 
         const res = await searchListings({
           q,
           entity: activeEntity === "all" ? undefined : activeEntity,
-          sort: activeSort as any,
-          page: opts?.page ?? 1,
+          sort: activeSort as
+            | "relevance"
+            | "price_asc"
+            | "price_desc"
+            | "nearest"
+            | "oldest"
+            | "views",
+          page: 1,
           limit: 50,
         });
-        setResults(res.results || []);
+        let items = res.results || [];
+        items = mergeDummyResults(items);
+        setResults(applyEntityAndSort(items, activeEntity, activeSort));
         setPagination(res.pagination || null);
-        setSource(res.source || "");
       } catch {
-        // keep existing results on error
+        const fallback = applyEntityAndSort(
+          mergeDummyResults([]),
+          activeEntity,
+          activeSort,
+        );
+        setResults(fallback);
+        setPagination({
+          total: fallback.length,
+          page: 1,
+          pages: 1,
+          limit: 50,
+        });
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [searchQuery, activeEntity, activeSort],
+    [appliedQuery, activeEntity, activeSort],
   );
+
+  useEffect(() => {
+    void loadSaved();
+  }, [loadSaved]);
+
+  useEffect(() => {
+    if (lockedEntity) {
+      setActiveEntity(lockedEntity);
+      return;
+    }
+    setActiveEntity(initialEntity);
+  }, [initialEntity, lockedEntity]);
 
   useEffect(() => {
     doSearch();
   }, [doSearch]);
 
   const handleRefresh = useCallback(() => {
+    void loadSaved();
     doSearch({ isRefresh: true });
-  }, [doSearch]);
+  }, [doSearch, loadSaved]);
 
-  const handleSubmit = () => {
-    doSearch();
-  };
+  const handleSubmitSearch = useCallback(() => {
+    setAppliedQuery(searchQuery.trim());
+  }, [searchQuery]);
+
+  const openDetail = useCallback(
+    (item: SearchResultItem) => {
+      const cat = item._entity;
+      const specialRoutes: Record<string, string> = {
+        events: "/event-detail",
+        properties: "/property-detail",
+        jobs: "/job-detail",
+        services: "/service-detail",
+      };
+      const specialRoute = specialRoutes[cat];
+      if (specialRoute) {
+        router.push({
+          pathname: specialRoute as Href,
+          params: { category: cat, id: item._id },
+        });
+      } else {
+        router.push({
+          pathname: "/listing-detail-template",
+          params: { category: cat, id: item._id },
+        });
+      }
+    },
+    [router],
+  );
+
+  const showSaveToast = useCallback(() => {
+    setSaveToastKey((k) => k + 1);
+    setSaveToastVisible(true);
+  }, []);
+
+  const handleToggleSave = useCallback(
+    async (item: SearchResultItem) => {
+      let wasSaved = false;
+
+      setSavedIds((prev) => {
+        wasSaved = prev.has(item._id);
+        const next = new Set(prev);
+        if (wasSaved) next.delete(item._id);
+        else next.add(item._id);
+        return next;
+      });
+
+      if (!wasSaved) {
+        showSaveToast();
+      }
+
+      if (item._id.startsWith("dummy-")) {
+        return;
+      }
+
+      try {
+        const res = await toggleSaveListing(item._entity, item._id);
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          if (res.saved) next.add(item._id);
+          else next.delete(item._id);
+          return next;
+        });
+      } catch {
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          if (wasSaved) next.add(item._id);
+          else next.delete(item._id);
+          return next;
+        });
+      }
+    },
+    [showSaveToast],
+  );
+
+  const displayResults = useMemo(() => {
+    const liveQ = searchQuery.trim().toLowerCase();
+    let list = results;
+
+    if (liveQ && !appliedQuery.trim()) {
+      list = list.filter(
+        (item) =>
+          item.title?.toLowerCase().includes(liveQ) ||
+          item.location?.toLowerCase().includes(liveQ) ||
+          item.condition?.toLowerCase().includes(liveQ),
+      );
+    }
+
+    return sortLocalResults(list, activeSort);
+  }, [results, searchQuery, appliedQuery, activeSort]);
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
+      {saveToastVisible ? (
+        <TopSaveToast
+          key={saveToastKey}
+          visible
+          message="Item saved"
+          onHidden={() => setSaveToastVisible(false)}
+        />
+      ) : null}
+
+      {/* Header: Back + home-style search */}
       <View
-        className="absolute inset-x-0 top-0 z-50 border-b border-slate-100 bg-white/90 px-4"
-        style={{
-          paddingTop: insets.top,
-          height: topBarHeight,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-          elevation: 2,
-        }}
+        className="absolute inset-x-0 top-0 z-50 bg-[#F6F7F8] px-4"
+        style={{ paddingTop: insets.top + 8, height: headerHeight }}
       >
-        <View className="h-16 flex-row items-center gap-3">
+        <View className="h-11 flex-row items-center gap-3">
           <Pressable
             onPress={() => router.back()}
+            hitSlop={12}
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <MaterialIcons name="arrow-back" size={23} color="#27BB97" />
+            <Text
+              className="text-[17px]"
+              style={{ fontFamily: ListifyFonts.semiBold, color: "#27BB97" }}
+            >
+              Back
+            </Text>
           </Pressable>
 
-          <View className="relative flex-1">
+          <View
+            className="h-11 flex-1 flex-row items-center rounded-full border border-[#E8E8E8] bg-white px-4"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.04,
+              shadowRadius: 6,
+              elevation: 1,
+            }}
+          >
+            <MaterialIcons name="search" size={22} color="#B8B8B8" />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              onSubmitEditing={handleSubmit}
+              onSubmitEditing={handleSubmitSearch}
               returnKeyType="search"
-              className="h-10 rounded-full bg-[#EFF5F0] pl-10 pr-4 text-[14px] text-[#161D1A]"
-              style={{ paddingVertical: 0 }}
+              placeholder="Search here"
+              placeholderTextColor="#B0B0B0"
+              className="ml-3 flex-1 text-[15px] text-[#1A1A1A]"
+              style={{
+                fontFamily: ListifyFonts.regular,
+                paddingVertical: 0,
+              }}
             />
-            <View className="absolute left-3 top-0 h-10 items-center justify-center">
-              <MaterialIcons name="search" size={16} color="#6C7A74" />
-            </View>
+            {searchQuery.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  setSearchQuery("");
+                  setAppliedQuery("");
+                }}
+                hitSlop={8}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              >
+                <MaterialIcons name="close" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : null}
           </View>
-
-          <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-            <MaterialIcons name="tune" size={21} color="#64748B" />
-          </Pressable>
         </View>
       </View>
+
+      {/* Category tabs — only for Trending / See all / search (not single-category browse) */}
+      {showEntityTabs ? (
+        <View
+          className="absolute inset-x-0 z-40 bg-[#F6F7F8]"
+          style={{ top: headerHeight, height: categoryTabsHeight }}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: GRID_SIDE_PADDING,
+              paddingVertical: 10,
+              gap: 20,
+              alignItems: "center",
+            }}
+          >
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = tab.key === activeEntity;
+              return (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => setActiveEntity(tab.key)}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+                >
+                  <Text
+                    className="text-[22px] tracking-tight"
+                    style={{
+                      fontFamily: ListifyFonts.bold,
+                      color: isActive ? "#1A1A1A" : "#C8CDD2",
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -254,52 +560,22 @@ export function SearchResultsEntityTabsScreen() {
             onRefresh={handleRefresh}
             colors={["#27BB97"]}
             tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
+            progressViewOffset={stickyTopOffset}
           />
         }
         contentContainerStyle={{
-          paddingTop: topBarHeight,
-          paddingBottom: 84 + bottomNavPadding,
+          paddingTop: stickyTopOffset + 8,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
         }}
       >
-        {/* Entity Tabs */}
+        {/* Sort & filter chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="border-b border-[#DDE4DF] bg-white"
-          contentContainerStyle={{ paddingHorizontal: 8 }}
-        >
-          {ENTITY_TABS.map((tab) => {
-            const isActive = tab.key === activeEntity;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => setActiveEntity(tab.key)}
-                className="px-4 py-3"
-                style={{
-                  borderBottomWidth: 2,
-                  borderBottomColor: isActive ? "#27BB97" : "transparent",
-                }}
-              >
-                <Text
-                  className="text-[12px] font-medium"
-                  style={{ color: isActive ? "#27BB97" : "#6C7A74" }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Sort & Filter Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
+          className="mb-4"
           contentContainerStyle={{
-            paddingHorizontal: 16,
+            paddingHorizontal: GRID_SIDE_PADDING,
             gap: 8,
-            paddingVertical: 16,
           }}
         >
           {SORT_OPTIONS.map((opt) => {
@@ -308,16 +584,19 @@ export function SearchResultsEntityTabsScreen() {
               <Pressable
                 key={opt.key}
                 onPress={() => setActiveSort(opt.key)}
-                className="flex-row items-center gap-1 rounded-full px-3 py-1.5"
+                className="rounded-full px-3.5 py-2"
                 style={{
-                  backgroundColor: isActive ? "rgba(39,187,151,0.1)" : "#FFF",
+                  backgroundColor: isActive ? "rgba(39,187,151,0.12)" : "#FFFFFF",
                   borderWidth: 1,
-                  borderColor: isActive ? "rgba(39,187,151,0.3)" : "#DDE4DF",
+                  borderColor: isActive ? "rgba(39,187,151,0.35)" : "#E5E7EB",
                 }}
               >
                 <Text
-                  className="text-[12px] font-medium"
-                  style={{ color: isActive ? "#27BB97" : "#3C4A44" }}
+                  className="text-[12px]"
+                  style={{
+                    fontFamily: ListifyFonts.medium,
+                    color: isActive ? "#27BB97" : "#4B5563",
+                  }}
                 >
                   {opt.label}
                 </Text>
@@ -330,205 +609,85 @@ export function SearchResultsEntityTabsScreen() {
               router.push({
                 pathname: "/nearby-map-view-bottom-sheet",
                 params: { q: searchQuery },
-              })
+              } as Href)
             }
-            className="flex-row items-center gap-1 rounded-full border border-[#27BB97]/20 bg-white px-3 py-1.5"
+            className="flex-row items-center gap-1 rounded-full border border-[#27BB97]/25 bg-white px-3.5 py-2"
           >
             <MaterialIcons name="map" size={15} color="#27BB97" />
-            <Text className="text-[12px] font-medium text-[#27BB97]">
-              Nearby Map
+            <Text
+              className="text-[12px]"
+              style={{ fontFamily: ListifyFonts.medium, color: "#27BB97" }}
+            >
+              Map
             </Text>
           </Pressable>
         </ScrollView>
 
-        {/* Results meta */}
-        {pagination && (
-          <View className="flex-row items-center justify-between px-5 pb-3">
-            <Text className="text-[12px] text-[#6C7A74]">
-              {pagination.total.toLocaleString()} results
-              {source ? ` • ${source}` : ""}
-            </Text>
-          </View>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <View className="items-center py-16">
+        {loading && displayResults.length === 0 ? (
+          <View className="items-center py-20">
             <ActivityIndicator size="large" color="#27BB97" />
-            <Text className="mt-3 text-[14px] text-[#6C7A74]">
-              Searching...
+            <Text className="mt-3 text-[14px]" style={ListifyTypography.label}>
+              Loading listings…
             </Text>
           </View>
-        )}
+        ) : null}
 
-        {/* No results */}
-        {!loading && results.length === 0 && (
-          <View className="items-center py-16 px-8">
-            <MaterialIcons name="search-off" size={56} color="#CBD5E1" />
-            <Text className="mt-4 text-center text-[18px] font-semibold text-[#161D1A]">
-              No results found
-            </Text>
-            <Text className="mt-2 text-center text-[14px] text-[#6C7A74]">
-              Try different keywords or broaden your filters
-            </Text>
+        {refreshing && displayResults.length > 0 ? (
+          <View className="mb-3 items-center">
+            <ActivityIndicator size="small" color="#27BB97" />
           </View>
-        )}
+        ) : null}
 
-        {/* Results Grid */}
-        {!loading && results.length > 0 && (
-        <View
-          className="flex-row flex-wrap"
-          style={{
-            paddingHorizontal: GRID_SIDE_PADDING,
-            columnGap: GRID_GUTTER,
-            rowGap: GRID_GUTTER,
-          }}
-        >
-          {results.map((item) => (
-            <Pressable
-              key={`${item._entity}_${item._id}`}
-              onPress={() => {
-                const cat = item._entity;
-                const specialRoutes: Record<string, string> = { events: "/event-detail", properties: "/property-detail", jobs: "/job-detail", services: "/service-detail" };
-                const specialRoute = specialRoutes[cat];
-                if (specialRoute) {
-                  router.push({ pathname: specialRoute as any, params: { category: cat, id: item._id } });
-                } else {
-                  router.push({ pathname: "/listing-detail-template", params: { category: cat, id: item._id } });
-                }
-              }}
-              className="overflow-hidden rounded-xl border border-[#E9EFEB] bg-white"
-              style={{ width: CARD_WIDTH }}
+        {!loading && displayResults.length === 0 ? (
+          <View className="items-center px-6 py-20">
+            <MaterialIcons name="inventory-2" size={56} color="#D1D5DB" />
+            <Text
+              className="mt-4 text-center text-[18px]"
+              style={ListifyTypography.sectionTitle}
             >
-              <View style={{ width: CARD_WIDTH, height: CARD_WIDTH }}>
-                {item.images?.[0] ? (
-                  <Image
-                    source={item.images[0]}
-                    contentFit="cover"
-                    transition={200}
-                    className="h-full w-full"
-                  />
-                ) : (
-                  <View className="h-full w-full items-center justify-center bg-slate-100">
-                    <MaterialIcons name="image" size={40} color="#CBD5E1" />
-                  </View>
-                )}
-                <Pressable className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/80">
-                  <MaterialIcons
-                    name="favorite-border"
-                    size={18}
-                    color="#161D1A"
-                  />
-                </Pressable>
-                {item.distance != null && (
-                  <View className="absolute bottom-2 left-2 rounded-md bg-white/90 px-2 py-0.5">
-                    <Text className="text-[10px] font-bold text-[#161D1A]">
-                      {item.distance} km
-                    </Text>
-                  </View>
-                )}
-              </View>
+              No listings found
+            </Text>
+            <Text className="mt-2 text-center text-[14px]" style={ListifyTypography.body}>
+              Try another category or adjust your filters
+            </Text>
+          </View>
+        ) : null}
 
-              <View className="flex-1 p-3">
-                <Text
-                  numberOfLines={1}
-                  className="text-[14px] text-[#161D1A]"
-                >
-                  {item.title}
-                </Text>
-                {item.condition && (
-                  <Text className="mt-0.5 text-[11px] text-[#6C7A74]">
-                    {item.condition}
-                  </Text>
-                )}
-                <View className="mt-2">
-                  <Text className="text-[16px] font-bold text-[#27BB97]">
-                    {item.price != null
-                      ? `₹${Number(item.price).toLocaleString("en-IN")}`
-                      : "Price on request"}
-                  </Text>
-                  {item.location && (
-                    <View className="mt-1 flex-row items-center gap-1">
-                      <MaterialIcons
-                        name="location-on"
-                        size={12}
-                        color="#6C7A74"
-                      />
-                      <Text numberOfLines={1} className="text-[10px] text-[#6C7A74]">
-                        {item.location}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-        )}
+        {displayResults.length > 0 ? (
+          <View
+            className="flex-row flex-wrap px-4"
+            style={{ columnGap: GRID_GUTTER, rowGap: GRID_GUTTER }}
+          >
+            {displayResults.map((item) => (
+              <ListingItemsGridCard
+                key={`${item._entity}_${item._id}`}
+                width={CARD_WIDTH}
+                title={item.title}
+                subtitle={
+                  item.condition ||
+                  item.subcategory ||
+                  item.location ||
+                  undefined
+                }
+                price={item.price}
+                image={item.images?.[0]}
+                isSaved={savedIds.has(item._id)}
+                onPress={() => openDetail(item)}
+                onToggleSave={() => handleToggleSave(item)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {pagination && displayResults.length > 0 ? (
+          <Text
+            className="mt-6 text-center text-[12px]"
+            style={ListifyTypography.label}
+          >
+            {displayResults.length} listing{displayResults.length === 1 ? "" : "s"}
+          </Text>
+        ) : null}
       </ScrollView>
-
-      <View
-        className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white"
-        style={{
-          paddingTop: 12,
-          paddingBottom: bottomNavPadding,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 8,
-        }}
-      >
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => handleBottomTabPress(tab.id)}
-                  className="items-center justify-center"
-                >
-                  <View
-                    className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5"
-                    style={{
-                      shadowColor: "#27BB97",
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 8,
-                      elevation: 6,
-                    }}
-                  >
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            }
-
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => handleBottomTabPress(tab.id)}
-                className="items-center py-1"
-              >
-                <MaterialIcons
-                  name={tab.icon}
-                  size={24}
-                  color={tab.active ? "#27BB97" : "#94A3B8"}
-                />
-                <Text
-                  className="text-[11px] font-medium tracking-wide"
-                  style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
     </View>
   );
 }

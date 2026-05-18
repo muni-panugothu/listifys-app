@@ -71,7 +71,7 @@ export function LogoutModalScreen() {
         </View>
 
         {/* Footer */}
-        <View className="flex-row items-center justify-center gap-2 border-t border-slate-50 bg-[#EFF5F0] px-6 py-4">
+        <View className="flex-row items-center justify-center gap-2 border-t border-slate-50 bg-[#F3F4F6] px-6 py-4">
           <MaterialIcons name="shield" size={18} color="#6C7A74" />
           <Text className="text-[12px] text-[#6C7A74]">Secure sign out enabled</Text>
         </View>

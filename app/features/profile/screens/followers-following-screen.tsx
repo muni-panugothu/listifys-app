@@ -13,18 +13,11 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppSelector } from "@/store/hooks";
+import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
 type FollowTab = "followers" | "following";
 
 const defaultAvatar = "https://ui-avatars.com/api/?name=User&background=27BB97&color=fff&size=128";
-
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const, active: true },
-];
 
 const getTabParam = (value?: string | string[]): FollowTab => {
   const nextValue = typeof value === "string" ? value : value?.[0];
@@ -164,7 +157,7 @@ export function FollowersFollowingScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
         style={{
@@ -233,7 +226,7 @@ export function FollowersFollowingScreen() {
         </View>
 
         <View className="px-4 py-4">
-          <View className="h-12 flex-row items-center rounded-xl bg-[#EFF5F0] px-4">
+          <View className="h-12 flex-row items-center rounded-xl bg-[#F3F4F6] px-4">
             <MaterialIcons name="search" size={20} color="#94A3B8" />
             <TextInput
               value={searchQuery}
@@ -314,40 +307,7 @@ export function FollowersFollowingScreen() {
         </View>
       </ScrollView>
 
-      <View
-        className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white"
-        style={{
-          paddingTop: 12,
-          paddingBottom: bottomNavPadding,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 8,
-        }}
-      >
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center justify-center" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                  <View className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}>
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">{tab.label}</Text>
-                </Pressable>
-              );
-            }
-
-            return (
-              <Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center py-1" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                <MaterialIcons name={tab.icon} size={24} color={tab.active ? "#27BB97" : "#94A3B8"} />
-                <Text className="text-[11px] font-medium tracking-wide" style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}>{tab.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <FloatingBottomNav activeTabId="profile" onTabPress={handleBottomTabPress} />
     </View>
   );
 }

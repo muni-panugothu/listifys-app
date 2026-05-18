@@ -3,24 +3,34 @@ import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { ProfileHeaderArt } from "@/components/profile-header-art";
+import {
+  getDummySellerListings,
+  getDummySellerReviews,
+  getDummySellerStats,
+  isDummySellerId,
+  type DummySellerReview,
+} from "@/constants/dummy-seller-profile";
+import { DUMMY_PROFILE_AVATAR_URI } from "@/constants/dummy-profile";
+import { ListifyFonts } from "@/constants/typography";
 import {
   requestJson,
   resolveAbsoluteMediaUrl,
 } from "@/features/auth/services/auth-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
-import { useTabNavigation } from "@/lib/use-tab-navigation";
-
-// ── Types ────────────────────────────────────────────────────────────────────
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { showAuthGate } from "@/store/slices/auth-gate-slice";
 
 type SellerProfile = {
   id: string;
@@ -44,12 +54,20 @@ type SellerListing = {
   location?: string;
   condition?: string;
   category?: string;
-  subcategory?: string;
   _listingType: string;
-  createdAt?: string;
 };
 
-// ── API helpers ──────────────────────────────────────────────────────────────
+type ProfileTab = "listings" | "reviews";
+
+const HEADER_ART_HEIGHT = 248;
+const AVATAR_SIZE = 108;
+const AVATAR_OVERLAP = AVATAR_SIZE / 2;
+const BRAND_GREEN = "#27BB97";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const GRID_GUTTER = 14;
+const GRID_SIDE_PADDING = 16;
+const CARD_WIDTH = (SCREEN_WIDTH - GRID_SIDE_PADDING * 2 - GRID_GUTTER) / 2;
 
 async function fetchSellerProfile(sellerId: string): Promise<SellerProfile> {
   const res = await requestJson<{ seller: SellerProfile }>(
@@ -62,9 +80,9 @@ async function fetchSellerListings(sellerId: string): Promise<SellerListing[]> {
   const res = await requestJson<{ listings: SellerListing[] }>(
     `/api/auth/seller/${sellerId}/listings`,
   );
-  return (res.listings ?? []).map((l) => ({
-    ...l,
-    images: (l.images ?? []).map(
+  return (res.listings ?? []).map((listing) => ({
+    ...listing,
+    images: (listing.images ?? []).map(
       (img) => resolveAbsoluteMediaUrl(img) ?? img,
     ),
   }));
@@ -76,106 +94,142 @@ async function toggleFollowSeller(
   return requestJson(`/api/auth/follow/${sellerId}`, { method: "POST" });
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
+function StatDivider() {
+  return <View className="h-8 w-px bg-[#E5E7EB]" />;
+}
 
-const DEFAULT_COVER =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDieOcT68a3pkiyCzXQEpMRO5s3IqzQqlMEkLxYJVcK1hDaT2R3IoV5US6JPwoRd0wuuwyTh5mTeaHfgf5jp-MO5pP69JauU2w5SoHConLSJJMRiYyFT-6B-BCITtsBR__EA_CI4vDEcSLxT40Fu2Zk6Sy55DLONg_tk-OF9ZB1nP1xIVj0xJ4mniLFtDrR-bnXnfwrMxYDxyhs_GfJrjsdEROcRr3_VKffXr-sZluQlca9hMupn70otULVsTB2RJ6OSONsl26NA0g";
+function SellerStars({ rating }: { rating: number }) {
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.5;
 
-const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?name=Seller&background=27BB97&color=fff&size=128";
-
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const, active: true },
-];
-
-function HalfCard({
-  item,
-  width,
-  onPress,
-}: {
-  item: SellerListing;
-  width: number;
-  onPress: () => void;
-}) {
   return (
-    <Pressable
-      onPress={onPress}
-      className="overflow-hidden rounded-xl border border-[#dde4df] bg-white"
-      style={{
-        width,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-      }}
-    >
-      <View className="relative h-44 w-full">
-        {item.images?.[0] ? (
-          <Image
-            source={item.images[0]}
-            contentFit="cover"
-            transition={200}
-            className="h-full w-full"
-          />
-        ) : (
-          <View className="h-full w-full items-center justify-center bg-slate-100">
-            <MaterialIcons name="image" size={32} color="#CBD5E1" />
-          </View>
-        )}
-      </View>
-      <View className="flex-1 p-2">
-        <Text
-          className="text-[14px] leading-5 text-[#161D1A]"
-          numberOfLines={1}
-        >
-          {item.title}
-        </Text>
-        <View className="mt-2 flex-row items-end justify-between">
-          <Text className="text-[16px] font-bold text-[#006b55]">
-            {item.price
-              ? `₹${Number(item.price).toLocaleString("en-IN")}`
-              : "Price on request"}
+    <View className="flex-row items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const name =
+          i < full ? "star" : i === full && half ? "star-half" : "star-border";
+        return <MaterialIcons key={i} name={name} size={16} color="#F59E0B" />;
+      })}
+      <Text
+        className="ml-1 text-[14px] text-[#6B7280]"
+        style={{ fontFamily: ListifyFonts.medium }}
+      >
+        {rating.toFixed(1)}
+      </Text>
+    </View>
+  );
+}
+
+function SellerReviewCard({ item }: { item: DummySellerReview }) {
+  return (
+    <View className="border-b border-[#F0F0F0] pb-4">
+      <View className="mb-2 flex-row items-center gap-3">
+        <Image
+          source={item.avatar}
+          contentFit="cover"
+          className="h-10 w-10 rounded-full"
+        />
+        <View className="flex-1">
+          <Text
+            className="text-[15px] text-[#1A1A1A]"
+            style={{ fontFamily: ListifyFonts.semiBold }}
+          >
+            {item.name}
           </Text>
-          {item.condition ? (
-            <Text className="text-[10px] font-medium text-[#6c7a74]">
-              {item.condition}
-            </Text>
-          ) : null}
+          <View className="mt-0.5 flex-row">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <MaterialIcons
+                key={`${item.id}-star-${index}`}
+                name={index < item.rating ? "star" : "star-border"}
+                size={15}
+                color="#CBA100"
+              />
+            ))}
+          </View>
         </View>
+        <Text
+          className="text-[12px] text-[#9CA3AF]"
+          style={{ fontFamily: ListifyFonts.regular }}
+        >
+          {item.date}
+        </Text>
       </View>
-    </Pressable>
+      <Text
+        className="text-[14px] leading-5 text-[#4B5563]"
+        style={{ fontFamily: ListifyFonts.regular }}
+      >
+        {item.review}
+      </Text>
+    </View>
   );
 }
 
 export function SellerPublicProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
-  const params = useLocalSearchParams<{ sellerId?: string; userId?: string }>();
-  const sellerId = params.sellerId ?? params.userId ?? "";
+  const dispatch = useAppDispatch();
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const params = useLocalSearchParams<{
+    sellerId?: string;
+    userId?: string;
+    sellerName?: string;
+    sellerRating?: string;
+    sellerImage?: string;
+  }>();
 
-  const topBarHeight = insets.top + 64;
-  const halfCardWidth = useMemo(
-    () => (screenWidth - 16 * 2 - 12) / 2,
-    [screenWidth],
-  );
+  const sellerId = params.sellerId ?? params.userId ?? "";
+  const paramSellerName = params.sellerName?.trim() ?? "";
+  const isDummy = isDummySellerId(sellerId);
 
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [listings, setListings] = useState<SellerListing[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<DummySellerReview[]>([]);
+  const [loading, setLoading] = useState(!isDummy && Boolean(sellerId));
+  const [activeTab, setActiveTab] = useState<ProfileTab>("listings");
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
 
+  const loadDummyProfile = useCallback(() => {
+    const name = paramSellerName || "Listify Seller";
+    const stats = getDummySellerStats(name);
+    const dummyListings = getDummySellerListings(name);
+
+    setSeller({
+      id: sellerId || "dummy-seller",
+      _id: sellerId || "dummy-seller",
+      name,
+      profileImageUrl: params.sellerImage ?? null,
+      createdAt: new Date(2023, 5, 1).toISOString(),
+      isFollowedByCurrentUser: false,
+      followersCount: stats.followersCount,
+      followingCount: stats.followingCount,
+      listingsCount: stats.listingsCount,
+    });
+    setListings(
+      dummyListings.map((item) => ({
+        _id: item.id,
+        title: item.title,
+        price: item.price,
+        images: [item.image],
+        condition: item.condition,
+        category: item.category,
+        _listingType: item.category,
+      })),
+    );
+    setReviews(getDummySellerReviews(name));
+    setFollowing(false);
+    setFollowersCount(stats.followersCount);
+    setLoading(false);
+  }, [paramSellerName, params.sellerImage, sellerId]);
+
   const loadData = useCallback(async () => {
-    if (!sellerId) {
-      setLoading(false);
+    if (isDummy || !sellerId) {
+      loadDummyProfile();
       return;
     }
+
+    setLoading(true);
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
     try {
       const [profileRes, listingsRes] = await Promise.all([
         fetchSellerProfile(sellerId),
@@ -183,17 +237,21 @@ export function SellerPublicProfileScreen() {
       ]);
       setSeller(profileRes);
       setListings(listingsRes);
+      setReviews(getDummySellerReviews(profileRes.name));
       setFollowing(profileRes.isFollowedByCurrentUser);
       setFollowersCount(profileRes.followersCount);
     } catch {
-      // keep existing data
+      if (paramSellerName) {
+        loadDummyProfile();
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
-  }, [sellerId]);
+  }, [isDummy, loadDummyProfile, paramSellerName, sellerId]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const handleRefresh = useCallback(async () => {
@@ -202,18 +260,88 @@ export function SellerPublicProfileScreen() {
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
-  const handleToggleFollow = useCallback(async () => {
-    if (!sellerId) return;
-    try {
-      const res = await toggleFollowSeller(sellerId);
-      setFollowing(res.isFollowing);
-      setFollowersCount(res.followersCount);
-    } catch {
-      // silently fail
-    }
-  }, [sellerId]);
+  const displayName = seller?.name ?? paramSellerName ?? "Seller";
+  const memberSince = seller?.createdAt
+    ? `Member since ${new Date(seller.createdAt).getFullYear()}`
+    : "Verified seller on Listify";
 
-  const handleBottomTabPress = useTabNavigation();
+  const avatarUri =
+    (seller?.profileImageUrl
+      ? resolveAbsoluteMediaUrl(seller.profileImageUrl) ?? seller.profileImageUrl
+      : null) ??
+    (params.sellerImage?.startsWith("http") ? params.sellerImage : null) ??
+    DUMMY_PROFILE_AVATAR_URI;
+
+  const sellerRating = useMemo(() => {
+    const fromParam = Number.parseFloat(params.sellerRating ?? "");
+    if (!Number.isNaN(fromParam) && fromParam > 0) return fromParam;
+    return getDummySellerStats(displayName).avgRating;
+  }, [displayName, params.sellerRating]);
+
+  const ratingsCount = useMemo(() => {
+    if (reviews.length > 0) {
+      return Math.max(reviews.length, getDummySellerStats(displayName).ratingsCount);
+    }
+    return getDummySellerStats(displayName).ratingsCount;
+  }, [displayName, reviews.length]);
+
+  const stats = useMemo(
+    () => [
+      { value: String(seller?.listingsCount ?? listings.length), label: "Listings" },
+      { value: String(followersCount), label: "Followers" },
+      { value: String(seller?.followingCount ?? 0), label: "Following" },
+    ],
+    [followersCount, listings.length, seller?.followingCount, seller?.listingsCount],
+  );
+
+  const requireAuth = useCallback(
+    (action: () => void) => {
+      if (isAuthenticated) {
+        action();
+        return;
+      }
+      dispatch(
+        showAuthGate({
+          action: "profile",
+          redirectTo: `/seller-public-profile?sellerId=${sellerId}&sellerName=${encodeURIComponent(displayName)}`,
+        }),
+      );
+    },
+    [dispatch, displayName, isAuthenticated, sellerId],
+  );
+
+  const handleToggleFollow = useCallback(() => {
+    requireAuth(async () => {
+      if (isDummy) {
+        setFollowing((prev) => {
+          const next = !prev;
+          setFollowersCount((count) => (next ? count + 1 : Math.max(0, count - 1)));
+          return next;
+        });
+        return;
+      }
+
+      if (!sellerId) return;
+      try {
+        const res = await toggleFollowSeller(sellerId);
+        setFollowing(res.isFollowing);
+        setFollowersCount(res.followersCount);
+      } catch {
+        // keep state
+      }
+    });
+  }, [isDummy, requireAuth, sellerId]);
+
+  const handleMessage = useCallback(() => {
+    if (!sellerId && !displayName) return;
+    router.push({
+      pathname: "/chat-conversation",
+      params: {
+        recipientId: sellerId || "dummy-seller",
+        name: displayName,
+      },
+    } as Href);
+  }, [displayName, router, sellerId]);
 
   const navigateToListing = useCallback(
     (item: SellerListing) => {
@@ -225,64 +353,29 @@ export function SellerPublicProfileScreen() {
     [router],
   );
 
-  // Split listings into layout groups
-  const featured = listings.length > 2 ? listings[2] : null;
-  const firstRow = listings.slice(0, 2);
-  const remainingAfterFeatured = listings.slice(3);
-
-  const avatarUri =
-    (seller?.profileImageUrl
-      ? resolveAbsoluteMediaUrl(seller.profileImageUrl) ?? seller.profileImageUrl
-      : null) ?? DEFAULT_AVATAR;
-
-  const displayName = seller?.name ?? "Seller";
-  const memberSince = seller?.createdAt
-    ? new Date(seller.createdAt).toLocaleDateString(undefined, {
-        month: "short",
-        year: "numeric",
-      })
-    : "";
+  const listingRows = useMemo(() => {
+    const rows: SellerListing[][] = [];
+    for (let i = 0; i < listings.length; i += 2) {
+      rows.push(listings.slice(i, i + 2));
+    }
+    return rows;
+  }, [listings]);
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View
-        className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
-        style={{
-          paddingTop: insets.top,
-          height: topBarHeight,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-          elevation: 2,
-        }}
+        className="absolute inset-x-0 top-0 z-30 flex-row items-center justify-between px-5"
+        style={{ paddingTop: insets.top + 8 }}
+        pointerEvents="box-none"
       >
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            className="-ml-2 h-10 w-10 items-center justify-center"
-            onPress={() => router.back()}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#161D1A" />
-          </Pressable>
-          <Text className="text-[20px] font-black tracking-tight text-[#27BB97]">
-            Listify
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-2">
-          <Pressable
-            className="h-10 w-10 items-center justify-center"
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <MaterialIcons name="share" size={22} color="#161D1A" />
-          </Pressable>
-          <Pressable
-            className="h-10 w-10 items-center justify-center"
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <MaterialIcons name="more-vert" size={22} color="#161D1A" />
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
+          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        >
+          <MaterialIcons name="arrow-back-ios" size={18} color="#1A1A1A" />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -291,295 +384,267 @@ export function SellerPublicProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#27BB97"]}
-            tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
+            colors={[BRAND_GREEN]}
+            tintColor={BRAND_GREEN}
           />
         }
         contentContainerStyle={{
-          paddingTop: topBarHeight,
-          paddingBottom: 92 + Math.max(insets.bottom, 16),
+          flexGrow: 1,
+          paddingBottom: Math.max(insets.bottom, 24) + 24,
         }}
       >
+        <View style={{ height: HEADER_ART_HEIGHT }}>
+          <ProfileHeaderArt height={HEADER_ART_HEIGHT} />
+        </View>
+
         {loading ? (
-          <View className="items-center py-32">
-            <ActivityIndicator size="large" color="#27BB97" />
-            <Text className="mt-3 text-[14px] text-[#6C7A74]">
+          <View className="items-center py-16">
+            <ActivityIndicator size="large" color={BRAND_GREEN} />
+            <Text
+              className="mt-3 text-[14px] text-[#9CA3AF]"
+              style={{ fontFamily: ListifyFonts.regular }}
+            >
               Loading seller profile...
             </Text>
           </View>
         ) : (
           <>
-        <View>
-          <View className="h-40 w-full overflow-hidden">
-            <Image
-              source={DEFAULT_COVER}
-              contentFit="cover"
-              transition={200}
-              className="h-full w-full"
-            />
-          </View>
-
-          <View className="-mt-12 px-4">
-            <View className="h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-white">
-              <Image
-                source={avatarUri}
-                contentFit="cover"
-                transition={200}
-                className="h-full w-full"
-              />
-            </View>
-            <View className="-mt-7 ml-16 h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[#006b55]">
-              <MaterialIcons name="verified" size={16} color="#FFFFFF" />
-            </View>
-
-            <View className="mt-4">
-              <Text className="text-[24px] font-bold leading-8 tracking-tight text-[#161D1A]">
-                {displayName}
-              </Text>
-              {seller?.email ? (
-                <Text className="mt-1 text-[13px] font-medium text-[#6c7a74]">
-                  {seller.email}
-                </Text>
-              ) : null}
-              {memberSince ? (
-                <Text className="mt-0.5 text-[12px] font-medium text-[#6c7a74]">
-                  Member since {memberSince}
-                </Text>
-              ) : null}
-            </View>
-
-            <View className="mt-4 flex-row gap-6 border-y border-[#dde4df]/70 py-2">
-              <View>
-                <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  {seller?.listingsCount ?? 0}
-                </Text>
-                <Text className="text-[12px] font-medium text-[#6c7a74]">
-                  Listings
-                </Text>
-              </View>
-              <View>
-                <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  {followersCount}
-                </Text>
-                <Text className="text-[12px] font-medium text-[#6c7a74]">
-                  Followers
-                </Text>
-              </View>
-              <View>
-                <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  {seller?.followingCount ?? 0}
-                </Text>
-                <Text className="text-[12px] font-medium text-[#6c7a74]">
-                  Following
-                </Text>
-              </View>
-            </View>
-
-            <View className="mt-4 flex-row gap-4">
-              <Pressable
-                onPress={handleToggleFollow}
-                className="flex-1 items-center rounded-xl py-3"
-                style={({ pressed }) => ({
-                  backgroundColor: following ? "#DFF7EE" : "#27BB97",
-                  borderWidth: following ? 2 : 0,
-                  borderColor: following ? "#27BB97" : "transparent",
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
-                })}
+            <View
+              className="z-10 w-full bg-white px-5 pb-2"
+              style={{ marginTop: -AVATAR_OVERLAP, alignSelf: "stretch" }}
+            >
+              <View
+                className="self-start"
+                style={{ marginTop: -AVATAR_OVERLAP, marginBottom: 12 }}
               >
-                <Text
-                  className="text-[18px] font-semibold"
-                  style={{ color: following ? "#27BB97" : "#FFFFFF" }}
+                <View
+                  className="overflow-hidden rounded-full border-[4px] border-white bg-white"
+                  style={{
+                    width: AVATAR_SIZE,
+                    height: AVATAR_SIZE,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.14,
+                    shadowRadius: 10,
+                    elevation: 8,
+                  }}
                 >
-                  {following ? "Following" : "Follow"}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  if (!sellerId) return;
-                  router.push({
-                    pathname: "/chat-conversation",
-                    params: { recipientId: sellerId, name: displayName },
-                  } as Href);
-                }}
-                className="flex-1 items-center rounded-xl border border-[#bbcac3] bg-white py-3"
-                style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
-              >
-                <Text className="text-[18px] font-semibold text-[#161D1A]">
-                  Message
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-
-        <View className="mt-6">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
-            className="border-b border-[#dde4df]"
-          >
-            <Pressable className="border-b-2 border-[#006b55] px-6 py-4">
-              <Text className="text-[14px] font-semibold text-[#006b55]">
-                Listings
-              </Text>
-            </Pressable>
-            <Pressable className="border-b-2 border-transparent px-6 py-4">
-              <Text className="text-[14px] font-medium text-[#6c7a74]">
-                Reviews
-              </Text>
-            </Pressable>
-            <Pressable className="border-b-2 border-transparent px-6 py-4">
-              <Text className="text-[14px] font-medium text-[#6c7a74]">
-                About
-              </Text>
-            </Pressable>
-          </ScrollView>
-
-          <View className="mt-4 px-4">
-            {listings.length === 0 ? (
-              <View className="items-center py-16">
-                <MaterialIcons name="inventory-2" size={48} color="#CBD5E1" />
-                <Text className="mt-2 text-[14px] text-[#6C7A74]">
-                  No active listings yet.
-                </Text>
-              </View>
-            ) : (
-              <>
-            <View className="flex-row justify-between">
-              {firstRow.map((item) => (
-                <HalfCard key={item._id} item={item} width={halfCardWidth} onPress={() => navigateToListing(item)} />
-              ))}
-            </View>
-
-            {featured ? (
-              <Pressable
-                onPress={() => navigateToListing(featured)}
-                className="mt-3 overflow-hidden rounded-xl border border-[#dde4df] bg-white"
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 2,
-                  elevation: 1,
-                }}
-              >
-                <View className="relative h-56 w-full">
-                  {featured.images?.[0] ? (
                   <Image
-                    source={featured.images[0]}
+                    source={avatarUri}
                     contentFit="cover"
-                    transition={200}
                     className="h-full w-full"
                   />
-                  ) : (
-                    <View className="h-full w-full items-center justify-center bg-slate-100">
-                      <MaterialIcons name="image" size={40} color="#CBD5E1" />
-                    </View>
-                  )}
                 </View>
-                <View className="p-4">
-                  <View className="flex-row items-start justify-between">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-[18px] font-semibold text-[#161D1A]">
-                        {featured.title}
+              </View>
+
+              <View
+                className="mb-2 self-start rounded-md px-2.5 py-1"
+                style={{ backgroundColor: BRAND_GREEN }}
+              >
+                <Text
+                  className="text-[11px] tracking-wide text-white"
+                  style={{ fontFamily: ListifyFonts.bold }}
+                >
+                  SELLER
+                </Text>
+              </View>
+
+              <Text
+                className="text-[26px] leading-8 text-[#1A1A1A]"
+                style={{ fontFamily: ListifyFonts.bold }}
+              >
+                {displayName}
+              </Text>
+
+              <View className="mt-1.5 self-start">
+                <SellerStars rating={sellerRating} />
+                <Text
+                  className="mt-0.5 text-[13px] text-[#9CA3AF]"
+                  style={{ fontFamily: ListifyFonts.regular }}
+                >
+                  {ratingsCount}{" "}
+                  {ratingsCount === 1 ? "member rated" : "members rated"}
+                </Text>
+              </View>
+
+              <Text
+                className="mt-1 text-[15px] text-[#9CA3AF]"
+                style={{ fontFamily: ListifyFonts.regular }}
+              >
+                {memberSince}
+              </Text>
+
+              <View
+                className="mt-4 flex-row items-center"
+                style={{ width: "100%", gap: 10 }}
+              >
+                <Pressable
+                  onPress={handleToggleFollow}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    height: 48,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: following ? "#E8F8F4" : BRAND_GREEN,
+                    borderWidth: following ? 2 : 0,
+                    borderColor: BRAND_GREEN,
+                    opacity: pressed ? 0.92 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      fontFamily: ListifyFonts.semiBold,
+                      fontSize: 16,
+                      color: following ? BRAND_GREEN : "#FFFFFF",
+                    }}
+                  >
+                    {following ? "Following" : "Follow"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleMessage}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    height: 48,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#FFFFFF",
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    opacity: pressed ? 0.88 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      fontFamily: ListifyFonts.semiBold,
+                      fontSize: 16,
+                      color: "#1A1A1A",
+                    }}
+                  >
+                    Message
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View className="mt-5 flex-row items-center self-start">
+                {stats.map((stat, index) => (
+                  <View key={stat.label} className="flex-row items-center">
+                    {index > 0 ? <StatDivider /> : null}
+                    <View
+                      style={{
+                        alignItems: "flex-start",
+                        paddingRight: 20,
+                        paddingLeft: index === 0 ? 0 : 20,
+                      }}
+                    >
+                      <Text
+                        className="text-[18px] text-[#1A1A1A]"
+                        style={{ fontFamily: ListifyFonts.bold }}
+                      >
+                        {stat.value}
                       </Text>
-                      {featured.location ? (
-                        <View className="mt-1 flex-row items-center gap-1">
-                          <MaterialIcons name="location-on" size={13} color="#94A3B8" />
-                          <Text className="text-[12px] text-[#6c7a74]">
-                            {featured.location}
-                          </Text>
-                        </View>
-                      ) : null}
+                      <Text
+                        className="mt-0.5 text-[12px] text-[#9CA3AF]"
+                        style={{ fontFamily: ListifyFonts.regular }}
+                      >
+                        {stat.label}
+                      </Text>
                     </View>
-                    <Text className="text-[20px] font-bold text-[#006b55]">
-                      {featured.price ? `₹${Number(featured.price).toLocaleString("en-IN")}` : "N/A"}
+                  </View>
+                ))}
+              </View>
+
+            </View>
+
+            <View className="mt-4 border-b border-[#F0F0F0] px-5">
+              <View className="flex-row">
+                {(["listings", "reviews"] as const).map((tab) => {
+                  const active = activeTab === tab;
+                  return (
+                    <Pressable
+                      key={tab}
+                      onPress={() => setActiveTab(tab)}
+                      className="mr-6 pb-3"
+                      style={{
+                        borderBottomWidth: 2,
+                        borderBottomColor: active ? BRAND_GREEN : "transparent",
+                      }}
+                    >
+                      <Text
+                        className="text-[15px] capitalize"
+                        style={{
+                          fontFamily: active ? ListifyFonts.semiBold : ListifyFonts.medium,
+                          color: active ? BRAND_GREEN : "#9CA3AF",
+                        }}
+                      >
+                        {tab}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View className="px-4 pt-4" style={{ paddingHorizontal: GRID_SIDE_PADDING }}>
+              {activeTab === "listings" ? (
+                listings.length === 0 ? (
+                  <View className="items-center py-16">
+                    <MaterialIcons name="inventory-2" size={48} color="#D1D5DB" />
+                    <Text
+                      className="mt-2 text-[14px] text-[#9CA3AF]"
+                      style={{ fontFamily: ListifyFonts.regular }}
+                    >
+                      No active listings yet.
                     </Text>
                   </View>
+                ) : (
+                  <View style={{ gap: GRID_GUTTER }}>
+                    {listingRows.map((row) => (
+                      <View
+                        key={row.map((item) => item._id).join("-")}
+                        className="flex-row"
+                        style={{ gap: GRID_GUTTER }}
+                      >
+                        {row.map((item) => (
+                          <ListingItemsGridCard
+                            key={item._id}
+                            title={item.title}
+                            subtitle={item.condition}
+                            price={item.price ?? null}
+                            image={item.images?.[0]}
+                            width={CARD_WIDTH}
+                            onPress={() => navigateToListing(item)}
+                          />
+                        ))}
+                        {row.length === 1 ? <View style={{ width: CARD_WIDTH }} /> : null}
+                      </View>
+                    ))}
+                  </View>
+                )
+              ) : reviews.length === 0 ? (
+                <View className="items-center py-16">
+                  <MaterialIcons name="rate-review" size={48} color="#D1D5DB" />
+                  <Text
+                    className="mt-2 text-[14px] text-[#9CA3AF]"
+                    style={{ fontFamily: ListifyFonts.regular }}
+                  >
+                    No reviews yet.
+                  </Text>
                 </View>
-              </Pressable>
-            ) : null}
-
-            {remainingAfterFeatured.length > 0 && (
-            <View className="mt-3 flex-row flex-wrap justify-between" style={{ gap: 12 }}>
-              {remainingAfterFeatured.map((item) => (
-                <HalfCard key={item._id} item={item} width={halfCardWidth} onPress={() => navigateToListing(item)} />
-              ))}
+              ) : (
+                <View className="gap-4">
+                  {reviews.map((item) => (
+                    <SellerReviewCard key={item.id} item={item} />
+                  ))}
+                </View>
+              )}
             </View>
-            )}
-              </>
-            )}
-          </View>
-        </View>
           </>
         )}
       </ScrollView>
-
-      <View
-        className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white"
-        style={{
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 12,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 8,
-        }}
-      >
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => handleBottomTabPress(tab.id)}
-                  className="items-center justify-center"
-                >
-                  <View
-                    className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5"
-                    style={{
-                      shadowColor: "#27BB97",
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 8,
-                      elevation: 6,
-                    }}
-                  >
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            }
-
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => handleBottomTabPress(tab.id)}
-                className="items-center justify-center py-1"
-              >
-                <MaterialIcons
-                  name={tab.icon}
-                  size={24}
-                  color={tab.active ? "#27BB97" : "#94A3B8"}
-                />
-                <Text
-                  className="text-[11px] font-medium tracking-wide"
-                  style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
     </View>
   );
 }

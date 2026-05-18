@@ -1,5 +1,7 @@
 import { usePathname, useRouter } from "@/lib/safe-router";
+import * as Haptics from "expo-haptics";
 import { useCallback, useRef } from "react";
+import { Platform } from "react-native";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showAuthGate, type AuthGateAction } from "@/store/slices/auth-gate-slice";
@@ -13,16 +15,14 @@ const TAB_ROUTES: Record<string, string> = {
 };
 
 const AUTH_GATED_TABS: Partial<Record<string, AuthGateAction>> = {
-  sell: "sell",
   messages: "message",
-  profile: "profile",
 };
 
 /**
  * Tabs that require authentication. If the user is not logged in,
  * the optional `onAuthRequired` callback fires instead of navigating.
  */
-const AUTH_REQUIRED_TABS = new Set(["sell"]);
+const AUTH_REQUIRED_TABS = new Set<string>();
 
 /**
  * Shared bottom-tab navigation handler.
@@ -70,6 +70,9 @@ export function useTabNavigation(onAuthRequired?: () => void) {
       }
 
       lastNavigationRef.current = { target, timestamp: now };
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
       router.replace(target as any);
     },
     [dispatch, isAuthenticated, onAuthRequired, pathname, router],

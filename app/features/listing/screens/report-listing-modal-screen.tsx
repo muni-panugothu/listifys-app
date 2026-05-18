@@ -69,7 +69,7 @@ export function ReportListingModalScreen() {
               onPress={() => router.back()}
               className="rounded-full p-2"
               style={({ pressed }) => ({
-                backgroundColor: pressed ? "#EFF5F0" : "transparent",
+                backgroundColor: pressed ? "#F3F4F6" : "transparent",
               })}
             >
               <MaterialIcons name="close" size={24} color="#161D1A" />
@@ -84,7 +84,7 @@ export function ReportListingModalScreen() {
                 <Pressable
                   key={reason.id}
                   onPress={() => setSelectedReason(reason.id)}
-                  className="flex-row items-center rounded-xl bg-[#EFF5F0] p-4"
+                  className="flex-row items-center rounded-xl bg-[#F3F4F6] p-4"
                   style={{
                     borderWidth: 1,
                     borderColor: isSelected ? "#27BB97" : "transparent",
@@ -124,7 +124,7 @@ export function ReportListingModalScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
-              className="min-h-[90px] rounded-xl border border-[#DDE4DF] bg-[#EFF5F0] p-4 text-[14px] text-[#161D1A]"
+              className="min-h-[90px] rounded-xl border border-[#DDE4DF] bg-[#F3F4F6] p-4 text-[14px] text-[#161D1A]"
             />
           </View>
 

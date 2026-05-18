@@ -1,10 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   Text,
@@ -13,6 +13,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DUMMY_PROFILE_AVATAR_URI } from "@/constants/dummy-profile";
+import { APP_SCREEN_BG } from "@/constants/theme";
+import { ListifyFonts } from "@/constants/typography";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
 import {
   getMessages,
@@ -35,9 +38,21 @@ import {
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 
+const BRAND = "#27BB97";
+const CHAT_BG = APP_SCREEN_BG;
+const BAR_BG = APP_SCREEN_BG;
+const INCOMING_BUBBLE = "#E8E8E8";
+const DATE_PILL = "#E5E5E5";
+const TEXT_MUTED = "#9CA3AF";
+const TEXT_DARK = "#1A1A1A";
+
 function formatTime(dateStr: string) {
   const d = new Date(dateStr);
-  return d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function formatDateHeader(dateStr: string) {
@@ -48,21 +63,58 @@ function formatDateHeader(dateStr: string) {
 
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
-function formatMoney(value?: number | string | null, currency = "₹") {
-  if (value === null || value === undefined || value === "") return "";
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "";
-  return `${currency}${num.toLocaleString("en-IN")}`;
-}
-
-/** Deduplicate messages by _id, keeping the last occurrence */
 function dedup(msgs: ChatMessage[]): ChatMessage[] {
   const seen = new Map<string, ChatMessage>();
   for (const m of msgs) seen.set(m._id, m);
   return Array.from(seen.values());
+}
+
+function buildDemoMessages(userId: string): ChatMessage[] {
+  const base = new Date();
+  const at = (h: number, m: number) => {
+    const d = new Date(base);
+    d.setHours(h, m, 0, 0);
+    return d.toISOString();
+  };
+
+  return [
+    {
+      _id: "demo-1",
+      conversation: "demo",
+      sender: "demo-other",
+      content: "Hey, is this still available?",
+      status: "read",
+      createdAt: at(14, 15),
+    },
+    {
+      _id: "demo-2",
+      conversation: "demo",
+      sender: userId || "demo-me",
+      content: "Yes it is! Are you interested in picking it up today?",
+      status: "read",
+      createdAt: at(14, 16),
+    },
+  ];
+}
+
+function isFromMe(
+  item: ChatMessage,
+  userId: string | undefined,
+): boolean {
+  const senderId =
+    typeof item.sender === "string"
+      ? item.sender
+      : (item.sender as { id?: string; _id?: string })?.id ||
+        (item.sender as { id?: string; _id?: string })?._id;
+  if (senderId === "demo-other") return false;
+  return senderId === userId || senderId === "demo-me";
 }
 
 export function ChatConversationScreen() {
@@ -80,29 +132,77 @@ export function ChatConversationScreen() {
   }>();
   const insets = useSafeAreaInsets();
   const user = useAppSelector((s) => s.auth.user);
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
+
+  const recipientIdParam = Array.isArray(params.recipientId)
+    ? params.recipientId[0]
+    : params.recipientId;
+  const isDummyChat = Boolean(recipientIdParam?.startsWith("dummy-"));
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [messageText, setMessageText] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isDummyChat);
   const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingUser, setTypingUser] = useState<string | null>(null);
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(isDummyChat);
 
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const contactName = typeof params.name === "string" ? params.name : params.name?.[0] ?? "User";
+  const contactName =
+    typeof params.name === "string"
+      ? params.name
+      : params.name?.[0] ?? "Alex Thompson";
 
-  // Get or create conversation
+  const footerPadding = Math.max(insets.bottom, 10);
+  const canSend = messageText.trim().length > 0;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+  }, []);
+
   useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+      scrollToBottom();
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [scrollToBottom]);
+
+  const inputBottomInset =
+    keyboardHeight > 0 ? keyboardHeight + 22 : footerPadding;
+
+  const seedDemoMessages = useMemo(
+    () => buildDemoMessages(user?.id ?? "demo-me"),
+    [user?.id],
+  );
+
+  useEffect(() => {
+    if (isDummyChat) {
+      setLoading(false);
+      setIsOnline(true);
+      return;
+    }
+
     (async () => {
       setLoading(true);
       try {
         if (params.conversationId) {
-          // Load messages directly
           const res = await getMessages(params.conversationId);
           if (res.messages) {
             setMessages(dedup(res.messages.reverse()));
@@ -119,8 +219,12 @@ export function ChatConversationScreen() {
               typeof params.listingPrice === "string" && params.listingPrice
                 ? Number(params.listingPrice)
                 : undefined,
-            listingImage: typeof params.listingImage === "string" ? params.listingImage : undefined,
-            currency: typeof params.currency === "string" ? params.currency : undefined,
+            listingImage:
+              typeof params.listingImage === "string"
+                ? params.listingImage
+                : undefined,
+            currency:
+              typeof params.currency === "string" ? params.currency : undefined,
           });
           if (res.conversation) {
             setConversation(res.conversation);
@@ -137,12 +241,23 @@ export function ChatConversationScreen() {
         setLoading(false);
       }
     })();
-  }, [params.conversationId, params.recipientId, params.listingId, params.listingType, params.listingTitle]);
+  }, [
+    isDummyChat,
+    params.conversationId,
+    params.recipientId,
+    params.listingId,
+    params.listingType,
+    params.listingTitle,
+  ]);
 
-  // Socket.IO setup
+  const displayMessages = useMemo(() => {
+    const base = messages.length > 0 ? messages : isDummyChat ? seedDemoMessages : [];
+    return dedup([...base, ...localMessages]);
+  }, [isDummyChat, localMessages, messages, seedDemoMessages]);
+
   useEffect(() => {
     const convId = conversation?._id;
-    if (!convId) return;
+    if (!convId || isDummyChat) return;
 
     try {
       connectSocket();
@@ -154,17 +269,25 @@ export function ChatConversationScreen() {
 
     joinConversation(convId);
 
-    // Request recipient online status
     if (params.recipientId) {
       requestLastSeen(params.recipientId);
     }
 
-    const handleNewMessage = (data: any) => {
+    const handleNewMessage = (data: {
+      conversationId?: string;
+      conversation?: string;
+      _id?: string;
+      messageId?: string;
+      sender?: string;
+      content?: string;
+      attachments?: ChatMessage["attachments"];
+      createdAt?: string;
+    }) => {
       if (data.conversationId === convId || data.conversation === convId) {
         const newMsg: ChatMessage = {
-          _id: data._id || data.messageId,
+          _id: data._id || data.messageId || `msg-${Date.now()}`,
           conversation: convId,
-          sender: data.sender,
+          sender: data.sender ?? "",
           content: data.content || "",
           attachments: data.attachments,
           status: "delivered",
@@ -173,7 +296,6 @@ export function ChatConversationScreen() {
 
         setMessages((prev) => dedup([...prev, newMsg]));
 
-        // Acknowledge delivery
         if (typeof data.sender === "string" && data.sender !== user?.id) {
           emitMessageDelivered(newMsg._id, convId);
           markConversationRead(convId).catch(() => {});
@@ -181,41 +303,47 @@ export function ChatConversationScreen() {
       }
     };
 
-    const handleTypingStart = (data: any) => {
+    const handleTypingStart = (data: { conversationId?: string; userId?: string; userName?: string }) => {
       if (data.conversationId === convId && data.userId !== user?.id) {
         setTypingUser(data.userName || "");
       }
     };
 
-    const handleTypingStop = (data: any) => {
+    const handleTypingStop = (data: { conversationId?: string; userId?: string }) => {
       if (data.conversationId === convId && data.userId !== user?.id) {
         setTypingUser(null);
       }
     };
 
-    const handleUserOnline = (data: any) => {
+    const handleUserOnline = (data: { userId?: string }) => {
       if (data.userId === params.recipientId) setIsOnline(true);
     };
 
-    const handleUserOffline = (data: any) => {
+    const handleUserOffline = (data: { userId?: string }) => {
       if (data.userId === params.recipientId) setIsOnline(false);
     };
 
-    const handleLastSeen = (data: any) => {
+    const handleLastSeen = (data: { userId?: string; isOnline?: boolean }) => {
       if (data.userId === params.recipientId) {
-        setIsOnline(data.isOnline);
+        setIsOnline(Boolean(data.isOnline));
       }
     };
 
-    const handleMessageStatus = (data: any) => {
-      if (data.conversationId === convId) {
+    const handleMessageStatus = (data: {
+      conversationId?: string;
+      messageId?: string;
+      status?: ChatMessage["status"];
+    }) => {
+      if (data.conversationId === convId && data.messageId) {
         setMessages((prev) =>
-          prev.map((m) => (m._id === data.messageId ? { ...m, status: data.status } : m)),
+          prev.map((m) =>
+            m._id === data.messageId ? { ...m, status: data.status ?? m.status } : m,
+          ),
         );
       }
     };
 
-    const handleMessagesRead = (data: any) => {
+    const handleMessagesRead = (data: { conversationId?: string }) => {
       if (data.conversationId === convId) {
         setMessages((prev) => prev.map((m) => ({ ...m, status: "read" })));
       }
@@ -241,14 +369,13 @@ export function ChatConversationScreen() {
       socket.off("message:status", handleMessageStatus);
       socket.off("messages:read", handleMessagesRead);
     };
-  }, [conversation?._id, user?.id, params.recipientId]);
+  }, [conversation?._id, isDummyChat, user?.id, params.recipientId]);
 
-  // Typing handler
   const handleTextChange = useCallback(
     (text: string) => {
       setMessageText(text);
       const convId = conversation?._id;
-      if (!convId) return;
+      if (!convId || isDummyChat) return;
 
       if (!isTyping) {
         setIsTyping(true);
@@ -261,24 +388,42 @@ export function ChatConversationScreen() {
         emitTypingStop(convId);
       }, 2000);
     },
-    [conversation?._id, isTyping],
+    [conversation?._id, isDummyChat, isTyping],
   );
 
-  // Send message
+  const appendLocalMessage = useCallback(
+    (text: string) => {
+      const optimisticMsg: ChatMessage = {
+        _id: `local_${Date.now()}`,
+        conversation: conversation?._id ?? "demo",
+        sender: user?.id ?? "demo-me",
+        content: text,
+        status: "sent",
+        createdAt: new Date().toISOString(),
+      };
+      setLocalMessages((prev) => [...prev, optimisticMsg]);
+    },
+    [conversation?._id, user?.id],
+  );
+
   const handleSend = useCallback(async () => {
     const text = messageText.trim();
-    if (!text || !conversation?._id || sending) return;
+    if (!text || sending) return;
 
     setSending(true);
     setMessageText("");
 
-    // Stop typing indicator
-    if (isTyping) {
+    if (isTyping && conversation?._id) {
       setIsTyping(false);
       emitTypingStop(conversation._id);
     }
 
-    // Optimistic local message
+    if (isDummyChat || !conversation?._id) {
+      appendLocalMessage(text);
+      setSending(false);
+      return;
+    }
+
     const tempId = `temp_${Date.now()}`;
     const optimisticMsg: ChatMessage = {
       _id: tempId,
@@ -298,272 +443,274 @@ export function ChatConversationScreen() {
         );
       }
     } catch {
-      // Remove optimistic message on error
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [messageText, conversation?._id, sending, user?.id, isTyping]);
+  }, [
+    appendLocalMessage,
+    conversation?._id,
+    isDummyChat,
+    isTyping,
+    messageText,
+    sending,
+    user?.id,
+  ]);
 
-  // Scroll to bottom when new messages arrive
   useEffect(() => {
-    if (messages.length > 0) {
+    if (displayMessages.length > 0) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [messages.length]);
+  }, [displayMessages.length]);
 
-  // Get avatar for the other participant
   const otherAvatar = useMemo(() => {
+    if (isDummyChat) return DUMMY_PROFILE_AVATAR_URI;
     if (!conversation?.participants) return null;
     const other = conversation.participants.find((p) => {
       const pid = p.id || p._id;
       return pid !== user?.id;
     });
     return resolveAbsoluteMediaUrl(other?.profileImageUrl);
-  }, [conversation?.participants, user?.id]);
+  }, [conversation?.participants, isDummyChat, user?.id]);
 
-  const listingTitle =
-    (typeof params.listingTitle === "string" && params.listingTitle) ||
-    conversation?.listing?.listingTitle ||
-    "";
-  const listingImage =
-    (typeof params.listingImage === "string" && params.listingImage) ||
-    conversation?.listing?.listingImage ||
-    "";
-  const listingCurrency =
-    (typeof params.currency === "string" && params.currency) ||
-    conversation?.listing?.currency ||
-    "₹";
-  const listingPriceLabel = formatMoney(
-    typeof params.listingPrice === "string" && params.listingPrice
-      ? Number(params.listingPrice)
-      : conversation?.listing?.listingPrice,
-    listingCurrency,
-  );
+  const statusLabel = typingUser
+    ? "typing..."
+    : isOnline
+      ? "Online"
+      : "Offline";
 
-  // Group messages by date for headers
   const renderItem = useCallback(
     ({ item, index }: { item: ChatMessage; index: number }) => {
-      const senderId = typeof item.sender === "string" ? item.sender : (item.sender as any)?.id || (item.sender as any)?._id;
-      const fromMe = senderId === user?.id;
-      const prevMsg = index > 0 ? messages[index - 1] : null;
+      const fromMe = isFromMe(item, user?.id);
+      const prevMsg = index > 0 ? displayMessages[index - 1] : null;
       const showDateHeader =
-        !prevMsg || formatDateHeader(item.createdAt) !== formatDateHeader(prevMsg.createdAt);
+        !prevMsg ||
+        formatDateHeader(item.createdAt) !== formatDateHeader(prevMsg.createdAt);
 
       return (
         <View>
-          {showDateHeader && (
-            <View className="my-4 items-center">
-              <View className="rounded-full bg-[#E3EAE5] px-3 py-1">
-                <Text className="text-[10px] font-medium uppercase tracking-wider text-[#3C4A44]">
+          {showDateHeader ? (
+            <View className="my-5 items-center">
+              <View
+                className="rounded-full px-4 py-1.5"
+                style={{ backgroundColor: DATE_PILL }}
+              >
+                <Text
+                  className="text-[13px] text-[#6B7280]"
+                  style={{ fontFamily: ListifyFonts.medium }}
+                >
                   {formatDateHeader(item.createdAt)}
                 </Text>
               </View>
             </View>
-          )}
+          ) : null}
+
           <View
             style={{
-              alignItems: fromMe ? "flex-end" : "flex-start",
               alignSelf: fromMe ? "flex-end" : "flex-start",
-              maxWidth: "85%",
-              marginBottom: 8,
+              maxWidth: "78%",
+              marginBottom: 6,
             }}
           >
             <View
-              className="rounded-2xl p-4"
               style={{
-                backgroundColor: fromMe ? "#27BB97" : "#FFFFFF",
-                borderWidth: fromMe ? 0 : 1,
-                borderColor: "#F3F4F6",
-                borderBottomRightRadius: fromMe ? 4 : 16,
-                borderBottomLeftRadius: fromMe ? 16 : 4,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: fromMe ? 0.1 : 0.05,
-                shadowRadius: fromMe ? 4 : 2,
-                elevation: fromMe ? 2 : 1,
+                backgroundColor: fromMe ? BRAND : INCOMING_BUBBLE,
+                borderRadius: 20,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
               }}
             >
               <Text
-                className="text-[14px] leading-5"
-                style={{ color: fromMe ? "#FFFFFF" : "#161D1A" }}
+                style={{
+                  fontFamily: ListifyFonts.regular,
+                  fontSize: 15,
+                  lineHeight: 21,
+                  color: fromMe ? "#FFFFFF" : TEXT_DARK,
+                }}
               >
                 {item.content}
               </Text>
             </View>
-            <View
-              className="mt-1 flex-row items-center gap-1"
-              style={{ marginLeft: fromMe ? 0 : 4, marginRight: fromMe ? 4 : 0 }}
+            <Text
+              style={{
+                marginTop: 4,
+                marginLeft: fromMe ? 0 : 4,
+                marginRight: fromMe ? 4 : 0,
+                alignSelf: fromMe ? "flex-end" : "flex-start",
+                fontFamily: ListifyFonts.regular,
+                fontSize: 12,
+                color: TEXT_MUTED,
+              }}
             >
-              <Text className="text-[10px] text-[#94A3B8]">{formatTime(item.createdAt)}</Text>
-              {fromMe && (
-                <MaterialIcons
-                  name={item.status === "read" ? "done-all" : item.status === "delivered" ? "done-all" : "done"}
-                  size={12}
-                  color={item.status === "read" ? "#27BB97" : "#94A3B8"}
-                />
-              )}
-            </View>
+              {formatTime(item.createdAt)}
+            </Text>
           </View>
         </View>
       );
     },
-    [user?.id, messages],
+    [displayMessages, user?.id],
   );
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#27BB97" />
+      <View className="flex-1 items-center justify-center" style={{ backgroundColor: CHAT_BG }}>
+        <ActivityIndicator size="large" color={BRAND} />
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-[#FFFFFF]">
-      {/* Top Bar */}
+    <View className="flex-1" style={{ backgroundColor: CHAT_BG }}>
+      {/* Header — reference style */}
       <View
-        className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
         style={{
           paddingTop: insets.top,
-          height: topBarHeight,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-          elevation: 2,
+          backgroundColor: BAR_BG,
+          borderBottomWidth: 1,
+          borderBottomColor: "#EBEBEB",
         }}
       >
-        <View className="flex-row items-center gap-3">
+        <View className="h-[60px] flex-row items-center px-3">
           <Pressable
             onPress={() => router.back()}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            hitSlop={12}
+            className="h-10 w-10 items-center justify-center"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#27BB97" />
+            <MaterialIcons name="arrow-back-ios" size={20} color={TEXT_DARK} />
           </Pressable>
-          <View className="relative">
-            {otherAvatar ? (
-              <Image
-                source={otherAvatar}
-                contentFit="cover"
-                className="h-10 w-10 rounded-full"
-                style={{ borderWidth: 2, borderColor: "rgba(39,187,151,0.2)" }}
-              />
-            ) : (
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-[#DDE4DF]">
-                <MaterialIcons name="person" size={20} color="#6C7A74" />
-              </View>
-            )}
-            {isOnline && (
-              <View className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-[#27BB97]" />
-            )}
-          </View>
-          <View>
-            <Text className="text-[14px] font-semibold tracking-tight text-[#161D1A]">
+
+          {otherAvatar ? (
+            <Image
+              source={otherAvatar}
+              contentFit="cover"
+              className="ml-1 h-11 w-11 rounded-full"
+            />
+          ) : (
+            <View className="ml-1 h-11 w-11 items-center justify-center rounded-full bg-[#D1D5DB]">
+              <MaterialIcons name="person" size={22} color="#6B7280" />
+            </View>
+          )}
+
+          <View className="ml-3 flex-1">
+            <Text
+              className="text-[17px] text-[#1A1A1A]"
+              style={{ fontFamily: ListifyFonts.semiBold }}
+              numberOfLines={1}
+            >
               {contactName}
             </Text>
-            <Text className="text-[10px] font-medium" style={{ color: isOnline ? "#27BB97" : "#94A3B8" }}>
-              {typingUser ? "typing..." : isOnline ? "Online" : "Offline"}
+            <Text
+              className="text-[13px]"
+              style={{
+                fontFamily: ListifyFonts.regular,
+                color: typingUser ? BRAND : isOnline ? "#22C55E" : TEXT_MUTED,
+              }}
+            >
+              {statusLabel}
             </Text>
           </View>
-        </View>
-        <View className="flex-row items-center gap-3">
-          <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-            <MaterialIcons name="videocam" size={22} color="#6B7280" />
+
+          <Pressable
+            className="h-10 w-10 items-center justify-center"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <MaterialIcons name="call" size={24} color={TEXT_DARK} />
           </Pressable>
-          <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-            <MaterialIcons name="call" size={21} color="#6B7280" />
-          </Pressable>
-          <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-            <MaterialIcons name="settings" size={21} color="#6B7280" />
+          <Pressable
+            className="h-10 w-10 items-center justify-center"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <MaterialIcons name="more-vert" size={24} color={TEXT_DARK} />
           </Pressable>
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
-      >
+      <View className="flex-1">
         <FlatList
           ref={flatListRef}
-          data={messages}
-          keyExtractor={(item, index) => `${item._id}_${index}`}
+          data={displayMessages}
+          keyExtractor={(item) => item._id}
           renderItem={renderItem}
-          ListHeaderComponent={
-            listingTitle ? (
-              <View
-                className="mb-4 flex-row items-center gap-3 rounded-xl border px-3 py-3"
-                style={{ borderColor: "rgba(187,202,195,0.35)", backgroundColor: "#EFF5F0" }}
-              >
-                {listingImage ? (
-                  <Image source={listingImage} contentFit="cover" className="h-12 w-12 rounded-lg" />
-                ) : (
-                  <View className="h-12 w-12 items-center justify-center rounded-lg bg-[#DDE4DF]">
-                    <MaterialIcons name="inventory-2" size={18} color="#6C7A74" />
-                  </View>
-                )}
-                <View className="flex-1">
-                  <Text className="text-[10px] font-medium text-[#6C7A74]">Inquired about</Text>
-                  <Text className="text-[13px] font-semibold text-[#161D1A]" numberOfLines={1}>
-                    {listingTitle}
-                  </Text>
-                  {listingPriceLabel ? (
-                    <Text className="text-[12px] font-semibold text-[#27BB97]">{listingPriceLabel}</Text>
-                  ) : null}
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
-              </View>
-            ) : null
-          }
           contentContainerStyle={{
-            paddingTop: topBarHeight + 16,
-            paddingBottom: 10,
             paddingHorizontal: 16,
+            paddingTop: 8,
+            paddingBottom: 12,
+            flexGrow: 1,
           }}
+          style={{ flex: 1, backgroundColor: CHAT_BG }}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: false })
+          }
         />
 
-        {/* Input Area */}
-        <View className="border-t border-slate-100 bg-white px-4 py-3" style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
-          <View className="flex-row items-end gap-3">
-            <View className="mb-1 flex-row items-center gap-1">
-              <Pressable className="h-10 w-10 items-center justify-center" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                <MaterialIcons name="add-circle" size={23} color="#9CA3AF" />
-              </Pressable>
-              <Pressable className="h-10 w-10 items-center justify-center" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                <MaterialIcons name="photo-camera" size={22} color="#9CA3AF" />
-              </Pressable>
-            </View>
-            <View className="relative flex-1">
+        {/* Input footer — lifts above keyboard */}
+        <View
+          style={{
+            backgroundColor: BAR_BG,
+            paddingTop: 10,
+            paddingBottom: inputBottomInset,
+            paddingHorizontal: 12,
+            borderTopWidth: 1,
+            borderTopColor: "#EBEBEB",
+          }}
+        >
+          <View className="flex-row items-center" style={{ gap: 10 }}>
+            <Pressable
+              className="h-11 w-11 items-center justify-center"
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <MaterialIcons name="add" size={28} color={TEXT_DARK} />
+            </Pressable>
+
+            <View
+              className="min-h-[44px] flex-1 flex-row items-center rounded-full bg-white px-4"
+              style={{
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+              }}
+            >
               <TextInput
                 value={messageText}
                 onChangeText={handleTextChange}
-                placeholder="Type a message..."
-                placeholderTextColor="#94A3B8"
+                placeholder="Message"
+                placeholderTextColor={TEXT_MUTED}
                 multiline
-                className="max-h-32 rounded-2xl bg-slate-50 px-4 py-3 pr-12 text-[14px] text-[#161D1A]"
+                returnKeyType="send"
+                blurOnSubmit={false}
+                onSubmitEditing={handleSend}
+                onFocus={scrollToBottom}
+                className="max-h-24 flex-1 py-2.5 text-[16px] text-[#1A1A1A]"
+                style={{ fontFamily: ListifyFonts.regular }}
               />
               <Pressable
-                onPress={handleSend}
-                disabled={!messageText.trim() || sending}
-                className="absolute bottom-1.5 right-2 h-9 w-9 items-center justify-center rounded-xl bg-[#27BB97]"
-                style={{
-                  opacity: messageText.trim() ? 1 : 0.5,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 4,
-                  elevation: 3,
-                }}
+                onPress={canSend ? handleSend : undefined}
+                disabled={sending}
+                className="ml-1 h-8 w-8 items-center justify-center"
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.6 : canSend ? 1 : 0.85,
+                })}
               >
-                <MaterialIcons name="send" size={18} color="#FFFFFF" />
+                <MaterialIcons
+                  name={canSend ? "send" : "mic"}
+                  size={canSend ? 20 : 22}
+                  color={canSend ? BRAND : TEXT_DARK}
+                />
               </Pressable>
             </View>
+
+            <Pressable
+              className="h-11 w-11 items-center justify-center"
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <MaterialIcons name="photo-camera" size={26} color={TEXT_DARK} />
+            </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }

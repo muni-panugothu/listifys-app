@@ -1,44 +1,101 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "@/lib/safe-router";
+import { type Href, useRouter } from "@/lib/safe-router";
 import { useCallback, useMemo, useState } from "react";
-import { BackHandler, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  BackHandler,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Share,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ProfileHeaderArt } from "@/components/profile-header-art";
+import {
+  DUMMY_PROFILE_AVATAR_URI,
+  DUMMY_PROFILE_NAME,
+  DUMMY_PROFILE_TITLE,
+} from "@/constants/dummy-profile";
+import { ListifyFonts } from "@/constants/typography";
 import { getUnreadCount as getNotificationUnreadCount } from "@/features/auth/services/auth-api";
 import { fetchSavedListings } from "@/features/listing/services/listing-api";
 import { getUnreadCount as getChatUnreadCount } from "@/features/messaging/services/chat-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
+import { showAuthGate } from "@/store/slices/auth-gate-slice";
 
-const defaultAvatar = "https://ui-avatars.com/api/?name=User&background=27BB97&color=fff&size=128";
+const HEADER_ART_HEIGHT = 248;
+const AVATAR_SIZE = 108;
+const AVATAR_LEFT = 20;
+const AVATAR_OVERLAP = AVATAR_SIZE / 2;
 
-type MenuItem = {
+const PRO_BADGE_COLOR = "#F43F9C";
+
+type MenuRowProps = {
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  iconBg: string;
+  iconColor: string;
   label: string;
-  route: string;
-  badge?: string;
+  badge?: number;
+  onPress: () => void;
 };
 
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const, active: true },
-];
+function MenuRow({ icon, iconBg, iconColor, label, badge, onPress }: MenuRowProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center justify-between py-3.5"
+      style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+    >
+      <View className="flex-row items-center gap-4">
+        <View
+          className="h-11 w-11 items-center justify-center rounded-2xl"
+          style={{ backgroundColor: iconBg }}
+        >
+          <MaterialIcons name={icon} size={22} color={iconColor} />
+        </View>
+        <Text
+          className="text-[16px] text-[#1A1A1A]"
+          style={{ fontFamily: ListifyFonts.medium }}
+        >
+          {label}
+        </Text>
+      </View>
+      <View className="flex-row items-center gap-2">
+        {badge != null && badge > 0 ? (
+          <View className="min-w-5 rounded-full bg-[#F43F9C] px-1.5 py-0.5">
+            <Text
+              className="text-center text-[10px] text-white"
+              style={{ fontFamily: ListifyFonts.bold }}
+            >
+              {badge > 99 ? "99+" : badge}
+            </Text>
+          </View>
+        ) : null}
+        <MaterialIcons name="chevron-right" size={22} color="#C4C4C4" />
+      </View>
+    </Pressable>
+  );
+}
+
+function StatDivider() {
+  return <View className="h-8 w-px bg-[#E5E7EB]" />;
+}
 
 export function DashboardHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const [menuCounts, setMenuCounts] = useState({
     savedItems: 0,
     unreadMessages: 0,
@@ -57,7 +114,10 @@ export function DashboardHomeScreen() {
     setMenuCounts({
       savedItems: savedResult.status === "fulfilled" ? savedResult.value.listings.length : 0,
       unreadMessages: chatResult.status === "fulfilled" ? chatResult.value.unreadCount ?? 0 : 0,
-      unreadNotifications: notificationResult.status === "fulfilled" ? notificationResult.value.unreadCount ?? 0 : 0,
+      unreadNotifications:
+        notificationResult.status === "fulfilled"
+          ? notificationResult.value.unreadCount ?? 0
+          : 0,
     });
   }, [dispatch]);
 
@@ -72,65 +132,6 @@ export function DashboardHomeScreen() {
   }, [loadDashboardData]);
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
-
-  const profileImageUri =
-    user?.profileImageUrl ?? user?.profileImage ?? user?.googleProfileImage ?? user?.avatar ?? defaultAvatar;
-
-  const displayName = user?.name || "User";
-  const displayEmail = user?.email || "";
-  const isVerified = user?.isVerified ?? false;
-
-  const stats = [
-    { value: String(user?.listingsCount ?? 0), label: "Listings", onPress: () => router.push("/my-listings-active") },
-    {
-      value: String(user?.followersCount ?? 0),
-      label: "Followers",
-      onPress: () =>
-        router.push({ pathname: "/followers-following", params: { tab: "followers" } }),
-    },
-    {
-      value: String(user?.followingCount ?? 0),
-      label: "Following",
-      onPress: () =>
-        router.push({ pathname: "/followers-following", params: { tab: "following" } }),
-    },
-  ];
-
-  const accountMenuItems: MenuItem[] = [
-    { icon: "person", label: "My Profile", route: "/profile-details-edit" },
-    {
-      icon: "list-alt",
-      label: "My Listings",
-      route: "/my-listings-active",
-      badge: user?.listingsCount ? String(user.listingsCount) : undefined,
-    },
-    {
-      icon: "favorite",
-      label: "Saved Items",
-      route: "/saved-items",
-      badge: menuCounts.savedItems ? String(menuCounts.savedItems) : undefined,
-    },
-    {
-      icon: "chat",
-      label: "Messages",
-      route: "/messages-inbox",
-      badge: menuCounts.unreadMessages ? String(menuCounts.unreadMessages) : undefined,
-    },
-  ];
-
-  const settingsMenuItems: MenuItem[] = [
-    { icon: "devices", label: "Devices", route: "/devices" },
-    { icon: "history", label: "Activity Log", route: "/activity-log" },
-    {
-      icon: "notifications",
-      label: "Notifications",
-      route: "/notifications-center",
-      badge: menuCounts.unreadNotifications ? String(menuCounts.unreadNotifications) : undefined,
-    },
-    { icon: "settings", label: "Settings", route: "/app-settings" },
-    { icon: "security", label: "Security", route: "/security" },
-  ];
-
   const handleBottomTabPress = useTabNavigation();
 
   useFocusEffect(
@@ -145,176 +146,291 @@ export function DashboardHomeScreen() {
     }, [handleBottomTabPress]),
   );
 
+  const displayName = user?.name?.trim() || DUMMY_PROFILE_NAME;
+  const displayRole =
+    (user as { bio?: string } | null)?.bio?.trim() ||
+    DUMMY_PROFILE_TITLE;
+
+  const stats = useMemo(
+    () => [
+      {
+        value: String(user?.listingsCount ?? 0),
+        label: "Listings",
+        onPress: () => router.push("/my-listings-active" as Href),
+      },
+      {
+        value: String(user?.followersCount ?? 0),
+        label: "Followers",
+        onPress: () =>
+          router.push({
+            pathname: "/followers-following",
+            params: { tab: "followers" },
+          } as Href),
+      },
+      {
+        value: String(user?.followingCount ?? 0),
+        label: "Following",
+        onPress: () =>
+          router.push({
+            pathname: "/followers-following",
+            params: { tab: "following" },
+          } as Href),
+      },
+    ],
+    [router, user?.followersCount, user?.followingCount, user?.listingsCount],
+  );
+
+  const handleInviteFriend = useCallback(async () => {
+    try {
+      await Share.share({
+        message: "Join me on Listify — buy and sell locally!",
+      });
+    } catch {
+      // user dismissed
+    }
+  }, []);
+
+  const requireAuth = useCallback(
+    (action: () => void) => {
+      if (isAuthenticated) {
+        action();
+        return;
+      }
+      dispatch(showAuthGate({ action: "profile", redirectTo: "/dashboard-home" }));
+    },
+    [dispatch, isAuthenticated],
+  );
+
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
-      {/* Top Bar */}
+    <View className="flex-1 bg-[#F6F7F8]">
       <View
-        className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
-        style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}
+        className="absolute inset-x-0 top-0 z-30 flex-row items-center justify-between px-5"
+        style={{ paddingTop: insets.top + 8 }}
+        pointerEvents="box-none"
       >
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => handleBottomTabPress("home")} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-            <MaterialIcons name="arrow-back" size={24} color="#27BB97" />
-          </Pressable>
-          <Text className="text-[14px] font-semibold tracking-tight text-[#27BB97]">Profile</Text>
-        </View>
-        <Pressable onPress={() => router.push("/app-settings")} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-          <MaterialIcons name="settings" size={24} color="#27BB97" />
+        <Pressable
+          onPress={() => handleBottomTabPress("home")}
+          hitSlop={12}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
+          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        >
+          <MaterialIcons name="arrow-back-ios" size={18} color="#1A1A1A" />
+        </Pressable>
+
+        <Pressable
+          onPress={() => requireAuth(() => router.push("/profile-details-edit" as Href))}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
+          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        >
+          <MaterialIcons name="add-a-photo" size={20} color="#1A1A1A" />
         </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        bounces
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#27BB97"]}
-            tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
+            colors={["#F43F9C"]}
+            tintColor="#F43F9C"
           />
         }
-        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom: 96 + bottomNavPadding,
+        }}
       >
-        <View className="px-4">
-          {/* Profile Identity */}
-          <View className="mb-6 items-center">
-            <View className="relative mb-4">
-              <View className="h-24 w-24 overflow-hidden rounded-full border-2 border-[#006B55]" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 }}>
-                <Image source={profileImageUri} contentFit="cover" className="h-full w-full" />
-              </View>
-              <View className="absolute bottom-1 right-1 h-5 w-5 rounded-full border-4 border-white bg-green-500" />
-            </View>
-            <View className="items-center">
-              <View className="flex-row items-center gap-1 mb-1">
-                <Text className="text-[24px] font-bold tracking-tight text-[#161D1A]">{displayName}</Text>
-                {isVerified && <MaterialIcons name="verified" size={20} color="#006B55" />}
-              </View>
-              <Text className="text-[14px] text-[#3C4A44]">{displayEmail}</Text>
-            </View>
-          </View>
+        {/* Abstract banner */}
+        <View style={{ height: HEADER_ART_HEIGHT }}>
+          <ProfileHeaderArt height={HEADER_ART_HEIGHT} />
+        </View>
 
-          {/* Stats Grid */}
-          <View className="mb-6 flex-row gap-3">
-            {stats.map((stat) => (
-              <Pressable
-                key={stat.label}
-                onPress={stat.onPress}
-                className="flex-1 items-center rounded-xl border border-[#BBCAC3]/30 bg-white p-4"
-                style={({ pressed }) => ({
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 2,
-                  elevation: 1,
-                  opacity: pressed ? 0.82 : 1,
-                })}
-              >
-                <Text className="text-[20px] font-bold text-[#006B55]">{stat.value}</Text>
-                <Text className="text-[12px] font-medium text-[#3C4A44]">{stat.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Account Menu */}
-          <View className="mb-4">
-            <Text className="mb-2 px-2 text-[12px] font-medium tracking-wider text-[#3C4A44]">Account</Text>
-            <View className="overflow-hidden rounded-2xl border border-[#BBCAC3]/20 bg-white">
-              {accountMenuItems.map((item, index) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => router.push(item.route as any)}
-                  className="flex-row items-center justify-between px-4 py-4"
-                  style={({ pressed }) => ({
-                    backgroundColor: pressed ? "#EFF5F0" : "transparent",
-                    borderBottomWidth: index < accountMenuItems.length - 1 ? 1 : 0,
-                    borderBottomColor: "rgba(187,202,195,0.1)",
-                  })}
-                >
-                  <View className="flex-row items-center gap-3">
-                    <MaterialIcons name={item.icon} size={22} color="#3C4A44" />
-                    <Text className="text-[14px] font-medium text-[#161D1A]">{item.label}</Text>
-                  </View>
-                  <View className="flex-row items-center gap-2">
-                    {item.badge && (
-                      <View className="rounded-full bg-[rgba(39,187,151,0.1)] px-2 py-0.5">
-                        <Text className="text-[10px] font-bold text-[#006B55]">{item.badge}</Text>
-                      </View>
-                    )}
-                    <MaterialIcons name="chevron-right" size={22} color="#BBCAC3" />
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* Settings Menu */}
-          <View className="mb-4">
-            <Text className="mb-2 px-2 text-[12px] font-medium tracking-wider text-[#3C4A44]">Settings & Security</Text>
-            <View className="overflow-hidden rounded-2xl border border-[#BBCAC3]/20 bg-white">
-              {settingsMenuItems.map((item, index) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => router.push(item.route as any)}
-                  className="flex-row items-center justify-between px-4 py-4"
-                  style={({ pressed }) => ({
-                    backgroundColor: pressed ? "#EFF5F0" : "transparent",
-                    borderBottomWidth: index < settingsMenuItems.length - 1 ? 1 : 0,
-                    borderBottomColor: "rgba(187,202,195,0.1)",
-                  })}
-                >
-                  <View className="flex-row items-center gap-3">
-                    <MaterialIcons name={item.icon} size={22} color="#3C4A44" />
-                    <Text className="text-[14px] font-medium text-[#161D1A]">{item.label}</Text>
-                  </View>
-                  <View className="flex-row items-center gap-2">
-                    {item.badge && (
-                      <View className="rounded-full bg-[rgba(39,187,151,0.1)] px-2 py-0.5">
-                        <Text className="text-[10px] font-bold text-[#006B55]">{item.badge}</Text>
-                      </View>
-                    )}
-                    <MaterialIcons name="chevron-right" size={22} color="#BBCAC3" />
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* Logout Button */}
-          <Pressable
-            onPress={() => router.push("/logout-modal")}
-            className="flex-row items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white px-4 py-4"
-            style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }], shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 })}
+        {/* Avatar left (half on banner) — PRO / name / stats stacked below, left aligned */}
+        <View
+          className="z-10 bg-white px-5 pb-2"
+          style={{ marginTop: -AVATAR_OVERLAP }}
+        >
+          <View
+            className="self-start"
+            style={{ marginTop: -AVATAR_OVERLAP, marginBottom: 12 }}
           >
-            <MaterialIcons name="logout" size={22} color="#BA1A1A" />
-            <Text className="text-[14px] font-bold text-[#BA1A1A]">Logout</Text>
-          </Pressable>
+            <View
+              className="overflow-hidden rounded-full border-[4px] border-white bg-white"
+              style={{
+                width: AVATAR_SIZE,
+                height: AVATAR_SIZE,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.14,
+                shadowRadius: 10,
+                elevation: 8,
+              }}
+            >
+              <Image
+                source={DUMMY_PROFILE_AVATAR_URI}
+                contentFit="cover"
+                className="h-full w-full"
+              />
+            </View>
+          </View>
+
+          <View
+            className="mb-2 self-start rounded-md px-2.5 py-1"
+            style={{ backgroundColor: PRO_BADGE_COLOR }}
+          >
+            <Text
+              className="text-[11px] tracking-wide text-white"
+              style={{ fontFamily: ListifyFonts.bold }}
+            >
+              PRO
+            </Text>
+          </View>
+
+          <Text
+            className="text-[26px] leading-8 text-[#1A1A1A]"
+            style={{ fontFamily: ListifyFonts.bold }}
+          >
+            {displayName}
+          </Text>
+          <Text
+            className="mt-1 text-[15px] text-[#9CA3AF]"
+            style={{ fontFamily: ListifyFonts.regular }}
+          >
+            {displayRole}
+          </Text>
+
+          <View className="mt-5 flex-row items-center self-start">
+            {stats.map((stat, index) => (
+              <View key={stat.label} className="flex-row items-center">
+                {index > 0 ? <StatDivider /> : null}
+                <Pressable
+                  onPress={() => requireAuth(stat.onPress)}
+                  style={({ pressed }) => ({
+                    opacity: pressed ? 0.8 : 1,
+                    alignItems: "flex-start",
+                    paddingRight: index === 0 ? 20 : 20,
+                    paddingLeft: index === 0 ? 0 : 20,
+                  })}
+                >
+                  <Text
+                    className="text-[18px] text-[#1A1A1A]"
+                    style={{ fontFamily: ListifyFonts.bold }}
+                  >
+                    {stat.value}
+                  </Text>
+                  <Text
+                    className="mt-0.5 text-[12px] text-[#9CA3AF]"
+                    style={{ fontFamily: ListifyFonts.regular }}
+                  >
+                    {stat.label}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+            <StatDivider />
+            <Pressable
+              onPress={() => requireAuth(() => router.push("/notifications-center" as Href))}
+              className="pl-4"
+              style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+            >
+              <MaterialIcons name="more-horiz" size={26} color="#9CA3AF" />
+              {menuCounts.unreadNotifications > 0 ? (
+                <View className="absolute -right-0.5 top-0 h-2 w-2 rounded-full bg-[#F43F9C]" />
+              ) : null}
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Menu list */}
+        <View className="mt-2 bg-white px-5 pt-4">
+          <MenuRow
+            icon="person-outline"
+            iconBg="rgba(244,63,156,0.15)"
+            iconColor={PRO_BADGE_COLOR}
+            label="Edit profile"
+            onPress={() => requireAuth(() => router.push("/profile-details-edit" as Href))}
+          />
+          <MenuRow
+            icon="bar-chart"
+            iconBg="rgba(139,92,246,0.15)"
+            iconColor="#8B5CF6"
+            label="My stats"
+            onPress={() => requireAuth(() => router.push("/my-listings-active" as Href))}
+          />
+          <MenuRow
+            icon="favorite-border"
+            iconBg="rgba(244,63,156,0.12)"
+            iconColor="#F472B6"
+            label="Saved items"
+            badge={menuCounts.savedItems}
+            onPress={() => requireAuth(() => router.push("/saved-items" as Href))}
+          />
+          <MenuRow
+            icon="chat-bubble-outline"
+            iconBg="rgba(59,130,246,0.15)"
+            iconColor="#3B82F6"
+            label="Messages"
+            badge={menuCounts.unreadMessages}
+            onPress={() => requireAuth(() => router.push("/messages-inbox" as Href))}
+          />
+          <MenuRow
+            icon="settings"
+            iconBg="rgba(251,146,60,0.2)"
+            iconColor="#FB923C"
+            label="Settings"
+            onPress={() => router.push("/app-settings" as Href)}
+          />
+
+          <View className="my-2 h-px bg-[#F0F0F0]" />
+
+          <MenuRow
+            icon="person-add-alt-1"
+            iconBg="#E5E7EB"
+            iconColor="#4B5563"
+            label="Invite a friend"
+            onPress={handleInviteFriend}
+          />
+          <MenuRow
+            icon="help-outline"
+            iconBg="#E5E7EB"
+            iconColor="#4B5563"
+            label="Help"
+            onPress={() => Linking.openURL("mailto:support@listifys.com")}
+          />
+
+          {!isAuthenticated ? (
+            <Pressable
+              onPress={() =>
+                dispatch(showAuthGate({ action: "profile", redirectTo: "/dashboard-home" }))
+              }
+              className="mt-4 items-center rounded-2xl py-4"
+              style={{ backgroundColor: PRO_BADGE_COLOR }}
+            >
+              <Text
+                className="text-[16px] text-white"
+                style={{ fontFamily: ListifyFonts.semiBold }}
+              >
+                Sign in
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push("/logout-modal" as Href)}
+              className="mt-6 items-center rounded-xl bg-red-500 py-4"
+              style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+            >
+              <Text
+                className="text-[16px] text-white"
+                style={{ fontFamily: ListifyFonts.semiBold }}
+              >
+                Sign out
+              </Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
-
-      {/* Bottom Nav */}
-      <View className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white" style={{ paddingTop: 12, paddingBottom: bottomNavPadding, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 8 }}>
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center justify-center" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                  <View className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}>
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">{tab.label}</Text>
-                </Pressable>
-              );
-            }
-            return (
-              <Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center py-1" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                <MaterialIcons name={tab.icon} size={24} color={tab.active ? "#27BB97" : "#94A3B8"} />
-                <Text className="text-[11px] font-medium tracking-wide" style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}>{tab.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
     </View>
   );
 }

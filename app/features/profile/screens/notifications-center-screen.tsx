@@ -1,81 +1,215 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  mergeNotificationsWithDummy,
+} from "@/constants/dummy-notifications";
+import { APP_SCREEN_BG } from "@/constants/theme";
+import { ListifyFonts } from "@/constants/typography";
+import {
   type NotificationItem,
   getNotifications,
-  markAllNotificationsRead,
   markNotificationRead,
 } from "@/features/auth/services/auth-api";
 import {
   connectSocket,
   getSocket,
 } from "@/features/messaging/services/socket-service";
-import { Image } from "@/lib/nativewind-interop";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppSelector } from "@/store/hooks";
 
-function getNotifStyle(type: string) {
+const HOME_BG = APP_SCREEN_BG;
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_MUTED = "#9CA3AF";
+const UNREAD_DOT = "#EF4444";
+
+type NotifVisual = {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  color: string;
+};
+
+function getNotificationVisual(type: string): NotifVisual {
   switch (type) {
-    case "offer": return { icon: "sell" as const, bg: "rgba(39,187,151,0.1)", color: "#27BB97" };
-    case "follower": return { icon: "person" as const, bg: "transparent", color: "#27BB97" };
-    case "price_drop": return { icon: "trending-down" as const, bg: "rgba(203,161,0,0.1)", color: "#CBA100" };
-    case "security": return { icon: "security" as const, bg: "rgba(186,26,26,0.1)", color: "#BA1A1A" };
-    default: return { icon: "notifications" as const, bg: "rgba(39,187,151,0.1)", color: "#27BB97" };
+    case "like":
+    case "favorite":
+      return { icon: "favorite", color: "#F472B6" };
+    case "category":
+    case "alert":
+      return { icon: "apps", color: "#27BB97" };
+    case "welcome":
+    case "verified":
+      return { icon: "verified", color: "#60A5FA" };
+    case "location":
+    case "nearby":
+      return { icon: "place", color: "#27BB97" };
+    default:
+      return { icon: "notifications", color: "#27BB97" };
   }
 }
 
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const, active: true },
-];
+function isToday(dateStr: string) {
+  const d = new Date(dateStr);
+  const today = new Date();
+  return d.toDateString() === today.toDateString();
+}
+
+function isThisWeek(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  return d >= weekAgo && !isToday(dateStr);
+}
+
+function groupNotifications(items: NotificationItem[]) {
+  const sorted = [...items].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  const today: NotificationItem[] = [];
+  const thisWeek: NotificationItem[] = [];
+  const earlier: NotificationItem[] = [];
+
+  for (const item of sorted) {
+    if (isToday(item.createdAt)) today.push(item);
+    else if (isThisWeek(item.createdAt)) thisWeek.push(item);
+    else earlier.push(item);
+  }
+
+  return { today, thisWeek, earlier };
+}
+
+function NotificationRow({
+  item,
+  onPress,
+}: {
+  item: NotificationItem;
+  onPress: () => void;
+}) {
+  const visual = getNotificationVisual(item.type);
+  const body =
+    item.message?.trim() ||
+    item.title?.trim() ||
+    "You have a new notification on Listify.";
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-start py-4"
+      style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+    >
+      <View
+        className="h-12 w-12 items-center justify-center rounded-xl"
+        style={{ backgroundColor: "#1A1A1A" }}
+      >
+        <MaterialIcons name={visual.icon} size={24} color={visual.color} />
+      </View>
+
+      <Text
+        className="ml-3.5 min-w-0 flex-1 text-[15px] leading-[22px]"
+        style={{ fontFamily: ListifyFonts.regular, color: TEXT_PRIMARY }}
+      >
+        {body}
+      </Text>
+
+      {!item.read ? (
+        <View
+          className="ml-2 mt-1.5 h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: UNREAD_DOT }}
+        />
+      ) : (
+        <View className="ml-2 w-2.5" />
+      )}
+    </Pressable>
+  );
+}
+
+function Section({
+  title,
+  items,
+  onItemPress,
+}: {
+  title: string;
+  items: NotificationItem[];
+  onItemPress: (item: NotificationItem) => void;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <View className="mb-2">
+      <Text
+        className="mb-1 text-[14px]"
+        style={{ fontFamily: ListifyFonts.medium, color: TEXT_MUTED }}
+      >
+        {title}
+      </Text>
+      {items.map((item) => (
+        <NotificationRow
+          key={item._id}
+          item={item}
+          onPress={() => onItemPress(item)}
+        />
+      ))}
+    </View>
+  );
+}
 
 export function NotificationsCenterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
-  const bottomNavPadding = Math.max(insets.bottom, 8);
-  const [activeTab, setActiveTab] = useState("All");
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const handleBottomTabPress = useTabNavigation();
   const user = useAppSelector((s) => s.auth.user);
 
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() =>
+    mergeNotificationsWithDummy([]),
+  );
+
   const loadNotifications = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await getNotifications();
-      setNotifications(res.notifications || []);
+      setNotifications(mergeNotificationsWithDummy(res.notifications ?? []));
     } catch {
-      /* silently handle */
-    } finally {
-      setLoading(false);
+      setNotifications((prev) =>
+        prev.length > 0 ? prev : mergeNotificationsWithDummy([]),
+      );
     }
   }, []);
 
-  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+  useEffect(() => {
+    void loadNotifications();
+  }, [loadNotifications]);
 
-  // Real-time socket notifications
   useEffect(() => {
     if (!user) return;
-    try { connectSocket(); } catch { return; }
+    try {
+      connectSocket();
+    } catch {
+      return;
+    }
     const socket = getSocket();
     if (!socket) return;
 
-    const handleNewNotification = (data: any) => {
+    const handleNewNotification = (data: {
+      _id?: string;
+      type?: string;
+      title?: string;
+      message?: string;
+      createdAt?: string;
+      data?: Record<string, unknown>;
+    }) => {
       const notif: NotificationItem = {
         _id: data._id || `notif_${Date.now()}`,
         type: data.type || "general",
-        title: data.title || "New Notification",
-        message: data.message || "",
+        title: data.title || "",
+        message: data.message || "You have a new notification.",
         read: false,
         createdAt: data.createdAt || new Date().toISOString(),
         data: data.data,
@@ -84,54 +218,66 @@ export function NotificationsCenterScreen() {
     };
 
     socket.on("notification:new", handleNewNotification);
-    return () => { socket.off("notification:new", handleNewNotification); };
+    return () => {
+      socket.off("notification:new", handleNewNotification);
+    };
   }, [user]);
 
-  const handleRefresh = useCallback(async () => {
-    try {
-      const res = await getNotifications();
-      setNotifications(res.notifications || []);
-    } catch {
-      /* silently handle */
+  const { refreshing, onRefresh } = usePullToRefresh(loadNotifications);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
+
+  const { today, thisWeek, earlier } = useMemo(
+    () => groupNotifications(notifications),
+    [notifications],
+  );
+
+  const handleItemPress = useCallback(async (item: NotificationItem) => {
+    if (!item.read && !item._id.startsWith("dummy-")) {
+      await markNotificationRead(item._id).catch(() => {});
     }
+    setNotifications((prev) =>
+      prev.map((x) => (x._id === item._id ? { ...x, read: true } : x)),
+    );
   }, []);
 
-  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
-
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch {
-      Alert.alert("Error", "Failed to mark notifications as read");
-    }
-  };
-
-  const filtered = activeTab === "Unread" ? notifications.filter((n) => !n.read) : notifications;
-
-  function timeAgo(dateStr: string) {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString();
-  }
-
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
-      {/* Top Bar */}
-      <View className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4" style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="arrow-back" size={24} color="#27BB97" /></Pressable>
-          <Text className="text-[20px] font-black text-[#161D1A]">Notifications</Text>
-        </View>
-        <View className="flex-row items-center gap-4">
-          <Pressable onPress={handleMarkAllRead} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><Text className="text-[12px] font-semibold text-[#27BB97]">Mark all as read</Text></Pressable>
-          <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="settings" size={22} color="#64748B" /></Pressable>
+    <View className="flex-1" style={{ backgroundColor: HOME_BG }}>
+      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 20 }}>
+        <View className="mb-6 flex-row items-center">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            className="mr-3 h-10 w-10 items-center justify-center"
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <MaterialIcons name="chevron-left" size={32} color={TEXT_PRIMARY} />
+          </Pressable>
+
+          <View className="flex-row items-center gap-2">
+            <Text
+              className="text-[22px]"
+              style={{ fontFamily: ListifyFonts.bold, color: TEXT_PRIMARY }}
+            >
+              Notifications
+            </Text>
+            {/* {unreadCount > 0 ? (
+              <View
+                className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5"
+                style={{ backgroundColor: UNREAD_DOT }}
+              >
+                <Text
+                  className="text-[12px] text-white"
+                  style={{ fontFamily: ListifyFonts.bold }}
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            ) : null} */}
+          </View>
         </View>
       </View>
 
@@ -143,68 +289,39 @@ export function NotificationsCenterScreen() {
             onRefresh={onRefresh}
             colors={["#27BB97"]}
             tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
           />
         }
-        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 84 + bottomNavPadding }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
+        }}
       >
-        <View className="px-4">
-          {/* Tabs */}
-          <View className="mb-6 flex-row gap-2">
-            {["All", "Unread"].map((tab) => (
-              <Pressable key={tab} onPress={() => setActiveTab(tab)} className="rounded-full px-6 py-2" style={{ backgroundColor: tab === activeTab ? "#27BB97" : "#E9EFEB", shadowColor: tab === activeTab ? "#000" : "transparent", shadowOffset: { width: 0, height: 1 }, shadowOpacity: tab === activeTab ? 0.1 : 0, shadowRadius: 2, elevation: tab === activeTab ? 1 : 0 }}>
-                <Text className="text-[12px] font-medium" style={{ color: tab === activeTab ? "#FFFFFF" : "#3C4A44" }}>{tab}</Text>
-              </Pressable>
-            ))}
-          </View>
+        <Section title="Today" items={today} onItemPress={handleItemPress} />
+        <Section
+          title="This week"
+          items={thisWeek}
+          onItemPress={handleItemPress}
+        />
+        {earlier.length > 0 ? (
+          <Section title="Earlier" items={earlier} onItemPress={handleItemPress} />
+        ) : null}
 
-          {/* Feed */}
-          {loading ? (
-            <ActivityIndicator size="large" color="#27BB97" style={{ marginVertical: 32 }} />
-          ) : filtered.length === 0 ? (
-            <Text className="py-12 text-center text-[14px] text-[#94A3B8]">No notifications yet.</Text>
-          ) : (
-          <View className="gap-3">
-            {filtered.map((n) => {
-              const style = getNotifStyle(n.type);
-              return (
-              <Pressable
-                key={n._id}
-                onPress={async () => {
-                  if (!n.read) {
-                    await markNotificationRead(n._id).catch(() => {});
-                    setNotifications((prev) => prev.map((x) => x._id === n._id ? { ...x, read: true } : x));
-                  }
-                }}
-                className="relative flex-row items-start gap-4 rounded-xl p-4"
-                style={{ backgroundColor: !n.read ? "#FFFFFF" : "#FAFCFB", borderWidth: 1, borderColor: !n.read ? "rgba(39,187,151,0.2)" : "#F3F4F6", shadowColor: !n.read ? "#000" : "transparent", shadowOffset: { width: 0, height: 2 }, shadowOpacity: !n.read ? 0.08 : 0, shadowRadius: !n.read ? 6 : 0, elevation: !n.read ? 2 : 0 }}
-              >
-                {!n.read && <View className="absolute right-4 top-4 h-2 w-2 rounded-full bg-[#27BB97]" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 4 }} />}
-                <View className="h-12 w-12 items-center justify-center rounded-xl border" style={{ backgroundColor: style.bg, borderColor: style.bg }}><MaterialIcons name={style.icon} size={22} color={style.color} /></View>
-                <View className="flex-1">
-                  <View className="flex-row items-start justify-between mb-1">
-                    <Text className="text-[18px] font-semibold text-[#161D1A]">{n.title}</Text>
-                    <Text className="text-[10px] font-medium text-[#94A3B8]">{timeAgo(n.createdAt)}</Text>
-                  </View>
-                  <Text className="text-[14px] leading-5 text-[#3C4A44]">{n.message}</Text>
-                </View>
-              </Pressable>
-              );
-            })}
+        {notifications.length === 0 ? (
+          <View className="items-center py-16">
+            <MaterialIcons
+              name="notifications-none"
+              size={48}
+              color="#D1D5DB"
+            />
+            <Text
+              className="mt-3 text-[15px]"
+              style={{ fontFamily: ListifyFonts.regular, color: TEXT_MUTED }}
+            >
+              No notifications yet
+            </Text>
           </View>
-          )}
-        </View>
+        ) : null}
       </ScrollView>
-
-      {/* Bottom Nav */}
-      <View className="absolute inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-100 bg-white" style={{ paddingTop: 12, paddingBottom: bottomNavPadding, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 8 }}>
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) { return (<Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center justify-center" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><View className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5" style={{ shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}><MaterialIcons name={tab.icon} size={24} color="#FFFFFF" /></View><Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">{tab.label}</Text></Pressable>); }
-            return (<Pressable key={tab.id} onPress={() => handleBottomTabPress(tab.id)} className="items-center py-1" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name={tab.icon} size={24} color={tab.active ? "#27BB97" : "#94A3B8"} /><Text className="text-[11px] font-medium tracking-wide" style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}>{tab.label}</Text></Pressable>);
-          })}
-        </View>
-      </View>
     </View>
   );
 }

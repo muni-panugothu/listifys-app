@@ -219,7 +219,7 @@ export function EditListingScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <ActivityIndicator size="large" color="#27BB97" />
         <Text className="mt-3 text-[14px] text-[#6C7A74]">Loading listing...</Text>
       </View>
@@ -228,7 +228,7 @@ export function EditListingScreen() {
 
   if (!listing) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <MaterialIcons name="error-outline" size={48} color="#94A3B8" />
         <Text className="mt-3 text-[16px] font-semibold text-[#6C7A74]">Listing not found</Text>
         <Pressable onPress={() => router.back()} className="mt-4 rounded-lg bg-[#27BB97] px-6 py-2.5">
@@ -239,7 +239,7 @@ export function EditListingScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* Top Bar */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-[#DDE4DF] bg-white/90 px-4"
@@ -320,7 +320,7 @@ export function EditListingScreen() {
               <Text className="text-[18px] font-semibold text-[#161D1A]">Pricing</Text>
               <Text className="mb-4 text-[14px] text-[#6C7A74]">Set a competitive price to sell faster.</Text>
               <Text className="mb-2 text-[12px] font-medium text-[#161D1A]">Selling Price</Text>
-              <View className="mb-4 h-12 flex-row items-center rounded-lg border border-[#BBCAC3] bg-[#EFF5F0] px-4">
+              <View className="mb-4 h-12 flex-row items-center rounded-lg border border-[#BBCAC3] bg-[#F3F4F6] px-4">
                 <Text className="mr-2 text-[20px] font-bold text-[#3C4A44]">₹</Text>
                 <TextInput
                   value={price}

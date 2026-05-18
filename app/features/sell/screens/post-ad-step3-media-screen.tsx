@@ -437,7 +437,7 @@ export function PostAdStep3MediaScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* Top Bar */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
@@ -499,7 +499,7 @@ export function PostAdStep3MediaScreen() {
               {imageUris.length < 6 && (
               <Pressable
                 onPress={pickImages}
-                className="items-center justify-center rounded-xl border-2 border-dashed border-[#BBCAC3] bg-[#EFF5F0]"
+                className="items-center justify-center rounded-xl border-2 border-dashed border-[#BBCAC3] bg-[#F3F4F6]"
                 style={{ width: 100, height: 100 }}
               >
                 <MaterialIcons name="add-a-photo" size={28} color="#6C7A74" />
@@ -558,7 +558,7 @@ export function PostAdStep3MediaScreen() {
             </Pressable>
 
             {/* Map placeholder */}
-            <View className="h-40 items-center justify-center overflow-hidden rounded-2xl border border-[#BBCAC3] bg-[#EFF5F0]">
+            <View className="h-40 items-center justify-center overflow-hidden rounded-2xl border border-[#BBCAC3] bg-[#F3F4F6]">
               <MaterialIcons name="map" size={40} color="#6C7A74" />
               <Text className="mt-2 text-[12px] text-[#6C7A74]">
                 {location || "Enter location above"}

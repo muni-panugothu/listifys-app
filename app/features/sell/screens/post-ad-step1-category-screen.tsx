@@ -74,7 +74,7 @@ export function PostAdStep1CategoryScreen() {
     : subcategories;
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* Top Bar */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
@@ -214,7 +214,7 @@ export function PostAdStep1CategoryScreen() {
                   <View
                     className="mr-3 h-9 w-9 items-center justify-center rounded-lg"
                     style={{
-                      backgroundColor: isSelected ? "#D7F8EF" : "#F4F7F5",
+                      backgroundColor: isSelected ? "#FFFFFF" : "#F3F4F6",
                     }}
                   >
                     <MaterialIcons

@@ -51,7 +51,7 @@ export function ForgotPasswordScreen() {
   };
 
   return (
-    <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+    <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
       <View className="absolute inset-0 overflow-hidden">
         <View className="absolute -left-12 -top-24 h-64 w-64 rounded-full bg-[#006B55]/5 blur-3xl" />
         <View className="absolute -bottom-24 -right-12 h-48 w-48 rounded-full bg-[#005FB0]/5 blur-3xl" />

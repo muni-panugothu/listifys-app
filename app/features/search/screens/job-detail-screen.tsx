@@ -137,7 +137,7 @@ export function JobDetailScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <ActivityIndicator size="large" color="#27BB97" />
       </View>
     );
@@ -145,7 +145,7 @@ export function JobDetailScreen() {
 
   if (!listing) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F4FBF6]">
+      <View className="flex-1 items-center justify-center bg-[#F6F7F8]">
         <MaterialIcons name="error-outline" size={48} color="#CBD5E1" />
         <Text className="mt-2 text-[14px] text-[#6C7A74]">Job not found</Text>
         <Pressable onPress={() => router.back()} className="mt-4">
@@ -156,7 +156,7 @@ export function JobDetailScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       {/* TOP BAR */}
       <View
         className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4"
@@ -367,7 +367,7 @@ export function JobDetailScreen() {
 
           {/* About Company */}
           {aboutCompany ? (
-            <View className="gap-4 rounded-2xl bg-[#eff5f0] p-6">
+            <View className="gap-4 rounded-2xl bg-[#F3F4F6] p-6">
               <View className="flex-row items-center gap-4">
                 {companyLogo ? (
                   <View className="h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-white p-2" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
@@ -455,11 +455,9 @@ export function JobDetailScreen() {
           <Pressable
             onPress={() => {
               if (!sellerId) return;
-              requireAuth("message", () => {
-                router.push(
-                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
-                );
-              });
+              router.push(
+                `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+              );
             }}
             className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white px-4"
           >
@@ -471,11 +469,9 @@ export function JobDetailScreen() {
             onPress={() => {
               if (applyLink) Linking.openURL(applyLink).catch(() => {});
               else if (sellerId) {
-                requireAuth("message", () => {
-                  router.push(
-                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
-                  );
-                });
+                router.push(
+                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                );
               }
             }}
             className="flex-1 overflow-hidden rounded-xl"

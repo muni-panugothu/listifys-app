@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -71,14 +72,6 @@ const nearbyListings: NearbyItem[] = [
     image:
       "https://lh3.googleusercontent.com/aida-public/AB6AXuDpqRdWnPxa4P9TTTcaW-WZdU1djVx9eZmUarUBvJluo-svIJnov4turRr0jUCHVl1Nc16QalGLouay1e3ETMftxKFu4dqmKrbEdU0ZG1ZDOZQR991DxcfFIfeEFyHXcPY_SXC0IUV7PVqyCB2n4YJvunV1glNwXMexTyLKzStndJdm7nLbvB_2SHPnkHXlDRMxVLeQNvr_Vr3joRcCr-j4sYDUxr1Ys8lnMaXaVPpNYrbrzHilyBq9fRc_Iqkb_pCs21O31lGDjr4",
   },
-];
-
-const bottomTabs = [
-  { id: "home", label: "Home", icon: "home" as const },
-  { id: "search", label: "Search", icon: "search" as const, active: true },
-  { id: "sell", label: "Sell", icon: "add-circle" as const, highlight: true },
-  { id: "messages", label: "Messages", icon: "chat-bubble" as const },
-  { id: "profile", label: "Profile", icon: "person" as const },
 ];
 
 function parseQueryParam(value: string | string[] | undefined) {
@@ -212,7 +205,7 @@ export function NearbyMapViewBottomSheetScreen() {
   const handleBottomTabPress = useTabNavigation();
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View className="absolute inset-0">
         <Image
           source={mapBackgroundImage}
@@ -485,68 +478,7 @@ export function NearbyMapViewBottomSheetScreen() {
         </View>
       </Animated.View>
 
-      <View
-        className="absolute inset-x-0 bottom-0 z-60 rounded-t-2xl border-t border-slate-100 bg-white"
-        style={{
-          paddingTop: 12,
-          paddingBottom: bottomNavPadding,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 8,
-        }}
-      >
-        <View className="flex-row items-end justify-around px-2">
-          {bottomTabs.map((tab) => {
-            if (tab.highlight) {
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => handleBottomTabPress(tab.id)}
-                  className="items-center justify-center"
-                >
-                  <View
-                    className="-mt-7 rounded-full border-4 border-[#F4FBF6] bg-[#27BB97] p-2.5"
-                    style={{
-                      shadowColor: "#27BB97",
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 8,
-                      elevation: 6,
-                    }}
-                  >
-                    <MaterialIcons name={tab.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <Text className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            }
-
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => handleBottomTabPress(tab.id)}
-                className="items-center py-1"
-              >
-                <MaterialIcons
-                  name={tab.icon}
-                  size={24}
-                  color={tab.active ? "#27BB97" : "#94A3B8"}
-                />
-                <Text
-                  className="text-[11px] font-medium tracking-wide"
-                  style={{ color: tab.active ? "#27BB97" : "#94A3B8" }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <FloatingBottomNav activeTabId="search" onTabPress={handleBottomTabPress} />
     </View>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AuthSkipButton } from "@/features/auth/components/auth-skip-button";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, googleLogin, register } from "@/store/slices/auth-slice";
 
@@ -207,6 +208,7 @@ export function SignUpScreen() {
   return (
     <View className="flex-1 bg-white">
       <StatusBar style="dark" />
+      <AuthSkipButton />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}

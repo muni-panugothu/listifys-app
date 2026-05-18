@@ -3,21 +3,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    Keyboard,
-    Modal,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Keyboard,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CategorySlug } from "@/constants/categories";
+import { getDummyListingById } from "@/constants/dummy-trending-listings";
+import { ListifyFonts } from "@/constants/typography";
+import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { AUTH_API_BASE_URL, requestJson } from "@/features/auth/services/auth-api";
 import {
   addToRecentlyViewed,
@@ -25,49 +28,135 @@ import {
   toggleSaveListing,
   type ListingItem,
 } from "@/features/listing/services/listing-api";
-import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const IMAGE_HORIZONTAL_PAD = 16;
+const IMAGE_WIDTH = SCREEN_WIDTH - IMAGE_HORIZONTAL_PAD * 2;
+const THUMB_SIZE = 72;
+const TAB_BLUE = "#6BA3FF";
+const READ_MORE_LIMIT = 140;
+
+const CONDITION_OPTIONS = ["New", "Like New", "Good", "Fair"];
+
+function HeaderIconButton({
+  icon,
+  onPress,
+  filled,
+}: {
+  icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  onPress?: () => void;
+  filled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="h-11 w-11 items-center justify-center rounded-2xl border border-[#ECECEC] bg-white"
+      style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+    >
+      <MaterialIcons
+        name={icon}
+        size={22}
+        color={filled ? "#EF4444" : "#1A1A1A"}
+      />
+    </Pressable>
+  );
+}
+
+function SellerStars({ rating }: { rating: number }) {
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.5;
+
+  return (
+    <View className="flex-row items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const name =
+          i < full ? "star" : i === full && half ? "star-half" : "star-border";
+        return <MaterialIcons key={i} name={name} size={16} color="#F59E0B" />;
+      })}
+      <Text
+        className="ml-1 text-[14px] text-[#6B7280]"
+        style={{ fontFamily: ListifyFonts.medium }}
+      >
+        {rating.toFixed(1)}
+      </Text>
+    </View>
+  );
+}
 
 export function ListingDetailTemplateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ category?: string; id?: string }>();
   const user = useAppSelector((s) => s.auth.user);
+
+  const categorySlug = (params.category ?? "electronics") as CategorySlug;
+  const listingId = params.id;
+  const isDummy = Boolean(listingId?.startsWith("dummy-"));
+
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<"description" | "details">("description");
+  const [descExpanded, setDescExpanded] = useState(false);
 
-  const categorySlug = (params.category ?? "electronics") as CategorySlug;
-  const listingId = params.id;
-
-  // Auth gate for guest users
   const [authGateVisible, setAuthGateVisible] = useState(false);
-  const [authGateAction, setAuthGateAction] = useState<"save" | "message" | "offer">("general" as any);
+  const [authGateAction, setAuthGateAction] = useState<"save" | "message" | "offer">("message");
 
-  const requireAuth = useCallback((action: "save" | "message" | "offer", callback: () => void) => {
-    if (!user) {
-      setAuthGateAction(action);
-      setAuthGateVisible(true);
-      return;
-    }
-    callback();
-  }, [user]);
+  const [offerVisible, setOfferVisible] = useState(false);
+  const [offerAmount, setOfferAmount] = useState("");
+  const [selectedChip, setSelectedChip] = useState("");
+  const [sendingOffer, setSendingOffer] = useState(false);
+  const [offerSent, setOfferSent] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  const requireAuth = useCallback(
+    (action: "save" | "message" | "offer", callback: () => void) => {
+      if (!user) {
+        setAuthGateAction(action);
+        setAuthGateVisible(true);
+        return;
+      }
+      callback();
+    },
+    [user],
+  );
 
   const loadListing = useCallback(async () => {
     if (!listingId) return;
+
+    if (isDummy) {
+      const dummy = getDummyListingById(listingId);
+      if (dummy) {
+        setListing({
+          _id: dummy.id,
+          title: dummy.title,
+          price: dummy.price,
+          images: [dummy.image],
+          description: dummy.description,
+          condition: dummy.condition,
+          category: dummy.category,
+          sellerName: dummy.sellerName,
+          seller: {
+            _id: "dummy-seller",
+            name: dummy.sellerName ?? "Seller",
+            rating: dummy.sellerRating,
+          } as ListingItem["seller"],
+        } as ListingItem);
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetchListingById(categorySlug, listingId);
       if (res.listing) {
         setListing(res.listing);
-        // Track recently viewed
         addToRecentlyViewed(res.listing).catch(() => {});
-        // Check if user has saved this listing
         if (user?.id && res.listing.savedBy?.includes(user.id)) {
           setIsSaved(true);
         }
@@ -77,70 +166,65 @@ export function ListingDetailTemplateScreen() {
     } finally {
       setLoading(false);
     }
-  }, [categorySlug, listingId, user?.id]);
+  }, [categorySlug, listingId, isDummy, user?.id]);
 
   useEffect(() => {
-    loadListing();
+    void loadListing();
   }, [loadListing]);
 
   const { refreshing, onRefresh } = usePullToRefresh(loadListing);
 
   const handleToggleSave = useCallback(async () => {
+    if (isDummy) {
+      setIsSaved((v) => !v);
+      return;
+    }
     if (!listingId) return;
     requireAuth("save", async () => {
       try {
         const res = await toggleSaveListing(categorySlug, listingId);
         setIsSaved(res.saved);
-      } catch { /* silently fail */ }
+      } catch {
+        // ignore
+      }
     });
-  }, [categorySlug, listingId, requireAuth]);
+  }, [categorySlug, listingId, isDummy, requireAuth]);
 
-  const images = listing?.images?.length ? listing.images : [];
-  const title = listing?.title ?? "";
-  const price = listing?.price
-    ? `₹${Number(listing.price).toLocaleString("en-IN")}`
-    : "";
-  const condition = listing?.condition ?? "";
-  const description = listing?.description ?? "";
-  const locationText = listing?.location ?? "";
+  const handleMessageSeller = useCallback(() => {
+    if (!listing) return;
 
-  // Seller info from API
-  const sellerName = listing?.seller?.name ?? listing?.sellerName ?? "Seller";
-  const sellerProfileImage = listing?.seller?.profileImage
-    ? (listing.seller.profileImage.startsWith("http")
-        ? listing.seller.profileImage
-        : `${AUTH_API_BASE_URL}${listing.seller.profileImage}`)
-    : null;
-  const sellerJoined = listing?.seller?.createdAt
-    ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
-    : listing?.createdAt
-      ? `Member since ${new Date(listing.createdAt).getFullYear()}`
-      : "";
+    const sellerId = listing.seller?._id ?? "dummy-seller";
+    const sellerName =
+      listing.seller?.name ?? listing.sellerName ?? "Seller";
 
-  const footerInsetPadding = Math.max(insets.bottom, 12);
-  const topControlsOffset = useMemo(() => insets.top + 8, [insets.top]);
-
-  // ── Make Offer Bottom Sheet ───────────────────────────────────────────
-  const [offerVisible, setOfferVisible] = useState(false);
-  const [offerAmount, setOfferAmount] = useState("");
-  const [selectedChip, setSelectedChip] = useState("");
-  const [sendingOffer, setSendingOffer] = useState(false);
-  const [offerSent, setOfferSent] = useState(false);
-  const slideAnim = useRef(new Animated.Value(0)).current;
+    router.push({
+      pathname: "/chat-conversation",
+      params: {
+        recipientId: sellerId,
+        name: sellerName,
+        listingId: listing._id,
+        listingType: categorySlug,
+        listingTitle: listing.title ?? "",
+        listingPrice: String(listing.price ?? ""),
+        listingImage: listing.images?.[0] ?? "",
+        currency: listing.currency ?? "₹",
+      },
+    } as Href);
+  }, [categorySlug, listing, router]);
 
   const recommendedOffers = useMemo(() => {
     if (!listing?.price) return [];
     const p = Number(listing.price);
     return [
-      Math.round(p * 0.85 / 100) * 100,
-      Math.round(p * 0.90 / 100) * 100,
-      Math.round(p * 0.95 / 100) * 100,
+      Math.round((p * 0.85) / 100) * 100,
+      Math.round((p * 0.9) / 100) * 100,
+      Math.round((p * 0.95) / 100) * 100,
     ];
   }, [listing?.price]);
 
   const openOfferSheet = useCallback(() => {
     if (listing?.price) {
-      const defaultOffer = Math.round(Number(listing.price) * 0.90 / 100) * 100;
+      const defaultOffer = Math.round((Number(listing.price) * 0.9) / 100) * 100;
       setOfferAmount(String(defaultOffer));
       setSelectedChip(String(defaultOffer));
     }
@@ -165,6 +249,13 @@ export function ListingDetailTemplateScreen() {
 
   const handleSendOffer = useCallback(async () => {
     if (!listing || !offerAmount || sendingOffer) return;
+
+    if (isDummy) {
+      setOfferSent(true);
+      setTimeout(() => closeOfferSheet(), 1800);
+      return;
+    }
+
     const sellerId = listing.seller?._id;
     if (!sellerId) return;
     setSendingOffer(true);
@@ -188,364 +279,389 @@ export function ListingDetailTemplateScreen() {
     } finally {
       setSendingOffer(false);
     }
-  }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet]);
+  }, [listing, offerAmount, sendingOffer, isDummy, categorySlug, closeOfferSheet]);
 
-  // ── Category-specific detail rows ─────────────────────────────────────
-  const detailRows = useMemo(() => {
-    if (!listing) return [];
-    const rows: { label: string; value: string; icon: React.ComponentProps<typeof MaterialIcons>["name"] }[] = [];
-    if (listing.brand) rows.push({ label: "Brand", value: listing.brand, icon: "label" });
-    if (listing.model) rows.push({ label: "Model", value: listing.model, icon: "smartphone" });
-    if (listing.warranty) rows.push({ label: "Warranty", value: listing.warranty, icon: "verified-user" });
-    if (listing.ram) rows.push({ label: "RAM", value: listing.ram, icon: "memory" });
-    if (listing.storage) rows.push({ label: "Storage", value: listing.storage, icon: "sd-storage" });
-    if (listing.color) rows.push({ label: "Color", value: listing.color, icon: "palette" });
-    if (listing.year) rows.push({ label: "Year", value: String(listing.year), icon: "calendar-today" });
-    if (listing.mileage) rows.push({ label: "Mileage", value: listing.mileage, icon: "speed" });
-    if (listing.fuelType) rows.push({ label: "Fuel Type", value: listing.fuelType, icon: "local-gas-station" });
-    if (listing.transmission) rows.push({ label: "Transmission", value: listing.transmission, icon: "settings" });
-    if (listing.bedrooms) rows.push({ label: "Bedrooms", value: String(listing.bedrooms), icon: "king-bed" });
-    if (listing.bathrooms) rows.push({ label: "Bathrooms", value: String(listing.bathrooms), icon: "bathtub" });
-    if (listing.area) rows.push({ label: "Area", value: listing.area, icon: "square-foot" });
-    if (listing.propertyType) rows.push({ label: "Type", value: listing.propertyType, icon: "apartment" });
-    if (listing.furnished) rows.push({ label: "Furnished", value: listing.furnished, icon: "weekend" });
-    // Event-specific fields
-    const l = listing as any;
-    if (l.eventDate) rows.push({ label: "Event Date", value: l.eventDate, icon: "calendar-today" });
-    if (l.eventTime) rows.push({ label: "Event Time", value: l.eventTime, icon: "schedule" });
-    if (l.venue) rows.push({ label: "Venue", value: l.venue, icon: "place" });
-    if (l.organizer) rows.push({ label: "Organizer", value: l.organizer, icon: "person" });
-    if (l.ticketsAvailable) rows.push({ label: "Tickets", value: String(l.ticketsAvailable), icon: "confirmation-number" });
-    if (l.ageRestriction) rows.push({ label: "Age Restriction", value: l.ageRestriction, icon: "person" });
-    if (l.dressCode) rows.push({ label: "Dress Code", value: l.dressCode, icon: "checkroom" });
-    // Job-specific fields
-    if (l.companyName) rows.push({ label: "Company", value: l.companyName, icon: "business" });
-    if (l.jobType) rows.push({ label: "Job Type", value: l.jobType, icon: "work" });
-    if (l.workMode) rows.push({ label: "Work Mode", value: l.workMode, icon: "wifi" });
-    if (l.experience) rows.push({ label: "Experience", value: l.experience, icon: "trending-up" });
-    if (l.education) rows.push({ label: "Education", value: l.education, icon: "school" });
-    if (l.industry) rows.push({ label: "Industry", value: l.industry, icon: "domain" });
-    if (l.department) rows.push({ label: "Department", value: l.department, icon: "group-work" });
-    if (l.employmentType) rows.push({ label: "Employment", value: l.employmentType, icon: "assignment-ind" });
-    if (l.positions && l.positions > 1) rows.push({ label: "Positions", value: String(l.positions), icon: "people" });
-    if (l.salary?.min && l.salary?.max) {
-      const fmt = (n: number) => {
-        if (n >= 100000) return `${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)}L`;
-        if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
-        return n.toLocaleString("en-IN");
-      };
-      const cur = listing.currency ?? "\u20B9";
-      rows.push({ label: "Salary", value: `${cur}${fmt(l.salary.min)} - ${cur}${fmt(l.salary.max)}`, icon: "payments" });
+  const handleMakeOffer = useCallback(() => {
+    if (isDummy) {
+      requireAuth("offer", openOfferSheet);
+      return;
     }
-    if (l.salaryType) rows.push({ label: "Salary Type", value: l.salaryType, icon: "schedule" });
-    if (listing.subcategory) rows.push({ label: "Category", value: listing.subcategory, icon: "category" });
+    requireAuth("offer", openOfferSheet);
+  }, [isDummy, openOfferSheet, requireAuth]);
+
+  const images = useMemo(() => {
+    const raw = listing?.images?.length ? listing.images : [];
+    if (raw.length > 0) return raw;
+    return [];
+  }, [listing?.images]);
+
+  const galleryImages = useMemo(() => {
+    if (images.length >= 4) return images.slice(0, 4);
+    if (images.length === 0) return [];
+    return Array.from({ length: 4 }, (_, i) => images[i % images.length]);
+  }, [images]);
+
+  const title = listing?.title ?? "";
+  const priceLabel = listing?.price
+    ? `₹${Number(listing.price).toLocaleString("en-IN")}`
+    : "Price on request";
+  const condition = listing?.condition ?? "Like New";
+  const description =
+    listing?.description ??
+    "No description provided for this listing. Contact the seller to ask for more details.";
+
+  const sellerName = listing?.seller?.name ?? listing?.sellerName ?? "Seller";
+  const sellerProfileImage = listing?.seller?.profileImage
+    ? listing.seller.profileImage.startsWith("http")
+      ? listing.seller.profileImage
+      : `${AUTH_API_BASE_URL}${listing.seller.profileImage}`
+    : null;
+  const sellerRating =
+    Number((listing?.seller as { rating?: number } | undefined)?.rating) || 4.8;
+  const sellerJoined = listing?.seller?.createdAt
+    ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
+    : "Verified seller on Listify";
+
+  const showReadMore = description.length > READ_MORE_LIMIT;
+  const descriptionPreview = descExpanded
+    ? description
+    : description.slice(0, READ_MORE_LIMIT) + (showReadMore ? "…" : "");
+
+  const footerInsetPadding = Math.max(insets.bottom, 12);
+  const headerHeight = insets.top + 56;
+
+  const detailRows = useMemo(() => {
+    if (!listing) return [] as { label: string; value: string }[];
+    const rows: { label: string; value: string }[] = [];
+    if (listing.brand) rows.push({ label: "Brand", value: String(listing.brand) });
+    if (listing.model) rows.push({ label: "Model", value: String(listing.model) });
+    if (listing.subcategory) rows.push({ label: "Category", value: listing.subcategory });
+    if (listing.location) rows.push({ label: "Location", value: listing.location });
+    if (listing.year) rows.push({ label: "Year", value: String(listing.year) });
     return rows;
   }, [listing]);
 
+  if (loading && !listing) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color="#1A1A1A" />
+      </View>
+    );
+  }
+
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
-      {/* Loading state */}
-      {loading && !listing && (
-        <View className="absolute inset-0 z-40 items-center justify-center bg-[#F4FBF6]">
-          <ActivityIndicator size="large" color="#27BB97" />
-        </View>
-      )}
-
+    <View className="flex-1 bg-[#F6F7F8]">
+      {/* Top bar — back only */}
       <View
-        className="absolute inset-x-0 z-50 flex-row items-center justify-between px-4"
-        style={{ top: topControlsOffset }}
+        className="z-50 flex-row items-center border-b border-[#F0F0F0] bg-white px-4"
+        style={{ paddingTop: insets.top, height: headerHeight }}
       >
-        <Pressable
-          onPress={() => router.back()}
-          className="h-10 w-10 items-center justify-center rounded-full bg-white/70"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.08,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
-        >
-          <MaterialIcons name="arrow-back" size={22} color="#161D1A" />
-        </Pressable>
-
-        <View className="flex-row gap-2">
-          <Pressable
-            className="h-10 w-10 items-center justify-center rounded-full bg-white/70"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.08,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            <MaterialIcons name="share" size={21} color="#161D1A" />
-          </Pressable>
-          <Pressable
-            onPress={handleToggleSave}
-            className="h-10 w-10 items-center justify-center rounded-full bg-white/70"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.08,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            <MaterialIcons
-              name={isSaved ? "favorite" : "favorite-border"}
-              size={21}
-              color={isSaved ? "#EF4444" : "#161D1A"}
-            />
-          </Pressable>
-        </View>
+        <HeaderIconButton icon="arrow-back" onPress={() => router.back()} />
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#27BB97"]}
-            tintColor="#27BB97"
-            progressViewOffset={topControlsOffset}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1A1A1A" />
         }
-        contentContainerStyle={{ paddingBottom: 96 + footerInsetPadding }}
+        contentContainerStyle={{ paddingBottom: 100 + footerInsetPadding }}
       >
-        <View className="relative h-105 w-full overflow-hidden bg-[#E9EFEB]">
-          {images.length === 0 ? (
-            <View className="h-full w-full items-center justify-center">
-              <MaterialIcons name="image" size={64} color="#CBD5E1" />
-              <Text className="mt-2 text-[14px] text-[#94A3B8]">No images</Text>
-            </View>
-          ) : (
+        {/* Main image */}
+        <View className="mt-4 px-4">
+          <View
+            className="items-center justify-center overflow-hidden rounded-[28px] bg-[#F3F4F6]"
+            style={{ width: IMAGE_WIDTH, height: IMAGE_WIDTH * 0.92 }}
+          >
+            {images[activeImageIndex] ? (
+              <Image
+                source={images[activeImageIndex]}
+                contentFit="contain"
+                style={{ width: IMAGE_WIDTH * 0.88, height: IMAGE_WIDTH * 0.88 }}
+              />
+            ) : (
+              <MaterialIcons name="image" size={64} color="#D1D5DB" />
+            )}
+          </View>
+
+          {/* Carousel dots */}
+          <View className="mt-4 flex-row items-center justify-center gap-2">
+            {galleryImages.map((_, index) => {
+              const active = index === activeImageIndex;
+              return (
+                <Pressable key={index} onPress={() => setActiveImageIndex(index)}>
+                  <View
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{
+                      backgroundColor: active ? "transparent" : "#D1D5DB",
+                      borderWidth: active ? 2 : 0,
+                      borderColor: TAB_BLUE,
+                    }}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Thumbnails */}
           <ScrollView
             horizontal
-            pagingEnabled
             showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(event) => {
-              const x = event.nativeEvent.contentOffset.x;
-              const index = Math.round(x / SCREEN_WIDTH);
-              setActiveImageIndex(index);
-            }}
+            className="mt-4"
+            contentContainerStyle={{ gap: 10 }}
           >
-            {images.map((image, index) => (
-              <View
-                key={image + index.toString()}
-                style={{ width: SCREEN_WIDTH, height: 420 }}
-              >
-                <Image
-                  source={image}
-                  contentFit="cover"
-                  transition={200}
-                  className="h-full w-full"
-                />
-              </View>
-            ))}
+            {galleryImages.map((img, index) => {
+              const tints = ["#FDE8D8", "#D8E8FD", "#E8E8E8", "#E8DDF5"];
+              const active = index === activeImageIndex;
+              return (
+                <Pressable
+                  key={`${img}-${index}`}
+                  onPress={() => setActiveImageIndex(index)}
+                  className="overflow-hidden rounded-2xl"
+                  style={{
+                    width: THUMB_SIZE,
+                    height: THUMB_SIZE,
+                    backgroundColor: tints[index % tints.length],
+                    borderWidth: active ? 2 : 0,
+                    borderColor: TAB_BLUE,
+                  }}
+                >
+                  <Image source={img} contentFit="cover" className="h-full w-full" />
+                </Pressable>
+              );
+            })}
           </ScrollView>
-          )}
-
-          {images.length > 0 && (
-          <View className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-2">
-            {images.map((_, index) => (
-              <View
-                key={index.toString()}
-                className="h-2 w-2 rounded-full"
-                style={{
-                  backgroundColor:
-                    index === activeImageIndex
-                      ? "#FFFFFF"
-                      : "rgba(255,255,255,0.45)",
-                }}
-              />
-            ))}
-          </View>
-          )}
         </View>
 
-        <View className="mt-4 gap-4 px-4">
-          <View className="gap-2">
-            <Text className="text-[24px] font-bold leading-8 text-[#161D1A]">
-              {title}
-            </Text>
-            <View className="flex-row items-center gap-2">
-              <Text className="text-[20px] font-bold text-[#27BB97]">
-                {price}
-              </Text>
-              <View className="rounded-full bg-[#27BB97]/10 px-2.5 py-0.5">
-                <Text className="text-[12px] font-medium text-[#27BB97]">
-                  {condition}
-                </Text>
-              </View>
-            </View>
-          </View>
+        {/* Title + price */}
+        <View className="mt-5 flex-row items-start justify-between px-4">
+          <Text
+            className="flex-1 pr-4 text-[22px] leading-7 text-[#1A1A1A]"
+            style={{ fontFamily: ListifyFonts.bold }}
+          >
+            {title}
+          </Text>
+          <Text
+            className="text-[22px] text-[#1A1A1A]"
+            style={{ fontFamily: ListifyFonts.bold }}
+          >
+            {priceLabel}
+          </Text>
+        </View>
 
-          <View className="pt-1">
-            <Text className="mb-2 text-[18px] font-semibold text-[#161D1A]">
-              Description
-            </Text>
-            <Text className="text-[14px] leading-6 text-[#3C4A44]">
-              {description}
-            </Text>
-          </View>
-
-          {detailRows.length > 0 && (
-            <>
-              <View className="h-px bg-[#BBCAC3]/30" />
-              <View className="py-1">
-                <Text className="mb-3 text-[18px] font-semibold text-[#161D1A]">
-                  Details
-                </Text>
-                <View className="rounded-xl border border-[#BBCAC3]/20 bg-white overflow-hidden">
-                  {detailRows.map((row, idx) => (
-                    <View
-                      key={row.label}
-                      className="flex-row items-center px-4 py-3"
-                      style={idx < detailRows.length - 1 ? { borderBottomWidth: 1, borderBottomColor: "rgba(187,202,195,0.15)" } : undefined}
-                    >
-                      <View className="mr-3 h-8 w-8 items-center justify-center rounded-lg bg-[#27BB97]/10">
-                        <MaterialIcons name={row.icon} size={16} color="#27BB97" />
-                      </View>
-                      <Text className="flex-1 text-[14px] text-[#6C7A74]">{row.label}</Text>
-                      <Text className="text-[14px] font-medium text-[#161D1A]">{row.value}</Text>
-                    </View>
-                  ))}
+        {/* Condition (replaces size / no product rating) */}
+        <View className="mt-5 px-4">
+          <Text
+            className="mb-3 text-[16px] text-[#1A1A1A]"
+            style={{ fontFamily: ListifyFonts.bold }}
+          >
+            Condition
+          </Text>
+          <View className="flex-row flex-wrap gap-2">
+            {CONDITION_OPTIONS.map((opt) => {
+              const selected =
+                condition.toLowerCase().includes(opt.toLowerCase()) ||
+                (opt === "Like New" && condition.toLowerCase().includes("like"));
+              return (
+                <View
+                  key={opt}
+                  className="h-11 min-w-[56px] items-center justify-center rounded-2xl px-3"
+                  style={{
+                    backgroundColor: selected ? "#E8E8E8" : "#F3F4F6",
+                    borderWidth: selected ? 1.5 : 0,
+                    borderColor: "#1A1A1A",
+                  }}
+                >
+                  <Text
+                    className="text-[14px]"
+                    style={{
+                      fontFamily: selected ? ListifyFonts.semiBold : ListifyFonts.regular,
+                      color: "#1A1A1A",
+                    }}
+                  >
+                    {opt}
+                  </Text>
                 </View>
+              );
+            })}
+          </View>
+        </View>
+
+        
+
+        {/* Tab content */}
+        <View className="mt-4 px-4">
+          {activeTab === "description" ? (
+            <>
+              <Text
+                className="text-[14px] leading-6 text-[#9CA3AF]"
+                style={{ fontFamily: ListifyFonts.regular }}
+              >
+                {descriptionPreview}
+              </Text>
+              {showReadMore ? (
+                <Pressable onPress={() => setDescExpanded((v) => !v)} className="mt-2">
+                  <Text
+                    className="text-[14px]"
+                    style={{ fontFamily: ListifyFonts.semiBold, color: "#C67B5C" }}
+                  >
+                    {descExpanded ? "Show less" : "Read More"}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {/* Seller details — rating is for seller only */}
+              <View className="mt-8">
+                <Text
+                  className="mb-3 text-[16px] text-[#1A1A1A]"
+                  style={{ fontFamily: ListifyFonts.bold }}
+                >
+                  Seller details
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    const sid = listing?.seller?._id;
+                    if (!sid && !sellerName) return;
+                    router.push({
+                      pathname: "/seller-public-profile",
+                      params: {
+                        sellerId: sid ?? "dummy-seller",
+                        sellerName,
+                        sellerRating: String(sellerRating),
+                        ...(sellerProfileImage
+                          ? { sellerImage: sellerProfileImage }
+                          : {}),
+                      },
+                    } as Href);
+                  }}
+                  className="flex-row items-center rounded-2xl border border-[#F0F0F0] bg-[#FAFAFA] p-4"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+                >
+                  <View className="mr-3 h-14 w-14 overflow-hidden rounded-full bg-[#E5E7EB]">
+                    {sellerProfileImage ? (
+                      <Image
+                        source={sellerProfileImage}
+                        contentFit="cover"
+                        className="h-full w-full"
+                      />
+                    ) : (
+                      <View className="h-full w-full items-center justify-center bg-[#F43F9C]">
+                        <Text
+                          className="text-[20px] text-white"
+                          style={{ fontFamily: ListifyFonts.bold }}
+                        >
+                          {sellerName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className="text-[17px] text-[#1A1A1A]"
+                      style={{ fontFamily: ListifyFonts.semiBold }}
+                    >
+                      {sellerName}
+                    </Text>
+                    <SellerStars rating={sellerRating} />
+                    <Text
+                      className="mt-1 text-[12px] text-[#9CA3AF]"
+                      style={{ fontFamily: ListifyFonts.regular }}
+                    >
+                      {sellerJoined}
+                    </Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={22} color="#C4C4C4" />
+                </Pressable>
               </View>
             </>
+          ) : (
+            <View className="gap-3">
+              {detailRows.length === 0 ? (
+                <Text
+                  className="text-[14px] text-[#9CA3AF]"
+                  style={{ fontFamily: ListifyFonts.regular }}
+                >
+                  No extra details for this listing.
+                </Text>
+              ) : (
+                detailRows.map((row) => (
+                  <View
+                    key={row.label}
+                    className="flex-row items-center justify-between rounded-2xl bg-[#F9FAFB] px-4 py-3"
+                  >
+                    <Text
+                      className="text-[14px] text-[#6B7280]"
+                      style={{ fontFamily: ListifyFonts.regular }}
+                    >
+                      {row.label}
+                    </Text>
+                    <Text
+                      className="text-[14px] text-[#1A1A1A]"
+                      style={{ fontFamily: ListifyFonts.medium }}
+                    >
+                      {row.value}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
           )}
-
-          <View className="h-px bg-[#BBCAC3]/30" />
-
-          <View className="py-1">
-            <Text className="mb-3 text-[18px] font-semibold text-[#161D1A]">
-              Location
-            </Text>
-            <View className="relative h-40 w-full overflow-hidden rounded-xl border border-[#BBCAC3]/30">
-              <View className="h-full w-full bg-[#E6F4EF]" />
-              <View className="absolute inset-0 items-center justify-center">
-                <View className="h-24 w-24 items-center justify-center rounded-full border-2 border-[#27BB97]/40 bg-[#27BB97]/10">
-                  <View className="h-4 w-4 rounded-full bg-[#27BB97]" />
-                </View>
-              </View>
-            </View>
-            <View className="mt-2 flex-row items-center gap-2">
-              <MaterialIcons name="location-on" size={18} color="#3C4A44" />
-              <Text className="text-[12px] font-medium text-[#3C4A44]">
-                {locationText}
-              </Text>
-            </View>
-          </View>
-
-          <View className="h-px bg-[#BBCAC3]/30" />
-
-          <View className="py-1">
-            <Text className="mb-4 text-[18px] font-semibold text-[#161D1A]">
-              Seller Information
-            </Text>
-            <Pressable
-              onPress={() => {
-                if (listing?.seller?._id) {
-                  router.push(`/seller-public-profile?sellerId=${listing.seller._id}` as any);
-                }
-              }}
-              className="flex-row items-center rounded-xl border border-[#BBCAC3]/20 bg-white p-4"
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.05,
-                shadowRadius: 3,
-                elevation: 1,
-              }}
-            >
-              <View className="mr-4 h-14 w-14 overflow-hidden rounded-full border-2 border-white">
-                {sellerProfileImage ? (
-                  <Image
-                    source={sellerProfileImage}
-                    contentFit="cover"
-                    transition={200}
-                    className="h-full w-full"
-                  />
-                ) : (
-                  <View className="h-full w-full items-center justify-center bg-[#27BB97]">
-                    <Text className="text-[20px] font-bold text-white">
-                      {sellerName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View className="flex-1">
-                <View className="flex-row items-center gap-1">
-                  <Text className="text-[20px] font-semibold text-[#161D1A]">
-                    {sellerName}
-                  </Text>
-                  <MaterialIcons name="verified" size={18} color="#005FB0" />
-                </View>
-                {sellerJoined ? (
-                  <Text className="text-[12px] text-[#3C4A44]">
-                    {sellerJoined}
-                  </Text>
-                ) : null}
-                {listing?.views ? (
-                  <View className="mt-1 flex-row items-center gap-1">
-                    <MaterialIcons name="visibility" size={16} color="#64748B" />
-                    <Text className="text-[12px] text-[#3C4A44]">
-                      {listing.views} views
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <MaterialIcons name="chevron-right" size={22} color="#161D1A" />
-            </Pressable>
-          </View>
         </View>
       </ScrollView>
 
+      {/* Bottom bar — OfferUp style: save · message · make offer */}
       <View
-        className="absolute inset-x-0 bottom-0 z-50 border-t border-[#BBCAC3]/20 bg-white/95 px-4"
+        className="absolute inset-x-0 bottom-0 z-50 border-t border-[#F0F0F0] bg-white px-4"
         style={{ paddingTop: 12, paddingBottom: footerInsetPadding }}
       >
-        <View className="flex-row gap-4">
+        <View className="flex-row items-center gap-2">
           <Pressable
-            onPress={() => {
-              const sellerId = listing?.seller?._id;
-              if (!sellerId) return;
-              requireAuth("message", () => {
-                router.push(
-                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "₹")}` as Href,
-                );
-              });
-            }}
-            className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white"
+            onPress={handleToggleSave}
+            className="h-12 w-12 items-center justify-center rounded-2xl border border-[#E5E7EB] bg-white"
+            style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
           >
-            <MaterialIcons name="chat" size={20} color="#161D1A" />
-            <Text className="text-[16px] font-semibold text-[#161D1A]">
+            <MaterialIcons
+              name={isSaved ? "bookmark" : "bookmark-border"}
+              size={22}
+              color={isSaved ? "#EF4444" : "#1A1A1A"}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={handleMessageSeller}
+            className="h-12 flex-1 items-center justify-center rounded-2xl border border-[#E5E7EB] bg-white"
+            style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+          >
+            <Text
+              className="text-[14px] text-[#1A1A1A]"
+              style={{ fontFamily: ListifyFonts.semiBold }}
+            >
               Message
             </Text>
           </Pressable>
+
           <Pressable
-            onPress={() => requireAuth("offer", openOfferSheet)}
-            className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-[#27BB97]"
-            style={{
+            onPress={handleMakeOffer}
+            className="h-12 flex-[1.15] items-center justify-center rounded-2xl bg-gray-800"
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.9 : 1,
               shadowColor: "#27BB97",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.25,
               shadowRadius: 8,
-              elevation: 3,
-            }}
+              elevation: 4,
+            })}
           >
-            <MaterialIcons name="local-offer" size={20} color="#FFFFFF" />
-            <Text className="text-[16px] font-semibold text-white">Make Offer</Text>
+            <Text
+              className="text-[14px] text-white"
+              style={{ fontFamily: ListifyFonts.semiBold }}
+            >
+              Make Offer
+            </Text>
           </Pressable>
         </View>
       </View>
 
-      {/* Make Offer Bottom Sheet */}
+      {/* Make Offer bottom sheet */}
       <Modal
         visible={offerVisible}
         transparent
@@ -558,12 +674,14 @@ export function ListingDetailTemplateScreen() {
         </Pressable>
         <Animated.View
           style={{
-            transform: [{
-              translateY: slideAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [600, 0],
-              }),
-            }],
+            transform: [
+              {
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [600, 0],
+                }),
+              },
+            ],
           }}
         >
           <View
@@ -577,7 +695,6 @@ export function ListingDetailTemplateScreen() {
               elevation: 24,
             }}
           >
-            {/* Handle */}
             <View className="items-center py-3">
               <View className="h-1.5 w-12 rounded-full bg-slate-200" />
             </View>
@@ -588,18 +705,26 @@ export function ListingDetailTemplateScreen() {
                   <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-[#27BB97]/15">
                     <MaterialIcons name="check-circle" size={40} color="#27BB97" />
                   </View>
-                  <Text className="text-[20px] font-bold text-[#161D1A]">
+                  <Text
+                    className="text-[20px] text-[#161D1A]"
+                    style={{ fontFamily: ListifyFonts.bold }}
+                  >
                     Offer Sent!
                   </Text>
-                  <Text className="mt-1 text-center text-[14px] text-[#6C7A74]">
+                  <Text
+                    className="mt-1 text-center text-[14px] text-[#6C7A74]"
+                    style={{ fontFamily: ListifyFonts.regular }}
+                  >
                     The seller will be notified and can accept or counter.
                   </Text>
                 </View>
               ) : (
                 <>
-                  {/* Header */}
                   <View className="mb-5 flex-row items-center justify-between">
-                    <Text className="text-[24px] font-bold tracking-tight text-[#161D1A]">
+                    <Text
+                      className="text-[24px] text-[#161D1A]"
+                      style={{ fontFamily: ListifyFonts.bold }}
+                    >
                       Make an Offer
                     </Text>
                     <Pressable
@@ -613,8 +738,7 @@ export function ListingDetailTemplateScreen() {
                     </Pressable>
                   </View>
 
-                  {/* Product Summary */}
-                  <View className="mb-5 flex-row items-center gap-3 rounded-xl bg-[#EFF5F0] p-3">
+                  <View className="mb-5 flex-row items-center gap-3 rounded-xl bg-[#F3F4F6] p-3">
                     {images[0] ? (
                       <Image
                         source={images[0]}
@@ -627,23 +751,35 @@ export function ListingDetailTemplateScreen() {
                       </View>
                     )}
                     <View className="flex-1">
-                      <Text className="text-[13px] font-medium text-[#161D1A]" numberOfLines={1}>
+                      <Text
+                        className="text-[13px] text-[#161D1A]"
+                        style={{ fontFamily: ListifyFonts.medium }}
+                        numberOfLines={1}
+                      >
                         {title}
                       </Text>
-                      <Text className="mt-0.5 text-[12px] font-medium uppercase text-[#6C7A74]">
-                        Listed Price
+                      <Text
+                        className="mt-0.5 text-[12px] uppercase text-[#6C7A74]"
+                        style={{ fontFamily: ListifyFonts.medium }}
+                      >
+                        Listed price
                       </Text>
-                      <Text className="text-[16px] font-bold text-[#161D1A]">
-                        {price}
+                      <Text
+                        className="text-[16px] text-[#161D1A]"
+                        style={{ fontFamily: ListifyFonts.bold }}
+                      >
+                        {priceLabel}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Recommended Offers */}
-                  {recommendedOffers.length > 0 && (
+                  {recommendedOffers.length > 0 ? (
                     <View className="mb-6">
-                      <Text className="mb-3 text-[12px] font-medium uppercase tracking-wide text-[#6C7A74]">
-                        Recommended Offers
+                      <Text
+                        className="mb-3 text-[12px] uppercase tracking-wide text-[#6C7A74]"
+                        style={{ fontFamily: ListifyFonts.medium }}
+                      >
+                        Suggested offers
                       </Text>
                       <View className="flex-row flex-wrap gap-2">
                         {recommendedOffers.map((amt) => {
@@ -659,13 +795,18 @@ export function ListingDetailTemplateScreen() {
                               className="rounded-full px-4 py-2.5"
                               style={{
                                 borderWidth: 1.5,
-                                borderColor: isSelected ? "#006B55" : "#E2E8F0",
-                                backgroundColor: isSelected ? "rgba(39,187,151,0.1)" : "#FFFFFF",
+                                borderColor: isSelected ? "#27BB97" : "#E2E8F0",
+                                backgroundColor: isSelected
+                                  ? "rgba(39,187,151,0.1)"
+                                  : "#FFFFFF",
                               }}
                             >
                               <Text
-                                className="text-[14px] font-medium"
-                                style={{ color: isSelected ? "#006B55" : "#161D1A" }}
+                                className="text-[14px]"
+                                style={{
+                                  fontFamily: ListifyFonts.medium,
+                                  color: isSelected ? "#27BB97" : "#161D1A",
+                                }}
                               >
                                 {label}
                               </Text>
@@ -674,15 +815,22 @@ export function ListingDetailTemplateScreen() {
                         })}
                       </View>
                     </View>
-                  )}
+                  ) : null}
 
-                  {/* Custom Input */}
                   <View className="mb-6">
-                    <Text className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[#161D1A]">
-                      Your Offer
+                    <Text
+                      className="mb-2 text-[12px] uppercase tracking-wide text-[#161D1A]"
+                      style={{ fontFamily: ListifyFonts.medium }}
+                    >
+                      Your offer
                     </Text>
                     <View className="h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
-                      <Text className="text-[20px] font-bold text-slate-400">₹</Text>
+                      <Text
+                        className="text-[20px] text-slate-400"
+                        style={{ fontFamily: ListifyFonts.bold }}
+                      >
+                        ₹
+                      </Text>
                       <TextInput
                         value={offerAmount}
                         onChangeText={(val) => {
@@ -692,19 +840,15 @@ export function ListingDetailTemplateScreen() {
                         keyboardType="numeric"
                         placeholder="Enter amount"
                         placeholderTextColor="#CBD5E1"
-                        className="ml-2 flex-1 text-[20px] font-bold text-[#161D1A]"
-                        style={{ paddingVertical: 0 }}
+                        className="ml-2 flex-1 text-[20px] text-[#161D1A]"
+                        style={{
+                          fontFamily: ListifyFonts.bold,
+                          paddingVertical: 0,
+                        }}
                       />
-                    </View>
-                    <View className="mt-2 flex-row items-center gap-1">
-                      <MaterialIcons name="info-outline" size={14} color="#6C7A74" />
-                      <Text className="text-[12px] text-[#6C7A74]">
-                        Offers are usually 5-15% below listed price
-                      </Text>
                     </View>
                   </View>
 
-                  {/* Submit */}
                   <Pressable
                     onPress={handleSendOffer}
                     disabled={sendingOffer || !offerAmount}
@@ -730,7 +874,10 @@ export function ListingDetailTemplateScreen() {
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <>
-                          <Text className="text-[18px] font-semibold text-white">
+                          <Text
+                            className="text-[18px] text-white"
+                            style={{ fontFamily: ListifyFonts.semiBold }}
+                          >
                             Send Offer
                           </Text>
                           <MaterialIcons name="send" size={20} color="#FFFFFF" />
@@ -738,9 +885,6 @@ export function ListingDetailTemplateScreen() {
                       )}
                     </LinearGradient>
                   </Pressable>
-                  <Text className="mt-3 text-center text-[12px] text-slate-400">
-                    The seller will be notified and can accept or counter.
-                  </Text>
                 </>
               )}
             </View>
@@ -748,7 +892,6 @@ export function ListingDetailTemplateScreen() {
         </Animated.View>
       </Modal>
 
-      {/* Auth Gate for guest users */}
       <AuthGateBottomSheet
         visible={authGateVisible}
         onClose={() => setAuthGateVisible(false)}

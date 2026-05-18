@@ -144,7 +144,7 @@ export function OtpVerificationScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F4FBF6]">
+    <View className="flex-1 bg-[#F6F7F8]">
       <View className="absolute inset-0 overflow-hidden">
         <View className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-[#27BB97]/5" />
         <View className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-[#5BA2FF]/5" />
