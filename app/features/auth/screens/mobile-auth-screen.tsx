@@ -283,7 +283,7 @@ export function MobileAuthScreen() {
             <Text className="text-gray-500 text-center mt-5">
               Prefer password login?{" "}
               <Text
-                className="text-[17px] font-bold text-gray-800"
+                className="text-[14px] font-bold text-gray-800"
                 onPress={() => {
                   router.push("/sign-in" as Href);
                 }}
