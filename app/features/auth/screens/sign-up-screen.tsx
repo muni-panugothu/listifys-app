@@ -189,7 +189,7 @@ export function SignUpScreen() {
               >
                 <Image
                   source={require("../../../assets/google.webp")}
-                  className="h-8 w-8"
+                  className="h-8 w-8 rounded-full"
                 />
                 <Text className="font-semibold text-black">
                   {isGoogleLoading ? "Connecting..." : "Continue with Google"}
@@ -204,7 +204,7 @@ export function SignUpScreen() {
               >
                 <Image
                   source={require("../../../assets/mobile.png")}
-                  className="h-8 w-10"
+                  className="h-8 w-10 rounded-lg"
                   resizeMode="contain"
                 />
                 <Text className="font-semibold text-black">Continue with Mobile</Text>
@@ -214,7 +214,7 @@ export function SignUpScreen() {
             <Text className="text-gray-500 text-center mt-4">
               Already have an account?{" "}
               <Text
-                className="text-[17px] font-bold text-gray-800"
+                className="text-[14px] font-bold text-gray-800"
                 onPress={() => {
                   router.push("/sign-in" as Href);
                 }}

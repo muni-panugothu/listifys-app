@@ -8,7 +8,6 @@ import { configureGoogleSignIn } from "@/lib/google-sign-in";
 import { useAppDispatch } from "@/store/hooks";
 import { store } from "@/store";
 import { restoreSession } from "@/store/slices/auth-slice";
-import { checkOnboarding } from "@/store/slices/onboarding-slice";
 
 const HOME_ROUTE = "/(tabs)/home-feed-root" as Href;
 

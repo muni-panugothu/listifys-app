@@ -21,6 +21,19 @@ const App = () => {
   const { isAuthenticated, error } = useAppSelector((s) => s.auth)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
 
+  const markOnboardingComplete = async () => {
+    try {
+      await dispatch(completeOnboarding()).unwrap()
+    } catch {
+      // Ignore storage failures and continue navigation.
+    }
+  }
+
+  const handleSkip = async () => {
+    await markOnboardingComplete()
+    router.replace('/home-feed-root' as Href)
+  }
+
   useEffect(() => {
     if (isAuthenticated) {
       router.replace('/home-feed-root' as Href)
@@ -57,6 +70,17 @@ const App = () => {
   return (
     <View className="flex-1 relative">
       <StatusBar style="light" />
+
+      <TouchableOpacity
+        className="absolute right-4 z-30 rounded-full bg-black/25 px-4 py-2"
+        style={{ top: insets.top + 8 }}
+        activeOpacity={0.8}
+        onPress={() => {
+          void handleSkip()
+        }}
+      >
+        <Text className="font-semibold text-white">Skip</Text>
+      </TouchableOpacity>
 
       {/* Background Image */}
       <Image
@@ -95,7 +119,12 @@ const App = () => {
         <TouchableOpacity
           className="bg-white px-6 py-3 rounded-full flex-row items-center justify-center gap-4"
           activeOpacity={0.8}
-          onPress={() => router.push('/mobile' as Href)}
+          onPress={() => {
+            void (async () => {
+              await markOnboardingComplete()
+              router.push('/mobile' as Href)
+            })()
+          }}
         >
           <Image
             source={require('../../../assets/mobile.png')}
@@ -109,8 +138,13 @@ const App = () => {
         <Text className="text-white text-center">
           Already have an account?{' '}
           <Text
-            className="text-[17px] font-bold"
-            onPress={() => router.push('/sign-in' as Href)}
+            className="text-[14px] font-bold"
+            onPress={() => {
+              void (async () => {
+                await markOnboardingComplete()
+                router.push('/sign-in' as Href)
+              })()
+            }}
           >
             Login
           </Text>

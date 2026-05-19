@@ -186,7 +186,7 @@ export function SignInScreen() {
               >
                 <Image
                   source={require("../../../assets/mobile.png")}
-                  className="h-8 w-10"
+                  className="h-8 w-10 rounded-lg"
                   resizeMode="contain"
                 />
                 <Text className="font-semibold text-black">Continue with Mobile</Text>
