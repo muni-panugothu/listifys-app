@@ -185,7 +185,7 @@ export function MessagesInboxScreen() {
           listingTitle: conv.listing?.listingTitle ?? "",
           listingPrice: String(conv.listing?.listingPrice ?? ""),
           listingImage: conv.listing?.listingImage ?? "",
-          currency: conv.listing?.currency ?? "₹",
+          currency: conv.listing?.currency ?? "",
         },
       } as Href);
     },

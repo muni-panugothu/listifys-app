@@ -6,6 +6,7 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { SellFlowLayout } from "@/components/sell-flow-layout";
 import { ListifyFonts } from "@/constants/typography";
+import { getCurrencySymbol } from "@/lib/currency";
 
 import {
   CONDITION_OPTIONS,
@@ -366,7 +367,7 @@ export function PostAdStep2DetailsScreen() {
                 className="h-12 flex-row items-center rounded-lg bg-white px-4"
                 style={{ borderWidth: 1, borderColor: priceError ? "#BA1A1A" : "#E2E8F0" }}
               >
-                <Text className="mr-1 text-[16px] font-semibold text-[#161D1A]">₹</Text>
+                <Text className="mr-1 text-[16px] font-semibold text-[#161D1A]">{getCurrencySymbol()}</Text>
                 <TextInput
                   value={price}
                   onChangeText={(v) => dispatch(setPrice(v))}
@@ -378,7 +379,7 @@ export function PostAdStep2DetailsScreen() {
               {priceError && (
                 <View className="mt-1 flex-row items-center gap-1 px-1">
                   <MaterialIcons name="error" size={14} color="#BA1A1A" />
-                  <Text className="text-[11px] text-[#BA1A1A]">Price must be greater than ₹100</Text>
+                  <Text className="text-[11px] text-[#BA1A1A]">Price must be greater than {getCurrencySymbol()}100</Text>
                 </View>
               )}
             </View>

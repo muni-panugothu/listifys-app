@@ -6,16 +6,17 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { formatPrice, getCurrencySymbol } from "@/lib/currency";
 
 const productThumb =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuCUf9mnHqpHBej7XV7AA8q4n_A2SsI9rqSSYQ1ZqF_RZTJa6cyAJckoI8qP3YUeiT9HWEOIylPb1WOlcpNDEEBOeNwgE5_k_p64ocBMFr6nyGMQnDsKGd44fqaLFLumcCs2lpN6oqQ-cpK8R8ELD_vKJ5JxbjgCGIOpwgJ0lJIR0AGpcq0vqorQBDh81TxGZXX_AXLUaHTCQQZ1pDLg335_yVjLwSvSGkzbIy8vR8QRMMiJhKfkx2cNj_fA14JTnlFEGbNZkMZUSKE";
 
-const recommendedOffers = ["₹21,500", "₹22,500", "₹23,000"];
+const recommendedOfferAmounts = [21500, 22500, 23000];
 
 export function CreateOfferModalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [selectedChip, setSelectedChip] = useState("₹22,500");
+  const [selectedChip, setSelectedChip] = useState("22500");
   const [customAmount, setCustomAmount] = useState("22500");
 
   return (
@@ -73,7 +74,7 @@ export function CreateOfferModalScreen() {
                 Listed Price
               </Text>
               <Text className="text-[16px] font-bold text-[#161D1A]">
-                ₹24,999
+                {formatPrice(24999)}
               </Text>
             </View>
           </View>
@@ -84,14 +85,15 @@ export function CreateOfferModalScreen() {
               Recommended Offers
             </Text>
             <View className="flex-row flex-wrap gap-2">
-              {recommendedOffers.map((offer) => {
-                const isSelected = offer === selectedChip;
+              {recommendedOfferAmounts.map((amt) => {
+                const label = formatPrice(amt);
+                const isSelected = String(amt) === selectedChip;
                 return (
                   <Pressable
-                    key={offer}
+                    key={amt}
                     onPress={() => {
-                      setSelectedChip(offer);
-                      setCustomAmount(offer.replace(/[₹,]/g, ""));
+                      setSelectedChip(String(amt));
+                      setCustomAmount(String(amt));
                     }}
                     className="rounded-full px-4 py-2"
                     style={{
@@ -108,7 +110,7 @@ export function CreateOfferModalScreen() {
                         color: isSelected ? "#006B55" : "#161D1A",
                       }}
                     >
-                      {offer}
+                      {label}
                     </Text>
                   </Pressable>
                 );
@@ -122,7 +124,7 @@ export function CreateOfferModalScreen() {
               Your Custom Offer
             </Text>
             <View className="h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
-              <Text className="text-[20px] font-bold text-slate-400">₹</Text>
+              <Text className="text-[20px] font-bold text-slate-400">{getCurrencySymbol()}</Text>
               <TextInput
                 value={customAmount}
                 onChangeText={(val) => {

@@ -1,13 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   Alert,
   BackHandler,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -27,14 +26,19 @@ import {
   uploadListingImages,
 } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
+import { PostLocationMapPreview } from "@/components/post-location-map-preview";
+import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
+import { LocationAutocompleteInput } from "@/components/location-autocomplete-input";
+import { useLocale } from "@/providers/locale-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { refreshDeviceLocation } from "@/store/slices/location-slice";
+import { refreshDeviceLocation, selectLocationCoords, setLocationDirect } from "@/store/slices/location-slice";
 import {
   addImageUri,
   removeImageUri,
   resetPostForm,
   setLocation,
   setPhone,
+  setPhoneCode,
   setSubmitError,
   setSubmitting,
   setUploadedImageUrls,
@@ -43,6 +47,7 @@ import {
 export function PostAdStep3MediaScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { phoneCode: localePhoneCode } = useLocale();
 
   const {
     category, subcategory, title, description, price, condition, location, listingType,
@@ -69,6 +74,23 @@ export function PostAdStep3MediaScreen() {
   } = useAppSelector((s) => s.postForm);
 
   const locationStatus = useAppSelector((s) => s.location.status);
+  const locationCoords = useAppSelector(selectLocationCoords);
+  const globalLocationLabel = useAppSelector((s) => s.location.label);
+  const globalLocationSource = useAppSelector((s) => s.location.source);
+
+  // On mount: pre-populate location from the app-wide location if the form field is empty
+  useEffect(() => {
+    if (!location && globalLocationSource !== null && globalLocationLabel !== "Set location") {
+      dispatch(setLocation(globalLocationLabel));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync phone code with locale (updates when location changes globally)
+  useEffect(() => {
+    if (localePhoneCode && localePhoneCode !== phoneCode) {
+      dispatch(setPhoneCode(localePhoneCode));
+    }
+  }, [localePhoneCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBack = () => {
     router.replace("/post-ad-step2-details" as Href);
@@ -519,21 +541,29 @@ export function PostAdStep3MediaScreen() {
 
       <SellSectionCard title="Item location">
         <View className="px-4 py-4">
-          <View className="mb-3 h-12 flex-row items-center rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4">
-            <MaterialIcons name="location-on" size={20} color="#9CA3AF" />
-            <TextInput
-              value={location}
-              onChangeText={(v) => dispatch(setLocation(v))}
-              placeholder="Neighborhood or city..."
-              placeholderTextColor="#9CA3AF"
-              className="ml-2 flex-1 text-[14px] text-[#1A1A1A]"
-              style={{ fontFamily: ListifyFonts.regular, paddingVertical: 0 }}
-            />
-          </View>
+          {/* Google Places Autocomplete */}
+          <LocationAutocompleteInput
+            value={location}
+            onChangeText={(v) => dispatch(setLocation(v))}
+            onSelect={async (result) => {
+              dispatch(setLocation(result.label));
+              if (result.lat != null && result.lng != null) {
+                await dispatch(
+                  setLocationDirect({
+                    label: result.label,
+                    lat: result.lat,
+                    lng: result.lng,
+                  }),
+                );
+              }
+            }}
+            placeholder="Neighborhood or city..."
+            contained
+          />
           <Pressable
             onPress={handleUseCurrentLocation}
             disabled={locationStatus === "loading"}
-            className="mb-3 flex-row items-center gap-2"
+            className="mt-3 mb-3 flex-row items-center gap-2"
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
             <MaterialIcons name="my-location" size={20} color="#1A1A1A" />
@@ -546,43 +576,23 @@ export function PostAdStep3MediaScreen() {
                 : "Use my current location"}
             </Text>
           </Pressable>
-          <View className="h-36 items-center justify-center rounded-2xl bg-[#F3F4F6]">
-            <MaterialIcons name="map" size={36} color="#9CA3AF" />
-            <Text
-              className="mt-2 px-4 text-center text-[12px] text-[#6B7280]"
-              style={{ fontFamily: ListifyFonts.regular }}
-              numberOfLines={2}
-            >
-              {location || "Enter location above"}
-            </Text>
-          </View>
+          <PostLocationMapPreview
+            lat={locationCoords.lat}
+            lng={locationCoords.lng}
+            locationLabel={location}
+            height={144}
+          />
         </View>
       </SellSectionCard>
 
       <SellSectionCard title="Contact">
         <View className="px-4 py-4">
-          <View className="flex-row gap-2">
-            <View className="h-12 w-20 items-center justify-center rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
-              <Text
-                className="text-[14px] text-[#1A1A1A]"
-                style={{ fontFamily: ListifyFonts.medium }}
-              >
-                {phoneCode}
-              </Text>
-            </View>
-            <View className="h-12 flex-1 flex-row items-center rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4">
-              <MaterialIcons name="call" size={20} color="#9CA3AF" />
-              <TextInput
-                value={phone}
-                onChangeText={(v) => dispatch(setPhone(v))}
-                placeholder="Mobile number"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
-                className="ml-2 flex-1 text-[14px] text-[#1A1A1A]"
-                style={{ fontFamily: ListifyFonts.regular, paddingVertical: 0 }}
-              />
-            </View>
-          </View>
+          <PhoneInputWithCountry
+            phoneCode={phoneCode}
+            phone={phone}
+            onChangePhoneCode={(code) => dispatch(setPhoneCode(code))}
+            onChangePhone={(v) => dispatch(setPhone(v))}
+          />
           <View
             className="mt-3 flex-row items-center gap-3 rounded-2xl p-3"
             style={{ backgroundColor: "#F3F4F6" }}
