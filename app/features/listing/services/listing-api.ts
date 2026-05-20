@@ -14,6 +14,7 @@ import {
 } from "@/features/auth/services/auth-api";
 import type { CategorySlug } from "@/constants/categories";
 import { cacheKeys, invalidateCache, withCache } from "@/lib/cache";
+import { getListingSellerId } from "@/lib/is-own-listing";
 
 import Constants from "expo-constants";
 import { requireOptionalNativeModule } from "expo-modules-core";
@@ -532,6 +533,7 @@ export type RecentlyViewedItem = {
   images: string[];
   category: string;
   createdAt?: string;
+  sellerId?: string;
   viewedAt: number;
 };
 
@@ -548,6 +550,7 @@ export async function addToRecentlyViewed(item: ListingItem): Promise<void> {
       images: item.images,
       category: item.category,
       createdAt: item.createdAt,
+      sellerId: getListingSellerId(item) ?? undefined,
       viewedAt: Date.now(),
     });
     // Cap at max

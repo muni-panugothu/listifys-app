@@ -14,14 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { ProfileHeaderArt } from "@/components/profile-header-art";
-import {
-  getDummySellerListings,
-  getDummySellerReviews,
-  getDummySellerStats,
-  isDummySellerId,
-  type DummySellerReview,
-} from "@/constants/dummy-seller-profile";
-import { DUMMY_PROFILE_AVATAR_URI } from "@/constants/dummy-profile";
 import { ListifyFonts } from "@/constants/typography";
 import {
   requestJson,
@@ -119,7 +111,16 @@ function SellerStars({ rating }: { rating: number }) {
   );
 }
 
-function SellerReviewCard({ item }: { item: DummySellerReview }) {
+type SellerReview = {
+  id: string;
+  name: string;
+  avatar: string;
+  rating: number;
+  date: string;
+  review: string;
+};
+
+function SellerReviewCard({ item }: { item: SellerReview }) {
   return (
     <View className="border-b border-[#F0F0F0] pb-4">
       <View className="mb-2 flex-row items-center gap-3">
@@ -178,52 +179,21 @@ export function SellerPublicProfileScreen() {
 
   const sellerId = params.sellerId ?? params.userId ?? "";
   const paramSellerName = params.sellerName?.trim() ?? "";
-  const isDummy = isDummySellerId(sellerId);
-
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [listings, setListings] = useState<SellerListing[]>([]);
-  const [reviews, setReviews] = useState<DummySellerReview[]>([]);
-  const [loading, setLoading] = useState(!isDummy && Boolean(sellerId));
+  const [reviews, setReviews] = useState<SellerReview[]>([]);
+  const [loading, setLoading] = useState(Boolean(sellerId));
   const [activeTab, setActiveTab] = useState<ProfileTab>("listings");
   const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
 
-  const loadDummyProfile = useCallback(() => {
-    const name = paramSellerName || "Listify Seller";
-    const stats = getDummySellerStats(name);
-    const dummyListings = getDummySellerListings(name);
-
-    setSeller({
-      id: sellerId || "dummy-seller",
-      _id: sellerId || "dummy-seller",
-      name,
-      profileImageUrl: params.sellerImage ?? null,
-      createdAt: new Date(2023, 5, 1).toISOString(),
-      isFollowedByCurrentUser: false,
-      followersCount: stats.followersCount,
-      followingCount: stats.followingCount,
-      listingsCount: stats.listingsCount,
-    });
-    setListings(
-      dummyListings.map((item) => ({
-        _id: item.id,
-        title: item.title,
-        price: item.price,
-        images: [item.image],
-        condition: item.condition,
-        category: item.category,
-        _listingType: item.category,
-      })),
-    );
-    setReviews(getDummySellerReviews(name));
-    setFollowing(false);
-    setFollowersCount(stats.followersCount);
-    setLoading(false);
-  }, [paramSellerName, params.sellerImage, sellerId]);
-
   const loadData = useCallback(async () => {
-    if (isDummy || !sellerId) {
-      loadDummyProfile();
+    if (!sellerId) {
+      setSeller(null);
+      setListings([]);
+      setReviews([]);
+      setLoading(false);
       return;
     }
 
@@ -237,18 +207,18 @@ export function SellerPublicProfileScreen() {
       ]);
       setSeller(profileRes);
       setListings(listingsRes);
-      setReviews(getDummySellerReviews(profileRes.name));
+      setReviews([]);
       setFollowing(profileRes.isFollowedByCurrentUser);
       setFollowersCount(profileRes.followersCount);
     } catch {
-      if (paramSellerName) {
-        loadDummyProfile();
-      }
+      setSeller(null);
+      setListings([]);
+      setReviews([]);
     } finally {
       clearTimeout(timeout);
       setLoading(false);
     }
-  }, [isDummy, loadDummyProfile, paramSellerName, sellerId]);
+  }, [sellerId]);
 
   useEffect(() => {
     void loadData();
@@ -265,25 +235,21 @@ export function SellerPublicProfileScreen() {
     ? `Member since ${new Date(seller.createdAt).getFullYear()}`
     : "Verified seller on Listify";
 
-  const avatarUri =
-    (seller?.profileImageUrl
-      ? resolveAbsoluteMediaUrl(seller.profileImageUrl) ?? seller.profileImageUrl
-      : null) ??
-    (params.sellerImage?.startsWith("http") ? params.sellerImage : null) ??
-    DUMMY_PROFILE_AVATAR_URI;
+  const avatarUri = useMemo(() => {
+    if (seller?.profileImageUrl) {
+      return resolveAbsoluteMediaUrl(seller.profileImageUrl) ?? seller.profileImageUrl;
+    }
+    if (params.sellerImage?.startsWith("http")) return params.sellerImage;
+    return null;
+  }, [params.sellerImage, seller?.profileImageUrl]);
 
   const sellerRating = useMemo(() => {
     const fromParam = Number.parseFloat(params.sellerRating ?? "");
     if (!Number.isNaN(fromParam) && fromParam > 0) return fromParam;
-    return getDummySellerStats(displayName).avgRating;
-  }, [displayName, params.sellerRating]);
+    return 0;
+  }, [params.sellerRating]);
 
-  const ratingsCount = useMemo(() => {
-    if (reviews.length > 0) {
-      return Math.max(reviews.length, getDummySellerStats(displayName).ratingsCount);
-    }
-    return getDummySellerStats(displayName).ratingsCount;
-  }, [displayName, reviews.length]);
+  const ratingsCount = reviews.length;
 
   const stats = useMemo(
     () => [
@@ -312,32 +278,26 @@ export function SellerPublicProfileScreen() {
 
   const handleToggleFollow = useCallback(() => {
     requireAuth(async () => {
-      if (isDummy) {
-        setFollowing((prev) => {
-          const next = !prev;
-          setFollowersCount((count) => (next ? count + 1 : Math.max(0, count - 1)));
-          return next;
-        });
-        return;
-      }
-
-      if (!sellerId) return;
+      if (!sellerId || followLoading) return;
+      setFollowLoading(true);
       try {
         const res = await toggleFollowSeller(sellerId);
         setFollowing(res.isFollowing);
         setFollowersCount(res.followersCount);
       } catch {
         // keep state
+      } finally {
+        setFollowLoading(false);
       }
     });
-  }, [isDummy, requireAuth, sellerId]);
+  }, [followLoading, requireAuth, sellerId]);
 
   const handleMessage = useCallback(() => {
-    if (!sellerId && !displayName) return;
+    if (!sellerId) return;
     router.push({
       pathname: "/chat-conversation",
       params: {
-        recipientId: sellerId || "dummy-seller",
+        recipientId: sellerId,
         name: displayName,
       },
     } as Href);
@@ -407,6 +367,16 @@ export function SellerPublicProfileScreen() {
               Loading seller profile...
             </Text>
           </View>
+        ) : !seller ? (
+          <View className="items-center px-6 py-16">
+            <MaterialIcons name="person-off" size={48} color="#D1D5DB" />
+            <Text
+              className="mt-3 text-center text-[14px] text-[#9CA3AF]"
+              style={{ fontFamily: ListifyFonts.regular }}
+            >
+              Could not load this seller profile.
+            </Text>
+          </View>
         ) : (
           <>
             <View
@@ -429,11 +399,17 @@ export function SellerPublicProfileScreen() {
                     elevation: 8,
                   }}
                 >
-                  <Image
-                    source={avatarUri}
-                    contentFit="cover"
-                    className="h-full w-full"
-                  />
+                  {avatarUri ? (
+                    <Image
+                      source={avatarUri}
+                      contentFit="cover"
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center bg-[#E5E7EB]">
+                      <MaterialIcons name="person" size={48} color="#9CA3AF" />
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -480,6 +456,7 @@ export function SellerPublicProfileScreen() {
               >
                 <Pressable
                   onPress={handleToggleFollow}
+                  disabled={followLoading}
                   style={({ pressed }) => ({
                     flex: 1,
                     height: 48,
@@ -489,18 +466,25 @@ export function SellerPublicProfileScreen() {
                     backgroundColor: following ? "#E8F8F4" : BRAND_GREEN,
                     borderWidth: following ? 2 : 0,
                     borderColor: BRAND_GREEN,
-                    opacity: pressed ? 0.92 : 1,
+                    opacity: pressed || followLoading ? 0.85 : 1,
                   })}
                 >
-                  <Text
-                    style={{
-                      fontFamily: ListifyFonts.semiBold,
-                      fontSize: 16,
-                      color: following ? BRAND_GREEN : "#FFFFFF",
-                    }}
-                  >
-                    {following ? "Following" : "Follow"}
-                  </Text>
+                  {followLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={following ? BRAND_GREEN : "#FFFFFF"}
+                    />
+                  ) : (
+                    <Text
+                      style={{
+                        fontFamily: ListifyFonts.semiBold,
+                        fontSize: 16,
+                        color: following ? BRAND_GREEN : "#FFFFFF",
+                      }}
+                    >
+                      {following ? "Following" : "Follow"}
+                    </Text>
+                  )}
                 </Pressable>
 
                 <Pressable

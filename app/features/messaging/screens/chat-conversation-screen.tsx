@@ -3,8 +3,10 @@ import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   Text,
@@ -75,6 +77,13 @@ function dedup(msgs: ChatMessage[]): ChatMessage[] {
   return Array.from(seen.values());
 }
 
+/** Oldest first — matches API order (server already returns chronological). */
+function sortMessagesChronological(msgs: ChatMessage[]): ChatMessage[] {
+  return dedup(msgs).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+}
+
 function isFromMe(
   item: ChatMessage,
   userId: string | undefined,
@@ -122,7 +131,7 @@ export function ChatConversationScreen() {
 
   const footerPadding = Math.max(insets.bottom, 10);
   const canSend = messageText.trim().length > 0;
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [androidKeyboardPad, setAndroidKeyboardPad] = useState(0);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
@@ -131,15 +140,22 @@ export function ChatConversationScreen() {
   useEffect(() => {
     const showEvent =
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, scrollToBottom);
+    return () => showSub.remove();
+  }, [scrollToBottom]);
 
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+  /** Android: sit flush on keyboard without double-counting window resize. */
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const showSub = Keyboard.addListener("keyboardDidShow", (event) => {
+      const windowHeight = Dimensions.get("window").height;
+      const gap = Math.max(0, windowHeight - event.endCoordinates.screenY);
+      setAndroidKeyboardPad(gap);
       scrollToBottom();
     });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setAndroidKeyboardPad(0);
     });
 
     return () => {
@@ -148,8 +164,12 @@ export function ChatConversationScreen() {
     };
   }, [scrollToBottom]);
 
-  const inputBottomInset =
-    keyboardHeight > 0 ? keyboardHeight + 22 : footerPadding;
+  const inputBottomPadding =
+    Platform.OS === "android"
+      ? androidKeyboardPad > 0
+        ? androidKeyboardPad
+        : footerPadding
+      : footerPadding;
 
   useEffect(() => {
     (async () => {
@@ -158,7 +178,7 @@ export function ChatConversationScreen() {
         if (params.conversationId) {
           const res = await getMessages(params.conversationId);
           if (res.messages) {
-            setMessages(dedup(res.messages.reverse()));
+            setMessages(sortMessagesChronological(res.messages));
           }
           setConversation({ _id: params.conversationId } as Conversation);
           markConversationRead(params.conversationId).catch(() => {});
@@ -183,7 +203,7 @@ export function ChatConversationScreen() {
             setConversation(res.conversation);
             const msgRes = await getMessages(res.conversation._id);
             if (msgRes.messages) {
-              setMessages(dedup(msgRes.messages.reverse()));
+              setMessages(sortMessagesChronological(msgRes.messages));
             }
             markConversationRead(res.conversation._id).catch(() => {});
           }
@@ -205,7 +225,10 @@ export function ChatConversationScreen() {
     params.currency,
   ]);
 
-  const displayMessages = useMemo(() => dedup(messages), [messages]);
+  const displayMessages = useMemo(
+    () => sortMessagesChronological(messages),
+    [messages],
+  );
 
   useEffect(() => {
     const convId = conversation?._id;
@@ -246,7 +269,7 @@ export function ChatConversationScreen() {
           createdAt: data.createdAt || new Date().toISOString(),
         };
 
-        setMessages((prev) => dedup([...prev, newMsg]));
+        setMessages((prev) => sortMessagesChronological([...prev, newMsg]));
 
         if (typeof data.sender === "string" && data.sender !== user?.id) {
           emitMessageDelivered(newMsg._id, convId);
@@ -553,7 +576,13 @@ export function ChatConversationScreen() {
         </View>
       </View>
 
-      <View className="flex-1">
+      <KeyboardAvoidingView
+        className="flex-1"
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        enabled={Platform.OS === "ios"}
+        keyboardVerticalOffset={0}
+      >
         <FlatList
           ref={flatListRef}
           data={displayMessages}
@@ -574,12 +603,10 @@ export function ChatConversationScreen() {
           }
         />
 
-        {/* Input footer — lifts above keyboard */}
         <View
           style={{
             backgroundColor: BAR_BG,
             paddingTop: 10,
-            paddingBottom: inputBottomInset,
             paddingHorizontal: 12,
             borderTopWidth: 1,
             borderTopColor: "#EBEBEB",
@@ -637,7 +664,7 @@ export function ChatConversationScreen() {
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

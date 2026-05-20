@@ -145,8 +145,10 @@ describe('💬 CHAT CONTROLLER TESTS', () => {
         createdAt: new Date(),
       };
       Conversation.findOne.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
-          populate: jest.fn().mockResolvedValue(existingConv),
+        sort: jest.fn().mockReturnValue({
+          populate: jest.fn().mockReturnValue({
+            populate: jest.fn().mockResolvedValue(existingConv),
+          }),
         }),
       });
 

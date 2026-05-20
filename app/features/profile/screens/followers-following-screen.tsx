@@ -1,7 +1,16 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -12,7 +21,8 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
-import { useAppSelector } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchProfile } from "@/store/slices/auth-slice";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
 type FollowTab = "followers" | "following";
@@ -48,12 +58,15 @@ export function FollowersFollowingScreen() {
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
+  const dispatch = useAppDispatch();
   const currentUser = useAppSelector((s) => s.auth.user);
   const [activeTab, setActiveTab] = useState<FollowTab>(getTabParam(params.tab));
   const [searchQuery, setSearchQuery] = useState("");
   const [followers, setFollowers] = useState<FollowListUser[]>([]);
   const [followingUsers, setFollowingUsers] = useState<FollowListUser[]>([]);
   const [followState, setFollowState] = useState<Record<string, boolean>>({});
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
@@ -80,6 +93,8 @@ export function FollowersFollowingScreen() {
       setFollowers(nextFollowers);
       setFollowingUsers(nextFollowing);
       setFollowState(nextFollowState);
+      setFollowersCount(followersResponse.followersCount ?? nextFollowers.length);
+      setFollowingCount(followingResponse.followingCount ?? nextFollowing.length);
     } catch (error) {
       Alert.alert("Followers", error instanceof Error ? error.message : "Failed to load follow data.");
     } finally {
@@ -87,11 +102,16 @@ export function FollowersFollowingScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadFollowData();
-  }, [loadFollowData]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadFollowData();
+    }, [loadFollowData]),
+  );
 
-  const { refreshing, onRefresh } = usePullToRefresh(loadFollowData);
+  const { refreshing, onRefresh } = usePullToRefresh(async () => {
+    await loadFollowData();
+    await dispatch(fetchProfile()).unwrap().catch(() => {});
+  });
 
   const visibleUsers = useMemo(() => {
     const source = activeTab === "followers" ? followers : followingUsers;
@@ -149,6 +169,15 @@ export function FollowersFollowingScreen() {
 
         return current.filter((entry) => entry.id !== user.id);
       });
+
+      if (response.followingCount != null) {
+        setFollowingCount(response.followingCount);
+      }
+      if (response.myFollowersCount != null) {
+        setFollowersCount(response.myFollowersCount);
+      }
+
+      void dispatch(fetchProfile());
     } catch (error) {
       Alert.alert("Follow", error instanceof Error ? error.message : "Failed to update follow status.");
     } finally {
@@ -202,8 +231,8 @@ export function FollowersFollowingScreen() {
         <View className="border-b border-slate-100 bg-white">
           <View className="flex-row">
             {[
-              { key: "followers" as const, count: String(followers.length), label: "Followers" },
-              { key: "following" as const, count: String(followingUsers.length), label: "Following" },
+              { key: "followers" as const, count: String(followersCount), label: "Followers" },
+              { key: "following" as const, count: String(followingCount), label: "Following" },
             ].map((tab) => {
               const isActive = activeTab === tab.key;
               return (
@@ -240,6 +269,13 @@ export function FollowersFollowingScreen() {
         </View>
 
         <View className="gap-2 px-4">
+          {isLoading ? (
+            <View className="items-center py-16">
+              <ActivityIndicator size="large" color="#27BB97" />
+              <Text className="mt-3 text-[14px] text-slate-500">Loading...</Text>
+            </View>
+          ) : null}
+
           {!isLoading && visibleUsers.length === 0 ? (
             <View className="items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10">
               <MaterialIcons name="group-off" size={30} color="#94A3B8" />
@@ -256,9 +292,17 @@ export function FollowersFollowingScreen() {
             </View>
           ) : null}
 
-          {visibleUsers.map((user) => {
-            const isFollowing = !!followState[user.id];
-            const buttonLabel = activeTab === "followers" && !isFollowing ? "Follow back" : isFollowing ? "Unfollow" : "Follow";
+          {!isLoading
+            ? visibleUsers.map((user) => {
+            const isFollowing =
+              activeTab === "following" ? true : !!followState[user.id];
+            const isPending = pendingUserId === user.id;
+            const buttonLabel =
+              activeTab === "followers" && !isFollowing
+                ? "Follow back"
+                : isFollowing
+                  ? "Unfollow"
+                  : "Follow";
             return (
               <View
                 key={user.id}
@@ -286,24 +330,33 @@ export function FollowersFollowingScreen() {
 
                 <Pressable
                   onPress={() => void toggleFollow(user)}
-                  className="rounded-full px-5 py-2"
+                  disabled={isPending}
+                  className="min-w-[96px] items-center justify-center rounded-full px-5 py-2"
                   style={({ pressed }) => ({
                     backgroundColor: isFollowing ? "#FFFFFF" : "#27BB97",
                     borderWidth: isFollowing ? 1 : 0,
                     borderColor: isFollowing ? "#E2E8F0" : "transparent",
-                    opacity: pressed || pendingUserId === user.id ? 0.8 : 1,
+                    opacity: pressed || isPending ? 0.75 : 1,
                   })}
                 >
-                  <Text
-                    className="text-[12px] font-semibold"
-                    style={{ color: isFollowing ? "#475569" : "#FFFFFF" }}
-                  >
-                    {pendingUserId === user.id ? "Updating..." : buttonLabel}
-                  </Text>
+                  {isPending ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={isFollowing ? "#475569" : "#FFFFFF"}
+                    />
+                  ) : (
+                    <Text
+                      className="text-[12px] font-semibold"
+                      style={{ color: isFollowing ? "#475569" : "#FFFFFF" }}
+                    >
+                      {buttonLabel}
+                    </Text>
+                  )}
                 </Pressable>
               </View>
             );
-          })}
+          })
+            : null}
         </View>
       </ScrollView>
 

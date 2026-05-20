@@ -3005,7 +3005,7 @@ exports.sendTokenResponse = legacySendTokenResponse;
 exports.toggleFollow = async (req, res) => {
   try {
     const targetUserId = req.params.userId;
-    const currentUserId = String(req.user._id);
+    const currentUserId = String(req.user._id || req.user.id);
 
     if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
       return res.status(400).json({ success: false, message: "Invalid user ID" });
@@ -3015,32 +3015,32 @@ exports.toggleFollow = async (req, res) => {
       return res.status(400).json({ success: false, message: "You cannot follow yourself" });
     }
 
-    // Ensure target exists.
-    const targetUser = await User.findById(targetUserId).select("_id name");
+    const currentOid = new mongoose.Types.ObjectId(currentUserId);
+    const targetOid = new mongoose.Types.ObjectId(targetUserId);
+
+    const targetUser = await User.findById(targetOid).select("_id name");
     if (!targetUser) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Try unfollow first (atomic). If not following, perform follow.
     const unfollowResult = await User.updateOne(
-      { _id: targetUserId, followers: currentUserId },
-      { $pull: { followers: currentUserId } },
+      { _id: targetOid, followers: currentOid },
+      { $pull: { followers: currentOid } },
     );
 
     let isFollowingNow;
 
     if (unfollowResult.modifiedCount > 0) {
-      await User.updateOne({ _id: currentUserId }, { $pull: { following: targetUserId } });
+      await User.updateOne({ _id: currentOid }, { $pull: { following: targetOid } });
       isFollowingNow = false;
     } else {
       await Promise.all([
-        User.updateOne({ _id: targetUserId }, { $addToSet: { followers: currentUserId } }),
-        User.updateOne({ _id: currentUserId }, { $addToSet: { following: targetUserId } }),
+        User.updateOne({ _id: targetOid }, { $addToSet: { followers: currentOid } }),
+        User.updateOne({ _id: currentOid }, { $addToSet: { following: targetOid } }),
       ]);
       isFollowingNow = true;
 
-      // Send notification to the target user
-      const currentUser = await User.findById(currentUserId).select("name").lean();
+      const currentUser = await User.findById(currentOid).select("name").lean();
       await createNotification({
         recipient: targetUserId,
         sender: currentUserId,
@@ -3049,17 +3049,39 @@ exports.toggleFollow = async (req, res) => {
       });
     }
 
-    // Get count without loading the full array
-    const result = await User.aggregate([
-      { $match: { _id: new mongoose.Types.ObjectId(targetUserId) } },
-      { $project: { followersCount: { $size: { $ifNull: ['$followers', []] } } } },
+    const counts = await User.aggregate([
+      {
+        $facet: {
+          target: [
+            { $match: { _id: targetOid } },
+            {
+              $project: {
+                followersCount: { $size: { $ifNull: ["$followers", []] } },
+              },
+            },
+          ],
+          current: [
+            { $match: { _id: currentOid } },
+            {
+              $project: {
+                followersCount: { $size: { $ifNull: ["$followers", []] } },
+                followingCount: { $size: { $ifNull: ["$following", []] } },
+              },
+            },
+          ],
+        },
+      },
     ]);
-    const followersCount = result[0]?.followersCount || 0;
+
+    const targetCounts = counts[0]?.target?.[0] || {};
+    const currentCounts = counts[0]?.current?.[0] || {};
 
     res.status(200).json({
       success: true,
       isFollowing: isFollowingNow,
-      followersCount,
+      followersCount: targetCounts.followersCount || 0,
+      followingCount: currentCounts.followingCount || 0,
+      myFollowersCount: currentCounts.followersCount || 0,
     });
   } catch (error) {
     logger.error("Toggle follow error:", error);
@@ -3078,7 +3100,19 @@ exports.getMyFollowers = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const ids = type === "following" ? user.following : user.followers;
+    const ids = (type === "following" ? user.following : user.followers) || [];
+
+    const followCounts = await User.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(userId) } },
+      {
+        $project: {
+          followersCount: { $size: { $ifNull: ["$followers", []] } },
+          followingCount: { $size: { $ifNull: ["$following", []] } },
+        },
+      },
+    ]);
+    const followersCount = followCounts[0]?.followersCount || 0;
+    const followingCount = followCounts[0]?.followingCount || 0;
 
     const users = await User.find({ _id: { $in: ids } }).select(
       "name profileImage googleProfileImage avatar provider createdAt"
@@ -3089,15 +3123,21 @@ exports.getMyFollowers = async (req, res) => {
         ? u.getProfileImage()
         : u.profileImage || u.googleProfileImage || u.avatar || null;
       return {
-        id: u._id,
-        name: u.name,
+        id: u._id.toString(),
+        name: u.name || "User",
         profileImageUrl,
         provider: u.provider,
         createdAt: u.createdAt,
       };
     });
 
-    res.status(200).json({ success: true, type, users: list });
+    res.status(200).json({
+      success: true,
+      type,
+      users: list,
+      followersCount,
+      followingCount,
+    });
   } catch (error) {
     logger.error("Get my followers error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch followers" });
@@ -3135,7 +3175,11 @@ exports.getSellerProfile = async (req, res) => {
 
     const isFollowedByCurrentUser = Boolean(
       currentUserId &&
-      await User.exists({ _id: sellerId, followers: currentUserId })
+        mongoose.Types.ObjectId.isValid(currentUserId) &&
+        (await User.exists({
+          _id: sellerId,
+          followers: new mongoose.Types.ObjectId(currentUserId),
+        })),
     );
 
     // Count seller's listings across ALL categories

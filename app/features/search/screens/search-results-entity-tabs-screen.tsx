@@ -17,7 +17,6 @@ import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { TopSaveToast } from "@/components/top-save-toast";
 import { CATEGORIES } from "@/constants/categories";
-import { DUMMY_TRENDING_LISTINGS } from "@/constants/dummy-trending-listings";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import {
   fetchHomeFeed,
@@ -152,40 +151,14 @@ function mapFeedToResults(
 
 const FEED_FETCH_TIMEOUT_MS = 10_000;
 
-function buildDummySearchResults(): SearchResultItem[] {
-  return DUMMY_TRENDING_LISTINGS.map((d) => ({
-    _id: d.id,
-    title: d.title,
-    price: d.price,
-    images: [d.image],
-    category: d.category,
-    _entity: d.category,
-    condition: "Featured",
-  }));
-}
-
-/** Always merge dummy trending listings (deduped) for browse / trending views. */
-function mergeDummyResults(items: SearchResultItem[]): SearchResultItem[] {
-  const dummyMapped = buildDummySearchResults();
-  const existingIds = new Set(items.map((i) => i._id));
-  const merged = [...items];
-  for (const d of dummyMapped) {
-    if (!existingIds.has(d._id)) merged.push(d);
-  }
-  return merged;
-}
-
 function applyEntityAndSort(
   items: SearchResultItem[],
   entity: string,
   sortKey: string,
 ): SearchResultItem[] {
-  const merged = mergeDummyResults(items);
   const filtered =
-    entity === "all" ? merged : merged.filter((item) => item._entity === entity);
-  const sorted = sortLocalResults(filtered, sortKey);
-  if (sorted.length > 0) return sorted;
-  return sortLocalResults(buildDummySearchResults(), sortKey);
+    entity === "all" ? items : items.filter((item) => item._entity === entity);
+  return sortLocalResults(filtered, sortKey);
 }
 
 async function fetchHomeFeedWithTimeout(limit: number) {
@@ -223,15 +196,8 @@ export function SearchResultsEntityTabsScreen() {
   const [activeSort, setActiveSort] = useState<string>("relevance");
   const [searchQuery, setSearchQuery] = useState(() => parseQueryParam(params.q));
   const [appliedQuery, setAppliedQuery] = useState(() => parseQueryParam(params.q));
-  const [results, setResults] = useState<SearchResultItem[]>(() =>
-    applyEntityAndSort(mergeDummyResults([]), "all", "relevance"),
-  );
-  const [pagination, setPagination] = useState<SearchPagination | null>(() => ({
-    total: DUMMY_TRENDING_LISTINGS.length,
-    page: 1,
-    pages: 1,
-    limit: 50,
-  }));
+  const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [pagination, setPagination] = useState<SearchPagination | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -263,14 +229,6 @@ export function SearchResultsEntityTabsScreen() {
         setLoading(true);
       }
 
-      if (isBrowse) {
-        setResults((prev) =>
-          prev.length > 0
-            ? applyEntityAndSort(mergeDummyResults(prev), activeEntity, activeSort)
-            : applyEntityAndSort(mergeDummyResults([]), activeEntity, activeSort),
-        );
-      }
-
       try {
         if (isBrowse) {
           let mapped: SearchResultItem[] = [];
@@ -285,7 +243,6 @@ export function SearchResultsEntityTabsScreen() {
             mapped = [];
           }
 
-          mapped = mergeDummyResults(mapped);
           const sorted = applyEntityAndSort(mapped, activeEntity, activeSort);
 
           setResults(sorted);
@@ -311,23 +268,14 @@ export function SearchResultsEntityTabsScreen() {
           page: 1,
           limit: 50,
         });
-        let items = res.results || [];
-        items = mergeDummyResults(items);
+        const items = res.results || [];
         setResults(applyEntityAndSort(items, activeEntity, activeSort));
         setPagination(res.pagination || null);
       } catch {
-        const fallback = applyEntityAndSort(
-          mergeDummyResults([]),
-          activeEntity,
-          activeSort,
+        setResults((prev) =>
+          prev.length > 0 ? applyEntityAndSort(prev, activeEntity, activeSort) : [],
         );
-        setResults(fallback);
-        setPagination({
-          total: fallback.length,
-          page: 1,
-          pages: 1,
-          limit: 50,
-        });
+        setPagination(null);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -405,10 +353,6 @@ export function SearchResultsEntityTabsScreen() {
 
       if (!wasSaved) {
         showSaveToast();
-      }
-
-      if (item._id.startsWith("dummy-")) {
-        return;
       }
 
       try {

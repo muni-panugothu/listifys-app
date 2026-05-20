@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { CATEGORY_MAP, type CategorySlug } from "@/constants/categories";
-import { mergeListingsWithDummy } from "@/constants/dummy-category-listings";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import { EventListingCard } from "@/features/category/components/event-listing-card";
 import { JobListingCard } from "@/features/category/components/job-listing-card";
@@ -106,9 +105,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedSubcategory, setSelectedSubcategory] = useState("All");
   const [activeSort, setActiveSort] = useState<string>("relevance");
-  const [listings, setListings] = useState<ListingItem[]>(() =>
-    mergeListingsWithDummy([], categorySlug),
-  );
+  const [listings, setListings] = useState<ListingItem[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   const headerHeight = insets.top + 12 + 52;
@@ -126,7 +123,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           setTimeout(() => reject(new Error("timeout")), FETCH_TIMEOUT_MS);
         }),
       ]);
-      const items = mergeListingsWithDummy(res.listings ?? [], categorySlug);
+      const items = res.listings ?? [];
       setListings(items);
       if (user?.id) {
         const saved = new Set<string>();
@@ -136,9 +133,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
         setSavedIds(saved);
       }
     } catch {
-      setListings((prev) =>
-        prev.length > 0 ? prev : mergeListingsWithDummy([], categorySlug),
-      );
+      setListings((prev) => (prev.length > 0 ? prev : []));
     }
   }, [appliedSearch, categorySlug, selectedSubcategory, user?.id]);
 
@@ -185,15 +180,6 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
 
   const handleToggleSave = useCallback(
     async (id: string) => {
-      if (id.startsWith("dummy-")) {
-        setSavedIds((prev) => {
-          const next = new Set(prev);
-          if (next.has(id)) next.delete(id);
-          else next.add(id);
-          return next;
-        });
-        return;
-      }
       try {
         const res = await toggleSaveListing(categorySlug, id);
         setSavedIds((prev) => {

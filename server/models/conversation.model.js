@@ -42,7 +42,7 @@ const conversationSchema = new mongoose.Schema(
 // Compound index for fast lookup: "find all conversations for a user"
 conversationSchema.index({ participants: 1, updatedAt: -1 });
 
-// Ensure only one conversation per pair of participants + listing
+// Listing context on a thread (one conversation per participant pair in app logic)
 conversationSchema.index(
   { participants: 1, "listing.listingId": 1, "listing.listingType": 1 },
   { unique: false }

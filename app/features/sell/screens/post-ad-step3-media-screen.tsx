@@ -113,7 +113,7 @@ export function PostAdStep3MediaScreen() {
 
   const handleUseCurrentLocation = async () => {
     try {
-      const result = await dispatch(refreshDeviceLocation()).unwrap();
+      const result = await dispatch(refreshDeviceLocation({ force: true })).unwrap();
       dispatch(setLocation(result.label));
     } catch {
       Alert.alert(

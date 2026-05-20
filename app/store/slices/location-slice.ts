@@ -4,6 +4,7 @@ import {
   detectDeviceLocation,
   geocodeSearchQuery,
   loadStoredLocation,
+  LOCATION_AUTO_REFRESH_MS,
   saveStoredLocation,
   type StoredAppLocation,
 } from "@/lib/location-service";
@@ -68,9 +69,35 @@ export const hydrateAppLocation = createAsyncThunk(
 
 export const refreshDeviceLocation = createAsyncThunk(
   "location/refreshDevice",
-  async (_, { rejectWithValue }) => {
+  async (options: { force?: boolean } | undefined, { getState, rejectWithValue }) => {
     try {
-      return await detectDeviceLocation();
+      const stored = await loadStoredLocation();
+      const force = options?.force === true;
+
+      if (
+        !force &&
+        stored?.source === "gps" &&
+        stored.updatedAt &&
+        Date.now() - stored.updatedAt < LOCATION_AUTO_REFRESH_MS
+      ) {
+        return stored;
+      }
+
+      const loc = (getState() as RootState).location;
+      const previous: StoredAppLocation | null =
+        stored ??
+        (loc.lat != null && loc.lng != null
+          ? {
+              label: loc.label,
+              lat: loc.lat,
+              lng: loc.lng,
+              isoCountryCode: loc.isoCountryCode,
+              source: "gps",
+              updatedAt: 0,
+            }
+          : null);
+
+      return await detectDeviceLocation({ previous, force });
     } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : "Could not detect location",
@@ -104,9 +131,24 @@ export const setLocationFromSearch = createAsyncThunk(
 
 export const useCurrentDeviceLocation = createAsyncThunk(
   "location/useCurrent",
-  async (_, { rejectWithValue }) => {
+  async (_, { getState, rejectWithValue }) => {
     try {
-      return await detectDeviceLocation();
+      const stored = await loadStoredLocation();
+      const loc = (getState() as RootState).location;
+      const previous: StoredAppLocation | null =
+        stored ??
+        (loc.lat != null && loc.lng != null
+          ? {
+              label: loc.label,
+              lat: loc.lat,
+              lng: loc.lng,
+              isoCountryCode: loc.isoCountryCode,
+              source: loc.source === "manual" ? "manual" : "gps",
+              updatedAt: 0,
+            }
+          : null);
+
+      return await detectDeviceLocation({ previous, force: true });
     } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : "Could not get current location",

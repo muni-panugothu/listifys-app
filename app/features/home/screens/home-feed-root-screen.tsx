@@ -35,7 +35,9 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { ProfileAvatarImage } from "@/components/profile-avatar-image";
 import { Image } from "@/lib/nativewind-interop";
-import { getListingDistanceLabel } from "@/lib/listing-distance";
+import { filterOutOwnListings } from "@/lib/is-own-listing";
+import { resolveListingDistanceKm, getListingDistanceLabel } from "@/lib/listing-distance";
+import { extractCityFromLocationLabel } from "@/lib/location-service";
 import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -135,21 +137,29 @@ export function HomeFeedRootScreen() {
     }
   }, [router]);
 
-  // Flatten all category listings into a single array for recommendations
-  const allListings: ListingItem[] = feedData?.categories
-    ? Object.values(feedData.categories).flatMap((cat) => cat.listings ?? [])
-    : [];
+  // Flatten feed; exclude current user's listings from recommendations
+  const allListings: ListingItem[] = useMemo(() => {
+    const flat = feedData?.categories
+      ? Object.values(feedData.categories).flatMap((cat) => cat.listings ?? [])
+      : [];
+    return filterOutOwnListings(flat, user?.id);
+  }, [feedData, user?.id]);
 
   const loadFeed = useCallback(async (options?: { allowCacheFallback?: boolean }) => {
     const startedAt = Date.now();
 
     try {
+      const hasCoords =
+        locationCoords.lat != null && locationCoords.lng != null;
+      const cityForFeed = extractCityFromLocationLabel(locationCoords.label);
+
       const res = await fetchHomeFeed({
-        limit: 10,
-        location: locationCoords.label,
-        lat: locationCoords.lat ?? undefined,
-        lng: locationCoords.lng ?? undefined,
-        radius: 50,
+        limit: 12,
+        lat: hasCoords ? locationCoords.lat! : undefined,
+        lng: hasCoords ? locationCoords.lng! : undefined,
+        radius: hasCoords ? 25 : undefined,
+        // City-wide text match for listings without GPS coords (Madhapur, Hitech City, etc.)
+        location: hasCoords ? cityForFeed ?? locationCoords.label : locationCoords.label,
       });
       const duration = Date.now() - startedAt;
 
@@ -190,11 +200,10 @@ export function HomeFeedRootScreen() {
     }
   }, [dispatch, user?.address]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void dispatch(refreshDeviceLocation());
-    }, [dispatch]),
-  );
+  useEffect(() => {
+    if (!locationHydrated) return;
+    void dispatch(refreshDeviceLocation());
+  }, [dispatch, locationHydrated]);
 
   useEffect(() => {
     (async () => {
@@ -218,13 +227,7 @@ export function HomeFeedRootScreen() {
   useEffect(() => {
     if (!locationHydrated) return;
     loadFeed({ allowCacheFallback: false }).catch(() => {});
-  }, [
-    locationHydrated,
-    locationCoords.lat,
-    locationCoords.lng,
-    locationCoords.label,
-    loadFeed,
-  ]);
+  }, [locationHydrated, locationCoords.lat, locationCoords.lng, loadFeed]);
 
   useEffect(() => {
     if (!isOffline && isUsingCachedFeed) {
@@ -277,37 +280,53 @@ export function HomeFeedRootScreen() {
     category: string;
     createdAt?: string;
     distanceLabel?: string;
-    isDummy: boolean;
   };
 
   const freshRecommendations = useMemo((): FreshRecommendationItem[] => {
-    return allListings.slice(0, 12).map((item) => {
+    const userLatLng =
+      locationCoords.lat != null && locationCoords.lng != null
+        ? { lat: locationCoords.lat, lng: locationCoords.lng }
+        : null;
+
+    const withDistance = allListings.map((item) => {
       const category =
         (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics";
-      const userLatLng =
-        locationCoords.lat != null && locationCoords.lng != null
-          ? { lat: locationCoords.lat, lng: locationCoords.lng }
-          : null;
-      return {
-        id: item._id,
-        title: item.title,
-        price: item.price ?? null,
-        image: item.images?.[0] ?? "",
-        createdAt: item.createdAt,
-        category,
-        distanceLabel: getListingDistanceLabel(
-          {
-            _id: item._id,
-            category,
-            distance: (item as { distance?: number }).distance,
-            coordinates: item.coordinates,
-          },
-          userLatLng,
-          isoCountryCode,
-        ),
-        isDummy: false,
-      };
+      const distanceKm = resolveListingDistanceKm(
+        {
+          _id: item._id,
+          category,
+          distance: (item as { distance?: number }).distance,
+          coordinates: item.coordinates,
+        },
+        userLatLng,
+      );
+      return { item, category, distanceKm };
     });
+
+    withDistance.sort((a, b) => {
+      const aTime = a.item.createdAt ? new Date(a.item.createdAt).getTime() : 0;
+      const bTime = b.item.createdAt ? new Date(b.item.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    return withDistance.slice(0, 12).map(({ item, category, distanceKm }) => ({
+      id: item._id,
+      title: item.title,
+      price: item.price ?? null,
+      image: item.images?.[0] ?? "",
+      createdAt: item.createdAt,
+      category,
+      distanceLabel: getListingDistanceLabel(
+        {
+          _id: item._id,
+          category,
+          distance: distanceKm ?? undefined,
+          coordinates: item.coordinates,
+        },
+        userLatLng,
+        isoCountryCode,
+      ),
+    }));
   }, [allListings, locationCoords.lat, locationCoords.lng, isoCountryCode]);
 
   const navigateToCategory = useCallback(
@@ -663,7 +682,9 @@ export function HomeFeedRootScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
             >
-              {recentlyViewed.slice(0, 12).map((item) => {
+              {filterOutOwnListings(recentlyViewed, user?.id)
+                .slice(0, 12)
+                .map((item) => {
                 const distanceLabel = getListingDistanceLabel(
                   {
                     _id: item._id,

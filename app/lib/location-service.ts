@@ -3,6 +3,12 @@ import * as Location from "expo-location";
 
 export const LOCATION_STORAGE_KEY = "@listify/app_location";
 
+/** Min time between automatic GPS refreshes (home tab, etc.). */
+export const LOCATION_AUTO_REFRESH_MS = 30 * 60 * 1000;
+
+/** If new GPS is within this distance, keep the previous area label (avoids Madhapur/Hitech City flip). */
+const KEEP_LABEL_DISTANCE_M = 2_500;
+
 export type StoredAppLocation = {
   label: string;
   lat: number;
@@ -169,6 +175,84 @@ export function formatGeocodeAddress(place: Location.LocationGeocodedAddress) {
   return region || country || "Current location";
 }
 
+function distanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6_371_000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function cityPart(label: string) {
+  const parts = label.split(",").map((p) => p.trim()).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : parts[0]?.toLowerCase() ?? "";
+}
+
+/**
+ * When still in the same city but reverse-geocode returns a different suburb
+ * (e.g. Hitech City vs Madhapur), keep the label the user already saw.
+ */
+export function shouldKeepPreviousLabel(
+  previousLabel: string,
+  nextLabel: string,
+  distanceM: number,
+): boolean {
+  if (!previousLabel.trim() || !nextLabel.trim()) return false;
+  if (previousLabel.toLowerCase() === nextLabel.toLowerCase()) return true;
+  if (distanceM > KEEP_LABEL_DISTANCE_M) return false;
+
+  const prevCity = cityPart(previousLabel);
+  const nextCity = cityPart(nextLabel);
+  if (prevCity && nextCity && prevCity === nextCity) {
+    return true;
+  }
+
+  return distanceM < 800;
+}
+
+/** Pick one stable label from all reverse-geocode rows (same coords → same choice). */
+function pickConsistentLabel(results: Location.LocationGeocodedAddress[]): string {
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+
+  const add = (label: string) => {
+    const normalized = label.trim();
+    if (!normalized || seen.has(normalized.toLowerCase())) return;
+    seen.add(normalized.toLowerCase());
+    candidates.push(normalized);
+  };
+
+  add(formatGeocodeAddress(mergeGeocodeResults(results)));
+  for (const row of results) {
+    add(formatGeocodeAddress(row));
+  }
+
+  if (!candidates.length) {
+    return "Current location";
+  }
+
+  const scored = candidates
+    .map((label) => {
+      const parts = label.split(",").map((p) => p.trim()).filter(Boolean);
+      let score = 0;
+      if (parts.length >= 2) score += 10;
+      if (parts[0] && isValidLocalityName(parts[0])) score += 5;
+      score += Math.min(parts[0]?.length ?? 0, 20) / 10;
+      return { label, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.label ?? candidates[0];
+}
+
 export async function loadStoredLocation(): Promise<StoredAppLocation | null> {
   try {
     const raw = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
@@ -196,14 +280,16 @@ export async function requestLocationPermission() {
   return status === Location.PermissionStatus.GRANTED;
 }
 
-export async function getCurrentCoordinates() {
+export async function getCurrentCoordinates(options?: { highAccuracy?: boolean }) {
   const servicesEnabled = await Location.hasServicesEnabledAsync();
   if (!servicesEnabled) {
     throw new Error("Turn on location services to use this feature.");
   }
 
   const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.High,
+    accuracy: options?.highAccuracy
+      ? Location.Accuracy.High
+      : Location.Accuracy.Balanced,
   });
 
   return {
@@ -215,6 +301,7 @@ export async function getCurrentCoordinates() {
 export async function reverseGeocodeDetails(
   lat: number,
   lng: number,
+  options?: { previousLabel?: string; previousLat?: number; previousLng?: number },
 ): Promise<{ label: string; isoCountryCode: string | null }> {
   const results = await Location.reverseGeocodeAsync({
     latitude: lat,
@@ -226,8 +313,20 @@ export async function reverseGeocodeDetails(
   }
 
   const merged = mergeGeocodeResults(results);
-  const label = formatGeocodeAddress(merged);
+  let label = pickConsistentLabel(results);
   const isoCountryCode = merged.isoCountryCode?.trim().toUpperCase() ?? null;
+
+  if (
+    options?.previousLabel &&
+    options.previousLat != null &&
+    options.previousLng != null
+  ) {
+    const dist = distanceMeters(options.previousLat, options.previousLng, lat, lng);
+    if (shouldKeepPreviousLabel(options.previousLabel, label, dist)) {
+      label = options.previousLabel;
+    }
+  }
+
   return { label, isoCountryCode };
 }
 
@@ -255,20 +354,28 @@ export async function geocodeSearchQuery(query: string) {
   return { lat, lng, label, isoCountryCode };
 }
 
-export async function detectDeviceLocation() {
+export async function detectDeviceLocation(options?: {
+  previous?: StoredAppLocation | null;
+  force?: boolean;
+}) {
   const granted = await requestLocationPermission();
   if (!granted) {
     throw new Error("Location permission is required to show listings near you.");
   }
 
-  const { lat, lng } = await getCurrentCoordinates();
-  const { label, isoCountryCode } = await reverseGeocodeDetails(lat, lng);
+  const previous = options?.previous ?? null;
+  const { lat, lng } = await getCurrentCoordinates({ highAccuracy: options?.force });
+  const { label, isoCountryCode } = await reverseGeocodeDetails(lat, lng, {
+    previousLabel: previous?.label,
+    previousLat: previous?.lat,
+    previousLng: previous?.lng,
+  });
 
   const stored: StoredAppLocation = {
     label,
     lat,
     lng,
-    isoCountryCode,
+    isoCountryCode: isoCountryCode ?? previous?.isoCountryCode ?? null,
     source: "gps",
     updatedAt: Date.now(),
   };
@@ -280,6 +387,17 @@ export async function detectDeviceLocation() {
 /** Re-format a stored label after app update (optional migration helper). */
 export async function refreshLabelFromCoords(lat: number, lng: number) {
   return reverseGeocodeLabel(lat, lng);
+}
+
+/** City name for feed search, e.g. "Kukatpally, Hyderabad" → "Hyderabad". */
+export function extractCityFromLocationLabel(label: string): string | undefined {
+  const parts = label
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return undefined;
+  if (parts.length === 1) return parts[0];
+  return parts[parts.length - 1];
 }
 
 /**

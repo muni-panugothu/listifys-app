@@ -5,10 +5,11 @@
  */
 const express = require("express");
 const router = express.Router();
-const { applyGeoFilter } = require("../utils/geoQuery");
+const { applyGeoFilter, buildLocationRegex } = require("../utils/geoQuery");
 const { esHydratedSearch } = require("../utils/esSearch");
 const redis = require("../config/redis");
 const { logger } = require("../utils/logger");
+const { optionalAuth } = require("../middleware/auth.middleware");
 
 const CATEGORY_MODELS = {
   electronics: require("../models/electronics.model"),
@@ -32,7 +33,7 @@ const CATEGORY_MODELS = {
 };
 
 const LISTING_FIELDS =
-  "title slug price pricing currency location images condition category subcategory createdAt savedBy coordinates";
+  "title slug price pricing currency location images condition category subcategory createdAt savedBy coordinates seller";
 
 /**
  * GET /api/feed
@@ -44,7 +45,7 @@ const LISTING_FIELDS =
  *   lat, lng  – geo center for $geoWithin filter
  *   radius    – km radius for geo filter (default 50)
  */
-router.get("/", async (req, res) => {
+router.get("/", optionalAuth, async (req, res) => {
   try {
     const {
       limit: rawLimit,
@@ -60,9 +61,10 @@ router.get("/", async (req, res) => {
     const page = Math.max(parseInt(rawPage, 10) || 1, 1);
     const skip = (page - 1) * limit;
     const useEsSearch = Boolean(search && !lat && !lng);
+    const excludeSellerId = req.user?._id ? String(req.user._id) : null;
 
     // ── Redis cache (60s TTL) ───────────────────────────────────
-    const cacheKey = `feed:${page}:${limit}:${search || ''}:${location || ''}:${lat || ''}:${lng || ''}:${radius}`;
+    const cacheKey = `feed:${page}:${limit}:${search || ''}:${location || ''}:${lat || ''}:${lng || ''}:${radius}:ex:${excludeSellerId || "0"}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -75,6 +77,10 @@ router.get("/", async (req, res) => {
     // Build shared filter
     const baseFilter = { status: "active" };
 
+    if (excludeSellerId) {
+      baseFilter.seller = { $ne: excludeSellerId };
+    }
+
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const regex = new RegExp(escaped, "i");
@@ -82,12 +88,17 @@ router.get("/", async (req, res) => {
     }
 
     if (location) {
-      // Always add text location filter — geoQuery.js will merge it with
-      // geo coordinates using $or so listings with OR without coords appear
-      baseFilter.location = {
-        $regex: location.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        $options: "i",
-      };
+      // Match any part of "Suburb, City" (e.g. Hitech City OR Hyderabad), not the
+      // full string — so nearby areas like Madhapur still appear with GPS + city.
+      const regexFilter = buildLocationRegex(location);
+      if (regexFilter) {
+        baseFilter.location = regexFilter;
+      } else {
+        baseFilter.location = {
+          $regex: location.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          $options: "i",
+        };
+      }
     }
 
     const fetchFromMongo = async (Model) => {

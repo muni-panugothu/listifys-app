@@ -174,8 +174,12 @@ const dispatch = async (payload) => {
 
       if (io) {
         io.to(`user:${recipientId}`).emit('notification:new', {
-          _id: n._id, type: 'message', message, sender: senderId,
-          metadata: { conversationId }, createdAt: n.createdAt,
+          _id: n._id,
+          type: 'message',
+          message,
+          sender: { id: senderId, name: senderName },
+          metadata: { conversationId: String(conversationId) },
+          createdAt: n.createdAt,
         });
       }
       break;

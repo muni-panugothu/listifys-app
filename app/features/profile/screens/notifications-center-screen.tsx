@@ -16,6 +16,10 @@ import {
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import {
+  getNotificationRoute,
+  normalizeNotification,
+} from "@/lib/notification-navigation";
+import {
   type NotificationItem,
   getNotifications,
   markNotificationRead,
@@ -39,6 +43,20 @@ type NotifVisual = {
 
 function getNotificationVisual(type: string): NotifVisual {
   switch (type) {
+    case "message":
+      return { icon: "chat-bubble-outline", color: "#27BB97" };
+    case "follow":
+      return { icon: "person-add", color: "#60A5FA" };
+    case "new_listing":
+    case "listing_saved":
+      return { icon: "inventory-2", color: "#27BB97" };
+    case "offer_received":
+    case "offer_accepted":
+    case "offer_rejected":
+      return { icon: "local-offer", color: "#F59E0B" };
+    case "review":
+    case "review_received":
+      return { icon: "star", color: "#F59E0B" };
     case "like":
     case "favorite":
       return { icon: "favorite", color: "#F472B6" };
@@ -175,7 +193,8 @@ export function NotificationsCenterScreen() {
   const loadNotifications = useCallback(async () => {
     try {
       const res = await getNotifications();
-      setNotifications(mergeNotificationsWithDummy(res.notifications ?? []));
+      const normalized = (res.notifications ?? []).map(normalizeNotification);
+      setNotifications(mergeNotificationsWithDummy(normalized));
     } catch {
       setNotifications((prev) =>
         prev.length > 0 ? prev : mergeNotificationsWithDummy([]),
@@ -203,17 +222,33 @@ export function NotificationsCenterScreen() {
       title?: string;
       message?: string;
       createdAt?: string;
+      metadata?: Record<string, unknown>;
       data?: Record<string, unknown>;
+      sender?: string | { id?: string; _id?: string; name?: string };
     }) => {
-      const notif: NotificationItem = {
+      const senderRaw = data.sender;
+      let sender: NotificationItem["sender"];
+      if (senderRaw && typeof senderRaw === "object") {
+        sender = {
+          id: String(senderRaw.id ?? senderRaw._id ?? ""),
+          name: senderRaw.name ?? "",
+        };
+      } else if (typeof senderRaw === "string") {
+        sender = { id: senderRaw, name: "" };
+      }
+
+      const notif = normalizeNotification({
         _id: data._id || `notif_${Date.now()}`,
         type: data.type || "general",
         title: data.title || "",
         message: data.message || "You have a new notification.",
         read: false,
         createdAt: data.createdAt || new Date().toISOString(),
-        data: data.data,
-      };
+        metadata:
+          (data.metadata as Record<string, unknown> | undefined) ??
+          data.data,
+        sender,
+      });
       setNotifications((prev) => [notif, ...prev]);
     };
 
@@ -235,14 +270,22 @@ export function NotificationsCenterScreen() {
     [notifications],
   );
 
-  const handleItemPress = useCallback(async (item: NotificationItem) => {
-    if (!item.read && !item._id.startsWith("dummy-")) {
-      await markNotificationRead(item._id).catch(() => {});
-    }
-    setNotifications((prev) =>
-      prev.map((x) => (x._id === item._id ? { ...x, read: true } : x)),
-    );
-  }, []);
+  const handleItemPress = useCallback(
+    async (item: NotificationItem) => {
+      if (!item.read && !item._id.startsWith("dummy-")) {
+        await markNotificationRead(item._id).catch(() => {});
+      }
+      setNotifications((prev) =>
+        prev.map((x) => (x._id === item._id ? { ...x, read: true } : x)),
+      );
+
+      const route = getNotificationRoute(item);
+      if (route) {
+        router.push(route);
+      }
+    },
+    [router],
+  );
 
   return (
     <View className="flex-1" style={{ backgroundColor: HOME_BG }}>

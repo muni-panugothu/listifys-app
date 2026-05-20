@@ -18,7 +18,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CategorySlug } from "@/constants/categories";
-import { getDummyListingById } from "@/constants/dummy-trending-listings";
 import { ListifyFonts } from "@/constants/typography";
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { AUTH_API_BASE_URL, requestJson } from "@/features/auth/services/auth-api";
@@ -98,8 +97,6 @@ export function ListingDetailTemplateScreen() {
 
   const categorySlug = (params.category ?? "electronics") as CategorySlug;
   const listingId = params.id;
-  const isDummy = Boolean(listingId?.startsWith("dummy-"));
-
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,29 +129,6 @@ export function ListingDetailTemplateScreen() {
   const loadListing = useCallback(async () => {
     if (!listingId) return;
 
-    if (isDummy) {
-      const dummy = getDummyListingById(listingId);
-      if (dummy) {
-        setListing({
-          _id: dummy.id,
-          title: dummy.title,
-          price: dummy.price,
-          images: [dummy.image],
-          description: dummy.description,
-          condition: dummy.condition,
-          category: dummy.category,
-          sellerName: dummy.sellerName,
-          seller: {
-            _id: "dummy-seller",
-            name: dummy.sellerName ?? "Seller",
-            rating: dummy.sellerRating,
-          } as ListingItem["seller"],
-        } as ListingItem);
-      }
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
       const res = await fetchListingById(categorySlug, listingId);
@@ -170,7 +144,7 @@ export function ListingDetailTemplateScreen() {
     } finally {
       setLoading(false);
     }
-  }, [categorySlug, listingId, isDummy, user?.id]);
+  }, [categorySlug, listingId, user?.id]);
 
   useEffect(() => {
     void loadListing();
@@ -179,10 +153,6 @@ export function ListingDetailTemplateScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(loadListing);
 
   const handleToggleSave = useCallback(async () => {
-    if (isDummy) {
-      setIsSaved((v) => !v);
-      return;
-    }
     if (!listingId) return;
     requireAuth("save", async () => {
       try {
@@ -192,12 +162,13 @@ export function ListingDetailTemplateScreen() {
         // ignore
       }
     });
-  }, [categorySlug, listingId, isDummy, requireAuth]);
+  }, [categorySlug, listingId, requireAuth]);
 
   const handleMessageSeller = useCallback(() => {
     if (!listing) return;
 
-    const sellerId = listing.seller?._id ?? "dummy-seller";
+    const sellerId = listing.seller?._id;
+    if (!sellerId) return;
     const sellerName =
       listing.seller?.name ?? listing.sellerName ?? "Seller";
 
@@ -254,12 +225,6 @@ export function ListingDetailTemplateScreen() {
   const handleSendOffer = useCallback(async () => {
     if (!listing || !offerAmount || sendingOffer) return;
 
-    if (isDummy) {
-      setOfferSent(true);
-      setTimeout(() => closeOfferSheet(), 1800);
-      return;
-    }
-
     const sellerId = listing.seller?._id;
     if (!sellerId) return;
     setSendingOffer(true);
@@ -283,15 +248,11 @@ export function ListingDetailTemplateScreen() {
     } finally {
       setSendingOffer(false);
     }
-  }, [listing, offerAmount, sendingOffer, isDummy, categorySlug, closeOfferSheet]);
+  }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet]);
 
   const handleMakeOffer = useCallback(() => {
-    if (isDummy) {
-      requireAuth("offer", openOfferSheet);
-      return;
-    }
     requireAuth("offer", openOfferSheet);
-  }, [isDummy, openOfferSheet, requireAuth]);
+  }, [openOfferSheet, requireAuth]);
 
   const images = useMemo(() => {
     const raw = listing?.images?.length ? listing.images : [];
@@ -299,11 +260,13 @@ export function ListingDetailTemplateScreen() {
     return [];
   }, [listing?.images]);
 
-  const galleryImages = useMemo(() => {
-    if (images.length >= 4) return images.slice(0, 4);
-    if (images.length === 0) return [];
-    return Array.from({ length: 4 }, (_, i) => images[i % images.length]);
-  }, [images]);
+  const galleryImages = images;
+
+  useEffect(() => {
+    if (activeImageIndex >= images.length) {
+      setActiveImageIndex(Math.max(0, images.length - 1));
+    }
+  }, [activeImageIndex, images.length]);
 
   const title = listing?.title ?? "";
   const priceLabel = listing?.price
@@ -551,11 +514,11 @@ export function ListingDetailTemplateScreen() {
                 <Pressable
                   onPress={() => {
                     const sid = listing?.seller?._id;
-                    if (!sid && !sellerName) return;
+                    if (!sid) return;
                     router.push({
                       pathname: "/seller-public-profile",
                       params: {
-                        sellerId: sid ?? "dummy-seller",
+                        sellerId: sid,
                         sellerName,
                         sellerRating: String(sellerRating),
                         ...(sellerProfileImage

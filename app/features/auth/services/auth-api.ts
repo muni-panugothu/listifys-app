@@ -729,25 +729,37 @@ export type FollowListUser = {
   createdAt?: string;
 };
 
+export type FollowListResponse = {
+  success: boolean;
+  type: FollowListType;
+  users: FollowListUser[];
+  followersCount: number;
+  followingCount: number;
+};
+
 export function getFollowList(type: FollowListType) {
-  return requestJson<{
-    success: boolean;
-    type: FollowListType;
-    users: FollowListUser[];
-  }>(`/api/auth/followers?type=${type}`, { method: "GET" }).then((response) => ({
+  return requestJson<FollowListResponse>(`/api/auth/followers?type=${type}`, {
+    method: "GET",
+  }).then((response) => ({
     ...response,
+    followersCount: response.followersCount ?? 0,
+    followingCount: response.followingCount ?? 0,
     users: (response.users ?? []).map((user) => ({
       ...user,
+      id: String(user.id),
       profileImageUrl: toAbsoluteUrl(user.profileImageUrl),
     })),
   }));
 }
 
 export function toggleFollowUser(userId: string) {
-  return requestJson<{ success: boolean; isFollowing: boolean; followersCount: number }>(
-    `/api/auth/follow/${encodeURIComponent(userId)}`,
-    { method: "POST" },
-  );
+  return requestJson<{
+    success: boolean;
+    isFollowing: boolean;
+    followersCount: number;
+    followingCount?: number;
+    myFollowersCount?: number;
+  }>(`/api/auth/follow/${encodeURIComponent(userId)}`, { method: "POST" });
 }
 
 export type SettingsPreferences = {
@@ -807,14 +819,23 @@ export function setupPassword(password: string) {
 
 // ── Notifications ───────────────────────────────────────────────────────────────
 
+export type NotificationSender = {
+  id: string;
+  name: string;
+  profileImageUrl?: string | null;
+  provider?: string;
+};
+
 export type NotificationItem = {
   _id: string;
   type: string;
-  title: string;
+  title?: string;
   message: string;
   read: boolean;
   createdAt: string;
+  metadata?: Record<string, unknown>;
   data?: Record<string, unknown>;
+  sender?: NotificationSender | null;
 };
 
 export function getNotifications(page = 1, limit = 30) {

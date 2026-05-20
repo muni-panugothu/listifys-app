@@ -113,8 +113,8 @@ const createAndEmitMessageNotification = async ({ recipientId, senderId, convers
         _id: notification._id,
         type: 'message',
         message,
-        sender: senderId,
-        metadata: { conversationId },
+        sender: { id: senderId, name: senderName },
+        metadata: { conversationId: String(conversationId) },
         createdAt: notification.createdAt,
       });
     } catch (_) {}
@@ -172,27 +172,35 @@ exports.getOrCreateConversation = async (req, res) => {
       return res.status(404).json({ success: false, message: "Recipient not found" });
     }
 
-    // Try to find existing conversation between these two users for this listing
-    const query = {
+    // One conversation thread per user pair (reuse regardless of which listing opened chat)
+    let conversation = await Conversation.findOne({
       participants: { $all: [senderId, recipientId], $size: 2 },
-    };
-    if (listingId && listingType) {
-      query["listing.listingId"] = listingId;
-      query["listing.listingType"] = listingType;
-    } else {
-      // General conversation (no listing)
-      query.$or = [
-        { "listing.listingId": null },
-        { "listing.listingId": { $exists: false } },
-      ];
-    }
-
-    let conversation = await Conversation.findOne(query)
+    })
+      .sort({ updatedAt: -1 })
       .populate("participants", "name profileImage googleProfileImage avatar provider")
       .populate({
         path: "lastMessage",
         select: "content attachments sender createdAt",
       });
+
+    if (conversation && listingId && listingType) {
+      conversation.listing = {
+        listingId,
+        listingType,
+        listingTitle: listingTitle ?? conversation.listing?.listingTitle ?? null,
+        listingPrice:
+          listingPrice != null ? Number(listingPrice) : conversation.listing?.listingPrice ?? null,
+        listingImage: listingImage ?? conversation.listing?.listingImage ?? null,
+        currency: currency || conversation.listing?.currency || "₹",
+      };
+      await conversation.save();
+      conversation = await Conversation.findById(conversation._id)
+        .populate("participants", "name profileImage googleProfileImage avatar provider")
+        .populate({
+          path: "lastMessage",
+          select: "content attachments sender createdAt",
+        });
+    }
 
     if (!conversation) {
       const listingData = listingId

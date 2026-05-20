@@ -22,7 +22,7 @@ export function FloatingBottomNav({ activeTabId, onTabPress }: FloatingBottomNav
   return (
     <View
       pointerEvents="box-none"
-      className="absolute inset-x-0 bottom-0 z-50 items-center"
+      className="absolute inset-x-0 bottom-5 z-50 items-center"
       style={{ paddingBottom: Math.max(insets.bottom, 10) }}
     >
       <View
