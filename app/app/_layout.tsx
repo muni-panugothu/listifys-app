@@ -14,6 +14,7 @@ import "../global.css";
 
 import { ListifyFonts } from "@/constants/typography";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { LocaleProvider } from "@/providers/locale-provider";
 import { TypographyProvider } from "@/providers/typography-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
@@ -23,7 +24,9 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <TypographyProvider>
-        <AppLayout />
+        <LocaleProvider>
+          <AppLayout />
+        </LocaleProvider>
       </TypographyProvider>
     </Provider>
   );

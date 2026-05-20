@@ -20,7 +20,6 @@ import {
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { TrendingListingCard } from "@/components/trending-listing-card";
 import { CATEGORIES, type CategorySlug } from "@/constants/categories";
-import { DUMMY_TRENDING_LISTINGS } from "@/constants/dummy-trending-listings";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import { getUnreadCount as getNotificationUnreadCount } from "@/features/auth/services/auth-api";
 import { getUnreadCount as getChatUnreadCount } from "@/features/messaging/services/chat-api";
@@ -46,6 +45,7 @@ import {
   refreshDeviceLocation,
   selectLocationCoords,
   selectLocationLabel,
+  selectIsoCountryCode,
   setProfileFallbackLocation,
 } from "@/store/slices/location-slice";
 import { clearSlowRequestSignal, reportSlowRequest } from "@/store/slices/network-slice";
@@ -97,6 +97,7 @@ export function HomeFeedRootScreen() {
   const network = useAppSelector((s) => s.network);
   const displayLocation = useAppSelector(selectLocationLabel);
   const locationCoords = useAppSelector(selectLocationCoords);
+  const isoCountryCode = useAppSelector(selectIsoCountryCode);
   const locationHydrated = useAppSelector((s) => s.location.hydrated);
   const [feedData, setFeedData] = useState<FeedResponse | null>(null);
   const [isUsingCachedFeed, setIsUsingCachedFeed] = useState(false);
@@ -280,14 +281,18 @@ export function HomeFeedRootScreen() {
   };
 
   const freshRecommendations = useMemo((): FreshRecommendationItem[] => {
-    const fromFeed: FreshRecommendationItem[] = allListings.slice(0, 12).map((item) => {
+    return allListings.slice(0, 12).map((item) => {
       const category =
         (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics";
+      const userLatLng =
+        locationCoords.lat != null && locationCoords.lng != null
+          ? { lat: locationCoords.lat, lng: locationCoords.lng }
+          : null;
       return {
         id: item._id,
         title: item.title,
         price: item.price ?? null,
-        image: item.images?.[0] ?? DUMMY_TRENDING_LISTINGS[0].image,
+        image: item.images?.[0] ?? "",
         createdAt: item.createdAt,
         category,
         distanceLabel: getListingDistanceLabel(
@@ -297,29 +302,13 @@ export function HomeFeedRootScreen() {
             distance: (item as { distance?: number }).distance,
             coordinates: item.coordinates,
           },
-          locationCoords.lat != null && locationCoords.lng != null
-            ? { lat: locationCoords.lat, lng: locationCoords.lng }
-            : null,
+          userLatLng,
+          isoCountryCode,
         ),
         isDummy: false,
       };
     });
-
-    if (fromFeed.length >= 4) {
-      return fromFeed;
-    }
-
-    return DUMMY_TRENDING_LISTINGS.map((item) => ({
-      id: item.id,
-      title: item.title,
-      price: item.price,
-      image: item.image,
-      category: item.category,
-      createdAt: undefined,
-      distanceLabel: getListingDistanceLabel({ _id: item.id, category: item.category }),
-      isDummy: true,
-    }));
-  }, [allListings, locationCoords.lat, locationCoords.lng]);
+  }, [allListings, locationCoords.lat, locationCoords.lng, isoCountryCode]);
 
   const navigateToCategory = useCallback(
     (catId: CategorySlug) => {
@@ -619,32 +608,45 @@ export function HomeFeedRootScreen() {
             </Pressable>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
-          >
-            {freshRecommendations.map((item) => (
-              <TrendingListingCard
-                key={item.id}
-                id={item.id}
-                title={item.title}
-                price={item.price}
-                image={item.image}
-                cardWidth={trendingCardWidth}
-                createdAt={item.createdAt}
-                distanceLabel={item.distanceLabel}
-                isSaved={savedIds.has(item.id)}
-                isOffline={isOffline}
-                onPress={() => pushToDetail(item.category, item.id)}
-                onToggleSave={() => {
-                  if ("isDummy" in item && item.isDummy) return;
-                  const listing = allListings.find((l) => l._id === item.id);
-                  if (listing) void handleToggleSave(listing);
-                }}
-              />
-            ))}
-          </ScrollView>
+          {freshRecommendations.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
+            >
+              {freshRecommendations.map((item) => (
+                <TrendingListingCard
+                  key={item.id}
+                  id={item.id}
+                  title={item.title}
+                  price={item.price}
+                  image={item.image}
+                  cardWidth={trendingCardWidth}
+                  createdAt={item.createdAt}
+                  distanceLabel={item.distanceLabel}
+                  isSaved={savedIds.has(item.id)}
+                  isOffline={isOffline}
+                  onPress={() => pushToDetail(item.category, item.id)}
+                  onToggleSave={() => {
+                    const listing = allListings.find((l) => l._id === item.id);
+                    if (listing) void handleToggleSave(listing);
+                  }}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <View className="mx-4 items-center rounded-2xl bg-white px-6 py-10">
+              <MaterialIcons name="location-on" size={36} color="#D1D5DB" />
+              <Text
+                className="mt-3 text-center text-[14px] text-[#6B7280]"
+                style={ListifyTypography.label}
+              >
+                {displayLocation && displayLocation !== "Set location"
+                  ? `No listings found near ${displayLocation}`
+                  : "Set your location to see nearby listings"}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Recently viewed — same card style as See all grid */}
@@ -670,6 +672,7 @@ export function HomeFeedRootScreen() {
                   locationCoords.lat != null && locationCoords.lng != null
                     ? { lat: locationCoords.lat, lng: locationCoords.lng }
                     : null,
+                  isoCountryCode,
                 );
 
                 return (

@@ -16,6 +16,8 @@ type LocationState = {
   label: string;
   lat: number | null;
   lng: number | null;
+  /** ISO 3166-1 alpha-2 country code, e.g. "IN", "US", "GB". */
+  isoCountryCode: string | null;
   source: LocationSource;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
@@ -26,6 +28,7 @@ const initialState: LocationState = {
   label: "Set location",
   lat: null,
   lng: null,
+  isoCountryCode: null,
   source: null,
   status: "idle",
   error: null,
@@ -36,6 +39,7 @@ function applyStored(state: LocationState, stored: StoredAppLocation) {
   state.label = stored.label;
   state.lat = stored.lat;
   state.lng = stored.lng;
+  state.isoCountryCode = stored.isoCountryCode ?? null;
   state.source = stored.source;
   state.status = "ready";
   state.error = null;
@@ -84,6 +88,7 @@ export const setLocationFromSearch = createAsyncThunk(
         label: result.label,
         lat: result.lat,
         lng: result.lng,
+        isoCountryCode: result.isoCountryCode ?? null,
         source: "manual",
         updatedAt: Date.now(),
       };
@@ -123,6 +128,28 @@ const locationSlice = createSlice({
       state.label = address;
       state.source = "profile";
       state.status = "ready";
+    },
+    /** Directly set location from an autocomplete selection (no async needed). */
+    setLocationDirect(
+      state,
+      action: {
+        payload: {
+          label: string;
+          lat: number;
+          lng: number;
+          isoCountryCode?: string | null;
+        };
+      },
+    ) {
+      state.label = action.payload.label;
+      state.lat = action.payload.lat;
+      state.lng = action.payload.lng;
+      if (action.payload.isoCountryCode !== undefined) {
+        state.isoCountryCode = action.payload.isoCountryCode;
+      }
+      state.source = "manual";
+      state.status = "ready";
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -189,7 +216,7 @@ const locationSlice = createSlice({
   },
 });
 
-export const { setProfileFallbackLocation } = locationSlice.actions;
+export const { setProfileFallbackLocation, setLocationDirect } = locationSlice.actions;
 
 export const selectLocationLabel = (state: RootState) => {
   if (state.location.status === "loading" && !state.location.hydrated) {
@@ -202,6 +229,10 @@ export const selectLocationCoords = (state: RootState) => ({
   lat: state.location.lat,
   lng: state.location.lng,
   label: state.location.label,
+  isoCountryCode: state.location.isoCountryCode,
 });
+
+export const selectIsoCountryCode = (state: RootState) =>
+  state.location.isoCountryCode;
 
 export default locationSlice.reducer;

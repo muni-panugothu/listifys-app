@@ -9,6 +9,8 @@ export type StoredAppLocation = {
   lng: number;
   source: "gps" | "manual";
   updatedAt: number;
+  /** ISO 3166-1 alpha-2 country code, e.g. "IN", "US", "GB". */
+  isoCountryCode?: string | null;
 };
 
 function normalizePart(value?: string | null) {
@@ -74,6 +76,7 @@ function mergeGeocodeResults(
     name: null,
     isoCountryCode: null,
     timezone: null,
+    formattedAddress: null,
   };
 
   for (const row of results) {
@@ -209,18 +212,28 @@ export async function getCurrentCoordinates() {
   };
 }
 
-export async function reverseGeocodeLabel(lat: number, lng: number) {
+export async function reverseGeocodeDetails(
+  lat: number,
+  lng: number,
+): Promise<{ label: string; isoCountryCode: string | null }> {
   const results = await Location.reverseGeocodeAsync({
     latitude: lat,
     longitude: lng,
   });
 
   if (!results.length) {
-    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    return { label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, isoCountryCode: null };
   }
 
   const merged = mergeGeocodeResults(results);
-  return formatGeocodeAddress(merged);
+  const label = formatGeocodeAddress(merged);
+  const isoCountryCode = merged.isoCountryCode?.trim().toUpperCase() ?? null;
+  return { label, isoCountryCode };
+}
+
+export async function reverseGeocodeLabel(lat: number, lng: number) {
+  const { label } = await reverseGeocodeDetails(lat, lng);
+  return label;
 }
 
 export async function geocodeSearchQuery(query: string) {
@@ -235,9 +248,11 @@ export async function geocodeSearchQuery(query: string) {
   }
 
   const { latitude: lat, longitude: lng } = results[0];
-  const label = await reverseGeocodeLabel(lat, lng).catch(() => trimmed);
+  const { label, isoCountryCode } = await reverseGeocodeDetails(lat, lng).catch(
+    () => ({ label: trimmed, isoCountryCode: null as string | null }),
+  );
 
-  return { lat, lng, label };
+  return { lat, lng, label, isoCountryCode };
 }
 
 export async function detectDeviceLocation() {
@@ -247,12 +262,13 @@ export async function detectDeviceLocation() {
   }
 
   const { lat, lng } = await getCurrentCoordinates();
-  const label = await reverseGeocodeLabel(lat, lng);
+  const { label, isoCountryCode } = await reverseGeocodeDetails(lat, lng);
 
   const stored: StoredAppLocation = {
     label,
     lat,
     lng,
+    isoCountryCode,
     source: "gps",
     updatedAt: Date.now(),
   };
@@ -264,4 +280,38 @@ export async function detectDeviceLocation() {
 /** Re-format a stored label after app update (optional migration helper). */
 export async function refreshLabelFromCoords(lat: number, lng: number) {
   return reverseGeocodeLabel(lat, lng);
+}
+
+/**
+ * Returns up to `maxResults` distinct geocoded suggestions for `query`.
+ * Used by LocationAutocompleteInput.
+ */
+export async function geocodeQuerySuggestions(
+  query: string,
+  maxResults = 5,
+): Promise<Array<{ label: string; lat: number; lng: number; isoCountryCode: string | null }>> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const results = await Location.geocodeAsync(trimmed);
+  const sliced = results.slice(0, maxResults);
+
+  const details = await Promise.all(
+    sliced.map(async ({ latitude: lat, longitude: lng }) => {
+      const { label, isoCountryCode } = await reverseGeocodeDetails(lat, lng).catch(() => ({
+        label: `${lat.toFixed(3)}, ${lng.toFixed(3)}`,
+        isoCountryCode: null as string | null,
+      }));
+      return { label, lat, lng, isoCountryCode };
+    }),
+  );
+
+  // Deduplicate by label
+  const seen = new Set<string>();
+  return details.filter((s) => {
+    const key = s.label.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
