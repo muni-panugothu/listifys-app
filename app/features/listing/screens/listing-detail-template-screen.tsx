@@ -347,11 +347,24 @@ export function ListingDetailTemplateScreen() {
     push("Color", listing.color);
 
     // ── Properties ────────────────────────────────────────────
+    push("Type", listing.category === "Rentals" ? "For Rent" : listing.category === "Properties" ? "For Sale" : listing.category);
     if (listing.bedrooms != null) push("Bedrooms", listing.bedrooms);
     if (listing.bathrooms != null) push("Bathrooms", listing.bathrooms);
-    push("Area", listing.area);
-    push("Property Type", listing.propertyType);
-    push("Furnished", listing.furnished);
+    if (l.squareFeet != null) push("Area (sq.ft)", l.squareFeet);
+    push("Furnishing", listing.furnishing);
+    push("Occupancy", listing.occupancy);
+    push("Gender Preference", l.genderPreference);
+    if (l.petFriendly != null) push("Pet Friendly", l.petFriendly ? "Yes" : "No");
+    if (l.availableFrom) {
+      try {
+        push("Available From", new Date(String(l.availableFrom)).toLocaleDateString("en-IN", {
+          day: "numeric", month: "short", year: "numeric",
+        }));
+      } catch { /* skip invalid date */ }
+    }
+    if (Array.isArray(l.features) && (l.features as string[]).length > 0) {
+      push("Amenities", (l.features as string[]).join(", "));
+    }
 
     // ── Jobs / Services ───────────────────────────────────────
     push("Job Type", l.jobType);
