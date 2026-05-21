@@ -1,12 +1,14 @@
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
+import { TopSaveToast } from "@/components/top-save-toast";
+import { subscribeToasts, type AppToastPayload } from "@/lib/toast";
 import {
     DarkTheme,
     DefaultTheme,
     ThemeProvider,
 } from "@react-navigation/native";
-import { type Href, Stack, usePathname, useRouter } from "@/lib/safe-router";
+import { type Href, Stack, useRouter } from "@/lib/safe-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "react-native-reanimated";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -32,45 +34,36 @@ export default function RootLayout() {
   );
 }
 
-const AUTH_ENTRY_ROUTES = [
-  "/sign-in",
-  "/sign-up",
-  "/onboarding-slide-1",
-  "/onboarding-slide-2",
-  "/onboarding-slide-3",
-  "/mobile",
-  "/otp-verification",
-];
-
 function AppLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { visible, action, redirectTo } = useAppSelector((state) => state.authGate);
-  const { isAuthenticated, sessionHydrated } = useAppSelector((state) => state.auth);
+  const [toastPayload, setToastPayload] = useState<AppToastPayload | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastKey, setToastKey] = useState(0);
 
   useEffect(() => {
-    if (!sessionHydrated || !isAuthenticated) return;
+    const unsubscribe = subscribeToasts((payload) => {
+      setToastVisible(false);
+      setToastPayload(payload);
+      setToastKey((prev) => prev + 1);
+      setTimeout(() => setToastVisible(true), 0);
+    });
 
-    const onAuthEntryScreen = AUTH_ENTRY_ROUTES.some(
-      (route) => pathname === route || pathname.endsWith(route),
-    );
-
-    if (onAuthEntryScreen) {
-      router.replace("/(tabs)/home-feed-root" as Href);
-    }
-  }, [isAuthenticated, pathname, router, sessionHydrated]);
+    return unsubscribe;
+  }, []);
 
   const handleCloseAuthGate = useCallback(() => {
     dispatch(hideAuthGate());
   }, [dispatch]);
 
   const handleAuthenticated = useCallback(() => {
+    dispatch(hideAuthGate());
     if (redirectTo) {
       router.replace(redirectTo as Href);
     }
-  }, [redirectTo, router]);
+  }, [dispatch, redirectTo, router]);
 
   const authGateEmailSignInHref = useCallback(() => {
     if (!redirectTo) return "/sign-in" as Href;
@@ -267,6 +260,16 @@ function AppLayout() {
           onAuthenticated={handleAuthenticated}
           emailSignInHref={authGateEmailSignInHref()}
         />
+        {toastPayload ? (
+          <TopSaveToast
+            key={toastKey}
+            visible={toastVisible}
+            title={toastPayload.title}
+            message={toastPayload.message}
+            type={toastPayload.type}
+            onHidden={() => setToastVisible(false)}
+          />
+        ) : null}
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>

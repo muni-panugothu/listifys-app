@@ -1,9 +1,9 @@
-﻿import { type Href, useRouter } from "@/lib/safe-router";
+﻿import { MaterialIcons } from "@expo/vector-icons";
+import { type Href, useRouter } from "@/lib/safe-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -22,8 +22,9 @@ import {
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from "@/lib/google-sign-in";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { clearError, googleLogin, register } from "@/store/slices/auth-slice";
+import { clearError, clearRegistrationEmail, googleLogin, register } from "@/store/slices/auth-slice";
 
 export function SignUpScreen() {
   const router = useRouter();
@@ -35,7 +36,11 @@ export function SignUpScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Track previous registrationEmail so we only navigate when it freshly becomes non-null
+  const prevRegEmail = useRef<string | null>(registrationEmail);
 
   const contentPaddingBottom = useMemo(
     () => Math.max(insets.bottom + 24, 24),
@@ -43,21 +48,31 @@ export function SignUpScreen() {
   );
   const isLoading = status === "loading";
 
+  // Clear any stale registration session the moment this screen mounts so going back
+  // from OTP doesn't immediately redirect here again.
+  useEffect(() => {
+    dispatch(clearRegistrationEmail());
+    prevRegEmail.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       router.replace("/(tabs)/home-feed-root" as Href);
     }
   }, [isAuthenticated, router]);
 
+  // Only navigate when registrationEmail transitions from null → value (fresh registration)
   useEffect(() => {
-    if (registrationEmail) {
+    if (registrationEmail && registrationEmail !== prevRegEmail.current) {
+      prevRegEmail.current = registrationEmail;
       router.push("/otp-verification" as Href);
     }
   }, [registrationEmail, router]);
 
   useEffect(() => {
     if (error) {
-      Alert.alert("Sign Up Failed", error);
+      showErrorToast("Sign Up Failed", error);
       dispatch(clearError());
     }
   }, [error, dispatch]);
@@ -69,7 +84,7 @@ export function SignUpScreen() {
   const handleCreateAccount = () => {
     const validation = validateSignUpInput(fullName, email, password);
     if (!validation.ok) {
-      Alert.alert("Sign Up", validation.message);
+      showErrorToast("Sign Up", validation.message);
       return;
     }
 
@@ -95,7 +110,7 @@ export function SignUpScreen() {
           : err instanceof Error
             ? err.message
             : "Google sign-in failed.";
-      Alert.alert("Google Sign In", message);
+      showErrorToast("Google Sign In", message);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -145,14 +160,23 @@ export function SignUpScreen() {
                   keyboardType="email-address"
                   className="border border-gray-300 p-4 rounded-full w-full text-gray-800"
                 />
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry
-                  className="border border-gray-300 p-4 rounded-full w-full text-gray-800"
-                />
+                <View className="border border-gray-300 rounded-full w-full flex-row items-center pr-4">
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Password"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry={!showPassword}
+                    className="flex-1 p-4 text-gray-800"
+                  />
+                  <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                    <MaterialIcons
+                      name={showPassword ? "visibility" : "visibility-off"}
+                      size={20}
+                      color="#9CA3AF"
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               <Pressable

@@ -96,6 +96,7 @@ export function HomeFeedRootScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const network = useAppSelector((s) => s.network);
   const displayLocation = useAppSelector(selectLocationLabel);
   const locationCoords = useAppSelector(selectLocationCoords);
@@ -109,6 +110,12 @@ export function HomeFeedRootScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [showLoginSheet, setShowLoginSheet] = useState(false);
   const isOffline = !network.isConnected || network.isInternetReachable === false;
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowLoginSheet(false);
+    }
+  }, [isAuthenticated]);
 
   const applyFeedSnapshot = useCallback(
     (response: FeedResponse, options?: { source?: "cache" | "live" }) => {

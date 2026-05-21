@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,8 +16,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { APP_SCREEN_BG } from "@/constants/theme";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+  clearRegistrationEmail,
   resetAuthStatus,
   resendOtp,
   sendPhoneOtp,
@@ -98,7 +99,7 @@ export function OtpVerificationScreen() {
 
   const handleVerify = async () => {
     if (!registrationEmail && !registrationPhone) {
-      Alert.alert("Error", "Registration session expired. Please start over.");
+      showErrorToast("Error", "Registration session expired. Please start over.");
       router.replace("/sign-up" as Href);
       return;
     }
@@ -165,7 +166,14 @@ export function OtpVerificationScreen() {
         style={{ paddingTop: insets.top + 8, height: headerHeight }}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            dispatch(clearRegistrationEmail());
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/sign-up" as Href);
+            }
+          }}
           style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
           className="h-10 w-10 items-center justify-center rounded-full"
         >

@@ -4,10 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { type Href, useRouter } from '@/lib/safe-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { Alert } from 'react-native'
 import { useEffect, useState } from 'react'
+import { showErrorToast } from '@/lib/toast'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { clearError, googleLogin } from '@/store/slices/auth-slice'
+import { completeOnboarding } from '@/store/slices/onboarding-slice'
 import {
   GoogleSignInError,
   configureGoogleSignIn,
@@ -31,21 +32,21 @@ const App = () => {
 
   const handleSkip = async () => {
     await markOnboardingComplete()
-    router.replace('/home-feed-root' as Href)
+    router.replace('/(tabs)/home-feed-root' as Href)
   }
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/home-feed-root' as Href)
+      router.replace('/(tabs)/home-feed-root' as Href)
     }
   }, [isAuthenticated])
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Google Sign In', error)
+      showErrorToast('Google Sign In', error)
       dispatch(clearError())
     }
-  }, [error])
+  }, [dispatch, error])
 
   useEffect(() => {
     void configureGoogleSignIn().catch(() => {})
@@ -58,7 +59,7 @@ const App = () => {
       await dispatch(googleLogin({ idToken })).unwrap()
     } catch (err) {
       if (err instanceof GoogleSignInError && err.cancelled) return
-      Alert.alert(
+      showErrorToast(
         'Google Sign In',
         err instanceof GoogleSignInError ? err.message : 'Google sign-in failed.',
       )

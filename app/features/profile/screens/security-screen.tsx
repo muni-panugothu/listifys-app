@@ -18,6 +18,7 @@ import {
 } from "@/features/auth/services/auth-api";
 import { ListifyFonts } from "@/constants/typography";
 import { Image } from "@/lib/nativewind-interop";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { useAppSelector } from "@/store/hooks";
 
 const googleLogo =
@@ -52,7 +53,7 @@ export function SecurityScreen() {
         setBiometric(biometricRaw === "true");
       }
     } catch (error) {
-      Alert.alert(
+      showErrorToast(
         "Security",
         error instanceof Error ? error.message : "Failed to load security settings.",
       );
@@ -75,7 +76,7 @@ export function SecurityScreen() {
       setPreferences(response.preferences);
     } catch (error) {
       setPreferences(previous);
-      Alert.alert(
+      showErrorToast(
         "Security",
         error instanceof Error ? error.message : "Failed to update two-factor authentication.",
       );
@@ -92,7 +93,7 @@ export function SecurityScreen() {
       await AsyncStorage.setItem(BIOMETRIC_STORAGE_KEY, String(nextValue));
     } catch (error) {
       setBiometric(previous);
-      Alert.alert(
+      showErrorToast(
         "Security",
         error instanceof Error ? error.message : "Failed to save biometric preference.",
       );
@@ -110,9 +111,9 @@ export function SecurityScreen() {
         onPress: async () => {
           try {
             await logoutAllDevices();
-            Alert.alert("Done", "Signed out from all devices.");
+            showSuccessToast("Done", "Signed out from all devices.");
           } catch (e: unknown) {
-            Alert.alert("Error", e instanceof Error ? e.message : "Failed");
+            showErrorToast("Error", e instanceof Error ? e.message : "Failed");
           }
         },
       },

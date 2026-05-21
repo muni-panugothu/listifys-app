@@ -12,7 +12,7 @@ export function AuthSkipButton() {
       style={{ top: insets.top + 8, height: 56 }}
     >
       <Pressable
-        onPress={() => router.replace("/home-feed-root" as Href)}
+        onPress={() => router.replace("/(tabs)/home-feed-root" as Href)}
         android_ripple={{
           color: "rgba(156, 163, 175, 0.12)",
           borderless: true,

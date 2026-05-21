@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { type ReactNode, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +17,7 @@ import { ProfileAvatarImage } from "@/components/profile-avatar-image";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { uploadProfileImage } from "@/features/auth/services/auth-api";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -139,10 +139,10 @@ export function ProfileDetailsEditScreen() {
       }),
     );
     if (updateUserProfile.fulfilled.match(result)) {
-      Alert.alert("Saved", "Your profile was updated.");
+      showSuccessToast("Saved", "Your profile was updated.");
       handleBack();
     } else {
-      Alert.alert("Error", (result.payload as string) || "Failed to update profile");
+      showErrorToast("Error", (result.payload as string) || "Failed to update profile");
     }
   };
 
@@ -150,7 +150,7 @@ export function ProfileDetailsEditScreen() {
     try {
       const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permResult.granted) {
-        Alert.alert("Permission required", "Please allow access to your photos.");
+        showErrorToast("Permission required", "Please allow access to your photos.");
         return;
       }
 
@@ -206,11 +206,11 @@ export function ProfileDetailsEditScreen() {
         // Upload already succeeded; ignore refresh errors
       }
 
-      Alert.alert("Photo updated", "Your profile picture was saved.");
+      showSuccessToast("Photo updated", "Your profile picture was saved.");
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message : "Could not upload image";
-      Alert.alert("Upload failed", message);
+      showErrorToast("Upload failed", message);
     } finally {
       setUploading(false);
     }

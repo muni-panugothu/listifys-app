@@ -3,7 +3,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   Pressable,
   Text,
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setLocationFromSearch,
@@ -51,7 +51,7 @@ export function LocationPickerScreen() {
       await dispatch(setLocationFromSearch(text)).unwrap();
       handleBack();
     } catch (error) {
-      Alert.alert(
+      showErrorToast(
         "Location not found",
         error instanceof Error ? error.message : "Try a different place name.",
       );
@@ -66,7 +66,7 @@ export function LocationPickerScreen() {
       await dispatch(useCurrentDeviceLocation()).unwrap();
       handleBack();
     } catch (error) {
-      Alert.alert(
+      showErrorToast(
         "Location unavailable",
         error instanceof Error
           ? error.message
@@ -164,10 +164,10 @@ export function LocationPickerScreen() {
           })}
         >
           {busy && query.trim() ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={BRAND} />
           ) : (
             <Text
-              className="text-[16px] text-white"
+              className="text-[16px]"
               style={{ fontFamily: ListifyFonts.semiBold }}
             >
               Use this location

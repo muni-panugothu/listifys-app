@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "@/lib/safe-router";
-import { type NavigationProp, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { useCallback, useRef } from "react";
 import { Platform } from "react-native";
@@ -24,6 +24,12 @@ const TAB_SCREEN_NAMES: Record<string, string> = {
   profile: "dashboard-home",
 };
 
+type AnyNavigation = {
+  getState?: () => { type?: string; routeNames?: string[] } | undefined;
+  getParent?: () => AnyNavigation | undefined;
+  navigate: (...args: unknown[]) => void;
+};
+
 function getTabSegment(route: string) {
   return route.split("/").filter(Boolean).pop() ?? route;
 }
@@ -37,21 +43,26 @@ function isTabRouteActive(pathname: string, target: string) {
   );
 }
 
-function findTabNavigator(
-  navigation: NavigationProp<Record<string, object | undefined>>,
-) {
-  let current: NavigationProp<Record<string, object | undefined>> | undefined =
-    navigation;
+function findTabNavigator(navigation: AnyNavigation) {
+  let current: AnyNavigation | undefined = navigation;
 
   while (current) {
-    const state = current.getState?.();
-    const routeNames = (state as { routeNames?: string[] } | undefined)?.routeNames;
-    if (routeNames?.includes("dashboard-home")) {
+    const state = current.getState?.() as
+      | { type?: string; routeNames?: string[] }
+      | undefined;
+    const routeNames = state?.routeNames ?? [];
+
+    const isMainTabsNavigator =
+      state?.type === "tab" &&
+      routeNames.includes("home-feed-root") &&
+      routeNames.includes("search-home") &&
+      routeNames.includes("sell-entry") &&
+      routeNames.includes("dashboard-home");
+
+    if (isMainTabsNavigator) {
       return current;
     }
-    current = current.getParent?.() as
-      | NavigationProp<Record<string, object | undefined>>
-      | undefined;
+    current = current.getParent?.();
   }
 
   return null;
@@ -105,13 +116,14 @@ export function useTabNavigation(onAuthRequired?: () => void) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       }
 
-      const tabNavigator = findTabNavigator(navigation);
+      const tabNavigator = findTabNavigator(navigation as unknown as AnyNavigation);
       if (tabNavigator) {
-        tabNavigator.navigate(screenName as never);
+        tabNavigator.navigate(screenName);
         return;
       }
 
-      router.navigate(target as never);
+      // When outside the tab navigator stack, push a concrete tab href.
+      router.push(target as never);
     },
     [dispatch, isAuthenticated, navigation, onAuthRequired, pathname, router],
   );

@@ -19,28 +19,33 @@ const TAB_TO_ROUTE: Record<BottomNavTabId, string> = {
   profile: "dashboard-home",
 };
 
+function getRouteSegment(routeName: string) {
+  return routeName.split("/").filter(Boolean).pop() ?? routeName;
+}
+
 export function MainTabBar({ state, navigation }: BottomTabBarProps) {
   const activeRouteName = state.routes[state.index]?.name ?? "home-feed-root";
-  const activeTabId = ROUTE_TO_TAB[activeRouteName] ?? "home";
+  const activeTabId = ROUTE_TO_TAB[getRouteSegment(activeRouteName)] ?? "home";
 
   const handleTabPress = (tabId: string) => {
     const routeName = TAB_TO_ROUTE[tabId as BottomNavTabId];
     if (!routeName) return;
 
-    if (ROUTE_TO_TAB[activeRouteName] === tabId) return;
+    if (ROUTE_TO_TAB[getRouteSegment(activeRouteName)] === tabId) return;
 
-    const route = state.routes.find((r) => r.name === routeName);
+    const route = state.routes.find((r) => getRouteSegment(r.name) === routeName);
+    const resolvedRouteName = route?.name ?? routeName;
     const event = navigation.emit({
       type: "tabPress",
       target: route?.key,
       canPreventDefault: true,
     });
 
-    if (!event.defaultPrevented && route) {
+    if (!event.defaultPrevented) {
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       }
-      navigation.navigate(routeName);
+      navigation.navigate(resolvedRouteName);
     }
   };
 

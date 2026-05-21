@@ -18,6 +18,7 @@ import { ListifyFonts } from "@/constants/typography";
 import { deleteListing, fetchMyListings, type ListingItem } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { formatTimeAgo } from "@/lib/format-time-ago";
+import { showErrorToast } from "@/lib/toast";
 
 const SPECIAL_DETAIL_ROUTES: Record<string, string> = {
   events: "/event-detail",
@@ -119,7 +120,7 @@ export function MyListingsScreen({ initialTab = "Active" }: MyListingsScreenProp
                 await deleteListing(category, listing._id);
                 setAllListings((prev) => prev.filter((l) => l._id !== listing._id));
               } catch {
-                Alert.alert(
+                showErrorToast(
                   "Error",
                   isDraft
                     ? "Failed to delete draft. Please try again."

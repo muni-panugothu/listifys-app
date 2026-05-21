@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -15,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, forgotPassword } from "@/store/slices/auth-slice";
 
@@ -36,15 +36,15 @@ export function ForgotPasswordScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert("Error", error);
+      showErrorToast("Error", error);
       dispatch(clearError());
     }
-  }, [error]);
+  }, [dispatch, error]);
 
   const handleSendCode = () => {
     const trimmed = identity.trim();
     if (!trimmed) {
-      Alert.alert("Required", "Please enter your email.");
+      showErrorToast("Required", "Please enter your email.");
       return;
     }
     dispatch(forgotPassword({ email: trimmed.toLowerCase() }));

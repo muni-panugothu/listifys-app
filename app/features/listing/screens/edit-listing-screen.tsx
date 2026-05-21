@@ -28,6 +28,7 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_GAP = 12;
@@ -124,7 +125,7 @@ export function EditListingScreen() {
           if (l.positions) setPositions(String(l.positions));
         }
       } catch {
-        Alert.alert("Error", "Failed to load listing data.");
+        showErrorToast("Error", "Failed to load listing data.");
       } finally {
         setLoading(false);
       }
@@ -133,7 +134,7 @@ export function EditListingScreen() {
 
   const handleSave = useCallback(async () => {
     if (!listingId || !title.trim()) {
-      Alert.alert("Validation", "Title is required.");
+      showErrorToast("Validation", "Title is required.");
       return;
     }
     setSaving(true);
@@ -177,11 +178,10 @@ export function EditListingScreen() {
         if (positions) body.positions = Number(positions);
       }
       await updateListing(categorySlug, listingId, body);
-      Alert.alert("Updated", "Your listing has been updated successfully.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      showSuccessToast("Updated", "Your listing has been updated successfully.");
+      router.back();
     } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to update listing.");
+      showErrorToast("Error", err?.message || "Failed to update listing.");
     } finally {
       setSaving(false);
     }
@@ -201,11 +201,10 @@ export function EditListingScreen() {
             setDeleting(true);
             try {
               await deleteListing(categorySlug, listingId);
-              Alert.alert("Deleted", "Listing removed successfully.", [
-                { text: "OK", onPress: () => router.back() },
-              ]);
+              showSuccessToast("Deleted", "Listing removed successfully.");
+              router.back();
             } catch {
-              Alert.alert("Error", "Failed to delete listing.");
+              showErrorToast("Error", "Failed to delete listing.");
             } finally {
               setDeleting(false);
             }

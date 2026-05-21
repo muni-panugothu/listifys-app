@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -16,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, resendResetOtp, verifyResetOtp } from "@/store/slices/auth-slice";
 
@@ -45,10 +45,10 @@ export function ResetOtpVerificationScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert("Verification Failed", error);
+      showErrorToast("Verification Failed", error);
       dispatch(clearError());
     }
-  }, [error]);
+  }, [dispatch, error]);
 
   useEffect(() => {
     if (secondsRemaining === 0) {
@@ -94,11 +94,15 @@ export function ResetOtpVerificationScreen() {
 
   const handleVerify = () => {
     if (!resetEmail) {
-      Alert.alert("Error", "Reset session expired. Please try again.");
+      showErrorToast("Error", "Reset session expired. Please try again.");
       router.replace("/forgot-password" as Href);
       return;
     }
     const otp = otpDigits.join("");
+    if (otp.length !== RESET_OTP_LENGTH) {
+      showErrorToast("Invalid OTP", "Please enter the full 6-digit OTP.");
+      return;
+    }
     dispatch(verifyResetOtp({ email: resetEmail, otp }));
   };
 

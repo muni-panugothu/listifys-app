@@ -53,6 +53,12 @@ const dispatchEmail = async (payload) => {
       });
       break;
 
+    // ── Offer Notification (buyer made an offer to seller) ────────────────────
+    case 'offer_notification':
+      logger.info('[EmailConsumer] Sending offer notification email', { to: payload.sellerEmail });
+      await EmailService.sendOfferNotificationEmail(payload);
+      break;
+
     default:
       logger.warn('[EmailConsumer] Unknown email type — skipping', { type, email });
   }

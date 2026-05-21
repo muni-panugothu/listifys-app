@@ -3,7 +3,6 @@ import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "@/li
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,6 +19,7 @@ import {
 } from "@/features/auth/services/auth-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
+import { showErrorToast } from "@/lib/toast";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
@@ -96,7 +96,7 @@ export function FollowersFollowingScreen() {
       setFollowersCount(followersResponse.followersCount ?? nextFollowers.length);
       setFollowingCount(followingResponse.followingCount ?? nextFollowing.length);
     } catch (error) {
-      Alert.alert("Followers", error instanceof Error ? error.message : "Failed to load follow data.");
+      showErrorToast("Followers", error instanceof Error ? error.message : "Failed to load follow data.");
     } finally {
       setIsLoading(false);
     }
@@ -179,7 +179,7 @@ export function FollowersFollowingScreen() {
 
       void dispatch(fetchProfile());
     } catch (error) {
-      Alert.alert("Follow", error instanceof Error ? error.message : "Failed to update follow status.");
+      showErrorToast("Follow", error instanceof Error ? error.message : "Failed to update follow status.");
     } finally {
       setPendingUserId(null);
     }

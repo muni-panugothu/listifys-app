@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSelector, createSlice } from "@reduxjs/toolkit";
 
 import {
   detectDeviceLocation,
@@ -267,12 +267,13 @@ export const selectLocationLabel = (state: RootState) => {
   return state.location.label;
 };
 
-export const selectLocationCoords = (state: RootState) => ({
-  lat: state.location.lat,
-  lng: state.location.lng,
-  label: state.location.label,
-  isoCountryCode: state.location.isoCountryCode,
-});
+export const selectLocationCoords = createSelector(
+  (state: RootState) => state.location.lat,
+  (state: RootState) => state.location.lng,
+  (state: RootState) => state.location.label,
+  (state: RootState) => state.location.isoCountryCode,
+  (lat, lng, label, isoCountryCode) => ({ lat, lng, label, isoCountryCode }),
+);
 
 export const selectIsoCountryCode = (state: RootState) =>
   state.location.isoCountryCode;

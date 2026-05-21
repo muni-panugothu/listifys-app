@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type DeviceSession, getDevices, logoutAllDevices, revokeDevice } from "@/features/auth/services/auth-api";
 import { Image } from "@/lib/nativewind-interop";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 const heroImage = "https://lh3.googleusercontent.com/aida-public/AB6AXuAuhXEzk0isZFjM8QbQX3ab0RiYIrvSTgaGYCMtVk2FxJdctudTkhBu3vtypIGtH22NbYhrapHrRbtoyoxNcBOUQNo4-O1tBi4ZqiPBo_Z5QESK_EwRmsvUUvVdjfR5wa3kT1JKjkf1U_FAlPZJpTksljkOR-PxjQfExczQXS08bwCIPvRitXOg8vY-FpCIvvkdqG4B62ilLEw-W00wmjf5Ai3YqwNFuVsC1QSD4rnZiM4TloOxUFIAT_8WqMmB_GDEhkc6X8s-MIo";
@@ -60,10 +61,10 @@ export function DevicesScreen() {
         onPress: async () => {
           try {
             await logoutAllDevices();
-            Alert.alert("Done", "Logged out from all other devices.");
+            showSuccessToast("Done", "Logged out from all other devices.");
             loadDevices();
           } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed");
+            showErrorToast("Error", e.message || "Failed");
           }
         },
       },
@@ -81,7 +82,7 @@ export function DevicesScreen() {
             await revokeDevice(deviceId);
             loadDevices();
           } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed");
+            showErrorToast("Error", e.message || "Failed");
           }
         },
       },
