@@ -313,10 +313,64 @@ export function ListingDetailTemplateScreen() {
   const detailRows = useMemo(() => {
     if (!listing) return [] as { label: string; value: string }[];
     const rows: { label: string; value: string }[] = [];
-    if (listing.brand) rows.push({ label: "Brand", value: String(listing.brand) });
-    if (listing.model) rows.push({ label: "Model", value: String(listing.model) });
-    if (listing.subcategory) rows.push({ label: "Category", value: listing.subcategory });
-    if (listing.year) rows.push({ label: "Year", value: String(listing.year) });
+    const l = listing as Record<string, unknown>;
+
+    const push = (label: string, val: unknown) => {
+      const s = val != null ? String(val).trim() : "";
+      if (s !== "" && s !== "undefined") rows.push({ label, value: s });
+    };
+
+    // ── Universal ─────────────────────────────────────────────
+    push("Category", listing.subcategory);
+    push("Brand", listing.brand);
+    push("Model", listing.model);
+
+    // ── Electronics ───────────────────────────────────────────
+    push("Purchase Year", l.purchaseYear);
+    push("Warranty", listing.warranty);
+    push("Screen Size", l.screenSize);
+    push("Display Type", l.displayType);
+    push("Processor", l.processor);
+    push("RAM", listing.ram);
+    push("Storage", listing.storage);
+    push("Capacity", l.capacity);
+    push("Energy Rating", l.energyRating);
+    push("Megapixels", l.megapixels);
+    push("Lens Type", l.lensType);
+
+    // ── Vehicles ──────────────────────────────────────────────
+    push("Year", listing.year);
+    push("Fuel Type", listing.fuelType);
+    push("Transmission", listing.transmission);
+    push("Mileage", listing.mileage);
+    push("Engine CC", l.engineCC);
+    push("Color", listing.color);
+
+    // ── Properties ────────────────────────────────────────────
+    if (listing.bedrooms != null) push("Bedrooms", listing.bedrooms);
+    if (listing.bathrooms != null) push("Bathrooms", listing.bathrooms);
+    push("Area", listing.area);
+    push("Property Type", listing.propertyType);
+    push("Furnished", listing.furnished);
+
+    // ── Jobs / Services ───────────────────────────────────────
+    push("Job Type", l.jobType);
+    push("Experience", l.experience);
+    push("Education", l.educationLevel);
+    push("Service Type", l.serviceType);
+    push("Availability", l.availability);
+
+    // ── Events ────────────────────────────────────────────────
+    if (l.startDate) {
+      try {
+        push("Event Date", new Date(String(l.startDate)).toLocaleDateString("en-IN", {
+          day: "numeric", month: "short", year: "numeric",
+        }));
+      } catch { /* skip invalid date */ }
+    }
+    push("Venue", l.venue);
+    push("Organizer", l.organizer);
+
     return rows;
   }, [listing]);
 
@@ -481,6 +535,31 @@ export function ListingDetailTemplateScreen() {
         {listing ? (
           <ListingLocationSection listing={listing} category={categorySlug} />
         ) : null}
+
+        {/* Description / Details tab switcher */}
+        <View className="mt-5 flex-row border-b border-[#F0F0F0] px-4">
+          {(["description", "details"] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <Pressable
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                className="mr-6 pb-3"
+                style={{ borderBottomWidth: isActive ? 2 : 0, borderBottomColor: "#1A1A1A" }}
+              >
+                <Text
+                  className="text-[15px]"
+                  style={{
+                    fontFamily: isActive ? ListifyFonts.semiBold : ListifyFonts.regular,
+                    color: isActive ? "#1A1A1A" : "#9CA3AF",
+                  }}
+                >
+                  {tab === "description" ? "Description" : "Details"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         {/* Tab content */}
         <View className="mt-4 px-4">

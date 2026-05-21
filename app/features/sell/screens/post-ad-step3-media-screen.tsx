@@ -36,6 +36,7 @@ import {
   addImageUri,
   removeImageUri,
   resetPostForm,
+  setListingCoords,
   setLocation,
   setPhone,
   setPhoneCode,
@@ -70,7 +71,7 @@ export function PostAdStep3MediaScreen() {
     author, isbn, publisher, edition, language, pages,
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
-    imageUris, phone, phoneCode, isSubmitting, submitError,
+    imageUris, phone, phoneCode, locationLat, locationLng, isSubmitting, submitError,
   } = useAppSelector((s) => s.postForm);
 
   const locationStatus = useAppSelector((s) => s.location.status);
@@ -115,6 +116,9 @@ export function PostAdStep3MediaScreen() {
     try {
       const result = await dispatch(refreshDeviceLocation({ force: true })).unwrap();
       dispatch(setLocation(result.label));
+      if (result.lat != null && result.lng != null) {
+        dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
+      }
     } catch {
       Alert.alert(
         "Location unavailable",
@@ -227,6 +231,12 @@ export function PostAdStep3MediaScreen() {
         imageUrls,
         location,
         ...(phone ? { phone: `${phoneCode}${phone}` } : {}),
+        // GPS coordinates — listing-specific first, fall back to global device location
+        ...(() => {
+          const lat = locationLat ?? locationCoords.lat;
+          const lng = locationLng ?? locationCoords.lng;
+          return lat != null && lng != null ? { lat, lng } : {};
+        })(),
       };
 
       // Attach property-specific fields
@@ -548,6 +558,7 @@ export function PostAdStep3MediaScreen() {
             onSelect={async (result) => {
               dispatch(setLocation(result.label));
               if (result.lat != null && result.lng != null) {
+                dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
                 await dispatch(
                   setLocationDirect({
                     label: result.label,
@@ -577,8 +588,8 @@ export function PostAdStep3MediaScreen() {
             </Text>
           </Pressable>
           <PostLocationMapPreview
-            lat={locationCoords.lat}
-            lng={locationCoords.lng}
+            lat={locationLat ?? locationCoords.lat}
+            lng={locationLng ?? locationCoords.lng}
             locationLabel={location}
             height={144}
           />

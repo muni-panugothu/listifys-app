@@ -432,6 +432,18 @@ export function SellerPublicProfileScreen() {
                 {displayName}
               </Text>
 
+              {seller?.email ? (
+                <View className="mt-1 flex-row items-center gap-1.5">
+                  <MaterialIcons name="mail-outline" size={14} color="#9CA3AF" />
+                  <Text
+                    className="text-[13px] text-[#9CA3AF]"
+                    style={{ fontFamily: ListifyFonts.regular }}
+                  >
+                    {seller.email}
+                  </Text>
+                </View>
+              ) : null}
+
               <View className="mt-1.5 self-start">
                 <SellerStars rating={sellerRating} />
                 <Text

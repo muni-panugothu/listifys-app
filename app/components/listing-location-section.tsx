@@ -104,33 +104,46 @@ export function ListingLocationSection({
         Location
       </Text>
 
-      {(distanceLabel || locationText) && (
-        <View className="mb-3 flex-row flex-wrap items-center gap-x-3 gap-y-1">
+      {(distanceLabel || locationText) ? (
+        <View className="mb-3 gap-y-1.5">
+          <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
+            {distanceLabel ? (
+              <View className="flex-row items-center gap-1 rounded-full bg-[rgba(39,187,151,0.12)] px-3 py-1.5">
+                <MaterialIcons name="near-me" size={16} color="#27BB97" />
+                <Text
+                  className="text-[14px] text-[#27BB97]"
+                  style={{ fontFamily: ListifyFonts.semiBold }}
+                >
+                  {distanceLabel} away
+                </Text>
+              </View>
+            ) : null}
+            {locationText ? (
+              <View className="flex-row items-center gap-1 flex-1 min-w-0">
+                <MaterialIcons name="location-on" size={16} color="#6B7280" />
+                <Text
+                  className="flex-1 text-[14px] text-[#6B7280]"
+                  style={{ fontFamily: ListifyFonts.regular }}
+                  numberOfLines={2}
+                >
+                  {locationText}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           {distanceLabel ? (
-            <View className="flex-row items-center gap-1 rounded-full bg-[rgba(39,187,151,0.12)] px-3 py-1.5">
-              <MaterialIcons name="near-me" size={16} color="#27BB97" />
+            <View className="flex-row items-center gap-1">
+              <MaterialIcons name="info-outline" size={11} color="#9CA3AF" />
               <Text
-                className="text-[14px] text-[#27BB97]"
-                style={{ fontFamily: ListifyFonts.semiBold }}
-              >
-                {distanceLabel} away
-              </Text>
-            </View>
-          ) : null}
-          {locationText ? (
-            <View className="flex-row items-center gap-1 flex-1 min-w-0">
-              <MaterialIcons name="location-on" size={16} color="#6B7280" />
-              <Text
-                className="flex-1 text-[14px] text-[#6B7280]"
+                className="text-[11px] text-[#9CA3AF]"
                 style={{ fontFamily: ListifyFonts.regular }}
-                numberOfLines={2}
               >
-                {locationText}
+                {"Straight-line distance \u00b7 may differ from road distance"}
               </Text>
             </View>
           ) : null}
         </View>
-      )}
+      ) : null}
 
       <Pressable
         onPress={openGoogleMaps}

@@ -47,7 +47,16 @@ export function parseListingCoordinates(
 }
 
 export function buildOpenStreetMapPreviewUrl(lat: number, lng: number) {
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=800x360&markers=${lat},${lng},lightblue1`;
+  const googleKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY?.trim();
+  if (googleKey) {
+    return (
+      `https://maps.googleapis.com/maps/api/staticmap` +
+      `?center=${lat},${lng}&zoom=15&size=600x300&scale=2` +
+      `&markers=color:red%7C${lat},${lng}&key=${googleKey}`
+    );
+  }
+  // Fallback — OSM static map (less reliable, no key required)
+  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=600x300&markers=${lat},${lng},lightblue1`;
 }
 
 export function buildGoogleMapsUrl(

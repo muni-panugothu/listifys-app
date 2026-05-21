@@ -285,8 +285,18 @@ export async function fetchCategoryListings(
 
   const qs = query.toString();
 
+  const cacheKey = [
+    "list",
+    categorySlug,
+    params?.page ?? 1,
+    params?.subcategory ?? "",
+    params?.search ?? "",
+    params?.condition ?? "",
+    params?.sort ?? "",
+  ].join(":");
+
   return withCache(
-    cacheKeys.categoryList(categorySlug, params?.page),
+    cacheKey,
     async () => {
       const data = await apiRequest<ListingsResponse>(
         `/api/${categorySlug}${qs ? `?${qs}` : ""}`,

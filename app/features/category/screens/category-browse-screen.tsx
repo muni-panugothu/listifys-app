@@ -24,7 +24,9 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
+import { selectLocationCoords } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BG = "#F6F7F8";
@@ -92,6 +94,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAppSelector((s) => s.auth.user);
+  const userCoords = useAppSelector(selectLocationCoords);
 
   const categoryConfig = CATEGORY_MAP[categorySlug];
   const subcategories = useMemo(
@@ -395,11 +398,22 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                   <ListingItemsGridCard
                     key={item._id}
                     title={item.title}
-                    subtitle={item.condition || item.subcategory || item.location}
+                    subtitle={item.condition || item.subcategory}
                     price={item.price ?? null}
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}
+                    distanceLabel={getListingDistanceLabel(
+                      {
+                        _id: item._id,
+                        category: categorySlug,
+                        distance: item.distance as number | undefined,
+                        coordinates: item.coordinates,
+                      },
+                      userCoords.lat != null && userCoords.lng != null
+                        ? { lat: userCoords.lat, lng: userCoords.lng }
+                        : null,
+                    )}
                     isSaved={savedIds.has(item._id)}
                     onPress={() => openDetail(item)}
                     onToggleSave={() => handleToggleSave(item._id)}

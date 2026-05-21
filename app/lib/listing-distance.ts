@@ -92,9 +92,9 @@ export function resolveListingDistanceKm(
     );
   }
 
+  // No real distance available — fall back to a stable estimate from the listing ID
   const id = item._id ?? item.id;
   if (!id) return null;
-
   return stableKmFromId(id);
 }
 
