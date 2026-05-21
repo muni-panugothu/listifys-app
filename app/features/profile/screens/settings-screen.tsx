@@ -1,7 +1,7 @@
 import { type Href, useRouter } from "@/lib/safe-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Alert, Linking, Pressable, Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 
 import {
   ProfileSectionCard,
@@ -14,6 +14,7 @@ import {
   updateSettingsPreferences,
 } from "@/features/auth/services/auth-api";
 import { ListifyFonts } from "@/constants/typography";
+import { showErrorToast } from "@/lib/toast";
 import { useAppSelector } from "@/store/hooks";
 
 export function SettingsScreen() {
@@ -30,7 +31,7 @@ export function SettingsScreen() {
       const response = await getSettingsPreferences();
       setPreferences(response.preferences);
     } catch (error) {
-      Alert.alert(
+      showErrorToast(
         "Settings",
         error instanceof Error ? error.message : "Failed to load settings.",
       );
@@ -59,7 +60,7 @@ export function SettingsScreen() {
         setPreferences(response.preferences);
       } catch (error) {
         setPreferences(previous);
-        Alert.alert(
+        showErrorToast(
           "Settings",
           error instanceof Error ? error.message : "Failed to update settings.",
         );

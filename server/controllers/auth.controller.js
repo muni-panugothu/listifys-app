@@ -1121,8 +1121,9 @@ exports.getGoogleClientId = (req, res) => {
 exports.initiateRegister = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
-    logger.info("🔍 Registration attempt:", { email, name });
+    logger.info("🔍 Registration attempt:", { email: normalizedEmail, name });
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -1133,7 +1134,7 @@ exports.initiateRegister = async (req, res) => {
     }
 
     const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         message: "Please provide a valid email address",
@@ -1157,20 +1158,16 @@ exports.initiateRegister = async (req, res) => {
 
     // No confirmPassword check needed
 
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: normalizedEmail });
     if (userExists) {
-      // Generic message to prevent account enumeration
-      return res.status(200).json({
-        success: true,
-        message:
-          "OTP sent to your email. Please verify to complete registration.",
-        email: email,
-        expiresIn: 600,
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists. Please sign in.",
       });
     }
 
     const pendingRegistration =
-      await RedisService.getPendingRegistration(email);
+      await RedisService.getPendingRegistration(normalizedEmail);
     if (pendingRegistration) {
       const now = new Date();
       const createdAt = new Date(pendingRegistration.createdAt);
@@ -1185,24 +1182,24 @@ exports.initiateRegister = async (req, res) => {
             return res.status(200).json({
               success: true,
               message: "OTP sent to your email. Please verify to complete registration.",
-              email,
+              email: normalizedEmail,
               expiresIn: Math.ceil((expiresAt - now) / 1000),
             });
           }
         }
 
         const newOtp = OTPGenerator.generateOTP();
-        await RedisService.storeOTP(email, newOtp);
+        await RedisService.storeOTP(normalizedEmail, newOtp);
         pendingRegistration.lastResendTime = now.toISOString();
         pendingRegistration.resendCount = (pendingRegistration.resendCount || 0) + 1;
-        await RedisService.storePendingRegistration(email, pendingRegistration);
+        await RedisService.storePendingRegistration(normalizedEmail, pendingRegistration);
 
-        logger.info(`📤 Re-queuing OTP email for pending registration: ${email}`);
-        const otpQueued = await publishOTPEmail({ email, username: pendingRegistration.name, otp: newOtp, type: 'registration' });
+        logger.info(`📤 Re-queuing OTP email for pending registration: ${normalizedEmail}`);
+        const otpQueued = await publishOTPEmail({ email: normalizedEmail, username: pendingRegistration.name, otp: newOtp, type: 'registration' });
         if (!otpQueued) {
           try {
-            await EmailService.sendOTPEmail(email, pendingRegistration.name, newOtp);
-            logger.info(`✅ OTP re-sent directly (queue fallback) to ${email}`);
+            await EmailService.sendOTPEmail(normalizedEmail, pendingRegistration.name, newOtp);
+            logger.info(`✅ OTP re-sent directly (queue fallback) to ${normalizedEmail}`);
           } catch (emailError) {
             logger.error("❌ Failed to resend OTP email:", emailError.message);
           }
@@ -1211,15 +1208,15 @@ exports.initiateRegister = async (req, res) => {
         return res.status(200).json({
           success: true,
           message: "OTP sent to your email. Please verify to complete registration.",
-          email,
+          email: normalizedEmail,
           expiresIn: Math.ceil((expiresAt - now) / 1000),
         });
       } else {
-        await RedisService.deletePendingRegistration(email);
+        await RedisService.deletePendingRegistration(normalizedEmail);
       }
     }
 
-    const emailBlocked = await RedisService.checkEmailBlocked(email);
+    const emailBlocked = await RedisService.checkEmailBlocked(normalizedEmail);
     if (emailBlocked) {
       return res.status(429).json({
         success: false,
@@ -1228,7 +1225,7 @@ exports.initiateRegister = async (req, res) => {
     }
 
     const otp = OTPGenerator.generateOTP();
-    logger.info(`✅ Generated OTP for ${email}`);
+    logger.info(`✅ Generated OTP for ${normalizedEmail}`);
 
     const hashedPassword = await argon2.hash(password, {
       type: argon2.argon2id,
@@ -1239,7 +1236,7 @@ exports.initiateRegister = async (req, res) => {
 
     const userData = {
       name,
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       provider: "local",
       otpAttempts: 0,
@@ -1251,33 +1248,33 @@ exports.initiateRegister = async (req, res) => {
     };
 
     const storeResult = await RedisService.storePendingRegistration(
-      email,
+      normalizedEmail,
       userData,
     );
     if (!storeResult) {
       throw new Error("Failed to store registration data");
     }
 
-    const otpStoreResult = await RedisService.storeOTP(email, otp);
+    const otpStoreResult = await RedisService.storeOTP(normalizedEmail, otp);
     if (!otpStoreResult) {
       throw new Error("Failed to store OTP");
     }
 
-    await RedisService.incrementRegistrationAttempts(email);
+    await RedisService.incrementRegistrationAttempts(normalizedEmail);
 
     // ✅ NON-BLOCKING: publish OTP to RabbitMQ queue — API responds immediately
-    logger.info(`📤 Queuing OTP email for: ${email}`);
-    const otpQueued = await publishOTPEmail({ email, username: name, otp, type: 'registration' });
+    logger.info(`📤 Queuing OTP email for: ${normalizedEmail}`);
+    const otpQueued = await publishOTPEmail({ email: normalizedEmail, username: name, otp, type: 'registration' });
     
     // Fallback: if queue unavailable, send directly (blocking) to avoid silent failure
     if (!otpQueued) {
       try {
-        await EmailService.sendOTPEmail(email, name, otp);
-        logger.info(`✅ OTP sent directly (queue fallback) to ${email}`);
+        await EmailService.sendOTPEmail(normalizedEmail, name, otp);
+        logger.info(`✅ OTP sent directly (queue fallback) to ${normalizedEmail}`);
       } catch (emailError) {
         logger.error("❌ Failed to send OTP email (direct fallback):", emailError.message);
-        await RedisService.deletePendingRegistration(email);
-        await RedisService.deleteOTP(email);
+        await RedisService.deletePendingRegistration(normalizedEmail);
+        await RedisService.deleteOTP(normalizedEmail);
         return res.status(500).json({
           success: false,
           message: "Failed to send OTP email. Please try again later.",
@@ -1288,7 +1285,7 @@ exports.initiateRegister = async (req, res) => {
     // Audit log (fire-and-forget via queue)
     publishAuditLog({
       action: 'otp_requested',
-      email,
+      email: normalizedEmail,
       ip: req.ip,
       userAgent: req.get('user-agent'),
       metadata: { type: 'registration' },
@@ -1298,7 +1295,7 @@ exports.initiateRegister = async (req, res) => {
       success: true,
       message:
         "OTP sent to your email. Please verify to complete registration.",
-      email: email,
+      email: normalizedEmail,
       expiresIn: 600,
     });
   } catch (error) {

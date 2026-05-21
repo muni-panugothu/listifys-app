@@ -4,7 +4,7 @@
     "slug": "Listify-App",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app-icon.png",
+    "icon": "./assets/splashscreenImg/splashImg.png",
     "scheme": "listifyapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

@@ -386,6 +386,12 @@ const authSlice = createSlice({
       state.resetToken = null;
       AsyncStorage.removeItem(FLOW_STATE_KEY);
     },
+    clearRegistrationEmail(state) {
+      state.registrationEmail = null;
+      state.registrationPhone = null;
+      state.status = "idle";
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     // Login
@@ -610,6 +616,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, resetAuthStatus, setAuthUser, clearResetFlow } =
+export const { clearError, resetAuthStatus, setAuthUser, clearResetFlow, clearRegistrationEmail } =
   authSlice.actions;
 export default authSlice.reducer;

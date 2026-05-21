@@ -32,7 +32,7 @@ const AVATAR_SIZE = 108;
 const AVATAR_LEFT = 20;
 const AVATAR_OVERLAP = AVATAR_SIZE / 2;
 
-const PRO_BADGE_COLOR = "#F43F9C";
+const PRO_BADGE_COLOR = "#27bb97";
 
 type MenuRowProps = {
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
@@ -276,18 +276,6 @@ export function DashboardHomeScreen() {
                 iconSize={44}
               />
             </View>
-          </View>
-
-          <View
-            className="mb-2 self-start rounded-md px-2.5 py-1"
-            style={{ backgroundColor: PRO_BADGE_COLOR }}
-          >
-            <Text
-              className="text-[11px] tracking-wide text-white"
-              style={{ fontFamily: ListifyFonts.bold }}
-            >
-              PRO
-            </Text>
           </View>
 
           <Text

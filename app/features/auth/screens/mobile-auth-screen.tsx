@@ -3,7 +3,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, sendPhoneOtp, verifyPhoneOtp } from "@/store/slices/auth-slice";
 
@@ -49,7 +49,7 @@ export function MobileAuthScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert("Mobile Verification", error);
+      showErrorToast("Mobile Verification", error);
       dispatch(clearError());
     }
   }, [error, dispatch]);
@@ -71,7 +71,7 @@ export function MobileAuthScreen() {
   const handleSendOtp = async () => {
     const digitsOnly = phoneNumber.replace(/\D/g, "");
     if (digitsOnly.length !== 10) {
-      Alert.alert("Invalid Phone", "Please enter a valid 10-digit phone number.");
+      showErrorToast("Invalid Phone", "Please enter a valid 10-digit phone number.");
       return;
     }
 
@@ -109,13 +109,13 @@ export function MobileAuthScreen() {
 
   const handleVerifyOtp = () => {
     if (!requestedPhone) {
-      Alert.alert("Session Expired", "Please request OTP again.");
+      showErrorToast("Session Expired", "Please request OTP again.");
       setOtpDigits(Array(OTP_LENGTH).fill(""));
       return;
     }
 
     if (!isVerifyEnabled) {
-      Alert.alert("Invalid OTP", "Please enter the 6-digit OTP.");
+      showErrorToast("Invalid OTP", "Please enter the 6-digit OTP.");
       return;
     }
 

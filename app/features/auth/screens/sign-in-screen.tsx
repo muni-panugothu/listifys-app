@@ -1,9 +1,9 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +23,7 @@ import {
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from "@/lib/google-sign-in";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, googleLogin, login } from "@/store/slices/auth-slice";
 
@@ -34,6 +35,7 @@ export function SignInScreen() {
   const { status, error, isAuthenticated } = useAppSelector((s) => s.auth);
   const [credential, setCredential] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const contentPaddingBottom = useMemo(
@@ -62,7 +64,7 @@ export function SignInScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert("Sign In Failed", error);
+      showErrorToast("Sign In Failed", error);
       dispatch(clearError());
     }
   }, [dispatch, error]);
@@ -70,7 +72,7 @@ export function SignInScreen() {
   const handleSignIn = () => {
     const validation = validateSignInInput(credential, password);
     if (!validation.ok) {
-      Alert.alert("Missing Details", validation.message);
+      showErrorToast("Missing Details", validation.message);
       return;
     }
     dispatch(login({ identity: validation.identity, password: validation.password }));
@@ -89,7 +91,7 @@ export function SignInScreen() {
           : err instanceof Error
             ? err.message
             : "Google sign-in failed.";
-      Alert.alert("Google Sign In", message);
+      showErrorToast("Google Sign In", message);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -130,15 +132,24 @@ export function SignInScreen() {
                   autoComplete="username"
                   className="w-full rounded-full border border-gray-300 p-4 text-gray-800"
                 />
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry
-                  autoComplete="password"
-                  className="w-full rounded-full border border-gray-300 p-4 text-gray-800"
-                />
+                <View className="w-full flex-row items-center rounded-full border border-gray-300 pr-4">
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Password"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry={!showPassword}
+                    autoComplete="password"
+                    className="flex-1 p-4 text-gray-800"
+                  />
+                  <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                    <MaterialIcons
+                      name={showPassword ? "visibility" : "visibility-off"}
+                      size={20}
+                      color="#9CA3AF"
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               <Pressable onPress={() => router.push("/forgot-password" as Href)}>

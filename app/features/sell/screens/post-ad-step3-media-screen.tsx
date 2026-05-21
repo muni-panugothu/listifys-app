@@ -3,7 +3,6 @@ import * as ImagePicker from "expo-image-picker";
 import { type Href, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect } from "react";
 import {
-  Alert,
   BackHandler,
   Pressable,
   Text,
@@ -26,6 +25,7 @@ import {
   uploadListingImages,
 } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
+import { showErrorToast } from "@/lib/toast";
 import { PostLocationMapPreview } from "@/components/post-location-map-preview";
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
 import { LocationAutocompleteInput } from "@/components/location-autocomplete-input";
@@ -120,7 +120,7 @@ export function PostAdStep3MediaScreen() {
         dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
       }
     } catch {
-      Alert.alert(
+      showErrorToast(
         "Location unavailable",
         "Enable location permission or enter your area manually.",
       );
@@ -144,19 +144,19 @@ export function PostAdStep3MediaScreen() {
 
   const handleSubmit = async () => {
     if (imageUris.length === 0) {
-      Alert.alert("Photos required", "Please add at least one photo.");
+      showErrorToast("Photos required", "Please add at least one photo.");
       return;
     }
     if (!title || title.length < 3) {
-      Alert.alert("Title too short", "Title must be at least 3 characters.");
+      showErrorToast("Title too short", "Title must be at least 3 characters.");
       return;
     }
     if (!description || description.length < 20) {
-      Alert.alert("Description too short", "Description must be at least 20 characters.");
+      showErrorToast("Description too short", "Description must be at least 20 characters.");
       return;
     }
     if (!location || location.length < 2) {
-      Alert.alert("Location required", "Please enter a location (at least 2 characters).");
+      showErrorToast("Location required", "Please enter a location (at least 2 characters).");
       return;
     }
 
@@ -172,7 +172,7 @@ export function PostAdStep3MediaScreen() {
           .map((r) => r.filename)
           .join(", ");
         dispatch(setSubmitting(false));
-        Alert.alert(
+        showErrorToast(
           "Image Blocked",
           `One or more images contain inappropriate content and cannot be posted. Please remove or replace them.\n\nAffected: ${blockedFiles}`,
         );
@@ -184,7 +184,7 @@ export function PostAdStep3MediaScreen() {
           .map((r) => r.filename)
           .join(", ");
         dispatch(setSubmitting(false));
-        Alert.alert(
+        showErrorToast(
           "Image Under Review",
           `Some images may contain sensitive content and need to be reviewed. Please remove or replace them before posting.\n\nAffected: ${reviewFiles}`,
         );
@@ -475,7 +475,7 @@ export function PostAdStep3MediaScreen() {
         err instanceof Error ? err.message : "Failed to post listing";
       dispatch(setSubmitError(message));
       dispatch(setSubmitting(false));
-      Alert.alert("Error", message);
+      showErrorToast("Error", message);
     }
   };
 

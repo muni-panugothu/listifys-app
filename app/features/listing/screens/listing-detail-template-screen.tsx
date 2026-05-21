@@ -39,7 +39,7 @@ const IMAGE_HORIZONTAL_PAD = 16;
 const IMAGE_WIDTH = SCREEN_WIDTH - IMAGE_HORIZONTAL_PAD * 2;
 const THUMB_SIZE = 72;
 const TAB_BLUE = "#6BA3FF";
-const READ_MORE_LIMIT = 140;
+const READ_MORE_LIMIT = 320;
 
 const CONDITION_OPTIONS = ["New", "Like New", "Good", "Fair"];
 

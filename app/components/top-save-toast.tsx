@@ -11,10 +11,13 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListifyFonts } from "@/constants/typography";
+import type { AppToastType } from "@/lib/toast";
 
 type TopSaveToastProps = {
   visible: boolean;
+  title?: string;
   message?: string;
+  type?: AppToastType;
   onHidden?: () => void;
 };
 
@@ -22,12 +25,22 @@ const SHOW_DURATION_MS = 1800;
 
 export function TopSaveToast({
   visible,
+  title,
   message = "Item saved",
+  type = "success",
   onHidden,
 }: TopSaveToastProps) {
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(-120);
   const opacity = useSharedValue(0);
+
+  const toastAccentByType: Record<AppToastType, { icon: React.ComponentProps<typeof MaterialIcons>["name"]; color: string }> = {
+    success: { icon: "check", color: "#27BB97" },
+    error: { icon: "error-outline", color: "#DC2626" },
+    info: { icon: "info-outline", color: "#3B82F6" },
+  };
+
+  const accent = toastAccentByType[type];
 
   useEffect(() => {
     if (!visible) return;
@@ -70,15 +83,27 @@ export function TopSaveToast({
           elevation: 8,
         }}
       >
-        <View className="h-7 w-7 items-center justify-center rounded-full bg-[#27BB97]">
-          <MaterialIcons name="check" size={18} color="#FFFFFF" />
+        <View className="h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: accent.color }}>
+          <MaterialIcons name={accent.icon} size={18} color="#FFFFFF" />
         </View>
-        <Text
-          className="text-[15px] text-white"
-          style={{ fontFamily: ListifyFonts.medium }}
-        >
-          {message}
-        </Text>
+        <View className="flex-1">
+          {title ? (
+            <Text
+              className="text-[14px] text-white"
+              style={{ fontFamily: ListifyFonts.semiBold }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+          ) : null}
+          <Text
+            className="text-[15px] text-white"
+            style={{ fontFamily: ListifyFonts.medium }}
+            numberOfLines={2}
+          >
+            {message}
+          </Text>
+        </View>
       </View>
     </Animated.View>
   );

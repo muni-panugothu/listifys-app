@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { changePassword, setupPassword } from "@/features/auth/services/auth-api";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
 
@@ -38,7 +38,7 @@ export function ChangePasswordScreen() {
       router.back();
       return;
     }
-    router.replace("/home-feed-root" as Href);
+    router.replace("/(tabs)/home-feed-root" as Href);
   };
 
   const hasExistingPassword = user?.hasPassword !== false && user?.provider !== "google";
@@ -67,18 +67,16 @@ export function ChangePasswordScreen() {
       if (isGoogleOnly) {
         await setupPassword(newPassword);
         dispatch(fetchProfile());
-        Alert.alert("Success", "Password created successfully! You can now sign in with email and password too.", [
-          { text: "OK", onPress: handleBack },
-        ]);
+        showSuccessToast("Success", "Password created successfully! You can now sign in with email and password too.");
+        handleBack();
       } else {
         await changePassword(currentPassword, newPassword);
         dispatch(fetchProfile());
-        Alert.alert("Success", "Password changed successfully.", [
-          { text: "OK", onPress: handleBack },
-        ]);
+        showSuccessToast("Success", "Password changed successfully.");
+        handleBack();
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to update password");
+      showErrorToast("Error", e.message || "Failed to update password");
     } finally {
       setLoading(false);
     }

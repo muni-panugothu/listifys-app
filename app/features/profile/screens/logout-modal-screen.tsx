@@ -1,17 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useRouter } from "@/lib/safe-router";
 import { useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Text, ToastAndroid, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
 import { logoutFromServer } from "@/features/auth/services/auth-api";
+import { showSuccessToast } from "@/lib/toast";
 import { useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/slices/auth-slice";
-
-function showToast(msg: string) {
-  if (Platform.OS === "android") {
-    ToastAndroid.show(msg, ToastAndroid.SHORT);
-  }
-}
 
 export function LogoutModalScreen() {
   const router = useRouter();
@@ -26,7 +21,7 @@ export function LogoutModalScreen() {
       /* proceed with local logout even if server call fails */
     }
     await dispatch(logout());
-    showToast("Logged out successfully");
+    showSuccessToast("Success", "Logged out successfully");
     setLoading(false);
     router.replace("/onboarding-slide-3" as Href);
   };

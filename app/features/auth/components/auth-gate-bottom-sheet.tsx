@@ -8,7 +8,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Keyboard,
   Modal,
@@ -24,6 +23,7 @@ import {
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from "@/lib/google-sign-in";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { AuthGateAction } from "@/store/slices/auth-gate-slice";
 import { googleLogin, sendPhoneOtp, verifyPhoneOtp } from "@/store/slices/auth-slice";
@@ -143,7 +143,7 @@ export function AuthGateBottomSheet({
       await dispatch(googleLogin({ idToken })).unwrap();
     } catch (err) {
       if (err instanceof GoogleSignInError && err.cancelled) return;
-      Alert.alert(
+      showErrorToast(
         "Google Sign In",
         err instanceof GoogleSignInError ? err.message : "Sign in failed. Please try again.",
       );

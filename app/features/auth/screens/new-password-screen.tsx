@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListifyOnboardingAssets } from "@/constants/listify-theme";
 import { Image } from "@/lib/nativewind-interop";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, clearResetFlow, resetPassword } from "@/store/slices/auth-slice";
 
@@ -61,25 +61,44 @@ export function NewPasswordScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert("Reset Failed", error);
+      showErrorToast("Reset Failed", error);
       dispatch(clearError());
     }
-  }, [error]);
+  }, [dispatch, error]);
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (!resetToken || !resetEmail) {
-      Alert.alert("Error", "Session expired. Please start over.");
+      showErrorToast("Error", "Session expired. Please start over.");
       router.replace("/forgot-password" as Href);
       return;
     }
-    dispatch(resetPassword({ resetToken, password, email: resetEmail })).then((action) => {
-      if (action.meta.requestStatus === "fulfilled") {
-        dispatch(clearResetFlow());
-        Alert.alert("Success", "Password reset successfully. Please sign in.", [
-          { text: "OK", onPress: () => router.replace("/sign-in" as Href) },
-        ]);
-      }
-    });
+
+    if (!password || !confirmPassword) {
+      showErrorToast("Required", "Please fill in both password fields.");
+      return;
+    }
+
+    if (!requirements.every((requirement) => requirement.met)) {
+      showErrorToast(
+        "Weak Password",
+        "Use 8+ chars with at least one number and one special character.",
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showErrorToast("Mismatch", "Password and confirm password do not match.");
+      return;
+    }
+
+    const action = await dispatch(resetPassword({ resetToken, password, email: resetEmail }));
+    if (action.meta.requestStatus === "fulfilled") {
+      dispatch(clearResetFlow());
+      showSuccessToast("Success", "Password reset successfully. Please sign in.");
+      setTimeout(() => {
+        router.replace("/sign-in" as Href);
+      }, 700);
+    }
   };
 
   return (
@@ -262,10 +281,10 @@ export function NewPasswordScreen() {
             <View className="mt-6 pb-4">
               <Pressable
                 onPress={handleResetPassword}
-                disabled={!canReset || isLoading}
+                disabled={isLoading}
                 style={({ pressed }) => [
-                  { transform: [{ scale: pressed && canReset ? 0.95 : 1 }] },
-                  { opacity: canReset && !isLoading ? 1 : 0.55 },
+                  { transform: [{ scale: pressed && !isLoading ? 0.95 : 1 }] },
+                  { opacity: !isLoading ? 1 : 0.55 },
                 ]}
                 className="overflow-hidden rounded-lg"
               >
