@@ -96,7 +96,7 @@ exports.getAllFurniture = async (req, res) => {
   try {
     const {
       search,
-      subcategory,
+      category,
       condition,
       minPrice,
       maxPrice,
@@ -114,7 +114,7 @@ exports.getAllFurniture = async (req, res) => {
 
     const queryKey = [
       search || "",
-      subcategory || "",
+      category || "",
       condition || "",
       minPrice || "",
       maxPrice || "",
@@ -144,7 +144,7 @@ exports.getAllFurniture = async (req, res) => {
     if (search && !(lat && lng)) {
       const esResult = await esHydratedSearch({
         entity: 'furniture',
-        searchParams: { query: search, category: subcategory, condition, minPrice, maxPrice, location: locationFilter, sort, page: safePage, limit: safeLimit },
+        searchParams: { query: search, category: category, condition, minPrice, maxPrice, location: locationFilter, sort, page: safePage, limit: safeLimit },
         Model: Furniture,
         projection: LIST_PROJECTION,
       });
@@ -174,8 +174,8 @@ exports.getAllFurniture = async (req, res) => {
         { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
-    if (subcategory) {
-      const subs = subcategory.split(",").map((s) => s.trim());
+    if (category) {
+      const subs = category.split(",").map((s) => s.trim());
       filter.subcategory = { $in: subs };
     }
     if (condition) {
