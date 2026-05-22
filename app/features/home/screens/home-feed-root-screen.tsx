@@ -242,9 +242,10 @@ export function HomeFeedRootScreen() {
     }
   }, [isOffline, isUsingCachedFeed, loadFeed]);
 
-  // Refresh recently viewed + unread count when screen is focused
+  // Refresh feed + recently viewed + unread counts when screen is focused
   useFocusEffect(
     useCallback(() => {
+      loadFeed({ allowCacheFallback: false }).catch(() => {});
       getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
@@ -252,7 +253,7 @@ export function HomeFeedRootScreen() {
       getChatUnreadCount()
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
-    }, []),
+    }, [loadFeed]),
   );
 
   const handleRefresh = useCallback(async () => {
