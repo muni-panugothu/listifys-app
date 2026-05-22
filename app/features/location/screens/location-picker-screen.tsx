@@ -1,39 +1,232 @@
+/**
+ * LocationPickerScreen
+ *
+ * Google Maps / Uber-style location picker powered by Google Places API.
+ *
+ * Architecture:
+ *   - usePlacesAutocomplete hook  → debounced API calls + session token
+ *   - google-places.service       → Autocomplete + Place Details REST calls
+ *   - HighlightedText component   → exact bold matches via Google offsets
+ *   - PlacePredictionItem         → prediction row
+ *   - RecentLocationItem          → recent-history row
+ *   - setLocationDirect action    → Redux update with exact lat/lng (no re-geocode)
+ */
+
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
+  Animated,
+  FlatList,
   Keyboard,
+  Platform,
   Pressable,
   Text,
   TextInput,
   View,
+  type ListRenderItem,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  PlacePredictionItem,
+  RecentLocationItem,
+} from "@/components/location-suggestion-item";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
+import {
+  extractIsoCountryCode,
+  fetchPlaceDetails,
+  saveRecentLocation,
+  type PlacePrediction,
+  type RecentLocation,
+} from "@/lib/google-places.service";
+import { saveStoredLocation } from "@/lib/location-service";
 import { showErrorToast } from "@/lib/toast";
+import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  setLocationFromSearch,
+  setLocationDirect,
   useCurrentDeviceLocation,
 } from "@/store/slices/location-slice";
 
 const BRAND = "#27BB97";
 
+// ── List item discriminated union ──────────────────────────────────────────────
+
+type ListRow =
+  | { kind: "prediction"; data: PlacePrediction }
+  | { kind: "recent"; data: RecentLocation }
+  | { kind: "skeleton"; id: string }
+  | { kind: "section_header"; label: string };
+
+// ── Skeleton row ───────────────────────────────────────────────────────────────
+
+function SkeletonRow({ shimmer }: { shimmer: Animated.Value }) {
+  const opacity = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.4, 0.9],
+  });
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+      }}
+    >
+      <Animated.View
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          backgroundColor: "#E5E7EB",
+          marginRight: 13,
+          opacity,
+        }}
+      />
+      <View style={{ flex: 1, gap: 8 }}>
+        <Animated.View
+          style={{
+            height: 13,
+            width: "65%",
+            borderRadius: 6,
+            backgroundColor: "#E5E7EB",
+            opacity,
+          }}
+        />
+        <Animated.View
+          style={{
+            height: 11,
+            width: "80%",
+            borderRadius: 6,
+            backgroundColor: "#E5E7EB",
+            opacity,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+// ── Section header ─────────────────────────────────────────────────────────────
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <View
+      style={{
+        paddingHorizontal: 16,
+        paddingTop: 14,
+        paddingBottom: 6,
+        backgroundColor: "#FAFAFA",
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 11,
+          fontFamily: ListifyFonts.semiBold,
+          color: "#9CA3AF",
+          textTransform: "uppercase",
+          letterSpacing: 0.8,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ── Main Screen ────────────────────────────────────────────────────────────────
+
 export function LocationPickerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const currentLabel = useAppSelector((s) => s.location.label);
-  const status = useAppSelector((s) => s.location.status);
-  const [query, setQuery] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  const busy = submitting || status === "loading";
+  const locationLat = useAppSelector((s) => s.location.lat);
+  const locationLng = useAppSelector((s) => s.location.lng);
+  const currentLabel = useAppSelector((s) => s.location.label);
+  const locationStatus = useAppSelector((s) => s.location.status);
+
+  const [query, setQuery] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList<ListRow>>(null);
+
+  // Shimmer animation for skeleton
+  const shimmer = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+
+  // Dropdown entrance animation
+  const listOpacity = useRef(new Animated.Value(0)).current;
+  const listTranslateY = useRef(new Animated.Value(8)).current;
+
+  const {
+    predictions,
+    recentLocations,
+    loading: predictionsLoading,
+    error: predictionsError,
+    sessionToken,
+    resetSession,
+    refreshRecent,
+  } = usePlacesAutocomplete(query, locationLat, locationLng);
+
+  const isQueryActive = query.trim().length >= 2;
+  const busy = selecting || locationStatus === "loading";
+
+  // Animate list in whenever data changes
+  useEffect(() => {
+    listOpacity.setValue(0);
+    listTranslateY.setValue(8);
+    Animated.parallel([
+      Animated.timing(listOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(listTranslateY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isQueryActive, predictions.length, recentLocations.length]);
+
+  // ── Navigation ───────────────────────────────────────────────────────────────
 
   const handleBack = useCallback(() => {
+    Keyboard.dismiss();
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -41,163 +234,550 @@ export function LocationPickerScreen() {
     }
   }, [router]);
 
-  const handleSearchSubmit = useCallback(async () => {
-    const text = query.trim();
-    if (!text) return;
+  // ── Selection handlers ───────────────────────────────────────────────────────
 
-    Keyboard.dismiss();
-    setSubmitting(true);
-    try {
-      await dispatch(setLocationFromSearch(text)).unwrap();
-      handleBack();
-    } catch (error) {
-      showErrorToast(
-        "Location not found",
-        error instanceof Error ? error.message : "Try a different place name.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }, [dispatch, handleBack, query]);
+  const handlePredictionPress = useCallback(
+    async (prediction: PlacePrediction) => {
+      Keyboard.dismiss();
+      setSelecting(true);
+      try {
+        const details = await fetchPlaceDetails(prediction.place_id, sessionToken);
+        const { lat, lng } = details.geometry.location;
+        const isoCountryCode = extractIsoCountryCode(details);
+
+        // Build a clean label: "Main Text, City" style
+        const main = prediction.structured_formatting.main_text;
+        const secondary = prediction.structured_formatting.secondary_text;
+        const label = secondary ? `${main}, ${secondary.split(",")[0]?.trim()}` : main;
+
+        // Persist to AsyncStorage + update Redux (no extra geocode call)
+        await saveStoredLocation({
+          label,
+          lat,
+          lng,
+          isoCountryCode,
+          source: "manual",
+          updatedAt: Date.now(),
+        });
+
+        dispatch(
+          setLocationDirect({ label, lat, lng, isoCountryCode }),
+        );
+
+        // Save to recent searches
+        await saveRecentLocation({
+          place_id: prediction.place_id,
+          title: main,
+          subtitle: secondary ?? "",
+          lat,
+          lng,
+          savedAt: Date.now(),
+        });
+
+        resetSession();
+        handleBack();
+      } catch (err) {
+        showErrorToast(
+          "Location unavailable",
+          err instanceof Error ? err.message : "Could not load place details.",
+        );
+      } finally {
+        setSelecting(false);
+      }
+    },
+    [dispatch, handleBack, resetSession, sessionToken],
+  );
+
+  const handleRecentPress = useCallback(
+    async (item: RecentLocation) => {
+      Keyboard.dismiss();
+      setSelecting(true);
+      try {
+        await saveStoredLocation({
+          label: item.title,
+          lat: item.lat,
+          lng: item.lng,
+          isoCountryCode: null,
+          source: "manual",
+          updatedAt: Date.now(),
+        });
+
+        dispatch(
+          setLocationDirect({ label: item.title, lat: item.lat, lng: item.lng }),
+        );
+
+        handleBack();
+      } catch (err) {
+        showErrorToast(
+          "Error",
+          err instanceof Error ? err.message : "Could not set location.",
+        );
+      } finally {
+        setSelecting(false);
+      }
+    },
+    [dispatch, handleBack],
+  );
 
   const handleUseCurrentLocation = useCallback(async () => {
-    setSubmitting(true);
+    setGpsLoading(true);
     try {
       await dispatch(useCurrentDeviceLocation()).unwrap();
       handleBack();
-    } catch (error) {
+    } catch (err) {
       showErrorToast(
         "Location unavailable",
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : "Allow location access in settings and try again.",
       );
     } finally {
-      setSubmitting(false);
+      setGpsLoading(false);
     }
   }, [dispatch, handleBack]);
 
+  // ── List data ────────────────────────────────────────────────────────────────
+
+  const listData = useMemo((): ListRow[] => {
+    // Loading skeleton
+    if (isQueryActive && predictionsLoading) {
+      return Array.from({ length: 5 }, (_, i) => ({
+        kind: "skeleton" as const,
+        id: `skeleton-${i}`,
+      }));
+    }
+
+    // Predictions
+    if (isQueryActive && predictions.length > 0) {
+      return predictions.map((p) => ({ kind: "prediction" as const, data: p }));
+    }
+
+    // Recent searches (no query)
+    if (!isQueryActive && recentLocations.length > 0) {
+      const header: ListRow = { kind: "section_header", label: "Recent searches" };
+      const items: ListRow[] = recentLocations.map((r) => ({
+        kind: "recent" as const,
+        data: r,
+      }));
+      return [header, ...items];
+    }
+
+    return [];
+  }, [isQueryActive, predictionsLoading, predictions, recentLocations]);
+
+  // ── FlatList renderer ────────────────────────────────────────────────────────
+
+  const renderItem: ListRenderItem<ListRow> = useCallback(
+    ({ item, index }) => {
+      if (item.kind === "skeleton") {
+        return <SkeletonRow shimmer={shimmer} />;
+      }
+
+      if (item.kind === "section_header") {
+        return <SectionHeader label={item.label} />;
+      }
+
+      if (item.kind === "prediction") {
+        const isLast =
+          index === listData.length - 1 ||
+          (listData[index + 1] as ListRow | undefined)?.kind !== "prediction";
+        return (
+          <PlacePredictionItem
+            prediction={item.data}
+            onPress={handlePredictionPress}
+            isLast={isLast}
+          />
+        );
+      }
+
+      if (item.kind === "recent") {
+        const isLast = index === listData.length - 1;
+        return (
+          <RecentLocationItem
+            item={item.data}
+            onPress={handleRecentPress}
+            isLast={isLast}
+          />
+        );
+      }
+
+      return null;
+    },
+    [listData, handlePredictionPress, handleRecentPress, shimmer],
+  );
+
+  const keyExtractor = useCallback((item: ListRow, index: number): string => {
+    if (item.kind === "prediction") return `pred-${item.data.place_id}`;
+    if (item.kind === "recent") return `recent-${item.data.place_id}`;
+    if (item.kind === "skeleton") return item.id;
+    return `header-${index}`;
+  }, []);
+
+  const getItemLayout = useCallback(
+    (_: ArrayLike<ListRow> | null | undefined, index: number) => ({
+      length: 66,
+      offset: 66 * index,
+      index,
+    }),
+    [],
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  const showEmptyState =
+    isQueryActive && !predictionsLoading && predictions.length === 0 && !predictionsError;
+  const showErrorState = isQueryActive && !!predictionsError && !predictionsLoading;
+
   return (
-    <View className="flex-1" style={{ backgroundColor: APP_SCREEN_BG }}>
+    <View style={{ flex: 1, backgroundColor: APP_SCREEN_BG }}>
+      {/* ── Header ── */}
       <View
         style={{
           paddingTop: insets.top + 8,
           paddingHorizontal: 20,
           paddingBottom: 12,
+          backgroundColor: APP_SCREEN_BG,
         }}
       >
-        <View className="flex-row items-center">
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Pressable
             onPress={handleBack}
             hitSlop={12}
-            className="mr-1 h-10 w-10 items-center justify-center"
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
+              marginRight: 4,
+              width: 40,
+              height: 40,
+              alignItems: "center",
+              justifyContent: "center",
+            })}
           >
             <MaterialIcons name="chevron-left" size={32} color="#1A1A1A" />
           </Pressable>
           <Text
-            className="text-[22px] text-[#1A1A1A]"
-            style={{ fontFamily: ListifyFonts.bold }}
+            style={{
+              fontSize: 22,
+              fontFamily: ListifyFonts.bold,
+              color: "#1A1A1A",
+            }}
           >
             Choose location
           </Text>
         </View>
 
+        {/* Search input */}
         <View
-          className="mt-5 h-12 flex-row items-center rounded-2xl bg-white px-4"
           style={{
+            marginTop: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            height: 52,
+            backgroundColor: "#FFFFFF",
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            gap: 10,
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.04,
+            shadowOpacity: 0.06,
             shadowRadius: 8,
-            elevation: 2,
+            elevation: 3,
           }}
         >
-          <MaterialIcons name="search" size={22} color="#9CA3AF" />
+          <MaterialIcons name="search" size={22} color={query.length > 0 ? BRAND : "#9CA3AF"} />
           <TextInput
+            ref={inputRef}
             value={query}
             onChangeText={setQuery}
-            onSubmitEditing={() => void handleSearchSubmit()}
-            placeholder="Search city, area, or address"
+            placeholder="Search city, area or landmark…"
             placeholderTextColor="#9CA3AF"
             returnKeyType="search"
+            autoFocus
+            autoCapitalize="words"
+            autoCorrect={false}
             editable={!busy}
-            className="ml-3 flex-1 text-[16px] text-[#1A1A1A]"
-            style={{ fontFamily: ListifyFonts.regular, paddingVertical: 0 }}
+            style={{
+              flex: 1,
+              fontSize: 15.5,
+              color: "#111827",
+              fontFamily: ListifyFonts.regular,
+              paddingVertical: 0,
+            }}
           />
-          {query.length > 0 ? (
-            <Pressable onPress={() => setQuery("")} hitSlop={8}>
-              <MaterialIcons name="close" size={20} color="#9CA3AF" />
+          {predictionsLoading && query.trim().length >= 2 ? (
+            <ActivityIndicator size="small" color={BRAND} />
+          ) : null}
+          {query.length > 0 && !predictionsLoading ? (
+            <Pressable
+              onPress={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+              hitSlop={10}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 11,
+                  backgroundColor: "#E5E7EB",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <MaterialIcons name="close" size={14} color="#6B7280" />
+              </View>
             </Pressable>
           ) : null}
         </View>
+      </View>
 
-        {currentLabel && currentLabel !== "Set location" ? (
-          <View className="mt-4 flex-row items-start gap-2 rounded-2xl bg-white px-4 py-3">
-            <MaterialIcons name="location-on" size={20} color={BRAND} />
-            <View className="flex-1">
-              <Text
-                className="text-[12px] text-[#9CA3AF]"
-                style={{ fontFamily: ListifyFonts.regular }}
-              >
-                Current
-              </Text>
-              <Text
-                className="text-[15px] text-[#1A1A1A]"
-                style={{ fontFamily: ListifyFonts.semiBold }}
-              >
-                {currentLabel}
-              </Text>
+      {/* ── Content area ── */}
+      <View style={{ flex: 1 }}>
+        {/* Use current location row */}
+        {!isQueryActive ? (
+          <Pressable
+            onPress={() => void handleUseCurrentLocation()}
+            disabled={gpsLoading}
+            android_ripple={{ color: "#E6FBF4" }}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 20,
+              paddingVertical: 15,
+              backgroundColor: pressed ? "#F0FDF9" : "#FFFFFF",
+              marginHorizontal: 16,
+              marginTop: 6,
+              borderRadius: 14,
+              gap: 13,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.04,
+              shadowRadius: 4,
+              elevation: 1,
+              opacity: gpsLoading ? 0.7 : 1,
+            })}
+          >
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: "#ECFDF5",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {gpsLoading ? (
+                <ActivityIndicator size="small" color={BRAND} />
+              ) : (
+                <MaterialIcons name="my-location" size={19} color={BRAND} />
+              )}
             </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 14.5,
+                  fontFamily: ListifyFonts.semiBold,
+                  color: BRAND,
+                  lineHeight: 20,
+                }}
+              >
+                Use current location
+              </Text>
+              {currentLabel && currentLabel !== "Set location" ? (
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontSize: 12,
+                    color: "#6B7280",
+                    fontFamily: ListifyFonts.regular,
+                    lineHeight: 17,
+                  }}
+                >
+                  {currentLabel}
+                </Text>
+              ) : (
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "#9CA3AF",
+                    fontFamily: ListifyFonts.regular,
+                    lineHeight: 17,
+                  }}
+                >
+                  Detect my device location
+                </Text>
+              )}
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color={BRAND} />
+          </Pressable>
+        ) : null}
+
+        {/* Suggestion list */}
+        {listData.length > 0 ? (
+          <Animated.View
+            style={{
+              flex: 1,
+              marginTop: isQueryActive ? 10 : 8,
+              marginHorizontal: 16,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 16,
+              overflow: "hidden",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
+              elevation: 4,
+              opacity: listOpacity,
+              transform: [{ translateY: listTranslateY }],
+            }}
+          >
+            <FlatList
+              ref={listRef}
+              data={listData}
+              renderItem={renderItem}
+              keyExtractor={keyExtractor}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              removeClippedSubviews
+              getItemLayout={getItemLayout}
+              initialNumToRender={8}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+            />
+          </Animated.View>
+        ) : null}
+
+        {/* Empty state */}
+        {showEmptyState ? (
+          <Animated.View
+            style={{
+              alignItems: "center",
+              marginTop: 56,
+              paddingHorizontal: 32,
+              opacity: listOpacity,
+            }}
+          >
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: "#F3F4F6",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
+            >
+              <MaterialIcons name="search-off" size={34} color="#9CA3AF" />
+            </View>
+            <Text
+              style={{
+                fontSize: 16,
+                fontFamily: ListifyFonts.semiBold,
+                color: "#374151",
+                textAlign: "center",
+                marginBottom: 6,
+              }}
+            >
+              No results found
+            </Text>
+            <Text
+              style={{
+                fontSize: 13.5,
+                fontFamily: ListifyFonts.regular,
+                color: "#9CA3AF",
+                textAlign: "center",
+                lineHeight: 20,
+              }}
+            >
+              {`No locations match "${query.trim()}".`}
+              {"\n"}Try a city name, landmark, or address.
+            </Text>
+          </Animated.View>
+        ) : null}
+
+        {/* Error state */}
+        {showErrorState ? (
+          <View
+            style={{
+              alignItems: "center",
+              marginTop: 56,
+              paddingHorizontal: 32,
+            }}
+          >
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: "#FEF2F2",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
+            >
+              <MaterialIcons name="wifi-off" size={32} color="#EF4444" />
+            </View>
+            <Text
+              style={{
+                fontSize: 16,
+                fontFamily: ListifyFonts.semiBold,
+                color: "#374151",
+                textAlign: "center",
+                marginBottom: 6,
+              }}
+            >
+              Connection error
+            </Text>
+            <Text
+              style={{
+                fontSize: 13.5,
+                fontFamily: ListifyFonts.regular,
+                color: "#9CA3AF",
+                textAlign: "center",
+              }}
+            >
+              {predictionsError}
+            </Text>
           </View>
         ) : null}
       </View>
 
-      <View className="flex-1 justify-end px-5" style={{ paddingBottom: insets.bottom + 24 }}>
-        <Pressable
-          onPress={() => void handleSearchSubmit()}
-          disabled={busy || !query.trim()}
-          className="mb-3 items-center rounded-2xl py-4"
-          style={({ pressed }) => ({
-            backgroundColor: BRAND,
-            opacity: busy || !query.trim() ? 0.5 : pressed ? 0.9 : 1,
-          })}
+      {/* Selecting overlay */}
+      {selecting ? (
+        <View
+          style={{
+            ...StyleSheet_absoluteFill,
+            backgroundColor: "rgba(255,255,255,0.7)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          {busy && query.trim() ? (
-            <ActivityIndicator color={BRAND} />
-          ) : (
-            <Text
-              className="text-[16px]"
-              style={{ fontFamily: ListifyFonts.semiBold }}
-            >
-              Use this location
-            </Text>
-          )}
-        </Pressable>
+          <ActivityIndicator size="large" color={BRAND} />
+        </View>
+      ) : null}
 
-        <Pressable
-          onPress={() => void handleUseCurrentLocation()}
-          disabled={busy}
-          className="flex-row items-center justify-center gap-2 rounded-2xl border border-[#E5E7EB] bg-white py-4"
-          style={({ pressed }) => ({
-            opacity: busy ? 0.6 : pressed ? 0.9 : 1,
-          })}
-        >
-          {busy && !query.trim() ? (
-            <ActivityIndicator color={BRAND} />
-          ) : (
-            <>
-              <MaterialIcons name="my-location" size={22} color={BRAND} />
-              <Text
-                className="text-[16px]"
-                style={{ fontFamily: ListifyFonts.semiBold, color: BRAND }}
-              >
-                Use my current location
-              </Text>
-            </>
-          )}
-        </Pressable>
-      </View>
+      <View style={{ height: insets.bottom + 16 }} />
     </View>
   );
 }
+
+const StyleSheet_absoluteFill = {
+  position: "absolute" as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 99,
+};
+
+
+
+
+
+
+

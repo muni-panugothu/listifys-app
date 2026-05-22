@@ -89,7 +89,7 @@ export function getNotificationRoute(item: NotificationItem): Href | null {
     if (!senderId) return null;
     return {
       pathname: "/seller-public-profile",
-      params: { sellerId: senderId, sellerName },
+      params: { sellerId: senderId, sellerName: senderName },
     } as Href;
   }
 
@@ -108,7 +108,7 @@ export function getNotificationRoute(item: NotificationItem): Href | null {
     return chatHref(item) ?? (senderId
       ? ({
           pathname: "/seller-public-profile",
-          params: { sellerId: senderId, sellerName },
+          params: { sellerId: senderId, sellerName: senderName },
         } as Href)
       : null);
   }
@@ -117,7 +117,7 @@ export function getNotificationRoute(item: NotificationItem): Href | null {
     if (senderId) {
       return {
         pathname: "/seller-public-profile",
-        params: { sellerId: senderId, sellerName },
+        params: { sellerId: senderId, sellerName: senderName },
       } as Href;
     }
     return null;
@@ -131,7 +131,7 @@ export function getNotificationRoute(item: NotificationItem): Href | null {
     if (senderId) {
       return {
         pathname: "/seller-public-profile",
-        params: { sellerId: senderId, sellerName },
+        params: { sellerId: senderId, sellerName: senderName },
       } as Href;
     }
     return null;
@@ -140,7 +140,7 @@ export function getNotificationRoute(item: NotificationItem): Href | null {
   if (senderId) {
     return {
       pathname: "/seller-public-profile",
-      params: { sellerId: senderId, sellerName },
+      params: { sellerId: senderId, sellerName: senderName },
     } as Href;
   }
 

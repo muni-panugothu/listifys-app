@@ -28,7 +28,7 @@ import { Image } from "@/lib/nativewind-interop";
 import { showErrorToast } from "@/lib/toast";
 import { PostLocationMapPreview } from "@/components/post-location-map-preview";
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
-import { LocationAutocompleteInput } from "@/components/location-autocomplete-input";
+import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
 import { useLocale } from "@/providers/locale-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { refreshDeviceLocation, selectLocationCoords, setLocationDirect } from "@/store/slices/location-slice";
@@ -552,24 +552,24 @@ export function PostAdStep3MediaScreen() {
       <SellSectionCard title="Item location">
         <View className="px-4 py-4">
           {/* Google Places Autocomplete */}
-          <LocationAutocompleteInput
+          <GooglePlacesInput
             value={location}
             onChangeText={(v) => dispatch(setLocation(v))}
-            onSelect={async (result) => {
+            onSelect={(result: PlacesSelectResult) => {
               dispatch(setLocation(result.label));
-              if (result.lat != null && result.lng != null) {
-                dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
-                await dispatch(
-                  setLocationDirect({
-                    label: result.label,
-                    lat: result.lat,
-                    lng: result.lng,
-                  }),
-                );
-              }
+              dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
+              dispatch(
+                setLocationDirect({
+                  label: result.label,
+                  lat: result.lat,
+                  lng: result.lng,
+                  isoCountryCode: result.isoCountryCode,
+                }),
+              );
             }}
+            userLat={locationCoords.lat}
+            userLng={locationCoords.lng}
             placeholder="Neighborhood or city..."
-            contained
           />
           <Pressable
             onPress={handleUseCurrentLocation}

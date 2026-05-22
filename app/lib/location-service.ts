@@ -433,3 +433,109 @@ export async function geocodeQuerySuggestions(
     return true;
   });
 }
+
+export type DetailedLocationSuggestion = {
+  id: string;
+  title: string;
+  subtitle: string;
+  lat: number;
+  lng: number;
+  isoCountryCode: string | null;
+};
+
+/**
+ * Returns detailed suggestions with title (primary name) and subtitle
+ * (street, area, city, state, pincode) for professional autocomplete UIs.
+ */
+export async function geocodeDetailedSuggestions(
+  query: string,
+  maxResults = 5,
+): Promise<DetailedLocationSuggestion[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const results = await Location.geocodeAsync(trimmed);
+  const sliced = results.slice(0, maxResults);
+
+  const details = await Promise.all(
+    sliced.map(async ({ latitude: lat, longitude: lng }, idx) => {
+      try {
+        const reverseResults = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lng,
+        });
+
+        if (!reverseResults.length) {
+          return {
+            id: `${lat}-${lng}-${idx}`,
+            title: trimmed,
+            subtitle: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+            lat,
+            lng,
+            isoCountryCode: null,
+          };
+        }
+
+        const merged = mergeGeocodeResults(reverseResults);
+        const raw = reverseResults[0];
+
+        // Build title: prefer name/subregion that resembles what user typed
+        const nameCandidates = [
+          normalizePart(merged.name),
+          normalizePart(merged.subregion),
+          normalizePart(merged.district),
+          normalizePart(raw?.name),
+          normalizePart(raw?.street),
+        ].filter((v) => v.length >= 2);
+
+        let title = nameCandidates[0] || normalizePart(merged.city) || trimmed;
+
+        // Build subtitle parts: street, area, city, region, pincode
+        const subtitleParts: string[] = [];
+        const street = normalizePart(raw?.street);
+        if (street && street !== title && !looksLikeStreetAddress(street)) {
+          subtitleParts.push(street);
+        }
+        const subregion = normalizePart(merged.subregion);
+        if (subregion && subregion !== title && !subtitleParts.includes(subregion)) {
+          subtitleParts.push(subregion);
+        }
+        const city = normalizePart(merged.city);
+        if (city && city !== title && !subtitleParts.includes(city)) {
+          subtitleParts.push(city);
+        }
+        const region = normalizePart(merged.region);
+        if (region && region !== city && !subtitleParts.includes(region)) {
+          subtitleParts.push(region);
+        }
+        const postalCode = normalizePart(merged.postalCode);
+        if (postalCode) {
+          subtitleParts.push(postalCode);
+        }
+
+        const subtitle = subtitleParts.join(", ") || normalizePart(merged.city) || "";
+        const isoCountryCode = merged.isoCountryCode?.trim().toUpperCase() ?? null;
+
+        return { id: `${lat}-${lng}-${idx}`, title, subtitle, lat, lng, isoCountryCode };
+      } catch {
+        return {
+          id: `${lat}-${lng}-${idx}`,
+          title: trimmed,
+          subtitle: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+          lat,
+          lng,
+          isoCountryCode: null,
+        };
+      }
+    }),
+  );
+
+  // Deduplicate by title+subtitle
+  const seen = new Set<string>();
+  return details.filter((s) => {
+    const key = `${s.title}|${s.subtitle}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
