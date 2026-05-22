@@ -40,6 +40,14 @@ const petSchema = new mongoose.Schema(
           "Reptiles",
           "Pet Supplies",
           "Pet Services",
+          "Pet Food & Treats",
+          "Pet Accessories",
+          "Pet Grooming",
+          "Pet Health & Vet",
+          "Pet Cages & Kennels",
+          "Aquarium Supplies",
+          "Pet Clothing",
+          "Other Pets",
         ],
         message: "Invalid subcategory for Pets",
       },
@@ -154,7 +162,7 @@ petSchema.index({
   breed: "text",
   color: "text",
 });
-petSchema.index({ coordinates: "2dsphere" });
+petSchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(petSchema);
 

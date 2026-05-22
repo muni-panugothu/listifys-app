@@ -9,6 +9,14 @@ const PET_SUBCATEGORIES = [
   "Reptiles",
   "Pet Supplies",
   "Pet Services",
+  "Pet Food & Treats",
+  "Pet Accessories",
+  "Pet Grooming",
+  "Pet Health & Vet",
+  "Pet Cages & Kennels",
+  "Aquarium Supplies",
+  "Pet Clothing",
+  "Other Pets",
 ];
 
 const createPetSchema = Joi.object({
@@ -40,6 +48,8 @@ const createPetSchema = Joi.object({
   trained: Joi.string().valid("Yes", "No", "Partial", "").allow(""),
   color: Joi.string().trim().allow(""),
   weight: Joi.string().trim().allow(""),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
 }).options({ stripUnknown: true });
 
 const updatePetSchema = Joi.object({
@@ -74,7 +84,7 @@ const updatePetSchema = Joi.object({
 
 const queryPetSchema = Joi.object({
   search: Joi.string().trim().max(200).allow(""),
-  subcategory: Joi.string().trim().allow(""),
+  category: Joi.string().trim().allow(""),
   condition: Joi.string().trim().allow(""),
   minPrice: Joi.number().min(0).allow(""),
   maxPrice: Joi.number().min(0).allow(""),

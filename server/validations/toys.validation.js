@@ -26,7 +26,12 @@ const TOY_SUBCATEGORIES = [
   'Building Toys',
   'Baby Toys',
   'Action Figures',
-  'Other',
+  'Board Games',
+  'Outdoor Toys',
+  'Arts & Crafts',
+  'Educational Toys',
+  'Toy Cars & Vehicles',
+  'Other Toys',
 ];
 
 const BATTERY_REQUIRED_OPTIONS = ['Yes', 'No', 'Not Sure', ''];
@@ -48,6 +53,8 @@ const createToySchema = Joi.object({
   phone: phone,
   phoneCode: Joi.string().trim().max(8).allow(''),
   currency: Joi.string().trim().max(8).allow(''),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
 
   brand: Joi.string().trim().max(100).allow(''),
   ageGroup: Joi.string().trim().max(60).allow(''),
@@ -71,7 +78,7 @@ const queryToySchema = Joi.object({
     .valid('newest', 'price_asc', 'price_desc', 'createdAt', '-createdAt', 'price', '-price')
     .default('newest'),
   search: Joi.string().trim().max(200).allow(''),
-  subcategory: Joi.string().valid(...TOY_SUBCATEGORIES).allow(''),
+  category: Joi.string().valid(...TOY_SUBCATEGORIES).allow(''),
   condition: condition.optional(),
   brand: Joi.string().trim().max(100).allow(''),
   minPrice: Joi.number().min(0),

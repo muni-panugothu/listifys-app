@@ -58,13 +58,18 @@ const normaliseImages = (listing) => {
 
 exports.createBeauty = async (req, res) => {
   try {
+    const { lat, lng, ...rest } = req.body;
+
     const payload = {
-      ...req.body,
+      ...rest,
       category: "Beauty",
       seller: req.user._id,
       sellerName: req.user.firstName
         ? `${req.user.firstName} ${req.user.lastName || ""}`.trim()
         : req.user.email.split("@")[0],
+      ...(lat && lng && {
+        coordinates: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+      }),
     };
 
     const listing = await Beauty.create(payload);
@@ -103,7 +108,7 @@ exports.getAllBeauty = async (req, res) => {
   try {
     const {
       search,
-      subcategory,
+      category,
       condition,
       minPrice,
       maxPrice,
@@ -121,7 +126,7 @@ exports.getAllBeauty = async (req, res) => {
 
     const queryKey = [
       search || "",
-      subcategory || "",
+      category || "",
       condition || "",
       minPrice || "",
       maxPrice || "",
@@ -154,7 +159,7 @@ exports.getAllBeauty = async (req, res) => {
     if (search && !(lat && lng)) {
       const esResult = await esHydratedSearch({
         entity: 'beauty',
-        searchParams: { query: search, category: subcategory, condition, minPrice, maxPrice, location: locationFilter, sort, page: safePage, limit: safeLimit },
+        searchParams: { query: search, category: category, condition, minPrice, maxPrice, location: locationFilter, sort, page: safePage, limit: safeLimit },
         Model: Beauty,
         projection: LIST_PROJECTION,
       });
@@ -184,9 +189,9 @@ exports.getAllBeauty = async (req, res) => {
         { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
-    if (subcategory) {
+    if (category) {
       filter.subcategory = {
-        $in: subcategory.split(",").map((s) => s.trim()),
+        $in: category.split(",").map((s) => s.trim()),
       };
     }
     if (condition) {

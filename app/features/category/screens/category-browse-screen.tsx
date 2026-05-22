@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   ActivityIndicator,
   Dimensions,
@@ -140,9 +141,23 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     }
   }, [appliedSearch, categorySlug, selectedSubcategory, user?.id]);
 
+  // Fire on subcategory / search changes (screen already mounted)
   useEffect(() => {
     void loadListings();
   }, [loadListings]);
+
+  // Also fire when the screen regains focus (e.g. after posting a new listing),
+  // but skip the very first focus because useEffect handles the initial load.
+  const isMounted = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (isMounted.current) {
+        void loadListings();
+      } else {
+        isMounted.current = true;
+      }
+    }, [loadListings]),
+  );
 
   const handleRefresh = useCallback(async () => {
     await loadListings();

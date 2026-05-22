@@ -38,6 +38,15 @@ const beautySchema = new mongoose.Schema(
           "Fragrance",
           "Vitamins",
           "Personal Care",
+          "Nail Care",
+          "Men's Grooming",
+          "Bath & Body",
+          "Sun Care",
+          "Eye Care",
+          "Lip Care",
+          "Body Lotions & Oils",
+          "Deodorants",
+          "Other Beauty",
         ],
         message: "Invalid subcategory for Beauty",
       },
@@ -147,7 +156,7 @@ beautySchema.index({
   description: "text",
   brand: "text",
 });
-beautySchema.index({ coordinates: "2dsphere" });
+beautySchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(beautySchema);
 

@@ -7,6 +7,15 @@ const BOOK_SUBCATEGORIES = [
   "Textbooks",
   "Comics",
   "Magazines",
+  "Academic & Study",
+  "Self Help",
+  "Biography & Memoir",
+  "Science & Technology",
+  "History & Politics",
+  "Religion & Spirituality",
+  "Art & Photography",
+  "Travel & Adventure",
+  "Other Books",
 ];
 
 const createBookSchema = Joi.object({
@@ -37,6 +46,8 @@ const createBookSchema = Joi.object({
   edition: Joi.string().trim().allow(""),
   language: Joi.string().trim().allow(""),
   pages: Joi.string().trim().allow(""),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
 }).options({ stripUnknown: true });
 
 const updateBookSchema = Joi.object({
@@ -70,7 +81,7 @@ const updateBookSchema = Joi.object({
 
 const queryBookSchema = Joi.object({
   search: Joi.string().trim().max(200).allow(""),
-  subcategory: Joi.string().trim().allow(""),
+  category: Joi.string().trim().allow(""),
   condition: Joi.string().trim().allow(""),
   minPrice: Joi.number().min(0).allow(""),
   maxPrice: Joi.number().min(0).allow(""),

@@ -38,6 +38,15 @@ const bookSchema = new mongoose.Schema(
           "Textbooks",
           "Comics",
           "Magazines",
+          "Academic & Study",
+          "Self Help",
+          "Biography & Memoir",
+          "Science & Technology",
+          "History & Politics",
+          "Religion & Spirituality",
+          "Art & Photography",
+          "Travel & Adventure",
+          "Other Books",
         ],
         message: "Invalid subcategory for Books",
       },
@@ -139,7 +148,7 @@ bookSchema.index({
   author: "text",
   publisher: "text",
 });
-bookSchema.index({ coordinates: "2dsphere" });
+bookSchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(bookSchema);
 

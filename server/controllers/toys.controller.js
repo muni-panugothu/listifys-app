@@ -55,14 +55,19 @@ const normaliseImages = (listing) => {
 
 exports.createToy = async (req, res) => {
   try {
+    const { lat, lng, ...rest } = req.body;
     const payload = {
-      ...req.body,
+      ...rest,
       category: "Toys",
       seller: req.user._id,
       sellerName: req.user.firstName
         ? `${req.user.firstName} ${req.user.lastName || ""}`.trim()
         : req.user.email.split("@")[0],
     };
+
+    if (lat != null && lng != null) {
+      payload.coordinates = { type: "Point", coordinates: [lng, lat] };
+    }
 
     const listing = await Toy.create(payload);
     const populated = await Toy.findById(listing._id).populate(
@@ -98,7 +103,7 @@ exports.getAllToys = async (req, res) => {
   try {
     const {
       search,
-      subcategory,
+      category, // client sends subcategory name as `category`
       condition,
       minPrice,
       maxPrice,
@@ -116,7 +121,7 @@ exports.getAllToys = async (req, res) => {
 
     const queryKey = [
       search || "",
-      subcategory || "",
+      category || "",
       condition || "",
       minPrice || "",
       maxPrice || "",
@@ -146,7 +151,7 @@ exports.getAllToys = async (req, res) => {
     if (search && !(lat && lng)) {
       const esResult = await esHydratedSearch({
         entity: 'toys',
-        searchParams: { query: search, category: subcategory, condition, minPrice, maxPrice, location: locationFilter, sort, page: safePage, limit: safeLimit },
+        searchParams: { query: search, category: category, condition, minPrice, maxPrice, location: locationFilter, sort, page: safePage, limit: safeLimit },
         Model: Toy,
         projection: LIST_PROJECTION,
       });
@@ -176,8 +181,8 @@ exports.getAllToys = async (req, res) => {
         { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
-    if (subcategory) {
-      const subs = subcategory.split(",").map((s) => s.trim());
+    if (category) {
+      const subs = category.split(",").map((s) => s.trim());
       filter.subcategory = { $in: subs };
     }
     if (condition) {

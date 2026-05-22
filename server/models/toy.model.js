@@ -39,7 +39,12 @@ const toySchema = new mongoose.Schema(
           "Building Toys",
           "Baby Toys",
           "Action Figures",
-          "Other",
+          "Board Games",
+          "Outdoor Toys",
+          "Arts & Crafts",
+          "Educational Toys",
+          "Toy Cars & Vehicles",
+          "Other Toys",
         ],
         message: "Invalid subcategory for Toys",
       },
@@ -158,7 +163,7 @@ toySchema.index({
   characterTheme: "text",
   color: "text",
 });
-toySchema.index({ coordinates: "2dsphere" });
+toySchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(toySchema);
 
