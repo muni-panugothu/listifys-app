@@ -24,6 +24,13 @@ const FASHION_SUBCATEGORIES = [
   'Kids Clothing',
   'Footwear',
   'Watches',
+  'Bags & Wallets',
+  'Jewellery',
+  'Sunglasses & Eyewear',
+  'Belts & Caps',
+  'Ethnic Wear',
+  'Sportswear',
+  'Winter Wear',
   'Accessories',
 ];
 
@@ -52,6 +59,8 @@ const createFashionSchema = Joi.object({
   gender: Joi.string().valid(...FASHION_GENDERS).allow(''),
   fabricType: Joi.string().trim().max(80).allow(''),
   color: Joi.string().trim().max(40).allow(''),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
 });
 
 const updateFashionSchema = createFashionSchema.fork(
@@ -66,7 +75,7 @@ const queryFashionSchema = Joi.object({
     .valid('newest', 'price_asc', 'price_desc', 'createdAt', '-createdAt', 'price', '-price')
     .default('newest'),
   search: Joi.string().trim().max(200).allow(''),
-  subcategory: Joi.string().valid(...FASHION_SUBCATEGORIES).allow(''),
+  category: Joi.string().valid(...FASHION_SUBCATEGORIES).allow(''),
   gender: Joi.string().valid(...FASHION_GENDERS).allow(''),
   condition: condition.optional(),
   brand: Joi.string().trim().max(100).allow(''),

@@ -37,6 +37,13 @@ const fashionSchema = new mongoose.Schema(
           "Kids Clothing",
           "Footwear",
           "Watches",
+          "Bags & Wallets",
+          "Jewellery",
+          "Sunglasses & Eyewear",
+          "Belts & Caps",
+          "Ethnic Wear",
+          "Sportswear",
+          "Winter Wear",
           "Accessories",
         ],
         message: "Invalid subcategory for Fashion",
@@ -146,7 +153,7 @@ fashionSchema.index({ seller: 1, status: 1 });
 fashionSchema.index({ price: 1 });
 fashionSchema.index({ savedBy: 1 });
 fashionSchema.index({ title: "text", description: "text", brand: "text", fabricType: "text", color: "text" });
-fashionSchema.index({ coordinates: "2dsphere" });
+fashionSchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(fashionSchema);
 
