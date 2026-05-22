@@ -40,6 +40,15 @@ const sportsSchema = new mongoose.Schema(
           "Camping & Hiking",
           "Fitness Accessories",
           "Team Sports",
+          "Running & Athletics",
+          "Yoga & Meditation",
+          "Martial Arts & Boxing",
+          "Racket Sports",
+          "Cricket Equipment",
+          "Gym Equipment",
+          "Sports Nutrition",
+          "Sports Clothing",
+          "Other Sports",
         ],
         message: "Invalid subcategory for Sports",
       },
@@ -184,7 +193,7 @@ sportsSchema.index({
   sportType: "text",
   material: "text",
 });
-sportsSchema.index({ coordinates: "2dsphere" });
+sportsSchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(sportsSchema);
 

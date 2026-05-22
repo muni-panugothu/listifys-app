@@ -42,6 +42,8 @@ const createCollectibleSchema = Joi.object({
     .allow(""),
   authenticity: Joi.string().valid("Certified", "Uncertified", "").allow(""),
   origin: Joi.string().trim().allow(""),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
 }).options({ stripUnknown: true });
 
 const updateCollectibleSchema = Joi.object({
@@ -78,7 +80,7 @@ const updateCollectibleSchema = Joi.object({
 
 const queryCollectibleSchema = Joi.object({
   search: Joi.string().trim().max(200).allow(""),
-  subcategory: Joi.string().trim().allow(""),
+  category: Joi.string().trim().allow(""),
   condition: Joi.string().trim().allow(""),
   minPrice: Joi.number().min(0).allow(""),
   maxPrice: Joi.number().min(0).allow(""),

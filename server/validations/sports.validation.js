@@ -27,6 +27,15 @@ const SPORTS_SUBCATEGORIES = [
   "Camping & Hiking",
   "Fitness Accessories",
   "Team Sports",
+  "Running & Athletics",
+  "Yoga & Meditation",
+  "Martial Arts & Boxing",
+  "Racket Sports",
+  "Cricket Equipment",
+  "Gym Equipment",
+  "Sports Nutrition",
+  "Sports Clothing",
+  "Other Sports",
 ];
 
 const SPORT_TYPES = [
@@ -84,6 +93,8 @@ const createSportsSchema = Joi.object({
   ageGroup: Joi.string()
     .valid(...AGE_GROUPS)
     .allow(""),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
 });
 
 const updateSportsSchema = createSportsSchema.fork(
@@ -106,7 +117,7 @@ const querySportsSchema = Joi.object({
     )
     .default("newest"),
   search: Joi.string().trim().max(200).allow(""),
-  subcategory: Joi.string()
+  category: Joi.string()
     .valid(...SPORTS_SUBCATEGORIES)
     .allow(""),
   condition: condition.optional(),

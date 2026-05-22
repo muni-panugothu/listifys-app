@@ -151,7 +151,7 @@ collectibleSchema.index({
   era: "text",
   material: "text",
 });
-collectibleSchema.index({ coordinates: "2dsphere" });
+collectibleSchema.index({ coordinates: "2dsphere" }, { sparse: true });
 
 attachSlugPlugin(collectibleSchema);
 
