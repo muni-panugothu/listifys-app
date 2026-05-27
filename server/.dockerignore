@@ -1,0 +1,30 @@
+# ── Dependencies ──────────────────────────
+node_modules/
+npm-debug.log*
+
+# ── Environment / secrets ─────────────────
+.env
+.env.*
+
+# ── Tests (not needed in production) ──────
+tests/
+
+# ── IDE / OS ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Docker (prevent recursive copy) ──────
+Dockerfile
+.dockerignore
+
+# ── Git ───────────────────────────────────
+.git/
+.gitignore
+
+# ── Logs (generated at runtime) ──────────
+logs/
+*.log

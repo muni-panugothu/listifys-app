@@ -1,0 +1,200 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { useEffect } from "react";
+import { Platform, Pressable, Text, View } from "react-native";
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
+
+import { ListingTimeBadge } from "@/components/listing-time-badge";
+import { ListifyFonts, ListifyTypography } from "@/constants/typography";
+import { Image } from "@/lib/nativewind-interop";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+type ListingItemsGridCardProps = {
+  title: string;
+  subtitle?: string;
+  price?: number | null;
+  image?: string;
+  width: number;
+  distanceLabel?: string;
+  createdAt?: string | null;
+  isSaved?: boolean;
+  onPress: () => void;
+  onToggleSave?: () => void;
+};
+
+function formatPrice(price?: number | null) {
+  if (price == null) return "On request";
+  return `₹${Number(price).toLocaleString("en-IN")}`;
+}
+
+const priceTextBase = {
+  fontFamily: ListifyFonts.bold,
+  color: "#1A1A1A",
+  lineHeight: 24,
+  ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+} as const;
+
+export function ListingItemsGridCard({
+  title,
+  subtitle,
+  price,
+  image,
+  width,
+  distanceLabel,
+  createdAt,
+  isSaved = false,
+  onPress,
+  onToggleSave,
+}: ListingItemsGridCardProps) {
+  const imageSize = width;
+  const savedProgress = useSharedValue(isSaved ? 1 : 0);
+
+  useEffect(() => {
+    savedProgress.value = withSpring(isSaved ? 1 : 0, {
+      damping: 14,
+      stiffness: 220,
+    });
+  }, [isSaved, savedProgress]);
+
+  const buttonBgStyle = useAnimatedStyle(() => ({
+    backgroundColor: savedProgress.value > 0.5 ? "#27BB97" : "#2D2D2D",
+    transform: [
+      {
+        scale: interpolate(savedProgress.value, [0, 0.5, 1], [1, 1.12, 1]),
+      },
+    ],
+  }));
+
+  const plusIconStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(savedProgress.value, [0, 0.4], [1, 0]),
+    transform: [
+      { scale: interpolate(savedProgress.value, [0, 1], [1, 0.4]) },
+      { rotate: `${interpolate(savedProgress.value, [0, 1], [0, -90])}deg` },
+    ],
+  }));
+
+  const checkIconStyle = useAnimatedStyle(() => ({
+    opacity: savedProgress.value,
+    transform: [
+      { scale: interpolate(savedProgress.value, [0, 1], [0.3, 1]) },
+    ],
+  }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="bg-white px-3.5 pb-4"
+      style={{
+        width,
+        borderRadius: 24,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        elevation: 3,
+      }}
+    >
+      <View
+        className="overflow-hidden rounded-2xl"
+        style={{ height: imageSize, width: imageSize, alignSelf: "center" }}
+      >
+        {image ? (
+          <Image
+            source={image}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={image}
+            transition={120}
+            style={{
+              width: imageSize,
+              height: imageSize,
+            }}
+          />
+        ) : (
+          <View className="h-full w-full items-center justify-center bg-[#F3F4F6]">
+            <MaterialIcons name="image" size={36} color="#D1D5DB" />
+          </View>
+        )}
+
+        <ListingTimeBadge date={createdAt} />
+
+        {onToggleSave ? (
+          <AnimatedPressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onToggleSave();
+            }}
+            hitSlop={8}
+            className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full"
+            style={buttonBgStyle}
+          >
+            <Animated.View
+              style={[{ position: "absolute" }, plusIconStyle]}
+              pointerEvents="none"
+            >
+              <MaterialIcons name="add" size={20} color="#FFFFFF" />
+            </Animated.View>
+            <Animated.View
+              style={[{ position: "absolute" }, checkIconStyle]}
+              pointerEvents="none"
+            >
+              <MaterialIcons name="check" size={20} color="#FFFFFF" />
+            </Animated.View>
+          </AnimatedPressable>
+        ) : null}
+      </View>
+
+      <Text
+        className="mt-3 text-[15px]"
+        style={{
+          fontFamily: ListifyFonts.medium,
+          color: "#1A1A1A",
+          ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+        }}
+        numberOfLines={2}
+      >
+        {title}
+      </Text>
+
+      {subtitle ? (
+        <Text
+          className="mt-0.5 text-[12px]"
+          style={ListifyTypography.label}
+          numberOfLines={1}
+        >
+          {subtitle}
+        </Text>
+      ) : null}
+
+      <View className="mt-2.5 w-full flex-row items-end justify-between gap-2">
+        <Text
+          className="min-w-0 flex-1 text-[16px]"
+          style={priceTextBase}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+          numberOfLines={2}
+        >
+          {formatPrice(price)}
+        </Text>
+        {distanceLabel ? (
+          <Text
+            className="shrink-0 pb-0.5 text-[12px]"
+            style={{
+              fontFamily: ListifyFonts.medium,
+              color: "#6B7280",
+              lineHeight: 16,
+              ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+            }}
+          >
+            {distanceLabel}
+          </Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}

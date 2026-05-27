@@ -1,0 +1,4 @@
+﻿
+> auth-backend@1.0.0 test
+> jest --verbose --forceExit --detectOpenHandles
+

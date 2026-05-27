@@ -1,0 +1,226 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { type ReactNode } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { SellStepIndicator } from "@/components/sell-step-indicator";
+import { APP_SCREEN_BG } from "@/constants/theme";
+import { ListifyFonts } from "@/constants/typography";
+
+const CTA_BG = "#1A1A1A";
+
+type SellFlowLayoutProps = {
+  step: 1 | 2 | 3;
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  onBack: () => void;
+  rightAction?: ReactNode;
+  footerLabel?: string;
+  footerMeta?: string;
+  primaryLabel?: string;
+  onPrimaryPress?: () => void;
+  primaryDisabled?: boolean;
+  primaryLoading?: boolean;
+};
+
+export function SellSectionCard({
+  title,
+  children,
+  className,
+}: {
+  title?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <View className={className ?? "mb-5"}>
+      {title ? (
+        <Text
+          className="mb-3 text-[13px] uppercase tracking-wide"
+          style={{ fontFamily: ListifyFonts.semiBold, color: "#9CA3AF" }}
+        >
+          {title}
+        </Text>
+      ) : null}
+      <View
+        className="overflow-hidden rounded-2xl bg-white"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 8,
+          elevation: 2,
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
+
+export function SellFlowLayout({
+  step,
+  title,
+  subtitle,
+  children,
+  onBack,
+  rightAction,
+  footerLabel,
+  footerMeta,
+  primaryLabel = "Next",
+  onPrimaryPress,
+  primaryDisabled = false,
+  primaryLoading = false,
+}: SellFlowLayoutProps) {
+  const insets = useSafeAreaInsets();
+  const showFooter = Boolean(primaryLabel && onPrimaryPress);
+  const footerBottomPad = Math.max(insets.bottom, 8);
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: APP_SCREEN_BG }}>
+      <View
+        className="flex-row items-center justify-between px-5"
+        style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}
+      >
+        <View className="flex-1 flex-row items-center">
+          <Pressable
+            onPress={onBack}
+            hitSlop={12}
+            className="mr-2 h-10 w-10 items-center justify-center"
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <MaterialIcons name="chevron-left" size={32} color="#1A1A1A" />
+          </Pressable>
+          <View className="flex-1">
+            <Text
+              className="text-[22px] text-[#1A1A1A]"
+              style={{ fontFamily: ListifyFonts.bold }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text
+                className="text-[13px] text-[#6B7280]"
+                style={{ fontFamily: ListifyFonts.regular }}
+                numberOfLines={1}
+              >
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        {rightAction ? <View className="ml-2">{rightAction}</View> : null}
+      </View>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={insets.top}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: 24,
+          }}
+        >
+          <SellStepIndicator currentStep={step} />
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {showFooter ? (
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: "#E5E7EB",
+            backgroundColor: "#FFFFFF",
+            paddingHorizontal: 20,
+            paddingTop: 12,
+            paddingBottom: footerBottomPad,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 16,
+          }}
+        >
+          {(footerLabel || footerMeta) ? (
+            <View style={{ marginBottom: 10 }}>
+              {footerLabel ? (
+                <Text
+                  style={{
+                    fontFamily: ListifyFonts.regular,
+                    fontSize: 11,
+                    color: "#9CA3AF",
+                  }}
+                >
+                  {footerLabel}
+                </Text>
+              ) : null}
+              {footerMeta ? (
+                <Text
+                  style={{
+                    fontFamily: ListifyFonts.semiBold,
+                    fontSize: 14,
+                    color: "#1A1A1A",
+                  }}
+                  numberOfLines={2}
+                >
+                  {footerMeta}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+          <Pressable
+            onPress={onPrimaryPress}
+            disabled={primaryDisabled || primaryLoading}
+            style={({ pressed }) => ({
+              opacity: primaryDisabled || primaryLoading ? 0.5 : pressed ? 0.9 : 1,
+            })}
+          >
+            <View
+              style={{
+                minHeight: 52,
+                borderRadius: 16,
+                backgroundColor: CTA_BG,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 6,
+              }}
+            >
+              {primaryLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text
+                    style={{
+                      fontFamily: ListifyFonts.semiBold,
+                      fontSize: 16,
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    {primaryLabel}
+                  </Text>
+                  <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
+                </>
+              )}
+            </View>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
