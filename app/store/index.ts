@@ -6,6 +6,7 @@ import networkReducer from "./slices/network-slice";
 import onboardingReducer from "./slices/onboarding-slice";
 import locationReducer from "./slices/location-slice";
 import postFormReducer from "./slices/post-form-slice";
+import callReducer from "./slices/call-slice";
 
 export const store = configureStore({
   reducer: {
@@ -15,6 +16,7 @@ export const store = configureStore({
     network: networkReducer,
     onboarding: onboardingReducer,
     postForm: postFormReducer,
+    call: callReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ serializableCheck: false }),

@@ -308,6 +308,106 @@ async function initSocket(httpServer, corsOptions) {
       emitChatUnreadCount(socket, userId);
     });
 
+    // ── CALLING ────────────────────────────────────────────────────────────────
+    // call:initiate  — caller starts a call
+    // call:accept    — receiver accepts
+    // call:reject    — receiver rejects
+    // call:end       — either side ends the call
+    // call:ice-candidate — WebRTC ICE exchange
+    // call:update-fcm-token — store device FCM token for offline call push
+
+    socket.on('call:update-fcm-token', async ({ fcmToken }) => {
+      if (!fcmToken || typeof fcmToken !== 'string' || fcmToken.length > 500) return;
+      try {
+        const User = require('../models/user.model');
+        await User.updateOne({ _id: userId }, { fcmToken });
+      } catch (err) {
+        logger.debug('[Socket] call:update-fcm-token error', { err: err.message });
+      }
+    });
+
+    socket.on('call:initiate', async (data) => {
+      const { to, callType, offer, callerName, callerPhoto } = data || {};
+      if (!to || !offer || !['audio', 'video'].includes(callType)) return;
+      if (typeof to !== 'string' || to.length > 50) return;
+
+      const callId = `${userId}-${to}-${Date.now()}`;
+
+      const toSockets = onlineUsers.get(to);
+      if (toSockets && toSockets.size > 0) {
+        // Receiver is online — forward via socket
+        io.to(`user:${to}`).emit('call:incoming', {
+          callId,
+          from: userId,
+          callerName: callerName || socket.userName,
+          callerPhoto: callerPhoto || '',
+          callType,
+          offer,
+        });
+      } else {
+        // Receiver offline — send FCM data push to wake device
+        try {
+          const User = require('../models/user.model');
+          const receiver = await User.findById(to).select('fcmToken');
+          if (receiver?.fcmToken) {
+            const { sendCallNotification } = require('../services/fcm.service');
+            await sendCallNotification(receiver.fcmToken, {
+              callId,
+              callType,
+              callerName: callerName || socket.userName,
+              callerPhoto: callerPhoto || '',
+            });
+          }
+        } catch (err) {
+          logger.debug('[Socket] call:initiate FCM error', { err: err.message });
+        }
+      }
+
+      // Notify caller of the callId so they can match responses
+      socket.emit('call:initiated', { callId, to });
+    });
+
+    socket.on('call:accept', ({ to, answer, callId }) => {
+      if (!to || !answer || typeof to !== 'string') return;
+      io.to(`user:${to}`).emit('call:accepted', { answer, callId, from: userId });
+    });
+
+    socket.on('call:reject', ({ to, callId }) => {
+      if (!to || typeof to !== 'string') return;
+      io.to(`user:${to}`).emit('call:rejected', { callId, from: userId });
+      // Save missed call log
+      (async () => {
+        try {
+          const CallLog = require('../models/calllog.model');
+          await CallLog.create({ caller: to, receiver: userId, type: 'audio', status: 'rejected' });
+        } catch {}
+      })();
+    });
+
+    socket.on('call:end', ({ to, callId, duration, callType }) => {
+      if (!to || typeof to !== 'string') return;
+      io.to(`user:${to}`).emit('call:ended', { callId, from: userId });
+      // Save completed call log
+      (async () => {
+        try {
+          const CallLog = require('../models/calllog.model');
+          await CallLog.create({
+            caller:   userId,
+            receiver: to,
+            type:     callType || 'audio',
+            status:   'completed',
+            duration: duration || 0,
+            endedAt:  new Date(),
+          });
+        } catch {}
+      })();
+    });
+
+    socket.on('call:ice-candidate', ({ to, candidate }) => {
+      if (!to || !candidate || typeof to !== 'string') return;
+      io.to(`user:${to}`).emit('call:ice-candidate', { candidate, from: userId });
+    });
+    // ── END CALLING ────────────────────────────────────────────────────────────
     // ── Message delivery acknowledgment ──
     // Client emits this when a message is received and rendered
     socket.on("message:delivered", async (data) => {

@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BackHandler,
   Dimensions,
@@ -16,16 +16,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HomeCategoryTile } from "@/components/home-category-tile";
+import { VoiceSearchModal } from "@/components/voice-search-modal";
 import { CATEGORIES, type CategorySlug } from "@/constants/categories";
 import { ListifyFonts } from "@/constants/typography";
 import { fetchSavedListings } from "@/features/listing/services/listing-api";
-import {
-  addRecentSearch,
-  fetchSuggestions,
-  type SearchSuggestion,
-} from "@/features/search/services/search-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { Image } from "@/lib/nativewind-interop";
 import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -61,14 +56,11 @@ export function SearchHomeScreen() {
   const user = useAppSelector((s) => s.auth.user);
   const displayLocation = useAppSelector(selectLocationLabel);
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  const [voiceVisible, setVoiceVisible] = useState(false);
   const { refreshing, onRefresh } = usePullToRefresh();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bottomNavPadding = Math.max(insets.bottom, 8);
-  const suggestionsTop = insets.top + 12;
 
   const loadSavedCount = useCallback(async () => {
     try {
@@ -95,25 +87,6 @@ export function SearchHomeScreen() {
 
   const handleQueryChange = useCallback((text: string) => {
     setQuery(text);
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (text.trim().length < 2) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const results = await fetchSuggestions(text.trim());
-        setSuggestions(results);
-        setShowSuggestions(results.length > 0);
-      } catch {
-        setSuggestions([]);
-        setShowSuggestions(false);
-      }
-    }, 300);
   }, []);
 
   const navigateToCategory = useCallback(
@@ -128,8 +101,6 @@ export function SearchHomeScreen() {
     if (!text) return;
 
     Keyboard.dismiss();
-    setShowSuggestions(false);
-    await addRecentSearch(text);
 
     router.push({
       pathname: "/search-results-entity-tabs",
@@ -137,11 +108,26 @@ export function SearchHomeScreen() {
     });
   };
 
-  const handleSuggestionPress = (suggestion: SearchSuggestion) => {
-    setQuery(suggestion.title);
-    setShowSuggestions(false);
-    void openSearchResults(suggestion.title);
-  };
+  const handleVoiceResult = useCallback(
+    (text: string) => {
+      setQuery(text);
+      void openSearchResults(text);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  /**
+   * Real-time voice streaming: partial transcripts update the search bar
+   * and trigger live autocomplete suggestions — exactly like Google / OLX.
+   * Debounced at 150 ms so we don't fire on every spoken syllable.
+   */
+  const handleVoicePartial = useCallback(
+    (partial: string) => {
+      setQuery(partial);
+    },
+    [],
+  );
 
   const handleBottomTabPress = useTabNavigation();
 
@@ -170,68 +156,12 @@ export function SearchHomeScreen() {
 
   return (
     <View className="flex-1 bg-[#F6F7F8]">
-      {showSuggestions && suggestions.length > 0 ? (
-        <View
-          className="absolute inset-x-0 z-40 border-b border-[#ECECEC] bg-white"
-          style={{
-            top: suggestionsTop + 120,
-            maxHeight: 360,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 12,
-            elevation: 10,
-          }}
-        >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {suggestions.map((item, idx) => (
-              <Pressable
-                key={`${item._entity}_${item._id}_${idx}`}
-                onPress={() => handleSuggestionPress(item)}
-                className="flex-row items-center gap-3 border-b border-[#F5F5F5] px-4 py-3"
-                style={({ pressed }) => ({
-                  backgroundColor: pressed ? "#F0F0F0" : "transparent",
-                })}
-              >
-                {item.thumbnail ? (
-                  <View className="h-10 w-10 overflow-hidden rounded-lg bg-[#F3F4F6]">
-                    <Image
-                      source={item.thumbnail}
-                      contentFit="cover"
-                      className="h-full w-full"
-                    />
-                  </View>
-                ) : (
-                  <View className="h-10 w-10 items-center justify-center rounded-lg bg-[#F3F4F6]">
-                    <MaterialIcons name="search" size={18} color="#9CA3AF" />
-                  </View>
-                )}
-                <View className="flex-1">
-                  <Text
-                    numberOfLines={1}
-                    className="text-[14px] text-[#1A1A1A]"
-                    style={{ fontFamily: ListifyFonts.medium }}
-                  >
-                    {item.title}
-                  </Text>
-                  {item.price != null ? (
-                    <Text
-                      className="text-[12px] text-[#6B7280]"
-                      style={{ fontFamily: ListifyFonts.medium }}
-                    >
-                      ₹{Number(item.price).toLocaleString("en-IN")}
-                    </Text>
-                  ) : null}
-                </View>
-                <MaterialIcons name="north-west" size={16} color="#9CA3AF" />
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
+      <VoiceSearchModal
+        visible={voiceVisible}
+        onResult={handleVoiceResult}
+        onPartialResult={handleVoicePartial}
+        onClose={() => setVoiceVisible(false)}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -311,6 +241,13 @@ export function SearchHomeScreen() {
             className="flex-1 text-[15px] text-[#1A1A1A]"
             style={{ fontFamily: ListifyFonts.regular, paddingVertical: 0 }}
           />
+          <Pressable
+            onPress={() => setVoiceVisible(true)}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, marginRight: 6 })}
+          >
+            <MaterialIcons name="mic" size={22} color="#9CA3AF" />
+          </Pressable>
           <Pressable
             onPress={() => void openSearchResults()}
             hitSlop={8}

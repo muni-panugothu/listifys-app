@@ -37,7 +37,8 @@ import {
   requestLastSeen,
 } from "@/features/messaging/services/socket-service";
 import { Image } from "@/lib/nativewind-interop";
-import { useAppSelector } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { outgoingCallStarted } from "@/store/slices/call-slice";
 
 const BRAND = "#27BB97";
 const CHAT_BG = APP_SCREEN_BG;
@@ -120,6 +121,8 @@ export function ChatConversationScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+
+  const dispatch = useAppDispatch();
 
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -423,6 +426,34 @@ export function ChatConversationScreen() {
     return resolveAbsoluteMediaUrl(other?.profileImageUrl);
   }, [conversation?.participants, user?.id]);
 
+  const handleAudioCall = useCallback(() => {
+    const recipientId = typeof params.recipientId === 'string' ? params.recipientId : params.recipientId?.[0];
+    if (!recipientId || !user?.id) return;
+    const callId = `${user.id}-${recipientId}-${Date.now()}`;
+    dispatch(outgoingCallStarted({
+      callId,
+      remoteUserId: recipientId,
+      remoteUserName: contactName,
+      remoteUserPhoto: otherAvatar ?? '',
+      callType: 'audio',
+    }));
+    router.push('/outgoing-call' as never);
+  }, [params.recipientId, user?.id, contactName, otherAvatar, dispatch, router]);
+
+  const handleVideoCall = useCallback(() => {
+    const recipientId = typeof params.recipientId === 'string' ? params.recipientId : params.recipientId?.[0];
+    if (!recipientId || !user?.id) return;
+    const callId = `${user.id}-${recipientId}-${Date.now()}`;
+    dispatch(outgoingCallStarted({
+      callId,
+      remoteUserId: recipientId,
+      remoteUserName: contactName,
+      remoteUserPhoto: otherAvatar ?? '',
+      callType: 'video',
+    }));
+    router.push('/outgoing-call' as never);
+  }, [params.recipientId, user?.id, contactName, otherAvatar, dispatch, router]);
+
   const statusLabel = typingUser
     ? "typing..."
     : isOnline
@@ -562,16 +593,20 @@ export function ChatConversationScreen() {
           </View>
 
           <Pressable
+            onPress={handleAudioCall}
+            hitSlop={12}
             className="h-10 w-10 items-center justify-center"
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
             <MaterialIcons name="call" size={24} color={TEXT_DARK} />
           </Pressable>
           <Pressable
+            onPress={handleVideoCall}
+            hitSlop={12}
             className="h-10 w-10 items-center justify-center"
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
-            <MaterialIcons name="more-vert" size={24} color={TEXT_DARK} />
+            <MaterialIcons name="videocam" size={24} color={TEXT_DARK} />
           </Pressable>
         </View>
       </View>

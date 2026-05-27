@@ -143,10 +143,15 @@ export function AuthGateBottomSheet({
       await dispatch(googleLogin({ idToken })).unwrap();
     } catch (err) {
       if (err instanceof GoogleSignInError && err.cancelled) return;
-      showErrorToast(
-        "Google Sign In",
-        err instanceof GoogleSignInError ? err.message : "Sign in failed. Please try again.",
-      );
+      const message =
+        err instanceof GoogleSignInError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : typeof err === 'string'
+              ? err
+              : 'Sign in failed. Please try again.';
+      showErrorToast('Google Sign In', message);
     } finally {
       setIsGoogleLoading(false);
     }

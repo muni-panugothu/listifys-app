@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { getCurrencySymbol } from "@/lib/currency";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
@@ -23,11 +24,13 @@ export function ListingSuccessScreen() {
     location?: string;
     image?: string;
     category?: string;
+    currency?: string;
   }>();
 
   const listingTitle = params.title || "Your Listing";
+  const currencySymbol = getCurrencySymbol(params.currency || "INR");
   const listingPrice = params.price
-    ? `₹${Number(params.price).toLocaleString("en-IN")}`
+    ? `${currencySymbol}${Number(params.price).toLocaleString()}`
     : "";
   const listingLocation = params.location || "";
   const listingImage = params.image || "";
@@ -105,7 +108,7 @@ export function ListingSuccessScreen() {
             {listingImage ? (
             <View className="relative h-48 w-full">
               <Image
-                source={listingImage}
+                source={{ uri: listingImage }}
                 contentFit="cover"
                 transition={200}
                 className="h-full w-full"

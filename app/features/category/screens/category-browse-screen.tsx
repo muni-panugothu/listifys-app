@@ -5,6 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   ActivityIndicator,
   Dimensions,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { VoiceSearchModal } from "@/components/voice-search-modal";
 import { CATEGORY_MAP, type CategorySlug } from "@/constants/categories";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import { EventListingCard } from "@/features/category/components/event-listing-card";
@@ -27,7 +29,7 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords } from "@/store/slices/location-slice";
+import { selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BG = "#F6F7F8";
@@ -87,6 +89,27 @@ function sortListings(items: ListingItem[], sortKey: string) {
   return copy;
 }
 
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function buildCalendarGrid(month: Date): (Date | null)[][] {
+  const year = month.getFullYear();
+  const m = month.getMonth();
+  const firstDay = new Date(year, m, 1).getDay();
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+  const cells: (Date | null)[] = Array(firstDay).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, m, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
 type CategoryBrowseScreenProps = {
   categorySlug: CategorySlug;
 };
@@ -96,6 +119,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const insets = useSafeAreaInsets();
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
+  const locationLabel = useAppSelector(selectLocationLabel);
 
   const categoryConfig = CATEGORY_MAP[categorySlug];
   const subcategories = useMemo(
@@ -111,17 +135,36 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const [activeSort, setActiveSort] = useState<string>("relevance");
   const [listings, setListings] = useState<ListingItem[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [voiceVisible, setVoiceVisible] = useState(false);
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+
+  const [calendarDates, setCalendarDates] = useState<Date[]>(() => {
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      return d;
+    });
+  });
 
   const headerHeight = insets.top + 12 + 52;
   const categoryTabsHeight = 52;
-  const stickyOffset = headerHeight + categoryTabsHeight;
+  const eventsTitleHeight = layout === "events" ? 64 : 0;
+  const datePickerHeight = layout === "events" ? 96 : 0;
+  const stickyOffset = headerHeight + eventsTitleHeight + datePickerHeight + categoryTabsHeight;
 
   const loadListings = useCallback(async () => {
     try {
+      const hasCoords = userCoords.lat != null && userCoords.lng != null;
       const res = await Promise.race([
         fetchCategoryListings(categorySlug, {
           subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
           search: appliedSearch.trim() || undefined,
+          lat: hasCoords ? userCoords.lat! : undefined,
+          lng: hasCoords ? userCoords.lng! : undefined,
+          radius: hasCoords ? 100 : undefined,
         }),
         new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error("timeout")), FETCH_TIMEOUT_MS);
@@ -139,7 +182,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     } catch {
       setListings((prev) => (prev.length > 0 ? prev : []));
     }
-  }, [appliedSearch, categorySlug, selectedSubcategory, user?.id]);
+  }, [appliedSearch, categorySlug, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng]);
 
   // Fire on subcategory / search changes (screen already mounted)
   useEffect(() => {
@@ -217,6 +260,34 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     setAppliedSearch(searchQuery.trim());
   }, [searchQuery]);
 
+  const handleVoiceResult = useCallback((text: string) => {
+    setSearchQuery(text);
+    setAppliedSearch(text);
+  }, []);
+
+  const calendarGrid = useMemo(() => buildCalendarGrid(calendarMonth), [calendarMonth]);
+  const selectedCalendarDate = calendarDates[selectedDateIndex] ?? calendarDates[0];
+
+  const navigateCalendarMonth = useCallback((dir: number) => {
+    setCalendarMonth((prev) => {
+      const next = new Date(prev);
+      next.setMonth(next.getMonth() + dir);
+      return next;
+    });
+  }, []);
+
+  const onPickCalendarDate = useCallback((date: Date) => {
+    const newDates = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(date);
+      d.setDate(date.getDate() + i);
+      return d;
+    });
+    setCalendarDates(newDates);
+    setSelectedDateIndex(0);
+    setCalendarMonth(date);
+    setShowCalendar(false);
+  }, []);
+
   const listingRows = useMemo(() => {
     const rows: ListingItem[][] = [];
     for (let i = 0; i < displayListings.length; i += 2) {
@@ -227,6 +298,11 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
 
   return (
     <View className="flex-1" style={{ backgroundColor: BG }}>
+      <VoiceSearchModal
+        visible={voiceVisible}
+        onResult={handleVoiceResult}
+        onClose={() => setVoiceVisible(false)}
+      />
       <View
         className="absolute inset-x-0 top-0 z-50 px-4"
         style={{ paddingTop: insets.top + 8, height: headerHeight, backgroundColor: BG }}
@@ -271,14 +347,117 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
               >
                 <MaterialIcons name="close" size={20} color="#9CA3AF" />
               </Pressable>
-            ) : null}
+            ) : (
+              <Pressable
+                onPress={() => setVoiceVisible(true)}
+                hitSlop={8}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              >
+                <MaterialIcons name="mic" size={20} color="#9CA3AF" />
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
 
+      {layout === "events" ? (
+        <View
+          className="absolute inset-x-0 z-45 px-4"
+          style={{
+            top: headerHeight,
+            height: eventsTitleHeight,
+            backgroundColor: BG,
+            paddingVertical: 16,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: ListifyFonts.bold,
+              fontSize: 24,
+              lineHeight: 32,
+              letterSpacing: -0.02 * 24,
+              fontWeight: "700",
+              color: "#161D1A",
+            }}
+          >
+            Upcoming Events
+          </Text>
+        </View>
+      ) : null}
+
+      {layout === "events" ? (
+        <View
+          className="absolute inset-x-0 z-44"
+          style={{ top: headerHeight + eventsTitleHeight, height: datePickerHeight, backgroundColor: BG }}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: GRID_SIDE_PADDING,
+              gap: 8,
+              paddingVertical: 12,
+            }}
+          >
+            {calendarDates.map((d, idx) => {
+              const isActiveDate = idx === selectedDateIndex;
+              const monthLabel = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+              const dayLabel = d.getDate().toString();
+              return (
+                <Pressable
+                  key={idx}
+                  onPress={() => setSelectedDateIndex(idx)}
+                  android_ripple={{ color: "rgba(255,255,255,0.3)", borderless: false, radius: 28 }}
+                  className="items-center justify-center rounded-xl"
+                  style={{
+                    width: 56,
+                    height: 72,
+                    backgroundColor: isActiveDate ? "#27BB97" : "#FFFFFF",
+                    borderWidth: 1,
+                    borderColor: isActiveDate ? "#27BB97" : "#D1D5DB",
+                    shadowColor: "#27BB97",
+                    shadowOffset: { width: 0, height: isActiveDate ? 4 : 0 },
+                    shadowOpacity: isActiveDate ? 0.3 : 0,
+                    shadowRadius: isActiveDate ? 8 : 0,
+                    elevation: isActiveDate ? 4 : 0,
+                  }}
+                >
+                  <Text
+                    className="text-[11px]"
+                    style={{
+                      fontFamily: ListifyFonts.medium,
+                      color: isActiveDate ? "rgba(255,255,255,0.85)" : "#6C7A74",
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {monthLabel}
+                  </Text>
+                  <Text
+                    className="text-[22px]"
+                    style={{
+                      fontFamily: ListifyFonts.bold,
+                      color: isActiveDate ? "#FFFFFF" : "#161D1A",
+                    }}
+                  >
+                    {dayLabel}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              onPress={() => setShowCalendar(true)}
+              style={{ width: 48, alignItems: "center", justifyContent: "center" }}
+              hitSlop={8}
+            >
+              <MaterialIcons name="calendar-month" size={24} color="#27BB97" />
+            </Pressable>
+          </ScrollView>
+        </View>
+      ) : null}
+
       <View
         className="absolute inset-x-0 z-40 bg-[#F6F7F8]"
-        style={{ top: headerHeight, height: categoryTabsHeight }}
+        style={{ top: headerHeight + eventsTitleHeight + datePickerHeight, height: categoryTabsHeight }}
       >
         <ScrollView
           horizontal
@@ -329,38 +508,40 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           paddingBottom: Math.max(insets.bottom, 16) + 24,
         }}
       >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="mb-4"
-          contentContainerStyle={{ paddingHorizontal: GRID_SIDE_PADDING, gap: 8 }}
-        >
-          {SORT_OPTIONS.map((opt) => {
-            const isActive = opt.key === activeSort;
-            return (
-              <Pressable
-                key={opt.key}
-                onPress={() => setActiveSort(opt.key)}
-                className="rounded-full px-3.5 py-2"
-                style={{
-                  backgroundColor: isActive ? "rgba(39,187,151,0.12)" : "#FFFFFF",
-                  borderWidth: 1,
-                  borderColor: isActive ? "rgba(39,187,151,0.35)" : "#E5E7EB",
-                }}
-              >
-                <Text
-                  className="text-[12px]"
+        {layout !== "events" ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mb-4"
+            contentContainerStyle={{ paddingHorizontal: GRID_SIDE_PADDING, gap: 8 }}
+          >
+            {SORT_OPTIONS.map((opt) => {
+              const isActive = opt.key === activeSort;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => setActiveSort(opt.key)}
+                  className="rounded-full px-3.5 py-2"
                   style={{
-                    fontFamily: ListifyFonts.medium,
-                    color: isActive ? BRAND : "#4B5563",
+                    backgroundColor: isActive ? "rgba(39,187,151,0.12)" : "#FFFFFF",
+                    borderWidth: 1,
+                    borderColor: isActive ? "rgba(39,187,151,0.35)" : "#E5E7EB",
                   }}
                 >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    className="text-[12px]"
+                    style={{
+                      fontFamily: ListifyFonts.medium,
+                      color: isActive ? BRAND : "#4B5563",
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         {refreshing && displayListings.length === 0 ? (
           <View className="items-center py-20">
@@ -374,6 +555,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
             <MaterialIcons name="inventory-2" size={56} color="#D1D5DB" />
             <Text className="mt-4 text-[18px]" style={ListifyTypography.sectionTitle}>
               No listings found
+              {locationLabel && locationLabel !== "Set location" ? ` in ${locationLabel.split(",")[0]}` : ""}
             </Text>
             <Text className="mt-2 text-center text-[14px]" style={ListifyTypography.body}>
               Try another filter or search term
@@ -393,17 +575,20 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
             ))}
           </View>
         ) : layout === "events" ? (
-          <View className="gap-3 px-4">
-            {displayListings.map((event) => (
-              <EventListingCard
-                key={event._id}
-                event={event}
-                priceLabel={formatEventPrice(event.price, event.currency)}
-                isSaved={savedIds.has(event._id)}
-                onPress={() => openDetail(event)}
-                onToggleSave={() => handleToggleSave(event._id)}
-              />
-            ))}
+          <View>
+            {/* Event cards */}
+            <View className="gap-3 px-4">
+              {displayListings.map((event) => (
+                <EventListingCard
+                  key={event._id}
+                  event={event}
+                  priceLabel={formatEventPrice(event.price, event.currency)}
+                  isSaved={savedIds.has(event._id)}
+                  onPress={() => openDetail(event)}
+                  onToggleSave={() => handleToggleSave(event._id)}
+                />
+              ))}
+            </View>
           </View>
         ) : (
           <View className="px-4" style={{ gap: GRID_GUTTER }}>
@@ -440,6 +625,104 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           </View>
         )}
       </ScrollView>
+
+      {/* Calendar Month Picker Modal */}
+      <Modal
+        visible={showCalendar}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCalendar(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
+          onPress={() => setShowCalendar(false)}
+        />
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingHorizontal: 20,
+            paddingTop: 16,
+            paddingBottom: Math.max(insets.bottom, 20),
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+          }}
+        >
+          {/* Handle bar */}
+          <View style={{ alignItems: "center", marginBottom: 16 }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" }} />
+          </View>
+
+          {/* Month navigation */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <Pressable onPress={() => navigateCalendarMonth(-1)} hitSlop={12} style={{ padding: 4 }}>
+              <MaterialIcons name="chevron-left" size={28} color="#161D1A" />
+            </Pressable>
+            <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 18, color: "#161D1A" }}>
+              {calendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            </Text>
+            <Pressable onPress={() => navigateCalendarMonth(1)} hitSlop={12} style={{ padding: 4 }}>
+              <MaterialIcons name="chevron-right" size={28} color="#161D1A" />
+            </Pressable>
+          </View>
+
+          {/* Day-of-week headers */}
+          <View style={{ flexDirection: "row", marginBottom: 8 }}>
+            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+              <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontFamily: ListifyFonts.medium, fontSize: 12, color: "#6C7A74" }}>{d}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Day grid */}
+          {calendarGrid.map((week, wi) => (
+            <View key={wi} style={{ flexDirection: "row", marginBottom: 4 }}>
+              {week.map((day, di) => {
+                const isToday = day ? isSameDay(day, new Date()) : false;
+                const isPicked = day ? isSameDay(day, selectedCalendarDate) : false;
+                return (
+                  <Pressable
+                    key={di}
+                    onPress={() => day && onPickCalendarDate(day)}
+                    style={{ flex: 1, alignItems: "center", paddingVertical: 6 }}
+                  >
+                    {day ? (
+                      <View
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          backgroundColor: isPicked
+                            ? "#27BB97"
+                            : isToday
+                            ? "rgba(39,187,151,0.12)"
+                            : "transparent",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: ListifyFonts.medium,
+                            fontSize: 14,
+                            color: isPicked ? "#FFFFFF" : isToday ? "#27BB97" : "#161D1A",
+                          }}
+                        >
+                          {day.getDate()}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </Modal>
     </View>
   );
 }

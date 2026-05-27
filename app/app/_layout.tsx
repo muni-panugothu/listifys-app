@@ -1,14 +1,16 @@
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { TopSaveToast } from "@/components/top-save-toast";
+import { PageTransitionLoader } from "@/components/page-transition-loader";
 import { subscribeToasts, type AppToastPayload } from "@/lib/toast";
 import {
     DarkTheme,
     DefaultTheme,
     ThemeProvider,
 } from "@react-navigation/native";
-import { type Href, Stack, useRouter } from "@/lib/safe-router";
+import { subscribeRouteTransitions, type Href, Stack, useRouter } from "@/lib/safe-router";
+import { usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "react-native-reanimated";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,27 +23,119 @@ import { TypographyProvider } from "@/providers/typography-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { store } from "@/store";
+import { registerBackgroundCallHandler } from "@/lib/firebase-messaging";
+import { NotificationProvider } from "@/providers/notification-provider";
+
+// Register FCM background handler before any component renders (module-level)
+registerBackgroundCallHandler();
 
 export default function RootLayout() {
   return (
     <Provider store={store}>
       <TypographyProvider>
         <LocaleProvider>
-          <AppLayout />
+          <NotificationProvider>
+            <AppLayout />
+          </NotificationProvider>
         </LocaleProvider>
       </TypographyProvider>
     </Provider>
   );
 }
 
+/**
+ * Paths that should NOT show the page-transition loader.
+ * Auth screens, modals, onboarding, and the tabs root are excluded.
+ */
+const SKIP_LOADER_PATHS = new Set([
+  '/',
+  '/sign-in',
+  '/sign-up',
+  '/forgot-password',
+  '/new-password',
+  '/otp-verification',
+  '/reset-otp-verification',
+  '/mobile',
+  '/mobile-auth',
+  '/onboarding-slide-1',
+  '/onboarding-slide-2',
+  '/onboarding-slide-3',
+  '/create-offer-modal',
+  '/report-listing-modal',
+  '/logout-modal',
+  '/listing-success',
+  '/listing-draft-saved',
+  '/location-picker',
+  '/change-password',
+  '/outgoing-call',
+  '/incoming-call',
+  '/active-call',
+]);
+
+const LOADER_FAILSAFE_MS = 1800;
+
 function AppLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { visible, action, redirectTo } = useAppSelector((state) => state.authGate);
+  const { isAuthenticated, sessionHydrated } = useAppSelector((s) => s.auth);
   const [toastPayload, setToastPayload] = useState<AppToastPayload | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastKey, setToastKey] = useState(0);
+
+  // ── Page transition loader ──────────────────────────────────────────────
+  const pathname = usePathname();
+  const prevPathRef = useRef(pathname);
+  const loadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const loaderStartedAtRef = useRef<number | null>(null);
+  const [pageLoading, setPageLoading] = useState(false);
+
+  const clearLoaderTimers = useCallback(() => {
+    clearTimeout(loadTimerRef.current);
+  }, []);
+
+  const startPageLoader = useCallback((nextPath: string | null) => {
+    if (nextPath && SKIP_LOADER_PATHS.has(nextPath)) return;
+
+    clearLoaderTimers();
+    loaderStartedAtRef.current = Date.now();
+    setPageLoading(true);
+
+    // Safety net for unexpected interrupted navigations.
+    loadTimerRef.current = setTimeout(() => {
+      setPageLoading(false);
+      loaderStartedAtRef.current = null;
+    }, LOADER_FAILSAFE_MS);
+  }, [clearLoaderTimers]);
+
+  const finishPageLoader = useCallback(() => {
+    clearLoaderTimers();
+    setPageLoading(false);
+    loaderStartedAtRef.current = null;
+  }, [clearLoaderTimers]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeRouteTransitions(({ nextPath, action }) => {
+      // Back navigation already has a slide-out animation — no loader needed.
+      if (action === 'back') return;
+      startPageLoader(nextPath);
+    });
+
+    return unsubscribe;
+  }, [startPageLoader]);
+
+  useEffect(() => {
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname;
+      if (pageLoading) {
+        finishPageLoader();
+      }
+    }
+  }, [finishPageLoader, pageLoading, pathname]);
+
+  // Clean up safety-net timer on unmount
+  useEffect(() => clearLoaderTimers, [clearLoaderTimers]);
 
   useEffect(() => {
     const unsubscribe = subscribeToasts((payload) => {
@@ -53,6 +147,20 @@ function AppLayout() {
 
     return unsubscribe;
   }, []);
+
+  // ── Attach call socket listeners after session hydration ─────────────────
+  // We wait for sessionHydrated + isAuthenticated so the socket connects with
+  // a valid (or freshly-refreshed) access token instead of an expired one.
+  useEffect(() => {
+    if (!sessionHydrated || !isAuthenticated) return;
+    // eslint-disable-next-line no-console
+    console.log('[Layout] Session hydrated + authenticated — attaching call listeners');
+    import('@/features/calling/services/call-socket-service').then(
+      ({ attachCallListeners }) => attachCallListeners()
+    );
+    // FCM token registration + foreground message handler are managed
+    // by the useNotifications hook inside NotificationProvider.
+  }, [sessionHydrated, isAuthenticated]);
 
   const handleCloseAuthGate = useCallback(() => {
     dispatch(hideAuthGate());
@@ -252,6 +360,18 @@ function AppLayout() {
             name="logout-modal"
             options={{ headerShown: false, presentation: "transparentModal", animation: "fade" }}
           />
+          <Stack.Screen
+            name="outgoing-call"
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
+            name="incoming-call"
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
+            name="active-call"
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
         </Stack>
         <AuthGateBottomSheet
           visible={visible}
@@ -270,6 +390,8 @@ function AppLayout() {
             onHidden={() => setToastVisible(false)}
           />
         ) : null}
+        {/* Page-transition loading overlay (Zepto / OLX style) */}
+        <PageTransitionLoader visible={pageLoading} />
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>

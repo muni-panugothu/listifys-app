@@ -28,5 +28,15 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 
 	return context.resolveRequest(context, moduleName, platform);
 };
- 
+
+// Block Metro from watching Android CMake build artifacts inside node_modules.
+// On Windows, Metro's FallbackWatcher crashes when these temp dirs are deleted
+// after a build. This does not affect bundling — only file watching.
+const { blockList: existingBlockList } = config.resolver;
+config.resolver.blockList = [
+  ...(existingBlockList ? [existingBlockList].flat() : []),
+  /node_modules[/\\].*[/\\]\.cxx[/\\].*/,
+  /node_modules[/\\].*[/\\]CMakeFiles[/\\].*/,
+];
+
 module.exports = withNativewind(config);

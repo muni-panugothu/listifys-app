@@ -156,13 +156,15 @@ function flagEmoji(isoCode: string) {
 type Props = {
   phoneCode: string;
   phone: string;
-  onChangePhoneCode: (code: string) => void;
+  isoCode?: string;
+  onChangePhoneCode: (code: string, iso: string) => void;
   onChangePhone: (value: string) => void;
 };
 
 export function PhoneInputWithCountry({
   phoneCode,
   phone,
+  isoCode,
   onChangePhoneCode,
   onChangePhone,
 }: Props) {
@@ -180,11 +182,16 @@ export function PhoneInputWithCountry({
     );
   }, [searchQuery]);
 
-  // Find the ISO for the current phone code to show the flag
-  const activeEntry = useMemo(
-    () => COUNTRIES.find((c) => c.code === phoneCode),
-    [phoneCode],
-  );
+  // Find the ISO for the current phone code to show the flag.
+  // When isoCode is provided (set from location), use it to resolve the correct
+  // country for codes shared by multiple nations (e.g. +1 for US vs CA).
+  const activeEntry = useMemo(() => {
+    if (isoCode) {
+      const exact = COUNTRIES.find((c) => c.iso === isoCode && c.code === phoneCode);
+      if (exact) return exact;
+    }
+    return COUNTRIES.find((c) => c.code === phoneCode);
+  }, [phoneCode, isoCode]);
   const flagDisplay = activeEntry ? flagEmoji(activeEntry.iso) : "🌐";
 
   return (
@@ -351,7 +358,7 @@ export function PhoneInputWithCountry({
               return (
                 <Pressable
                   onPress={() => {
-                    onChangePhoneCode(item.code);
+                    onChangePhoneCode(item.code, item.iso);
                     setPickerVisible(false);
                     setSearchQuery("");
                   }}

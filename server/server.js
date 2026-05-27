@@ -656,8 +656,13 @@ const shutdown = async (signal) => {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on("uncaughtException", (err) => {
-  logger.error('Uncaught Exception â€” initiating graceful shutdown', { error: err.message, stack: err.stack });
+process.on("uncaughtException", (err) => {  // Amqplib heartbeat timeouts are transient network errors — the connection-level
+  // error handler in rabbitmq.js already schedules a reconnect. Shutting down the
+  // entire server for a broker hiccup is too aggressive; just log and continue.
+  if (err.message === 'Heartbeat timeout' && err.stack?.includes('amqplib')) {
+    logger.warn('[RabbitMQ] Heartbeat timeout (non-fatal — reconnect will be scheduled)', { error: err.message });
+    return;
+  }  logger.error('Uncaught Exception â€” initiating graceful shutdown', { error: err.message, stack: err.stack });
   // After an uncaught exception, Node.js is in an undefined state.
   // Always shut down gracefully; the cluster manager or container orchestrator will restart.
   shutdown("UNCAUGHT_EXCEPTION");

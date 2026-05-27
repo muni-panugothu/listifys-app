@@ -1,7 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
-import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts } from "@/constants/typography";
 import type { ListingItem } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
@@ -19,7 +18,7 @@ function formatEventDate(dateStr?: string, timeStr?: string): string {
     }
   }
   if (timeStr) parts.push(timeStr);
-  return parts.join(" · ");
+  return parts.join(" • ");
 }
 
 type EventListingCardProps = {
@@ -45,19 +44,20 @@ export function EventListingCard({
   return (
     <Pressable
       onPress={onPress}
-      className="overflow-hidden rounded-2xl bg-white"
+      className="overflow-hidden rounded-xl bg-white"
       style={({ pressed }) => ({
-        opacity: pressed ? 0.96 : 1,
+        opacity: pressed ? 0.97 : 1,
         borderWidth: 1,
-        borderColor: "#F0F0F0",
+        borderColor: "#F1F5F9",
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.06,
-        shadowRadius: 8,
+        shadowRadius: 6,
         elevation: 2,
       })}
     >
-      <View className="relative h-48 w-full bg-[#F3F4F6]">
+      {/* Image Section */}
+      <View className="relative h-56 w-full overflow-hidden bg-[#F3F4F6]">
         {event.images?.[0] ? (
           <Image
             source={event.images[0]}
@@ -66,72 +66,115 @@ export function EventListingCard({
           />
         ) : (
           <View className="h-full w-full items-center justify-center">
-            <MaterialIcons name="event" size={40} color="#D1D5DB" />
+            <MaterialIcons name="event" size={44} color="#D1D5DB" />
           </View>
         )}
-        <ListingTimeBadge
-          date={event.createdAt}
-          style={featured ? { left: 8, top: 40 } : undefined}
-        />
+        {/* Trending badge */}
         {featured ? (
-          <View className="absolute left-3 top-3 rounded-md bg-[#27BB97] px-2 py-1">
+          <View
+            className="absolute left-3 top-3 rounded-full bg-[#27BB97] px-3 py-1"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+          >
             <Text
-              className="text-[10px] text-white"
-              style={{ fontFamily: ListifyFonts.bold }}
+              className="text-[10px] uppercase text-white"
+              style={{ fontFamily: ListifyFonts.bold, letterSpacing: 1.5 }}
             >
-              FEATURED
+              Trending
             </Text>
           </View>
         ) : null}
+        {/* Save / Favourite button */}
         <Pressable
           onPress={onToggleSave}
-          className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full bg-white/95"
+          className="absolute right-3 top-3 h-10 w-10 items-center justify-center rounded-full bg-white/70"
+          style={{
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.5)",
+          }}
         >
           <MaterialIcons
-            name={isSaved ? "bookmark" : "bookmark-border"}
+            name={isSaved ? "favorite" : "favorite-border"}
             size={20}
-            color={isSaved ? "#27BB97" : "#1A1A1A"}
+            color={isSaved ? "#BA1A1A" : "#161D1A"}
           />
         </Pressable>
       </View>
 
+      {/* Content Section */}
       <View className="p-4">
-        <Text
-          numberOfLines={2}
-          className="text-[17px] text-[#1A1A1A]"
-          style={{ fontFamily: ListifyFonts.semiBold }}
-        >
-          {event.title}
-        </Text>
+        {/* Date & time */}
         {dateLabel ? (
-          <View className="mt-2 flex-row items-center gap-1">
-            <MaterialIcons name="schedule" size={15} color="#27BB97" />
+          <View className="mb-1 flex-row items-center gap-1">
+            <MaterialIcons name="schedule" size={14} color="#27BB97" />
             <Text
-              className="text-[13px] text-[#6B7280]"
-              style={{ fontFamily: ListifyFonts.regular }}
+              className="text-[12px] text-[#27BB97]"
+              style={{ fontFamily: ListifyFonts.medium }}
             >
               {dateLabel}
             </Text>
           </View>
         ) : null}
+        {/* Title */}
+        <Text
+          numberOfLines={2}
+          className="mb-1 text-[18px] text-[#161D1A]"
+          style={{ fontFamily: ListifyFonts.semiBold, lineHeight: 24 }}
+        >
+          {event.title}
+        </Text>
+        {/* Location */}
         {event.location ? (
-          <View className="mt-1 flex-row items-center gap-1">
-            <MaterialIcons name="location-on" size={15} color="#9CA3AF" />
+          <View className="mb-4 flex-row items-center gap-1">
+            <MaterialIcons name="location-on" size={15} color="#6C7A74" />
             <Text
               numberOfLines={1}
-              className="flex-1 text-[13px] text-[#9CA3AF]"
+              className="flex-1 text-[14px] text-[#6C7A74]"
               style={{ fontFamily: ListifyFonts.regular }}
             >
               {event.location}
             </Text>
           </View>
-        ) : null}
-        <Text
-          className="mt-3 text-[18px] text-[#27BB97]"
-          style={{ fontFamily: ListifyFonts.bold }}
+        ) : (
+          <View className="mb-4" />
+        )}
+        {/* Price row + Book Now button */}
+        <View
+          className="flex-row items-end justify-between pt-3"
+          style={{ borderTopWidth: 1, borderTopColor: "#F8FAFC" }}
         >
-          {priceLabel}
-        </Text>
+          <View>
+            <Text
+              className="text-[12px] text-[#6C7A74]"
+              style={{ fontFamily: ListifyFonts.medium }}
+            >
+              Entry Price
+            </Text>
+            <Text
+              className="text-[16px] text-[#161D1A]"
+              style={{ fontFamily: ListifyFonts.bold }}
+            >
+              {priceLabel}
+            </Text>
+          </View>
+          <Pressable
+            onPress={onPress}
+            className="rounded-lg bg-[#27BB97] px-6 py-2"
+            style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+          >
+            <Text
+              className="text-[12px] text-white"
+              style={{ fontFamily: ListifyFonts.semiBold }}
+            >
+              Book Now
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );

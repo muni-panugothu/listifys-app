@@ -14,6 +14,7 @@ const { logger } = require('../../utils/logger');
 const getSearchService = () => require('../../services/search.service');
 const getListingCache  = () => require('../../services/listingcache.service');
 const getNotifyService = () => require('../../services/notifyfollowers.service.js');
+const getRedis         = () => require('../../config/redis');
 
 const handleListingEvent = async (payload) => {
   const { type, entity, listing, oldListing, listingId, changes, userId } = payload;
@@ -32,6 +33,8 @@ const handleListingEvent = async (payload) => {
         ListingCache.invalidateListCaches(entity),
         SearchService.indexListing(entity, listing),
         userId ? NotifyService.notifyFollowersOfNewListing(userId, listing, entity) : null,
+        // Bust the seller's profile cache so listingsCount reflects immediately
+        userId ? getRedis().del(`profile:${userId}`).catch(() => {}) : null,
       ]);
       logger.info(`[ListingConsumer] Listing created processed`, { entity, id: listing?._id });
       break;
@@ -57,6 +60,8 @@ const handleListingEvent = async (payload) => {
         ListingCache.logProductDeleted(entity, listing),
         ListingCache.invalidateListingCache(entity, listingId),
         SearchService.removeListing(entity, listingId),
+        // Bust the seller's profile cache so listingsCount reflects immediately
+        userId ? getRedis().del(`profile:${userId}`).catch(() => {}) : null,
       ]);
       logger.info(`[ListingConsumer] Listing deleted processed`, { entity, listingId });
       break;

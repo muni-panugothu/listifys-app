@@ -5,9 +5,11 @@ import { ActivityIndicator, Image, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { configureGoogleSignIn } from "@/lib/google-sign-in";
+import { getFCMToken } from "@/lib/firebase-messaging";
 import { useAppDispatch } from "@/store/hooks";
 import { store } from "@/store";
 import { restoreSession } from "@/store/slices/auth-slice";
+import { checkOnboarding } from "@/store/slices/onboarding-slice";
 
 const HOME_ROUTE = "/(tabs)/home-feed-root" as Href;
 
@@ -31,6 +33,7 @@ export function SplashScreen() {
         await dispatch(checkOnboarding());
         const sessionResult = await dispatch(restoreSession());
         await configureGoogleSignIn().catch(() => {});
+        await getFCMToken().catch(() => null);
 
         if (cancelled) return;
 
@@ -60,12 +63,10 @@ export function SplashScreen() {
         return;
       }
 
-      if (!onboardingCompleted) {
-        router.replace("/onboarding-slide-3" as Href);
-        return;
-      }
-
-      router.replace("/sign-in" as Href);
+      // Always show onboarding when not authenticated — covers:
+      // • new users (first launch)
+      // • users who logged out and restarted the app
+      router.replace("/onboarding-slide-3" as Href);
     };
 
     void bootstrap();

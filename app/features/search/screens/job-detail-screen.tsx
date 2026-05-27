@@ -25,12 +25,14 @@ import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
+import { selectLocationLabel } from "@/store/slices/location-slice";
 
 export function JobDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; category?: string }>();
   const user = useAppSelector((s) => s.auth.user);
+  const locationLabel = useAppSelector(selectLocationLabel);
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +61,7 @@ export function JobDetailScreen() {
       const res = await fetchListingById(categorySlug, listingId);
       if (res.listing) {
         setListing(res.listing);
-        addToRecentlyViewed(res.listing).catch(() => {});
+        addToRecentlyViewed(res.listing, locationLabel).catch(() => {});
         if (user?.id && res.listing.savedBy?.includes(user.id)) {
           setIsSaved(true);
         }

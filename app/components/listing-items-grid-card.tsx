@@ -88,9 +88,10 @@ export function ListingItemsGridCard({
   return (
     <Pressable
       onPress={onPress}
-      className="rounded-[24px] bg-white px-3.5 pb-4"
+      className="bg-white px-3.5 pb-4"
       style={{
         width,
+        borderRadius: 24,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.06,
@@ -106,7 +107,9 @@ export function ListingItemsGridCard({
           <Image
             source={image}
             contentFit="cover"
-            transition={200}
+            cachePolicy="memory-disk"
+            recyclingKey={image}
+            transition={120}
             style={{
               width: imageSize,
               height: imageSize,

@@ -1,12 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback } from "react";
-import { BackHandler, Pressable, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BackHandler, FlatList, Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { SellFlowLayout } from "@/components/sell-flow-layout";
 import { ListifyFonts } from "@/constants/typography";
-import { getCurrencySymbol } from "@/lib/currency";
+import { useLocale } from "@/providers/locale-provider";
+import { showErrorToast } from "@/lib/toast";
 
 import {
   CONDITION_OPTIONS,
@@ -15,7 +16,7 @@ import {
 } from "@/constants/categories";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  setTitle, setDescription, setPrice, setCondition, setListingType,
+  setTitle, setDescription, setPrice, setCondition, setListingType, setCurrency,
   // Property
   setBedrooms, setBathrooms, setFurnishing, setSquareFeet, toggleFeature, setPetFriendly, setGenderPreference, setOccupancy,
   // Electronics
@@ -53,6 +54,50 @@ import {
 } from "@/store/slices/post-form-slice";
 
 // ── Option constants ────────────────────────────────────────────────────────────
+
+type CurrencyEntry = { code: string; symbol: string; name: string };
+const CURRENCY_OPTIONS: CurrencyEntry[] = [
+  { code: "INR",  symbol: "₹",     name: "Indian Rupee" },
+  { code: "USD",  symbol: "$",     name: "US Dollar" },
+  { code: "EUR",  symbol: "€",     name: "Euro" },
+  { code: "GBP",  symbol: "£",     name: "British Pound" },
+  { code: "AED",  symbol: "د.إ",  name: "UAE Dirham" },
+  { code: "SAR",  symbol: "﷼",    name: "Saudi Riyal" },
+  { code: "QAR",  symbol: "ر.ق", name: "Qatari Riyal" },
+  { code: "KWD",  symbol: "د.ك",  name: "Kuwaiti Dinar" },
+  { code: "BHD",  symbol: "BD",    name: "Bahraini Dinar" },
+  { code: "OMR",  symbol: "ر.ع.", name: "Omani Rial" },
+  { code: "PKR",  symbol: "Rs",    name: "Pakistani Rupee" },
+  { code: "BDT",  symbol: "৳",    name: "Bangladeshi Taka" },
+  { code: "LKR",  symbol: "Rs",    name: "Sri Lankan Rupee" },
+  { code: "NPR",  symbol: "Rs",    name: "Nepalese Rupee" },
+  { code: "SGD",  symbol: "S$",    name: "Singapore Dollar" },
+  { code: "MYR",  symbol: "RM",    name: "Malaysian Ringgit" },
+  { code: "PHP",  symbol: "₱",    name: "Philippine Peso" },
+  { code: "IDR",  symbol: "Rp",    name: "Indonesian Rupiah" },
+  { code: "THB",  symbol: "฿",    name: "Thai Baht" },
+  { code: "VND",  symbol: "₫",    name: "Vietnamese Dong" },
+  { code: "JPY",  symbol: "¥",    name: "Japanese Yen" },
+  { code: "CNY",  symbol: "¥",    name: "Chinese Yuan" },
+  { code: "KRW",  symbol: "₩",    name: "South Korean Won" },
+  { code: "HKD",  symbol: "HK$",  name: "Hong Kong Dollar" },
+  { code: "TWD",  symbol: "NT$",  name: "New Taiwan Dollar" },
+  { code: "AUD",  symbol: "A$",   name: "Australian Dollar" },
+  { code: "CAD",  symbol: "C$",   name: "Canadian Dollar" },
+  { code: "NZD",  symbol: "NZ$",  name: "New Zealand Dollar" },
+  { code: "CHF",  symbol: "CHF",  name: "Swiss Franc" },
+  { code: "ZAR",  symbol: "R",    name: "South African Rand" },
+  { code: "NGN",  symbol: "₦",    name: "Nigerian Naira" },
+  { code: "GHS",  symbol: "₵",    name: "Ghanaian Cedi" },
+  { code: "KES",  symbol: "KSh",  name: "Kenyan Shilling" },
+  { code: "EGP",  symbol: "E£",   name: "Egyptian Pound" },
+  { code: "MXN",  symbol: "MX$",  name: "Mexican Peso" },
+  { code: "BRL",  symbol: "R$",   name: "Brazilian Real" },
+  { code: "RUB",  symbol: "₽",    name: "Russian Ruble" },
+  { code: "TRY",  symbol: "₺",    name: "Turkish Lira" },
+  { code: "PLN",  symbol: "zł",   name: "Polish Złoty" },
+  { code: "SEK",  symbol: "kr",   name: "Swedish Krona" },
+];
 const FURNISHING_OPTIONS = ["Fully Furnished", "Semi-Furnished", "Unfurnished"];
 const PROPERTY_AMENITIES = [
   "Parking", "Swimming Pool", "Gym", "Power Backup", "Lift",
@@ -210,10 +255,25 @@ function LabelPill({ text }: { text: string }) {
 export function PostAdStep2DetailsScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { currencyCode, currencySymbol } = useLocale();
+
+  // Track if user has manually chosen a currency this session.
+  // When false, currency always mirrors the selected location's locale.
+  const [isCurrencyManual, setIsCurrencyManual] = useState(false);
+
+  // Auto-sync currency from locale whenever the location (and thus currencyCode) changes
+  useEffect(() => {
+    if (!isCurrencyManual) {
+      dispatch(setCurrency(currencyCode));
+    }
+  }, [currencyCode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState("");
 
   const pf = useAppSelector((s) => s.postForm);
   const {
-    title, description, price, condition, category, subcategory, listingType,
+    title, description, price, condition, category, subcategory, listingType, currency,
     bedrooms, bathrooms, furnishing, squareFeet, features, petFriendly, genderPreference, occupancy,
     brand, model: productModel, warranty, purchaseYear, screenSize, displayType,
     processor, ram, storage, capacity, energyRating, megapixels, lensType,
@@ -233,6 +293,18 @@ export function PostAdStep2DetailsScreen() {
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
   } = pf;
+
+  const filteredCurrencies = useMemo(() => {
+    const q = currencySearch.trim().toLowerCase();
+    if (!q) return CURRENCY_OPTIONS;
+    return CURRENCY_OPTIONS.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.symbol.includes(q),
+    );
+  }, [currencySearch]);
+
+  // Show the symbol for the selected currency code, falling back to locale symbol
+  const displayCurrency =
+    CURRENCY_OPTIONS.find((c) => c.code === currency)?.symbol ?? currencySymbol;
 
   const isProperty = category === "properties";
   const isElectronics = category === "electronics";
@@ -269,6 +341,53 @@ export function PostAdStep2DetailsScreen() {
   const priceError =
     !priceOptional && price.length > 0 && (Number(price) <= 100 || Number(price) === 0);
 
+  const handleNext = () => {
+    // ── Title ────────────────────────────────────────────────────────────────
+    const trimmedTitle = title.trim();
+    if (trimmedTitle.length < 3) {
+      showErrorToast("Title required", "Title must be at least 3 characters.");
+      return;
+    }
+    if (trimmedTitle.length > 200) {
+      showErrorToast("Title too long", "Title cannot exceed 200 characters.");
+      return;
+    }
+
+    // ── Description ──────────────────────────────────────────────────────────
+    const trimmedDesc = description.trim();
+    if (trimmedDesc.length < 20) {
+      showErrorToast("Description too short", "Description must be at least 20 characters.");
+      return;
+    }
+    if (trimmedDesc.length > 5000) {
+      showErrorToast("Description too long", "Description cannot exceed 5000 characters.");
+      return;
+    }
+
+    // ── Price ─────────────────────────────────────────────────────────────────
+    if (!priceOptional) {
+      const numericPrice = Number(price);
+      if (price.trim() === "" || isNaN(numericPrice) || numericPrice < 0) {
+        showErrorToast("Price required", "Please enter a valid price (0 or more).");
+        return;
+      }
+    }
+
+    // ── Job-specific ─────────────────────────────────────────────────────────
+    if (isJob) {
+      if (companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyEmail)) {
+        showErrorToast("Invalid email", "Please enter a valid company email address.");
+        return;
+      }
+      if (applyLink && !/^https?:\/\/.+/.test(applyLink)) {
+        showErrorToast("Invalid apply link", "Apply link must start with http:// or https://");
+        return;
+      }
+    }
+
+    router.push("/post-ad-step3-media");
+  };
+
   const handleBack = () => {
     router.replace({
       pathname: "/post-ad-step1-category",
@@ -288,13 +407,14 @@ export function PostAdStep2DetailsScreen() {
   );
 
   return (
+    <>
     <SellFlowLayout
       step={2}
       title="Listing details"
       subtitle="Title, price & item info"
       onBack={handleBack}
       primaryLabel="Continue"
-      onPrimaryPress={() => router.push("/post-ad-step3-media")}
+      onPrimaryPress={handleNext}
     >
 
           {/* Property Listing Type */}
@@ -364,22 +484,41 @@ export function PostAdStep2DetailsScreen() {
             <View className="mb-6">
               <Label text="Price" />
               <View
-                className="h-12 flex-row items-center rounded-lg bg-white px-4"
+                className="h-12 flex-row items-center rounded-lg bg-white overflow-hidden"
                 style={{ borderWidth: 1, borderColor: priceError ? "#BA1A1A" : "#E2E8F0" }}
               >
-                <Text className="mr-1 text-[16px] font-semibold text-[#161D1A]">{getCurrencySymbol()}</Text>
+                {/* Tappable currency badge */}
+                <Pressable
+                  onPress={() => setCurrencyPickerVisible(true)}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 2,
+                    paddingHorizontal: 10,
+                    height: "100%",
+                    borderRightWidth: 1,
+                    borderRightColor: "#E5E7EB",
+                    backgroundColor: pressed ? "#F3F4F6" : "transparent",
+                  })}
+                  accessibilityLabel="Select currency"
+                >
+                  <Text style={{ fontSize: 15, fontFamily: ListifyFonts.semiBold, color: "#161D1A" }}>
+                    {displayCurrency}
+                  </Text>
+                  <MaterialIcons name="arrow-drop-down" size={16} color="#6B7280" />
+                </Pressable>
                 <TextInput
                   value={price}
                   onChangeText={(v) => dispatch(setPrice(v))}
                   keyboardType="numeric"
-                  className="flex-1 text-[16px] font-bold text-[#161D1A]"
+                  className="flex-1 text-[16px] font-bold px-3"
                   style={{ paddingVertical: 0, color: priceError ? "#BA1A1A" : "#161D1A" }}
                 />
               </View>
               {priceError && (
                 <View className="mt-1 flex-row items-center gap-1 px-1">
                   <MaterialIcons name="error" size={14} color="#BA1A1A" />
-                  <Text className="text-[11px] text-[#BA1A1A]">Price must be greater than {getCurrencySymbol()}100</Text>
+                  <Text className="text-[11px] text-[#BA1A1A]">Price must be greater than {displayCurrency}100</Text>
                 </View>
               )}
             </View>
@@ -1226,5 +1365,118 @@ export function PostAdStep2DetailsScreen() {
         Clear titles and fair pricing help buyers find your listing faster.
       </Text>
     </SellFlowLayout>
+
+    {/* ── Currency Picker Modal ─────────────────────────────────────────── */}
+    <Modal
+      visible={currencyPickerVisible}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setCurrencyPickerVisible(false)}
+    >
+      <Pressable
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
+        onPress={() => setCurrencyPickerVisible(false)}
+      />
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0, left: 0, right: 0,
+          backgroundColor: "#FFFFFF",
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          maxHeight: "75%",
+        }}
+      >
+        {/* Handle */}
+        <View style={{ alignItems: "center", paddingVertical: 10 }}>
+          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" }} />
+        </View>
+        {/* Title */}
+        <Text
+          style={{
+            textAlign: "center", fontSize: 17,
+            fontFamily: ListifyFonts.bold, color: "#111827",
+            marginBottom: 12, paddingHorizontal: 16,
+          }}
+        >
+          Select Currency
+        </Text>
+        {/* Search */}
+        <View
+          style={{
+            flexDirection: "row", alignItems: "center",
+            marginHorizontal: 16, marginBottom: 8,
+            paddingHorizontal: 12, height: 44,
+            borderRadius: 10, borderWidth: 1,
+            borderColor: "#E5E7EB", backgroundColor: "#F9FAFB", gap: 8,
+          }}
+        >
+          <MaterialIcons name="search" size={18} color="#9CA3AF" />
+          <TextInput
+            value={currencySearch}
+            onChangeText={setCurrencySearch}
+            placeholder="Search currency…"
+            placeholderTextColor="#9CA3AF"
+            returnKeyType="search"
+            style={{ flex: 1, fontSize: 14, fontFamily: ListifyFonts.regular, color: "#111827", paddingVertical: 0 }}
+          />
+          {currencySearch.length > 0 && (
+            <Pressable onPress={() => setCurrencySearch("")} hitSlop={8}>
+              <MaterialIcons name="close" size={16} color="#9CA3AF" />
+            </Pressable>
+          )}
+        </View>
+        {/* List */}
+        <FlatList
+          data={filteredCurrencies}
+          keyExtractor={(item) => item.code}
+          keyboardShouldPersistTaps="handled"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          renderItem={({ item }) => {
+            const isSelected = item.code === currency;
+            return (
+              <Pressable
+                onPress={() => {
+                  dispatch(setCurrency(item.code));
+                  setIsCurrencyManual(true);
+                  setCurrencyPickerVisible(false);
+                  setCurrencySearch("");
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center",
+                  paddingHorizontal: 16, paddingVertical: 14, gap: 12,
+                  backgroundColor: pressed ? "#F3F4F6" : isSelected ? "#F0FBF8" : "#FFFFFF",
+                  borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
+                })}
+              >
+                <Text
+                  style={{
+                    fontSize: 18, fontFamily: ListifyFonts.semiBold,
+                    color: isSelected ? "#1D9477" : "#111827",
+                    width: 36, textAlign: "center",
+                  }}
+                >
+                  {item.symbol}
+                </Text>
+                <Text style={{ flex: 1, fontSize: 15, fontFamily: ListifyFonts.regular, color: "#111827" }} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13, fontFamily: ListifyFonts.medium,
+                    color: isSelected ? "#1D9477" : "#9CA3AF",
+                  }}
+                >
+                  {item.code}
+                </Text>
+                {isSelected && <MaterialIcons name="check-circle" size={18} color="#1D9477" />}
+              </Pressable>
+            );
+          }}
+        />
+      </View>
+    </Modal>
+    </>
   );
 }

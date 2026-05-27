@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   BackHandler,
   Pressable,
   Text,
@@ -39,16 +40,46 @@ import {
   setListingCoords,
   setLocation,
   setPhone,
-  setPhoneCode,
+  setCurrency,
   setSubmitError,
   setSubmitting,
   setUploadedImageUrls,
 } from "@/store/slices/post-form-slice";
 
+// ── Per-image live moderation state ────────────────────────────────────────────
+type ImageScanStatus = "scanning" | "allowed" | "blocked" | "review";
+type ImageScanResult = { status: ImageScanStatus; category?: string };
+
+/** Short label shown inside the thumbnail overlay. */
+const MODERATION_CATEGORY_SHORT: Record<string, string> = {
+  explicit_sexual: "Explicit",
+  sexual: "Adult content",
+  graphic_violence: "Violence",
+  violence: "Violence",
+  racy: "Suggestive",
+  illegal_drugs: "Drugs",
+  illegal_drugs_web: "Drugs",
+  weapon: "Weapon",
+  weapon_web: "Weapon",
+  hate_symbol: "Hate symbol",
+};
+
 export function PostAdStep3MediaScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { phoneCode: localePhoneCode } = useLocale();
+  const locationIso = useAppSelector((s) => s.location.isoCountryCode);
+
+  // Phone code is derived from locale (which tracks location globally).
+  // `overridePhoneCode` / `overridePhoneIso` hold a manual selection from the
+  // in-form country picker; they are cleared whenever the listing location changes.
+  const [overridePhoneCode, setOverridePhoneCode] = useState<string | null>(null);
+  const [overridePhoneIso, setOverridePhoneIso] = useState<string | null>(null);
+
+  // Tracks Vision API scan result per image URI — populated as images are picked.
+  const [imageScanMap, setImageScanMap] = useState<Record<string, ImageScanResult>>({});
+  const activePhoneCode = overridePhoneCode ?? localePhoneCode;
+  const activePhoneIso  = overridePhoneIso  ?? locationIso ?? undefined;
 
   const {
     category, subcategory, title, description, price, condition, location, listingType,
@@ -71,7 +102,7 @@ export function PostAdStep3MediaScreen() {
     author, isbn, publisher, edition, language, pages,
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
-    imageUris, phone, phoneCode, locationLat, locationLng, isSubmitting, submitError,
+    imageUris, phone, currency, locationLat, locationLng, isSubmitting, submitError,
   } = useAppSelector((s) => s.postForm);
 
   const locationStatus = useAppSelector((s) => s.location.status);
@@ -79,18 +110,30 @@ export function PostAdStep3MediaScreen() {
   const globalLocationLabel = useAppSelector((s) => s.location.label);
   const globalLocationSource = useAppSelector((s) => s.location.source);
 
-  // On mount: pre-populate location from the app-wide location if the form field is empty
+  // Sync listing location whenever the app-wide location changes (also runs on mount).
+  // This keeps the item-location input in step 3 in sync with whatever the user
+  // has selected in the global location picker.
   useEffect(() => {
-    if (!location && globalLocationSource !== null && globalLocationLabel !== "Set location") {
+    if (
+      globalLocationSource !== null &&
+      globalLocationLabel &&
+      globalLocationLabel !== "Set location" &&
+      globalLocationLabel !== "Detecting location\u2026"
+    ) {
       dispatch(setLocation(globalLocationLabel));
+      if (locationCoords.lat != null && locationCoords.lng != null) {
+        dispatch(setListingCoords({ lat: locationCoords.lat, lng: locationCoords.lng }));
+      }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalLocationLabel]);
 
-  // Sync phone code with locale (updates when location changes globally)
+  // Sync phone code + ISO with locale (updates when location changes globally)
   useEffect(() => {
-    if (localePhoneCode && localePhoneCode !== phoneCode) {
-      dispatch(setPhoneCode(localePhoneCode));
-    }
+    // When the locale phone code changes (global location change), drop any manual
+    // override so the new location's code is shown automatically.
+    setOverridePhoneCode(null);
+    setOverridePhoneIso(null);
   }, [localePhoneCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBack = () => {
@@ -119,6 +162,12 @@ export function PostAdStep3MediaScreen() {
       if (result.lat != null && result.lng != null) {
         dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
       }
+      // Update phone code + currency for the detected location's country
+      if (result.isoCountryCode) {
+        setOverridePhoneCode(null);
+        setOverridePhoneIso(null);
+        dispatch(setCurrency(""));
+      }
     } catch {
       showErrorToast(
         "Location unavailable",
@@ -136,8 +185,44 @@ export function PostAdStep3MediaScreen() {
     });
 
     if (!result.canceled) {
-      for (const asset of result.assets) {
-        dispatch(addImageUri(asset.uri));
+      const newUris = result.assets.map((a) => a.uri);
+
+      // Add to Redux state first so thumbnails appear immediately.
+      for (const uri of newUris) {
+        dispatch(addImageUri(uri));
+      }
+
+      // Mark as scanning straight away so the overlay shows on each thumbnail.
+      setImageScanMap((prev) => ({
+        ...prev,
+        ...Object.fromEntries(newUris.map((u) => [u, { status: "scanning" } as ImageScanResult])),
+      }));
+
+      // Run Vision API moderation in the background.
+      try {
+        const modResult = await checkImageModeration(newUris);
+        setImageScanMap((prev) => {
+          const next = { ...prev };
+          newUris.forEach((uri, i) => {
+            const r = modResult.results[i];
+            if (r) {
+              next[uri] = {
+                status: r.decision === "block" ? "blocked" : r.decision === "review" ? "review" : "allowed",
+                category: r.category,
+              };
+            } else {
+              // No result for this index — fail open.
+              next[uri] = { status: "allowed" };
+            }
+          });
+          return next;
+        });
+      } catch {
+        // API unreachable — fail open so uploads aren't permanently broken.
+        setImageScanMap((prev) => ({
+          ...prev,
+          ...Object.fromEntries(newUris.map((u) => [u, { status: "allowed" } as ImageScanResult])),
+        }));
       }
     }
   };
@@ -160,38 +245,53 @@ export function PostAdStep3MediaScreen() {
       return;
     }
 
+    // ── Human-readable labels for violation categories ─────────────────────────
+    const MODERATION_LABELS: Record<string, string> = {
+      explicit_sexual: "explicit sexual content",
+      sexual: "potentially sexual content",
+      graphic_violence: "graphic violence",
+      violence: "violent content",
+      racy: "suggestive content",
+      illegal_drugs: "illegal drugs or paraphernalia",
+      illegal_drugs_web: "illegal drugs",
+      weapon: "illegal weapons",
+      weapon_web: "weapons",
+      hate_symbol: "hate symbols or extremist content",
+    };
+
+    // ── Guard: check live scan results (populated at pick time) ─────────────────
+    const hasScanningImages = imageUris.some((u) => imageScanMap[u]?.status === "scanning");
+    if (hasScanningImages) {
+      showErrorToast("Please wait", "Images are still being scanned for policy compliance.");
+      return;
+    }
+    const firstBlockedUri = imageUris.find((u) => imageScanMap[u]?.status === "blocked");
+    if (firstBlockedUri) {
+      const violationType =
+        MODERATION_LABELS[imageScanMap[firstBlockedUri]?.category ?? ""] ??
+        "policy-violating content";
+      showErrorToast(
+        "Restricted image",
+        `One or more images contain ${violationType} and cannot be posted. Remove images marked RESTRICTED.`,
+      );
+      return;
+    }
+    const firstFlaggedUri = imageUris.find((u) => imageScanMap[u]?.status === "review");
+    if (firstFlaggedUri) {
+      const violationType =
+        MODERATION_LABELS[imageScanMap[firstFlaggedUri]?.category ?? ""] ?? "sensitive content";
+      showErrorToast(
+        "Image flagged",
+        `One or more images were flagged for ${violationType}. Remove images marked FLAGGED before posting.`,
+      );
+      return;
+    }
+
     dispatch(setSubmitting(true));
     dispatch(setSubmitError(null));
 
     try {
-      // 0. Moderate images before upload
-      const moderationResult = await checkImageModeration(imageUris);
-      if (moderationResult.overallDecision === "block") {
-        const blockedFiles = moderationResult.results
-          .filter((r) => r.decision === "block")
-          .map((r) => r.filename)
-          .join(", ");
-        dispatch(setSubmitting(false));
-        showErrorToast(
-          "Image Blocked",
-          `One or more images contain inappropriate content and cannot be posted. Please remove or replace them.\n\nAffected: ${blockedFiles}`,
-        );
-        return;
-      }
-      if (moderationResult.overallDecision === "review") {
-        const reviewFiles = moderationResult.results
-          .filter((r) => r.decision === "review")
-          .map((r) => r.filename)
-          .join(", ");
-        dispatch(setSubmitting(false));
-        showErrorToast(
-          "Image Under Review",
-          `Some images may contain sensitive content and need to be reviewed. Please remove or replace them before posting.\n\nAffected: ${reviewFiles}`,
-        );
-        return;
-      }
-
-      // 1. Upload images to S3
+      // 1. Upload images to S3 — moderation already ran live at pick time
       const uploadResult = await uploadListingImages(category, imageUris);
       const imageUrls = uploadResult.images ?? [];
       dispatch(setUploadedImageUrls(imageUrls));
@@ -225,12 +325,13 @@ export function PostAdStep3MediaScreen() {
         description,
         ...(!priceOptional || price ? { price: Number(price) } : {}),
         ...(!skipCondition ? { condition } : {}),
+        ...(currency ? { currency } : {}),
         category: serverCategory,
         subcategory,
         images: imageUrls,
         imageUrls,
         location,
-        ...(phone ? { phone: `${phoneCode}${phone}` } : {}),
+        ...(phone ? { phone: `${activePhoneCode}${phone}` } : {}),
         // GPS coordinates — listing-specific first, fall back to global device location
         ...(() => {
           const lat = locationLat ?? locationCoords.lat;
@@ -458,7 +559,10 @@ export function PostAdStep3MediaScreen() {
       dispatch(setSubmitting(false));
       dispatch(resetPostForm());
 
-      // Pass the created listing data to success screen
+      // Pass the created listing data to success screen.
+      // Prefer imageUrls[0] (already normalized absolute S3 URL from upload)
+      // over listing.images[0] which may be a relative path if the server
+      // doesn't fully resolve it in the create-listing response.
       const listing = result.listing;
       router.push({
         pathname: "/listing-success",
@@ -466,8 +570,9 @@ export function PostAdStep3MediaScreen() {
           title: listing?.title ?? title,
           price: String(listing?.price ?? price),
           location: listing?.location ?? location,
-          image: listing?.images?.[0] ?? imageUrls[0] ?? "",
+          image: imageUrls[0] ?? listing?.images?.[0] ?? "",
           category: categoryConfig?.name ?? category,
+          currency,
         },
       } as Href);
     } catch (err: unknown) {
@@ -487,7 +592,7 @@ export function PostAdStep3MediaScreen() {
       onBack={handleBack}
       primaryLabel="Post ad"
       onPrimaryPress={handleSubmit}
-      primaryDisabled={isSubmitting}
+      primaryDisabled={isSubmitting || imageUris.some((u) => imageScanMap[u]?.status === "scanning")}
       primaryLoading={isSubmitting}
     >
       <SellSectionCard title="Photos">
@@ -524,21 +629,92 @@ export function PostAdStep3MediaScreen() {
               </Pressable>
             ) : null}
 
-            {imageUris.map((uri, idx) => (
-              <View
-                key={uri}
-                className="overflow-hidden rounded-2xl border border-[#E5E7EB]"
-                style={{ width: 96, height: 96 }}
-              >
-                <Image source={uri} contentFit="cover" className="h-full w-full" />
-                <Pressable
-                  onPress={() => dispatch(removeImageUri(idx))}
-                  className="absolute right-1 top-1 rounded-full bg-white/90 p-1"
+            {imageUris.map((uri, idx) => {
+              const scan = imageScanMap[uri];
+              return (
+                <View
+                  key={uri}
+                  className="overflow-hidden rounded-2xl border border-[#E5E7EB]"
+                  style={{ width: 96, height: 96 }}
                 >
-                  <MaterialIcons name="close" size={16} color="#DC2626" />
-                </Pressable>
-              </View>
-            ))}
+                  <Image source={uri} contentFit="cover" className="h-full w-full" />
+
+                  {/* ── Scanning spinner ──────────────────────────────── */}
+                  {scan?.status === "scanning" && (
+                    <View
+                      className="absolute inset-0 items-center justify-center bg-black/55"
+                      style={{ borderRadius: 16 }}
+                    >
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text
+                        className="mt-1 text-[9px] text-white"
+                        style={{ fontFamily: ListifyFonts.medium }}
+                      >
+                        Scanning…
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* ── RESTRICTED overlay ───────────────────────────── */}
+                  {scan?.status === "blocked" && (
+                    <View
+                      className="absolute inset-0 items-center justify-center"
+                      style={{ borderRadius: 16, backgroundColor: "rgba(185,28,28,0.92)" }}
+                    >
+                      <MaterialIcons name="block" size={26} color="#FFFFFF" />
+                      <Text
+                        className="mt-1 text-[10px] tracking-widest text-white"
+                        style={{ fontFamily: ListifyFonts.bold }}
+                      >
+                        RESTRICTED
+                      </Text>
+                      <Text
+                        className="mt-0.5 px-1 text-center text-[8px] text-white/80"
+                        style={{ fontFamily: ListifyFonts.regular }}
+                      >
+                        {MODERATION_CATEGORY_SHORT[scan.category ?? ""] ?? "Policy violation"}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* ── FLAGGED overlay ──────────────────────────────── */}
+                  {scan?.status === "review" && (
+                    <View
+                      className="absolute inset-0 items-center justify-center"
+                      style={{ borderRadius: 16, backgroundColor: "rgba(194,65,12,0.88)" }}
+                    >
+                      <MaterialIcons name="warning" size={24} color="#FFFFFF" />
+                      <Text
+                        className="mt-1 text-[9px] tracking-widest text-white"
+                        style={{ fontFamily: ListifyFonts.bold }}
+                      >
+                        FLAGGED
+                      </Text>
+                      <Text
+                        className="mt-0.5 px-1 text-center text-[8px] text-white/80"
+                        style={{ fontFamily: ListifyFonts.regular }}
+                      >
+                        {MODERATION_CATEGORY_SHORT[scan.category ?? ""] ?? "Review needed"}
+                      </Text>
+                    </View>
+                  )}
+
+                  <Pressable
+                    onPress={() => {
+                      dispatch(removeImageUri(idx));
+                      setImageScanMap((prev) => {
+                        const next = { ...prev };
+                        delete next[uri];
+                        return next;
+                      });
+                    }}
+                    className="absolute right-1 top-1 rounded-full bg-white/90 p-1"
+                  >
+                    <MaterialIcons name="close" size={16} color="#DC2626" />
+                  </Pressable>
+                </View>
+              );
+            })}
           </View>
           <Text
             className="mt-3 text-[12px] text-[#6B7280]"
@@ -558,6 +734,13 @@ export function PostAdStep3MediaScreen() {
             onSelect={(result: PlacesSelectResult) => {
               dispatch(setLocation(result.label));
               dispatch(setListingCoords({ lat: result.lat, lng: result.lng }));
+      // Listing location changed — drop manual phone-code override so the new
+      // country's code is shown automatically from the locale.
+      if (result.isoCountryCode) {
+        setOverridePhoneCode(null);
+        setOverridePhoneIso(null);
+        dispatch(setCurrency(""));
+      }
               dispatch(
                 setLocationDirect({
                   label: result.label,
@@ -599,9 +782,13 @@ export function PostAdStep3MediaScreen() {
       <SellSectionCard title="Contact">
         <View className="px-4 py-4">
           <PhoneInputWithCountry
-            phoneCode={phoneCode}
+            phoneCode={activePhoneCode}
             phone={phone}
-            onChangePhoneCode={(code) => dispatch(setPhoneCode(code))}
+            isoCode={activePhoneIso}
+            onChangePhoneCode={(code, iso) => {
+              setOverridePhoneCode(code);
+              setOverridePhoneIso(iso);
+            }}
             onChangePhone={(v) => dispatch(setPhone(v))}
           />
           <View

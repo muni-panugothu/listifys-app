@@ -86,9 +86,14 @@ async function resolveGoogleClientIds(): Promise<GoogleClientIds> {
     resolvedClientIds = ids;
     return ids;
   } catch {
-    const fallbackWeb =
-      "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com";
-    resolvedClientIds = { web: fallbackWeb, ios: null, android: null };
+    // Hardcoded fallback when server is unreachable (e.g. stale IP in .env).
+    // web  = server-side / web OAuth client ID
+    // android = Android OAuth client ID (registered with SHA-1 in Google Cloud)
+    resolvedClientIds = {
+      web: "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
+      ios: null,
+      android: "335766515911-59brg6j33qda5bg3lbbabj08oqshnq3a.apps.googleusercontent.com",
+    };
     return resolvedClientIds;
   }
 }
@@ -113,7 +118,12 @@ export async function configureGoogleSignIn() {
       offlineAccess: false,
       forceCodeForRefreshToken: false,
     });
-  })();
+  })().catch((err: unknown) => {
+    // Reset so the next sign-in attempt re-runs configure instead of
+    // returning the same stale rejected promise forever.
+    configurePromise = null;
+    throw err;
+  });
 
   return configurePromise;
 }
@@ -171,13 +181,18 @@ export async function signInWithGoogleNative(): Promise<string> {
       if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new GoogleSignInError("Google Play Services is not available on this device.");
       }
+      // err.code can be number 10 OR string "10" depending on library version
       if (
         err.code === 10 ||
+        err.code === "10" ||
         message.includes("DEVELOPER_ERROR") ||
         message.toLowerCase().includes("developer error")
       ) {
         throw new GoogleSignInError(
-          `Google Sign-In is misconfigured for this build. Verify package com.listifys.app, SHA-1 in Google Cloud, and API base URL ${AUTH_API_BASE_URL}.`,
+          "Google Sign-In configuration error (code 10).\n" +
+          "In Google Cloud Console → APIs & Services → Credentials, " +
+          "open the Android OAuth client for com.listifys.app and add this SHA-1:\n" +
+          "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
         );
       }
 

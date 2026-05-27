@@ -68,6 +68,7 @@ export type RecentLocation = {
   lat: number;
   lng: number;
   savedAt: number;
+  isoCountryCode?: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

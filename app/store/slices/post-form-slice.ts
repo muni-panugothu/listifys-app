@@ -137,7 +137,7 @@ export type PostFormState = {
   imageUris: string[];
   uploadedImageUrls: string[];
   phone: string;
-  phoneCode: string;
+  currency: string;
   // Listing GPS coords (set when user picks location from autocomplete or uses device GPS)
   locationLat: number | null;
   locationLng: number | null;
@@ -263,7 +263,7 @@ const initialState: PostFormState = {
   imageUris: [],
   uploadedImageUrls: [],
   phone: "",
-  phoneCode: "+91",
+  currency: "",
   locationLat: null,
   locationLng: null,
   isSubmitting: false,
@@ -656,8 +656,8 @@ const postFormSlice = createSlice({
     setPhone(state, action: PayloadAction<string>) {
       state.phone = action.payload;
     },
-    setPhoneCode(state, action: PayloadAction<string>) {
-      state.phoneCode = action.payload;
+    setCurrency(state, action: PayloadAction<string>) {
+      state.currency = action.payload;
     },
     setSubmitting(state, action: PayloadAction<boolean>) {
       state.isSubmitting = action.payload;
@@ -799,7 +799,7 @@ export const {
   removeImageUri,
   setUploadedImageUrls,
   setPhone,
-  setPhoneCode,
+  setCurrency,
   setSubmitting,
   setSubmitError,
   setListingCoords,

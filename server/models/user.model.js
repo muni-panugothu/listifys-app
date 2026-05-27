@@ -268,6 +268,9 @@ const userSchema = new mongoose.Schema({
     default: "active",
   },
 
+  // FCM push token (updated on each app launch)
+  fcmToken: { type: String, default: null },
+
   // ==================== FOLLOW SYSTEM ====================
   followers: [{
     type: mongoose.Schema.Types.ObjectId,

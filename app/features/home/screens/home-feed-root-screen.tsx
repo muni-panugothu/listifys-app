@@ -164,7 +164,7 @@ export function HomeFeedRootScreen() {
         limit: 12,
         lat: hasCoords ? locationCoords.lat! : undefined,
         lng: hasCoords ? locationCoords.lng! : undefined,
-        radius: hasCoords ? 25 : undefined,
+        radius: hasCoords ? 100 : undefined,
         // City-wide text match for listings without GPS coords (Madhapur, Hitech City, etc.)
         location: hasCoords ? cityForFeed ?? locationCoords.label : locationCoords.label,
       });

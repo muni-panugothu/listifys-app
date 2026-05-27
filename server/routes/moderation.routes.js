@@ -44,7 +44,7 @@ router.post(
 
       const results = await analyzeImages(images);
 
-      // Determine overall decision
+      // Determine overall decision, category, and review flag
       const hasBlock = results.some((r) => r.decision === 'block');
       const hasReview = results.some((r) => r.decision === 'review');
 
@@ -52,9 +52,17 @@ router.post(
       if (hasBlock) overallDecision = 'block';
       else if (hasReview) overallDecision = 'review';
 
+      const primaryResult =
+        results.find((r) => r.decision === 'block') ||
+        results.find((r) => r.decision === 'review');
+      const overallCategory = primaryResult?.category ?? 'none';
+      const requiresHumanReview = results.some((r) => r.requiresHumanReview);
+
       return res.json({
         success: true,
         overallDecision,
+        overallCategory,
+        requiresHumanReview,
         results,
       });
     } catch (err) {

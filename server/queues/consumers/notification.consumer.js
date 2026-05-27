@@ -5,6 +5,7 @@
  * Handles:
  *   - In-app Notification.create() (DB write)
  *   - Socket.IO real-time delivery  
+ *   - FCM push notification dispatch
  *   - Booking status emails to customer + provider
  *   - Review alerts to service providers
  *   - Chat message notifications
@@ -16,10 +17,69 @@ const { encrypt } = require('../../services/encryption.service');
 
 // Lazy-require heavy modules to avoid circular deps
 const getNotificationModel = () => require('../../models/notification.model');
+const getUserModel = () => require('../../models/user.model');
 const getSocket = () => {
   try { return require('../../config/socket').getIO(); } catch { return null; }
 };
 const getEmailService = () => require('../../services/email.service');
+const getFcmService = () => require('../../services/fcm.service');
+
+/**
+ * Dispatch FCM push for a notification if the recipient has a token.
+ * Fire-and-forget — never throws so a failed push never blocks the consumer.
+ */
+const sendFcmPush = async ({ notificationId, recipientId, notifType, message, imageUrl, metadata }) => {
+  try {
+    const User = getUserModel();
+    const user = await User.findById(recipientId).select('fcmToken').lean();
+    if (!user?.fcmToken) return;
+
+    const { sendRichNotification } = getFcmService();
+    await sendRichNotification(user.fcmToken, {
+      notificationId: String(notificationId),
+      type:           notifType,
+      title:          titleForType(notifType),
+      body:           message,
+      imageUrl:       imageUrl || null,
+      ...(metadata?.conversationId  && { conversationId:  String(metadata.conversationId)  }),
+      ...(metadata?.listingId       && { listingId:       String(metadata.listingId)       }),
+      ...(metadata?.bookingId       && { bookingId:       String(metadata.bookingId)       }),
+      ...(metadata?.followerId      && { followerId:      String(metadata.followerId)      }),
+    });
+
+    // Mark push as sent
+    const Notification = getNotificationModel();
+    await Notification.findByIdAndUpdate(notificationId, { $set: { pushSent: true } });
+
+    logger.info('[NotifConsumer] FCM push dispatched', { notifType, recipientId });
+  } catch (err) {
+    logger.warn('[NotifConsumer] FCM push failed (non-fatal)', { err: err.message });
+  }
+};
+
+/** Human-readable fallback title per notification type */
+const titleForType = (type) => {
+  const map = {
+    follow:             'New Follower',
+    message:            'New Message',
+    offer_received:     'New Offer',
+    offer_accepted:     'Offer Accepted',
+    offer_rejected:     'Offer Declined',
+    price_drop:         'Price Drop Alert',
+    listing_saved:      'Someone Saved Your Listing',
+    listing_sold:       'Listing Sold',
+    booking:            'Booking Update',
+    booking_created:    'New Booking',
+    booking_confirmed:  'Booking Confirmed',
+    booking_completed:  'Booking Completed',
+    booking_cancelled:  'Booking Cancelled',
+    review_received:    'New Review',
+    promotion:          'Special Offer',
+    flash_sale:         'Flash Sale',
+    system:             'Listifys',
+  };
+  return map[type] || 'Listifys';
+};
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 const dispatch = async (payload) => {
@@ -62,6 +122,17 @@ const dispatch = async (payload) => {
       }
 
       logger.info('[NotifConsumer] In-app notification delivered', { type: notifType, recipient });
+
+      // FCM push (fire-and-forget — doesn't block consumer)
+      sendFcmPush({
+        notificationId: notification._id,
+        recipientId:    recipient,
+        notifType,
+        message,
+        imageUrl:       metadata?.imageUrl || null,
+        metadata,
+      });
+
       break;
     }
 

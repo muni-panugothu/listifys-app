@@ -2,6 +2,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useRouter } from "@/lib/safe-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { CommonActions } from "@react-navigation/native";
 
 import { logoutFromServer } from "@/features/auth/services/auth-api";
 import { showSuccessToast } from "@/lib/toast";
@@ -10,6 +12,7 @@ import { logout } from "@/store/slices/auth-slice";
 
 export function LogoutModalScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +26,14 @@ export function LogoutModalScreen() {
     await dispatch(logout());
     showSuccessToast("Success", "Logged out successfully");
     setLoading(false);
-    router.replace("/onboarding-slide-3" as Href);
+    // Reset the entire navigation stack to only the onboarding screen so no
+    // authenticated routes remain accessible via the back gesture/button.
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "onboarding-slide-3" }],
+      }),
+    );
   };
 
   return (

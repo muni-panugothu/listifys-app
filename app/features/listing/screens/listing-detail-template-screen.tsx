@@ -32,7 +32,7 @@ import { ListingLocationSection } from "@/components/listing-location-section";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords } from "@/store/slices/location-slice";
+import { selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HORIZONTAL_PAD = 16;
@@ -94,6 +94,7 @@ export function ListingDetailTemplateScreen() {
   const params = useLocalSearchParams<{ category?: string; id?: string }>();
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
+  const locationLabel = useAppSelector(selectLocationLabel);
 
   const categorySlug = (params.category ?? "electronics") as CategorySlug;
   const listingId = params.id;
@@ -134,7 +135,7 @@ export function ListingDetailTemplateScreen() {
       const res = await fetchListingById(categorySlug, listingId);
       if (res.listing) {
         setListing(res.listing);
-        addToRecentlyViewed(res.listing).catch(() => {});
+        addToRecentlyViewed(res.listing, locationLabel).catch(() => {});
         if (user?.id && res.listing.savedBy?.includes(user.id)) {
           setIsSaved(true);
         }

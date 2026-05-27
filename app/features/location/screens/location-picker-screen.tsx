@@ -48,7 +48,7 @@ import {
   type PlacePrediction,
   type RecentLocation,
 } from "@/lib/google-places.service";
-import { saveStoredLocation } from "@/lib/location-service";
+import { reverseGeocodeDetails, saveStoredLocation } from "@/lib/location-service";
 import { showErrorToast } from "@/lib/toast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -264,7 +264,7 @@ export function LocationPickerScreen() {
           setLocationDirect({ label, lat, lng, isoCountryCode }),
         );
 
-        // Save to recent searches
+        // Save to recent searches (include isoCountryCode so repeat picks preserve locale)
         await saveRecentLocation({
           place_id: prediction.place_id,
           title: main,
@@ -272,6 +272,7 @@ export function LocationPickerScreen() {
           lat,
           lng,
           savedAt: Date.now(),
+          isoCountryCode,
         });
 
         resetSession();
@@ -293,17 +294,26 @@ export function LocationPickerScreen() {
       Keyboard.dismiss();
       setSelecting(true);
       try {
+        // Use stored isoCountryCode when available; fall back to reverse-geocode
+        // for older cached entries saved before this field was added.
+        let isoCountryCode: string | null = item.isoCountryCode ?? null;
+        if (isoCountryCode == null) {
+          isoCountryCode = await reverseGeocodeDetails(item.lat, item.lng)
+            .then((r) => r.isoCountryCode ?? null)
+            .catch(() => null);
+        }
+
         await saveStoredLocation({
           label: item.title,
           lat: item.lat,
           lng: item.lng,
-          isoCountryCode: null,
+          isoCountryCode,
           source: "manual",
           updatedAt: Date.now(),
         });
 
         dispatch(
-          setLocationDirect({ label: item.title, lat: item.lat, lng: item.lng }),
+          setLocationDirect({ label: item.title, lat: item.lat, lng: item.lng, isoCountryCode }),
         );
 
         handleBack();

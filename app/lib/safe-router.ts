@@ -5,6 +5,13 @@ export * from "expo-router";
 
 const NAV_GUARD_MS = 700;
 let lastNavigation = { key: "", at: 0 };
+type RouteTransitionAction = "push" | "replace" | "back";
+type RouteTransitionListener = (payload: {
+  action: RouteTransitionAction;
+  nextPath: string | null;
+}) => void;
+
+const routeTransitionListeners = new Set<RouteTransitionListener>();
 
 function stableParamsString(params: Record<string, unknown>) {
   const keys = Object.keys(params).sort();
@@ -20,6 +27,29 @@ function hrefToKey(href: Href) {
   const params = ((href as { params?: unknown }).params ?? {}) as Record<string, unknown>;
   const hasParams = params && Object.keys(params).length > 0;
   return hasParams ? `${pathname}?${stableParamsString(params)}` : pathname;
+}
+
+function hrefToPath(href: Href): string | null {
+  if (typeof href === "string") {
+    const path = href.split("?")[0]?.split("#")[0] ?? "";
+    return path || null;
+  }
+
+  const pathname = (href as { pathname?: unknown }).pathname;
+  return typeof pathname === "string" ? pathname : null;
+}
+
+function notifyRouteTransition(action: RouteTransitionAction, nextPath: string | null) {
+  for (const listener of routeTransitionListeners) {
+    listener({ action, nextPath });
+  }
+}
+
+export function subscribeRouteTransitions(listener: RouteTransitionListener) {
+  routeTransitionListeners.add(listener);
+  return () => {
+    routeTransitionListeners.delete(listener);
+  };
 }
 
 function shouldBlockNavigation(nextKey: string) {
@@ -44,6 +74,7 @@ export function useRouter() {
     (href: Href) => {
       const key = `push:${hrefToKey(href)}`;
       if (shouldBlockNavigation(key)) return;
+      notifyRouteTransition("push", hrefToPath(href));
       router.push(href);
     },
     [router],
@@ -53,6 +84,7 @@ export function useRouter() {
     (href: Href) => {
       const key = `replace:${hrefToKey(href)}`;
       if (shouldBlockNavigation(key)) return;
+      notifyRouteTransition("replace", hrefToPath(href));
       router.replace(href);
     },
     [router],
@@ -61,6 +93,7 @@ export function useRouter() {
   const back = useCallback(() => {
     const key = `back:${pathname}`;
     if (shouldBlockNavigation(key)) return;
+    notifyRouteTransition("back", null);
     router.back();
   }, [router, pathname]);
 

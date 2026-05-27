@@ -112,6 +112,7 @@ export function MyListingManageCard({
             </Text>
           </View>
         </View>
+        {showActions ? (
         <View className="mt-4 flex-row gap-3 border-t border-[#F0F0F0] pt-3">
           <Pressable
             onPress={(e) => {

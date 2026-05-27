@@ -429,7 +429,14 @@ const close = async () => {
     }
     if (_publishChannel)  await _publishChannel.close().catch(() => {});
     if (_consumeChannel)  await _consumeChannel.close().catch(() => {});
-    if (_connection)      await _connection.close();
+    if (_connection) {
+      // Race against a 3-second timeout — amqplib.close() hangs when the
+      // broker is unreachable (waiting for server CloseOk that never arrives).
+      await Promise.race([
+        _connection.close(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('close timeout')), 3000)),
+      ]).catch(() => {});
+    }
     _publishChannel = null;
     _consumeChannel = null;
     _connection     = null;

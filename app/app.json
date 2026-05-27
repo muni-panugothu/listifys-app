@@ -11,7 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Listify uses your location to show nearby listings and distances."
+        "NSLocationWhenInUseUsageDescription": "Listify uses your location to show nearby listings and distances.",
+        "NSMicrophoneUsageDescription": "Listify needs microphone access for voice search.",
+        "NSSpeechRecognitionUsageDescription": "Listify uses speech recognition to search for listings by voice."
       }
     },
     "android": {
@@ -51,6 +53,13 @@
         }
       ],
       "expo-audio",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Listify needs microphone access for voice search.",
+          "speechRecognitionPermission": "Listify uses speech recognition to search for listings by voice."
+        }
+      ],
       [
         "expo-build-properties",
         {

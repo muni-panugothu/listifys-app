@@ -66,12 +66,21 @@ export class AuthApiError extends Error {
 const API_REQUEST_TIMEOUT_MS = 15_000;
 
 function getExpoDevHost() {
+  // expo-dev-client / Expo Go sets hostUri at runtime so the LAN IP is always current.
+  // Try all known manifest shapes from oldest (Expo SDK <46) to newest (SDK 46+).
   const hostUri =
     Constants.expoConfig?.hostUri ??
     (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost ??
-    Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  const host = hostUri?.split(":")[0];
-  if (host && host !== "localhost" && host !== "127.0.0.1") {
+    Constants.manifest2?.extra?.expoGo?.debuggerHost ??
+    // SDK 46+ packager info
+    (Constants.manifest2 as { launchAsset?: unknown; extra?: { expoGo?: { debuggerHost?: string } } } | null)
+      ?.extra?.expoGo?.debuggerHost;
+
+  // hostUri is "ip:port" — take only the IP portion before the colon.
+  const host = typeof hostUri === "string" ? hostUri.split(":")[0] : undefined;
+
+  // Sanity-check: must be a non-loopback IP (at least one dot, no colon leftovers).
+  if (host && host !== "localhost" && host !== "127.0.0.1" && host.includes(".") && !host.includes(":")) {
     return host;
   }
   return undefined;
@@ -80,22 +89,25 @@ function getExpoDevHost() {
 function resolveApiBaseUrl() {
   const devHost = getExpoDevHost();
 
-  // In dev on a physical device, use the same LAN IP Metro uses (avoids stale .env IPs).
-  if (typeof __DEV__ !== "undefined" && __DEV__ && devHost) {
-    return `http://${devHost}:5000`;
-  }
-
+  // Explicit .env override takes TOP priority — set EXPO_PUBLIC_API_BASE_URL to your
+  // current LAN IPv4. This overrides a stale Metro devHost after a WiFi IP change.
   const explicitBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/$/, "");
   }
 
+  // Fall back to Metro's dev-server host (works on first build without .env).
+  if (typeof __DEV__ !== "undefined" && __DEV__ && devHost) {
+    return `http://${devHost}:5000`;
+  }
+
+  // Fallback: Metro host without __DEV__ (edge case — should rarely hit).
   if (devHost) {
     return `http://${devHost}:5000`;
   }
 
   if (Platform.OS === "android") {
-    return "http://10.0.2.2:5000";
+    return "http://10.0.2.2:5000"; // Android emulator loopback to host
   }
 
   return "http://localhost:5000";
@@ -532,8 +544,8 @@ export type ProfileResponse = {
     bio?: string;
     location?: string;
     createdAt?: string;
-    followers?: number;
-    following?: number;
+    followersCount?: number;
+    followingCount?: number;
     listingsCount?: number;
   };
 };

@@ -1,42 +1,51 @@
 /**
- * Search Routes — Unified Elasticsearch (Flipkart/Amazon-style)
+ * Search Routes — AI-Powered Unified Search (Flipkart/Amazon/OLX-style)
  *
- * One unified index (listify_products) handles all 18 categories.
- * ES synonyms + dynamic mapping replace hardcoded entity aliases.
- * Falls back to MongoDB when Elasticsearch is unavailable.
+ * Pipeline per request:
+ *   1. QueryIntelligenceService  — price/condition/nearMe extraction (minimal; ES handles rest)
+ *   2. Elasticsearch (unified)   — multi-strategy retrieval with parsed params
+ *   3. MongoDB fallback          — keyword-level OR match when ES is unavailable
+ *   4. RankingService            — multi-signal rerank (freshness, distance, engagement)
+ *   5. TrendingService           — record analytics, power trending suggestions
  *
  * GET /api/search?q=iphone&entity=electronics&minPrice=100&maxPrice=1000
  * GET /api/search/suggest?q=iph&entity=electronics
- * POST /api/search/reindex   (admin — sync MongoDB → Elasticsearch)
+ * GET /api/search/trending
+ * GET /api/search/recommendations?userId=...
+ * POST /api/search/reindex   (admin)
  */
 
 const express = require('express');
 const router = express.Router();
-const SearchService = require('../services/search.service.js');
-const ListingCache = require('../services/listingcache.service.js');
+const S3Service       = require('../services/s3.service.js');
+const SearchService   = require('../services/search.service.js');
+const ListingCache    = require('../services/listingcache.service.js');
+const QueryIntelligence = require('../services/query-intelligence.service.js');
+const RankingService  = require('../services/ranking.service.js');
+const TrendingService = require('../services/trending.service.js');
 const { searchLimiter } = require('../middleware/ratelimiter.middleware.js');
 const { protect, authorize } = require('../middleware/auth.middleware.js');
 const { logger } = require('../utils/logger');
 const { publishSearchAnalytics } = require('../queues/producers/search.producer');
 
 // Models for MongoDB fallback + reindex
-const Electronics = require('../models/electronics.model.js');
-const Job = require('../models/job.model.js');
-const Vehicle = require('../models/vehicle.model.js');
-const Event = require('../models/event.model.js');
-const ForSale = require('../models/forsale.model.js');
-const Furniture = require('../models/furniture.model.js');
-const Fashion = require('../models/fashion.model.js');
-const Sports = require('../models/sports.model.js');
-const Collectible = require('../models/collectible.model.js');
-const Pet = require('../models/pet.model.js');
-const Book = require('../models/book.model.js');
-const Beauty = require('../models/beauty.model.js');
-const Other = require('../models/other.model.js');
-const Toy = require('../models/toy.model.js');
-const Mobile = require('../models/mobile.model.js');
-const Property = require('../models/property.model.js');
-const TakeCare = require('../models/takecare.model.js');
+const Electronics    = require('../models/electronics.model.js');
+const Job            = require('../models/job.model.js');
+const Vehicle        = require('../models/vehicle.model.js');
+const Event          = require('../models/event.model.js');
+const ForSale        = require('../models/forsale.model.js');
+const Furniture      = require('../models/furniture.model.js');
+const Fashion        = require('../models/fashion.model.js');
+const Sports         = require('../models/sports.model.js');
+const Collectible    = require('../models/collectible.model.js');
+const Pet            = require('../models/pet.model.js');
+const Book           = require('../models/book.model.js');
+const Beauty         = require('../models/beauty.model.js');
+const Other          = require('../models/other.model.js');
+const Toy            = require('../models/toy.model.js');
+const Mobile         = require('../models/mobile.model.js');
+const Property       = require('../models/property.model.js');
+const TakeCare       = require('../models/takecare.model.js');
 const ServiceListing = require('../models/servicelisting.model.js');
 
 const MODEL_MAP = {
@@ -60,6 +69,41 @@ const MODEL_MAP = {
   services: ServiceListing,
 };
 
+// Normalise image URLs in search results to proxy format so mobile clients
+// can display images (raw S3 URLs from Elasticsearch won't be accessible)
+function normaliseSearchResult(item) {
+  if (!item) return item;
+  if (Array.isArray(item.images)) {
+    item.images = item.images.map(url => S3Service.toProxyUrl(url) || url);
+  }
+  if (item.seller && item.seller.profileImage) {
+    item.seller.profileImage = S3Service.toProxyUrl(item.seller.profileImage) || item.seller.profileImage;
+  }
+  return item;
+}
+
+// Stop-words stripped before keyword extraction (voice/natural-language queries)
+const SEARCH_STOP_WORDS = new Set([
+  'i', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'want', 'need', 'buy', 'find', 'search', 'show', 'get', 'sell', 'give',
+  'for', 'me', 'a', 'an', 'the', 'of', 'to', 'in', 'at', 'by', 'do',
+  'please', 'near', 'nearby', 'some', 'any', 'have', 'has', 'my', 'we',
+  'looking', 'good', 'best', 'cheap', 'with', 'and', 'or', 'not', 'on',
+  'up', 'out', 'if', 'about', 'who', 'which', 'can', 'will', 'one', 'it',
+  'its', 'this', 'that', 'there', 'their', 'them', 'they', 'how', 'what',
+]);
+
+/**
+ * Extract meaningful search keywords from a query string.
+ * Handles voice/natural-language phrases like "I want to buy an iPhone".
+ */
+function extractSearchKeywords(text) {
+  return text
+    .toLowerCase()
+    .split(/[\s\W]+/)
+    .filter(w => w.length > 2 && !SEARCH_STOP_WORDS.has(w));
+}
+
 // Entity aliases — used for MongoDB fallback only (ES synonyms handle this in ES path)
 const ENTITY_ALIASES = {
   electronics: ['electronic', 'tv', 'laptop', 'computer', 'ac', 'fridge', 'camera', 'appliance'],
@@ -82,6 +126,12 @@ const ENTITY_ALIASES = {
   services: ['service', 'plumber', 'electrician', 'mechanic', 'cleaning', 'repair'],
 };
 
+/**
+ * Match entities when the query CONTAINS an entity alias.
+ * e.g. "used mobile under 20k" → mobiles entity matched via "mobile" alias.
+ * This is correct: the word "mobile" means the user wants to browse the
+ * mobiles category — product titles like "iPhone 14" don't say "mobile".
+ */
 function matchEntityNames(query) {
   if (!query) return new Set();
   const q = query.trim().toLowerCase();
@@ -91,11 +141,46 @@ function matchEntityNames(query) {
       matched.add(entityKey);
       continue;
     }
-    if (aliases.some(alias => q === alias || q.includes(alias) || alias.includes(q))) {
+    // q.includes(alias): "used mobile" contains "mobile" → mobiles matched
+    if (aliases.some(alias => q === alias || q.includes(alias))) {
       matched.add(entityKey);
     }
   }
   return matched;
+}
+
+/**
+ * Get entity-alias words that appear in the query string.
+ * Used to strip them before doing a product text search within the entity.
+ */
+function getEntityMatchedWords(query, entityKey) {
+  const q = query.toLowerCase();
+  const words = new Set();
+  const singular = entityKey.replace(/s$/, '');
+  for (const candidate of [entityKey, singular]) {
+    if (q.includes(candidate)) words.add(candidate);
+  }
+  for (const alias of (ENTITY_ALIASES[entityKey] || [])) {
+    if (q.includes(alias.toLowerCase())) words.add(alias.toLowerCase());
+  }
+  return words;
+}
+
+// Condition-indicator words already extracted into effectiveCondition — no need in text search
+const CONDITION_INDICATOR_WORDS = new Set([
+  'used', 'old', 'second hand', 'secondhand', '2nd hand',
+  'pre-owned', 'preowned', 'refurbished',
+  'new', 'brand new', 'sealed', 'unboxed', 'unused',
+]);
+
+function stripWords(text, wordsSet) {
+  let result = text;
+  for (const word of wordsSet) {
+    if (!word) continue;
+    const re = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
+    result = result.replace(re, ' ').trim();
+  }
+  return result.replace(/\s{2,}/g, ' ').trim();
 }
 
 // ── Full-text search ──────────────────────────────────────
@@ -134,14 +219,37 @@ router.get('/', searchLimiter, async (req, res) => {
       });
     }
 
-    // ── 1. Try Redis cache ──
-    const cacheKeyObj = { entity, q, category, condition, minPrice, maxPrice, location, brand, fuelType, transmission, sort, page: +page, limit: +limit };
-    const cacheKey = `search:${entity}:${Buffer.from(JSON.stringify(cacheKeyObj)).toString('base64url')}`;
-    const cachedResults = await ListingCache.getCachedSearchResults(entity, cacheKey);
+    // ── Step 1: AI Query Intelligence ────────────────────────────────────────
+    // Parse natural language, extract price/brand/condition/category hints.
+    // Only applied when a text query is present (not pure geo browse).
+    const parsed = q
+      ? QueryIntelligence.parse(q, { lat, lng })
+      : null;
+
+    // Merge explicitly-provided query params with AI-extracted ones.
+    // Explicit user params always win over AI inference.
+    // Note: brand/location/entity detection is handled by ES natively —
+    // the search query is matched against brand/location/_entity fields with
+    // fuzzy + synonym expansion. No application-level brand/city mapping needed.
+    const effectiveCondition = condition || (parsed?.condition ?? undefined);
+    const effectiveMinPrice  = minPrice  || (parsed?.minPrice  != null ? String(parsed.minPrice)  : undefined);
+    const effectiveMaxPrice  = maxPrice  || (parsed?.maxPrice  != null ? String(parsed.maxPrice)  : undefined);
+    const effectiveBrand     = brand     ?? undefined;   // ES matches brand field natively
+    const effectiveLocation  = location  ?? undefined;   // ES matches location field natively
+    // Entity: use explicitly-provided entity; ES ranking handles category inference
+    const effectiveEntity    = (entity !== 'all') ? entity : 'all';
+    // Send the cleaned/stripped query to ES (removes filler, price phrases, etc.)
+    const effectiveQ         = parsed?.cleanQuery ?? q;
+
+    // ── Step 2: Try Redis cache ──────────────────────────────────────────────
+    const cacheKeyObj = { entity: effectiveEntity, q: effectiveQ, category, condition: effectiveCondition, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice, location: effectiveLocation, brand: effectiveBrand, fuelType, transmission, sort, page: +page, limit: +limit };
+    const cacheKey = `search:${effectiveEntity}:${Buffer.from(JSON.stringify(cacheKeyObj)).toString('base64url')}`;
+    const cachedResults = await ListingCache.getCachedSearchResults(effectiveEntity, cacheKey);
     if (cachedResults) {
       const cachedArray = Array.isArray(cachedResults)
         ? cachedResults
         : cachedResults.results || cachedResults.listings || [];
+      cachedArray.forEach(normaliseSearchResult);
       return res.status(200).json({
         success: true,
         query: q,
@@ -155,17 +263,17 @@ router.get('/', searchLimiter, async (req, res) => {
 
     // ── 2. Try Elasticsearch (unified index — one query for all entities) ──
     const esResults = await SearchService.search({
-      query: q,
-      entity,
+      query: effectiveQ || q,          // use AI-cleaned query
+      entity: effectiveEntity,          // use AI-suggested entity
       category,
-      condition,
-      minPrice,
-      maxPrice,
-      location,
+      condition: effectiveCondition,
+      minPrice: effectiveMinPrice,
+      maxPrice: effectiveMaxPrice,
+      location: effectiveLocation || location,
       lat,
       lng,
       radius: req.query.radius,
-      brand,
+      brand: effectiveBrand || brand,
       fuelType,
       transmission,
       sort,
@@ -174,66 +282,138 @@ router.get('/', searchLimiter, async (req, res) => {
     });
 
     if (esResults && esResults.listings && esResults.listings.length > 0) {
-      await ListingCache.cacheSearchResults(entity, cacheKey, esResults.listings, esResults.pagination);
+      // Apply AI ranking on top of ES relevance
+      const ranked = RankingService.rerank(esResults.listings, {
+        maxPrice: effectiveMaxPrice ? Number(effectiveMaxPrice) : null,
+        minPrice: effectiveMinPrice ? Number(effectiveMinPrice) : null,
+        lat: lat ? Number(lat) : null,
+        lng: lng ? Number(lng) : null,
+        sort,
+      });
 
-      // Track search analytics (non-blocking)
+      await ListingCache.cacheSearchResults(effectiveEntity, cacheKey, ranked, esResults.pagination);
+
+      // Track analytics + trending (non-blocking)
+      if (effectiveQ) {
+        TrendingService.recordSearch(effectiveQ, {
+          entity: effectiveEntity,
+          resultCount: esResults.pagination?.total || ranked.length,
+          city: parsed?.location,
+        }).catch(() => {});
+      }
       publishSearchAnalytics({
         query: q,
-        entity,
-        resultCount: esResults.pagination?.total || esResults.listings.length,
+        entity: effectiveEntity,
+        resultCount: esResults.pagination?.total || ranked.length,
         source: 'elasticsearch',
         userId: req.user?._id?.toString(),
         ip: req.ip,
         userAgent: req.headers['user-agent'],
       }).catch(() => {});
 
+      ranked.forEach(normaliseSearchResult);
       return res.status(200).json({
         success: true,
         query: q,
-        entity,
-        results: esResults.listings,
-        total: esResults.pagination?.total || esResults.listings.length,
+        entity: effectiveEntity,
+        parsed: parsed ? {
+          cleanQuery: parsed.cleanQuery,
+          chips: parsed.extractedChips,
+        } : null,
+        results: ranked,
+        total: esResults.pagination?.total || ranked.length,
         pagination: esResults.pagination,
         source: 'elasticsearch',
       });
     }
 
     // ── 3. MongoDB fallback ──
-    const entitiesToSearch = entity === 'all' ? Object.keys(MODEL_MAP) : [entity];
-    const matchedEntities = matchEntityNames(q);
+    const entitiesToSearch = effectiveEntity === 'all' ? Object.keys(MODEL_MAP) : [effectiveEntity];
+    const matchedEntities  = matchEntityNames(effectiveQ || q || '');
 
     const buildMongoFilter = (eName) => {
       const filter = { status: 'active' };
 
+      const qText = effectiveQ || q || '';
+
       if (matchedEntities.has(eName)) {
-        // Entity name match — show all listings from this category
-      } else if (q) {
-        const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const searchRegex = new RegExp(escapedQ, 'i');
-        filter.$or = [
-          { title: searchRegex },
-          { description: searchRegex },
-          { category: searchRegex },
-          { subcategory: searchRegex },
-          { brand: searchRegex },
-        ];
+        // Entity alias found in query (e.g. "mobile" in "used mobile under 20k").
+        // The entity word is the category filter — strip it + condition words,
+        // then text-search for the remaining product keywords within this entity.
+        // e.g. "used mobile" → strip "mobile"(entity) + "used"(condition) → "" → browse all
+        // e.g. "iphone mobile" → strip "mobile" → search "iphone" within mobiles
+        const entityWords = getEntityMatchedWords(qText, eName);
+        let remainingQ = stripWords(qText, entityWords);
+        if (effectiveCondition) {
+          remainingQ = stripWords(remainingQ, CONDITION_INDICATOR_WORDS);
+        }
+        remainingQ = remainingQ.trim();
+
+        if (remainingQ.length >= 2) {
+          const esc = remainingQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const phraseR = new RegExp(esc, 'i');
+          const kws = extractSearchKeywords(remainingQ);
+          if (kws.length > 0) {
+            const kwConds = kws.flatMap(kw => {
+              const r = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+              return [{ title: r }, { brand: r }, { subcategory: r }, { description: r }];
+            });
+            filter.$or = [{ title: phraseR }, { description: phraseR }, ...kwConds];
+          }
+        }
+        // else: no remaining product text → browse all active in this entity (condition/price still apply)
+
+      } else if (qText) {
+        // No entity alias in query — full text search across all meaningful keywords
+        const phraseRegex = new RegExp(qText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const keywords = extractSearchKeywords(qText);
+        if (keywords.length > 1) {
+          const keywordConditions = keywords.flatMap(kw => {
+            const r = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+            return [{ title: r }, { brand: r }, { subcategory: r }, { description: r }];
+          });
+          filter.$or = [{ title: phraseRegex }, { description: phraseRegex }, ...keywordConditions];
+        } else {
+          filter.$or = [
+            { title: phraseRegex },
+            { description: phraseRegex },
+            { category: phraseRegex },
+            { subcategory: phraseRegex },
+            { brand: phraseRegex },
+          ];
+        }
       }
 
       if (category) filter.subcategory = { $in: category.split(',').map(c => c.trim()) };
-      if (condition) filter.condition = { $in: condition.split(',').map(c => c.trim()) };
-      if (minPrice || maxPrice) {
+      // Apply AI-extracted condition if not explicit
+      // Normalize to DB enum format: "Used", "New", "Like New", "Good", "Fair"
+      const CONDITION_NORM = { used: 'Used', new: 'New', 'like new': 'Like New', good: 'Good', fair: 'Fair' };
+      const cond = effectiveCondition;
+      if (cond) {
+        filter.condition = {
+          $in: cond.split(',').map(c => {
+            const v = c.trim();
+            return CONDITION_NORM[v.toLowerCase()] || v;
+          }),
+        };
+      }
+      // AI-extracted price range
+      const mxP = effectiveMaxPrice ? Number(effectiveMaxPrice) : null;
+      const mnP = effectiveMinPrice ? Number(effectiveMinPrice) : null;
+      if (mnP != null || mxP != null) {
         if (eName === 'services') {
           filter['pricing.basePrice'] = {};
-          if (minPrice) filter['pricing.basePrice'].$gte = Number(minPrice);
-          if (maxPrice) filter['pricing.basePrice'].$lte = Number(maxPrice);
+          if (mnP != null) filter['pricing.basePrice'].$gte = mnP;
+          if (mxP != null) filter['pricing.basePrice'].$lte = mxP;
         } else {
           filter.price = {};
-          if (minPrice) filter.price.$gte = Number(minPrice);
-          if (maxPrice) filter.price.$lte = Number(maxPrice);
+          if (mnP != null) filter.price.$gte = mnP;
+          if (mxP != null) filter.price.$lte = mxP;
         }
       }
-      if (location) {
-        const locRegex = new RegExp(location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const locStr = effectiveLocation || location;
+      if (locStr) {
+        const locRegex = new RegExp(locStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         if (eName === 'services') {
           filter['location.address'] = locRegex;
         } else {
@@ -248,11 +428,11 @@ router.get('/', searchLimiter, async (req, res) => {
     };
 
     const { buildSortOption } = require('../utils/geoQuery');
-    const mongoSort = buildSortOption(sort, !!(lat && lng), !!q);
-    const perEntityLimit = entity === 'all' ? Math.min(Number(limit), 20) : Number(limit);
-    const skip = entity === 'all' ? 0 : (Number(page) - 1) * Number(limit);
+    const mongoSort = buildSortOption(sort, !!(lat && lng), !!(effectiveQ || q));
+    const perEntityLimit = effectiveEntity === 'all' ? Math.min(Number(limit), 20) : Number(limit);
+    const skip = effectiveEntity === 'all' ? 0 : (Number(page) - 1) * Number(limit);
 
-    const SEARCH_PROJECTION = 'title slug price images location condition brand model year fuelType transmission kmDriven seller currency subcategory createdAt';
+    const SEARCH_PROJECTION = 'title slug price images location condition brand model year fuelType transmission kmDriven seller currency subcategory createdAt views';
 
     const promises = entitiesToSearch.map(async (eName) => {
       const Model = MODEL_MAP[eName];
@@ -273,7 +453,15 @@ router.get('/', searchLimiter, async (req, res) => {
     });
 
     const arrays = await Promise.all(promises);
-    const results = arrays.flat();
+    // Apply AI ranking to MongoDB results too
+    const rawResults = arrays.flat();
+    const results = RankingService.rerank(rawResults, {
+      maxPrice: effectiveMaxPrice ? Number(effectiveMaxPrice) : null,
+      minPrice: effectiveMinPrice ? Number(effectiveMinPrice) : null,
+      lat: lat ? Number(lat) : null,
+      lng: lng ? Number(lng) : null,
+      sort,
+    });
 
     const pagination = {
       total: results.length,
@@ -283,13 +471,19 @@ router.get('/', searchLimiter, async (req, res) => {
     };
 
     if (results.length > 0) {
-      await ListingCache.cacheSearchResults(entity, cacheKey, results, pagination);
+      await ListingCache.cacheSearchResults(effectiveEntity, cacheKey, results, pagination);
     }
 
-    // Track search analytics (non-blocking)
+    // Track analytics + trending (non-blocking)
+    if (effectiveQ) {
+      TrendingService.recordSearch(effectiveQ, {
+        entity: effectiveEntity,
+        resultCount: results.length,
+      }).catch(() => {});
+    }
     publishSearchAnalytics({
       query: q,
-      entity,
+      entity: effectiveEntity,
       resultCount: results.length,
       source: 'mongodb',
       userId: req.user?._id?.toString(),
@@ -297,10 +491,15 @@ router.get('/', searchLimiter, async (req, res) => {
       userAgent: req.headers['user-agent'],
     }).catch(() => {});
 
+    results.forEach(normaliseSearchResult);
     return res.status(200).json({
       success: true,
       query: q,
-      entity,
+      entity: effectiveEntity,
+      parsed: parsed ? {
+        cleanQuery: parsed.cleanQuery,
+        chips: parsed.extractedChips,
+      } : null,
       results,
       total: results.length,
       pagination,
@@ -312,6 +511,72 @@ router.get('/', searchLimiter, async (req, res) => {
       success: false,
       message: 'Search failed',
     });
+  }
+});
+
+// ── Trending searches ─────────────────────────────────────
+router.get('/trending', searchLimiter, async (req, res) => {
+  try {
+    const { city, limit = 10 } = req.query;
+    const [searches, categories] = await Promise.all([
+      city ? TrendingService.getCityTrending(city, Number(limit)) : TrendingService.getGlobalTrending(Number(limit)),
+      TrendingService.getTrendingCategories(6),
+    ]);
+    return res.status(200).json({
+      success: true,
+      trending: searches,
+      categories,
+    });
+  } catch (err) {
+    logger.error('Trending error:', err);
+    return res.status(200).json({ success: true, trending: [], categories: [] });
+  }
+});
+
+// ── Recently viewed + "you might also like" ──────────────
+router.get('/recommendations', protect, async (req, res) => {
+  try {
+    const userId = req.user?._id?.toString();
+    const { limit = 12 } = req.query;
+
+    const [recentlyViewed, mightLike] = await Promise.all([
+      TrendingService.getRecentlyViewed(userId, Number(limit)),
+      TrendingService.getMightAlsoLike(userId, MODEL_MAP, Number(limit)),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      recentlyViewed,
+      mightLike,
+    });
+  } catch (err) {
+    logger.error('Recommendations error:', err);
+    return res.status(200).json({ success: true, recentlyViewed: [], mightLike: [] });
+  }
+});
+
+// ── Similar items for a listing ───────────────────────────
+router.get('/similar/:entity/:id', searchLimiter, async (req, res) => {
+  try {
+    const { entity, id } = req.params;
+    const { limit = 10 } = req.query;
+
+    const Model = MODEL_MAP[entity];
+    if (!Model) return res.status(400).json({ success: false, message: 'Invalid entity' });
+
+    const item = await Model.findById(id).lean();
+    if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
+
+    const similar = await TrendingService.getSimilarItems(
+      { ...item, _entity: entity },
+      MODEL_MAP,
+      Number(limit),
+    );
+
+    return res.status(200).json({ success: true, results: similar });
+  } catch (err) {
+    logger.error('Similar items error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch similar items' });
   }
 });
 

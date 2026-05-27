@@ -155,6 +155,46 @@ exports.deleteAllNotifications = async (req, res) => {
   }
 };
 
+// ==================== TRACK NOTIFICATION EVENT ====================
+exports.trackEvent = async (req, res) => {
+  try {
+    const { notificationId, event, actionId, timestamp } = req.body;
+
+    if (!notificationId || !event) {
+      return res.status(400).json({ success: false, message: "notificationId and event are required" });
+    }
+
+    const ts = timestamp ? new Date(timestamp) : new Date();
+
+    const update = {};
+    switch (event) {
+      case "shown":
+        update.shownAt = ts;
+        break;
+      case "clicked":
+        update.clickedAt = ts;
+        update.read = true;
+        break;
+      case "action_clicked":
+        update.clickedAt = ts;
+        update.read = true;
+        if (actionId) update.ctaClicked = actionId;
+        break;
+      case "dismissed":
+        update.dismissedAt = ts;
+        break;
+      default:
+        return res.status(400).json({ success: false, message: "Unknown event type" });
+    }
+
+    await Notification.findByIdAndUpdate(notificationId, { $set: update });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error("Track notification event error:", error);
+    res.status(500).json({ success: false, message: "Failed to track event" });
+  }
+};
+
 // ==================== CREATE NOTIFICATION (internal helper) ====================
 exports.createNotification = async ({ recipient, sender, type, message, metadata = {}, allowSelf = false }) => {
   try {

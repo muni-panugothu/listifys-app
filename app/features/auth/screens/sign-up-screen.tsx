@@ -109,7 +109,9 @@ export function SignUpScreen() {
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Google sign-in failed.";
+            : typeof err === "string"
+              ? err
+              : "Google sign-in failed.";
       showErrorToast("Google Sign In", message);
     } finally {
       setIsGoogleLoading(false);

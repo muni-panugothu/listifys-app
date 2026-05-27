@@ -29,7 +29,7 @@ import { ListingLocationSection } from "@/components/listing-location-section";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords } from "@/store/slices/location-slice";
+import { selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 import type { CategorySlug } from "@/constants/categories";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -40,6 +40,7 @@ export function PropertyDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; category?: string }>();
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
+  const locationLabel = useAppSelector(selectLocationLabel);
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +57,7 @@ export function PropertyDetailScreen() {
       const res = await fetchListingById(categorySlug, listingId);
       if (res.listing) {
         setListing(res.listing);
-        addToRecentlyViewed(res.listing).catch(() => {});
+        addToRecentlyViewed(res.listing, locationLabel).catch(() => {});
         if (user?.id && res.listing.savedBy?.includes(user.id)) {
           setIsSaved(true);
         }

@@ -271,6 +271,9 @@ export async function fetchCategoryListings(
     minPrice?: number;
     maxPrice?: number;
     sort?: string;
+    lat?: number;
+    lng?: number;
+    radius?: number;
   },
 ): Promise<ListingsResponse> {
   const query = new URLSearchParams();
@@ -282,6 +285,9 @@ export async function fetchCategoryListings(
   if (params?.minPrice) query.set("minPrice", String(params.minPrice));
   if (params?.maxPrice) query.set("maxPrice", String(params.maxPrice));
   if (params?.sort) query.set("sort", params.sort);
+  if (params?.lat != null) query.set("lat", String(params.lat));
+  if (params?.lng != null) query.set("lng", String(params.lng));
+  if (params?.radius != null) query.set("radius", String(params.radius));
 
   const qs = query.toString();
 
@@ -293,6 +299,8 @@ export async function fetchCategoryListings(
     params?.search ?? "",
     params?.condition ?? "",
     params?.sort ?? "",
+    `lat:${params?.lat ?? ""}`,
+    `lng:${params?.lng ?? ""}`,
   ].join(":");
 
   return withCache(
@@ -394,12 +402,19 @@ export async function toggleSaveListing(
 export type ModerationResult = {
   filename: string;
   decision: "allow" | "review" | "block";
+  block: boolean;
+  category: string;
+  confidence: number;
+  requiresHumanReview: boolean;
   categories: Record<string, string>;
+  error?: string;
 };
 
 export type ModerationResponse = {
   success: boolean;
   overallDecision: "allow" | "review" | "block";
+  overallCategory: string;
+  requiresHumanReview: boolean;
   results: ModerationResult[];
 };
 
@@ -545,9 +560,14 @@ export type RecentlyViewedItem = {
   createdAt?: string;
   sellerId?: string;
   viewedAt: number;
+  /** The user's location label at the moment the item was viewed. */
+  viewedLocation?: string;
 };
 
-export async function addToRecentlyViewed(item: ListingItem): Promise<void> {
+export async function addToRecentlyViewed(
+  item: ListingItem,
+  locationLabel?: string,
+): Promise<void> {
   try {
     const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
     const existing: RecentlyViewedItem[] = raw ? JSON.parse(raw) : [];
@@ -562,6 +582,7 @@ export async function addToRecentlyViewed(item: ListingItem): Promise<void> {
       createdAt: item.createdAt,
       sellerId: getListingSellerId(item) ?? undefined,
       viewedAt: Date.now(),
+      viewedLocation: locationLabel || undefined,
     });
     // Cap at max
     await AsyncStorage.setItem(
@@ -580,4 +601,38 @@ export async function getRecentlyViewed(): Promise<RecentlyViewedItem[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Splits recently-viewed items into two buckets:
+ * - `nearYou`: items viewed while the user was in the same city as `currentLocationLabel`
+ * - `others`: everything else, sorted by most recently viewed
+ *
+ * Matching is done on the first comma-segment (city) of both labels, case-insensitive.
+ * If `currentLocationLabel` is empty/falsy all items fall into `others`.
+ */
+export function partitionRecentlyViewedByLocation(
+  items: RecentlyViewedItem[],
+  currentLocationLabel: string | null | undefined,
+): { nearYou: RecentlyViewedItem[]; others: RecentlyViewedItem[] } {
+  const normalise = (label: string) =>
+    label.split(",")[0].trim().toLowerCase();
+
+  const currentCity = currentLocationLabel ? normalise(currentLocationLabel) : null;
+
+  const nearYou: RecentlyViewedItem[] = [];
+  const others: RecentlyViewedItem[] = [];
+
+  for (const item of items) {
+    if (currentCity && item.viewedLocation) {
+      const viewedCity = normalise(item.viewedLocation);
+      if (viewedCity === currentCity || item.viewedLocation.toLowerCase().includes(currentCity)) {
+        nearYou.push(item);
+        continue;
+      }
+    }
+    others.push(item);
+  }
+
+  return { nearYou, others };
 }

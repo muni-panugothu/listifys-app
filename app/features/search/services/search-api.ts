@@ -320,3 +320,77 @@ export async function removeRecentSearch(query: string): Promise<string[]> {
 export async function clearRecentSearches(): Promise<void> {
   await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
 }
+
+// ── AI Parsed chips (from server response) ──────────────────────────────────────
+
+export type ParsedMeta = {
+  cleanQuery: string;
+  chips: Array<{ type: "price" | "condition" | "brand" | "location"; label: string; key: string }>;
+};
+
+// ── Trending ────────────────────────────────────────────────────────────────────
+
+export type TrendingResponse = {
+  trending: string[];
+  categories: Array<{ entity: string; label: string; count: number }>;
+};
+
+export async function fetchTrending(city?: string): Promise<TrendingResponse> {
+  const qs = city ? `?city=${encodeURIComponent(city)}` : "";
+  try {
+    const res = await searchFetch<{ success: boolean } & TrendingResponse>(
+      `/api/search/trending${qs}`,
+    );
+    return { trending: res.trending ?? [], categories: res.categories ?? [] };
+  } catch {
+    return { trending: [], categories: [] };
+  }
+}
+
+// ── Recommendations ─────────────────────────────────────────────────────────────
+
+export type RecentlyViewedItem = {
+  _id: string;
+  _entity: string;
+  title: string;
+  price?: number;
+  currency?: string;
+  image?: string | null;
+  viewedAt: string;
+};
+
+export type RecommendationsResponse = {
+  recentlyViewed: RecentlyViewedItem[];
+  mightLike: SearchResultItem[];
+};
+
+export async function fetchRecommendations(): Promise<RecommendationsResponse> {
+  try {
+    const res = await searchFetch<{ success: boolean } & RecommendationsResponse>(
+      "/api/search/recommendations",
+    );
+    return {
+      recentlyViewed: res.recentlyViewed ?? [],
+      mightLike: (res.mightLike ?? []).map(normaliseImages),
+    };
+  } catch {
+    return { recentlyViewed: [], mightLike: [] };
+  }
+}
+
+// ── Similar Items ───────────────────────────────────────────────────────────────
+
+export async function fetchSimilarItems(
+  entity: string,
+  id: string,
+  limit = 10,
+): Promise<SearchResultItem[]> {
+  try {
+    const res = await searchFetch<{ success: boolean; results: SearchResultItem[] }>(
+      `/api/search/similar/${entity}/${id}?limit=${limit}`,
+    );
+    return (res.results ?? []).map(normaliseImages);
+  } catch {
+    return [];
+  }
+}

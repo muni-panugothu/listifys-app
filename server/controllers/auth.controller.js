@@ -3073,6 +3073,12 @@ exports.toggleFollow = async (req, res) => {
     const targetCounts = counts[0]?.target?.[0] || {};
     const currentCounts = counts[0]?.current?.[0] || {};
 
+    // Bust both users' profile caches so follower/following counts reflect immediately
+    await Promise.allSettled([
+      redis.del(`profile:${currentUserId}`),
+      redis.del(`profile:${targetUserId}`),
+    ]);
+
     res.status(200).json({
       success: true,
       isFollowing: isFollowingNow,

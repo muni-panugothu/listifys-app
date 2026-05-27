@@ -14,6 +14,7 @@ const {
   invalidateAfter,
 } = require("../middleware/cache.middleware.js");
 const { validateListingInput } = require("../middleware/validation.middleware.js");
+const { validateCreateJob, validateUpdateJob, validateJobQuery } = require("../validations/jobs.validation.js");
 const {
   createJob,
   getAllJobs,
@@ -31,7 +32,7 @@ router.get("/", searchLimiter, cacheResponseTracked("jobs", 300, "list"), getAll
 router.get("/my-listings", protect, getMyJobs);
 router.get("/saved", protect, getSavedJobs);
 
-router.post("/", protect, postingLimiter, validateListingInput, invalidateAfter("jobs"), createJob);
+router.post("/", protect, postingLimiter, validateListingInput, validateCreateJob, invalidateAfter("jobs"), createJob);
 
 router.post(
   "/upload-images",
@@ -43,7 +44,7 @@ router.post(
 );
 
 router.get("/:id", searchLimiter, cacheResponseTracked("jobs", 300, "detail"), getJobById);
-router.put("/:id", protect, postingLimiter, validateListingInput, invalidateAfter("jobs"), updateJob);
+router.put("/:id", protect, postingLimiter, validateListingInput, validateUpdateJob, invalidateAfter("jobs"), updateJob);
 router.delete("/:id", protect, invalidateAfter("jobs"), deleteJob);
 router.post("/:id/toggle-save", protect, saveLimiter, toggleSave);
 

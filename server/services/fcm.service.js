@@ -1,0 +1,303 @@
+/**
+ * FCM Push Notification Service (Firebase Admin SDK)
+ *
+ * Supports:
+ *   - Rich data-only notifications (Myntra/Amazon style)
+ *   - Big image / big text styles (rendered by Notifee on device)
+ *   - CTA action buttons (Add to Cart, View Offer, Open Product…)
+ *   - Deep-link routing via `route` + `params` data fields
+ *   - Notification grouping
+ *   - Silent background pushes
+ *   - Multicast (batch) sends
+ *   - Incoming call pushes (high-priority, TTL=30s)
+ *   - Scheduled notifications (server-side setTimeout / queue)
+ *
+ * Requires FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY
+ * (or FIREBASE_SERVICE_ACCOUNT_PATH) in .env.
+ */
+const { logger } = require('../utils/logger');
+
+let admin = null;
+let messaging = null;
+
+function getAdmin() {
+  if (admin) return admin;
+
+  try {
+    admin = require('firebase-admin');
+
+    // Already initialized (e.g., imported twice)
+    if (admin.apps.length > 0) {
+      messaging = admin.messaging();
+      return admin;
+    }
+
+    let credential;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      // Load from JSON file
+      const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      credential = admin.credential.cert(serviceAccount);
+    } else if (process.env.FIREBASE_PRIVATE_KEY) {
+      // Load from individual env vars
+      credential = admin.credential.cert({
+        projectId:   process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      });
+    } else {
+      logger.warn('[FCM] No Firebase credentials configured — push notifications disabled');
+      return null;
+    }
+
+    admin.initializeApp({ credential });
+    messaging = admin.messaging();
+    logger.info('[FCM] Firebase Admin SDK initialized');
+  } catch (err) {
+    logger.error('[FCM] Failed to initialize Firebase Admin SDK', { error: err.message });
+    admin = null;
+    messaging = null;
+  }
+
+  return admin;
+}
+
+/**
+ * Send an incoming call push notification to a device token.
+ * Uses data-only message so the app can display a full-screen incoming call UI.
+ */
+async function sendCallNotification(fcmToken, { callId, callType, callerName, callerPhoto, from }) {
+  if (!getAdmin() || !messaging) return;
+
+  try {
+    await messaging.send({
+      token: fcmToken,
+      data: stringifyData({
+        type:           'incoming_call',
+        notificationId: callId      || '',
+        title:          `📞 ${callerName || 'Unknown'} is calling`,
+        body:           callType === 'video' ? 'Incoming video call' : 'Incoming audio call',
+        callId:         callId      || '',
+        callType:       callType    || 'audio',
+        callerName:     callerName  || 'Unknown',
+        callerPhoto:    callerPhoto || '',
+        from:           from        || '',
+        groupKey:       'calls',
+      }),
+      android: { priority: 'high', ttl: 30_000 },
+      apns:    { headers: { 'apns-priority': '10', 'apns-push-type': 'voip' } },
+    });
+    logger.debug('[FCM] Call notification sent', { callId, callerName });
+  } catch (err) {
+    logger.warn('[FCM] Failed to send call notification', { error: err.message, fcmToken: fcmToken?.slice(0, 20) });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Stringify all values in a data object so FCM accepts them. */
+function stringifyData(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    out[k] = typeof v === 'string' ? v : JSON.stringify(v);
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rich notification  (Myntra / Flipkart / Amazon style)
+// All display logic lives on the client (Notifee). We only send data fields.
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendRichNotification(fcmToken, {
+  notificationId, type, title, body,
+  imageUrl, iconUrl, route, params,
+  actions, groupKey, sound, extra = {},
+}) {
+  if (!getAdmin() || !messaging) return;
+  if (!fcmToken || !title || !body) return;
+
+  const data = stringifyData({
+    type:           type           || 'general',
+    notificationId: notificationId || '',
+    title, body,
+    ...(imageUrl ? { imageUrl }  : {}),
+    ...(iconUrl  ? { iconUrl }   : {}),
+    ...(route    ? { route }     : {}),
+    ...(params   ? { params: JSON.stringify(params) } : {}),
+    ...(actions  ? { actions: JSON.stringify(actions) } : {}),
+    ...(groupKey ? { groupKey }  : {}),
+    ...(sound    ? { sound }     : {}),
+    ...stringifyData(extra),
+  });
+
+  try {
+    await messaging.send({
+      token: fcmToken,
+      data,
+      android: { priority: 'high' },
+      apns:    { headers: { 'apns-priority': '5' } },
+    });
+    logger.debug('[FCM] Rich notification sent', { type, notificationId });
+  } catch (err) {
+    logger.warn('[FCM] sendRichNotification failed', { error: err.message, type });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multicast  (up to 500 tokens per call)
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendMulticast(fcmTokens, payload) {
+  if (!getAdmin() || !messaging || !fcmTokens?.length) return;
+  const BATCH = 500;
+  for (let i = 0; i < fcmTokens.length; i += BATCH) {
+    const batch = fcmTokens.slice(i, i + BATCH);
+    try {
+      const res = await messaging.sendEachForMulticast({
+        tokens: batch,
+        data:   stringifyData(payload),
+        android: { priority: 'high' },
+        apns:    { headers: { 'apns-priority': '5' } },
+      });
+      logger.debug('[FCM] Multicast batch', {
+        total: batch.length, success: res.successCount, failed: res.failureCount,
+      });
+    } catch (err) {
+      logger.warn('[FCM] sendMulticast batch failed', { error: err.message });
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Silent / data-only background push
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendSilentNotification(fcmToken, data = {}) {
+  if (!getAdmin() || !messaging) return;
+  try {
+    await messaging.send({
+      token: fcmToken,
+      data:  stringifyData({ type: 'silent', ...data }),
+      android: { priority: 'normal' },
+      apns: {
+        headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
+        payload: { aps: { 'content-available': 1 } },
+      },
+    });
+  } catch (err) {
+    logger.debug('[FCM] sendSilentNotification failed', { error: err.message });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// General push notification  (backward-compat wrapper)
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendPushNotification(fcmToken, { title, body, data = {} }) {
+  return sendRichNotification(fcmToken, {
+    notificationId: data.notificationId ?? '',
+    type:           data.type ?? 'general',
+    title, body,
+    extra: data,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Typed helpers per notification type
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function sendPriceDropNotification(fcmToken, {
+  notificationId, userName, productTitle, oldPrice, newPrice,
+  imageUrl, listingId, listingType, currency = '₹',
+}) {
+  return sendRichNotification(fcmToken, {
+    notificationId,
+    type:     'price_drop',
+    title:    `🏷️ Price Drop! ${productTitle}`,
+    body:     `Hi ${userName}! Price dropped from ${currency}${oldPrice} → ${currency}${newPrice}`,
+    imageUrl,
+    route:    '/listing-detail-template',
+    params:   { id: listingId, category: listingType ?? 'electronics' },
+    actions:  [{ id: 'open_product', title: '🛒 View Deal' }],
+    groupKey: 'price_alerts',
+    extra:    { listingId, listingType },
+  });
+}
+
+async function sendPromoNotification(fcmToken, {
+  notificationId, title, body, imageUrl, route, params, actions,
+}) {
+  return sendRichNotification(fcmToken, {
+    notificationId,
+    type:     'promotion',
+    title, body, imageUrl,
+    route:    route ?? '/(tabs)/home-feed-root',
+    params,
+    actions:  actions ?? [{ id: 'view_offer', title: '🎁 View Offer' }],
+    groupKey: 'promotions',
+  });
+}
+
+async function sendOfferNotification(fcmToken, {
+  notificationId, buyerName, productTitle,
+  listingId, listingType, imageUrl, conversationId,
+}) {
+  return sendRichNotification(fcmToken, {
+    notificationId,
+    type:     'offer_received',
+    title:    `💬 New offer on "${productTitle}"`,
+    body:     `${buyerName} made an offer on your listing`,
+    imageUrl,
+    route:    '/chat-conversation',
+    params:   { conversationId, listingId, listingType },
+    actions:  [
+      { id: 'view_offer', title: '👀 View Offer' },
+      { id: 'open_chat',  title: '💬 Reply' },
+    ],
+    groupKey: 'messages',
+    extra:    { conversationId, listingId, listingType },
+  });
+}
+
+async function sendBookingNotification(fcmToken, {
+  notificationId, serviceTitle, event, bookingId,
+}) {
+  const msgs = {
+    created:   { title: '📅 Booking Confirmed',  body: `Your booking for "${serviceTitle}" is confirmed.` },
+    confirmed: { title: '✅ Booking Approved',    body: `"${serviceTitle}" booking approved!` },
+    cancelled: { title: '❌ Booking Cancelled',   body: `Your booking for "${serviceTitle}" was cancelled.` },
+    completed: { title: '🎉 Booking Completed',  body: `"${serviceTitle}" marked as complete!` },
+  };
+  const { title, body } = msgs[event] ?? { title: 'Booking Update', body: `Status: ${event}` };
+  return sendRichNotification(fcmToken, {
+    notificationId, type: `booking_${event}`, title, body,
+    groupKey: 'orders', extra: { bookingId },
+  });
+}
+
+async function sendFollowNotification(fcmToken, {
+  notificationId, followerName, followerId, followerPhoto,
+}) {
+  return sendRichNotification(fcmToken, {
+    notificationId,
+    type:    'follow',
+    title:   '👤 New Follower',
+    body:    `${followerName} started following you`,
+    iconUrl: followerPhoto,
+    route:   '/seller-public-profile',
+    params:  { sellerId: followerId, sellerName: followerName },
+    extra:   { followerId, senderName: followerName, senderPhoto: followerPhoto },
+  });
+}
+
+module.exports = {
+  sendCallNotification,
+  sendRichNotification,
+  sendMulticast,
+  sendSilentNotification,
+  sendPushNotification,
+  sendPriceDropNotification,
+  sendPromoNotification,
+  sendOfferNotification,
+  sendBookingNotification,
+  sendFollowNotification,
+};

@@ -50,6 +50,10 @@ export function disconnectSocket() {
     socket.disconnect();
     socket = null;
   }
+  // Allow call listeners to be re-attached on next connect.
+  import('@/features/calling/services/call-socket-service')
+    .then(({ detachCallListeners }) => detachCallListeners())
+    .catch(() => {});
 }
 
 // ── Conversation room management ──

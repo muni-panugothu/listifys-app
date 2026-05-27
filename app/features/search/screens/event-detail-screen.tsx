@@ -24,6 +24,7 @@ import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
+import { selectLocationLabel } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -32,6 +33,7 @@ export function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; category?: string }>();
   const user = useAppSelector((s) => s.auth.user);
+  const locationLabel = useAppSelector(selectLocationLabel);
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export function EventDetailScreen() {
       const res = await fetchListingById(categorySlug, listingId);
       if (res.listing) {
         setListing(res.listing);
-        addToRecentlyViewed(res.listing).catch(() => {});
+        addToRecentlyViewed(res.listing, locationLabel).catch(() => {});
         if (user?.id && res.listing.savedBy?.includes(user.id)) {
           setIsSaved(true);
         }
@@ -102,6 +104,12 @@ export function EventDetailScreen() {
   const ageRestriction = (listing as any)?.ageRestriction ?? "";
   const dressCode = (listing as any)?.dressCode ?? "";
   const features: string[] = (listing as any)?.features ?? [];
+
+  const priceLabel = !listing?.price && listing?.price !== 0
+    ? "FREE"
+    : listing?.price === 0
+    ? "FREE"
+    : `${listing?.currency ?? "\u20B9"}${Number(listing?.price).toLocaleString("en-IN")}`;
 
   const sellerName = listing?.seller?.name ?? listing?.sellerName ?? "Organizer";
   const sellerProfileImage = listing?.seller?.profileImage
@@ -238,10 +246,11 @@ export function EventDetailScreen() {
             <Text className="text-[18px] font-semibold text-[#161D1A]">Event Details</Text>
             <View className="overflow-hidden rounded-xl border border-[#BBCAC3]/20 bg-white">
               {[
+                { label: "Entry Price", value: priceLabel, icon: "local-activity" as const },
                 venue && { label: "Venue", value: venue, icon: "place" as const },
                 locationText && { label: "Location", value: locationText, icon: "location-on" as const },
                 ticketsAvailable > 0 && { label: "Tickets Available", value: String(ticketsAvailable), icon: "confirmation-number" as const },
-                ageRestriction && { label: "Age Restriction", value: ageRestriction, icon: "person" as const },
+                ageRestriction && { label: "Age Restriction", value: ageRestriction, icon: "no-accounts" as const },
                 dressCode && { label: "Dress Code", value: dressCode, icon: "checkroom" as const },
                 subcategory && { label: "Category", value: subcategory, icon: "category" as const },
               ].filter(Boolean).map((row: any, idx, arr) => (
@@ -345,19 +354,43 @@ export function EventDetailScreen() {
           elevation: 8,
         }}
       >
-        <View className="flex-row gap-4">
-          <Pressable
-            onPress={() => {
-              if (!sellerId) return;
-              router.push(
-                `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
-              );
-            }}
-            className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white"
-          >
-            <MaterialIcons name="chat" size={20} color="#161D1A" />
-            <Text className="text-[16px] font-semibold text-[#161D1A]">Message</Text>
-          </Pressable>
+        <View className="flex-row items-center justify-between">
+          {/* Entry Price */}
+          <View>
+            <Text className="text-[12px] font-medium text-[#6C7A74]">Entry Price</Text>
+            <Text className="text-[20px] font-bold text-[#161D1A]">{priceLabel}</Text>
+          </View>
+          {/* Actions */}
+          <View className="flex-row items-center gap-3">
+            <Pressable
+              onPress={() => {
+                if (!sellerId) return;
+                requireAuth("message", () => {
+                  router.push(
+                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                  );
+                });
+              }}
+              className="h-12 w-12 items-center justify-center rounded-xl border-2 border-[#BBCAC3]/50 bg-white"
+              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            >
+              <MaterialIcons name="chat" size={20} color="#161D1A" />
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                requireAuth("message", () => {
+                  if (!sellerId) return;
+                  router.push(
+                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                  );
+                });
+              }}
+              className="h-12 items-center justify-center rounded-xl bg-[#27BB97] px-6"
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            >
+              <Text className="text-[16px] font-semibold text-white">Book Now</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 

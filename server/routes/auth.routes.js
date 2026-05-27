@@ -16,6 +16,7 @@ const {
 } = require("../middleware/validation.middleware");
 const {
   protect,
+  optionalAuth,
   refreshToken,
   logout,
   logoutAll,
@@ -154,9 +155,9 @@ router.post(
 // ==================== Check authentication status ====================
 router.get("/check", authController.checkAuth);
 
-// ==================== Seller profile (auth required) ====================
-router.get("/seller/:userId", protect, authController.getSellerProfile);
-router.get("/seller/:userId/listings", protect, authController.getSellerListings);
+// ==================== Seller profile (public, auth optional for follow status) ====================
+router.get("/seller/:userId", optionalAuth, authController.getSellerProfile);
+router.get("/seller/:userId/listings", optionalAuth, authController.getSellerListings);
 
 // ==================== Follow / Unfollow ====================
 router.post("/follow/:userId", protect, authController.toggleFollow);

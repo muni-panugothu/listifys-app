@@ -74,6 +74,11 @@ export const refreshDeviceLocation = createAsyncThunk(
       const stored = await loadStoredLocation();
       const force = options?.force === true;
 
+      // Never auto-override a user's manually chosen location with GPS
+      if (!force && stored?.source === "manual") {
+        return stored;
+      }
+
       if (
         !force &&
         stored?.source === "gps" &&

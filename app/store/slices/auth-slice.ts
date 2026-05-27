@@ -305,10 +305,16 @@ export const restoreSession = createAsyncThunk(
     }
 
     if (cachedUser) {
+      // Both access and refresh tokens are expired. Clear them so future API
+      // calls don't send stale auth headers, and the socket won't try to
+      // connect with an expired token.
+      console.warn('[Auth] Session restore: tokens expired, using cached user. Re-login required for full access.');
+      await clearTokens();
       return { user: cachedUser, flow, isAuthenticated: true };
     }
 
-    return { user: null, flow, isAuthenticated: true };
+    // No valid session and no cached user — force re-login.
+    return { user: null, flow, isAuthenticated: false };
   },
 );
 

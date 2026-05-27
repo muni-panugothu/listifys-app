@@ -19,8 +19,11 @@ const App = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const dispatch = useAppDispatch()
-  const { isAuthenticated, error } = useAppSelector((s) => s.auth)
+  const { isAuthenticated, sessionHydrated, error } = useAppSelector((s) => s.auth)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  // Guard: skip redirect on initial mount — only redirect after the screen is
+  // already visible and isAuthenticated transitions to true (e.g. after sign-in).
+  const hasMountedRef = React.useRef(false)
 
   const markOnboardingComplete = async () => {
     try {
@@ -36,10 +39,14 @@ const App = () => {
   }
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      return
+    }
+    if (isAuthenticated && sessionHydrated) {
       router.replace('/(tabs)/home-feed-root' as Href)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, sessionHydrated, router])
 
   useEffect(() => {
     if (error) {
@@ -61,7 +68,13 @@ const App = () => {
       if (err instanceof GoogleSignInError && err.cancelled) return
       showErrorToast(
         'Google Sign In',
-        err instanceof GoogleSignInError ? err.message : 'Google sign-in failed.',
+        err instanceof GoogleSignInError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+          ? err
+          : 'Google sign-in failed.',
       )
     } finally {
       setIsGoogleLoading(false)

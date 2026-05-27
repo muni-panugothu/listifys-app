@@ -1,16 +1,23 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type DeviceSession, getDevices, logoutAllDevices, revokeDevice } from "@/features/auth/services/auth-api";
-import { Image } from "@/lib/nativewind-interop";
+import { ListifyFonts } from "@/constants/typography";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-
-const heroImage = "https://lh3.googleusercontent.com/aida-public/AB6AXuAuhXEzk0isZFjM8QbQX3ab0RiYIrvSTgaGYCMtVk2FxJdctudTkhBu3vtypIGtH22NbYhrapHrRbtoyoxNcBOUQNo4-O1tBi4ZqiPBo_Z5QESK_EwRmsvUUvVdjfR5wa3kT1JKjkf1U_FAlPZJpTksljkOR-PxjQfExczQXS08bwCIPvRitXOg8vY-FpCIvvkdqG4B62ilLEw-W00wmjf5Ai3YqwNFuVsC1QSD4rnZiM4TloOxUFIAT_8WqMmB_GDEhkc6X8s-MIo";
 
 function getDeviceIcon(device: DeviceSession): React.ComponentProps<typeof MaterialIcons>["name"] {
   const t = (device.deviceType || device.deviceName || "").toLowerCase();
@@ -26,31 +33,29 @@ export function DevicesScreen() {
 
   const [devices, setDevices] = useState<DeviceSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadDevices = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await getDevices();
       setDevices(res.devices || []);
-    } catch {
-      /* silently handle – show empty */
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load sessions.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadDevices(); }, [loadDevices]);
+  // Real-time: refetch every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      void loadDevices();
+    }, [loadDevices]),
+  );
 
-  const handleRefresh = useCallback(async () => {
-    try {
-      const res = await getDevices();
-      setDevices(res.devices || []);
-    } catch {
-      /* silently handle */
-    }
-  }, []);
-
-  const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
+  const { refreshing, onRefresh } = usePullToRefresh(loadDevices);
 
   const handleLogoutAll = () => {
     Alert.alert("Log out everywhere?", "You will be signed out from all other devices.", [
@@ -90,12 +95,62 @@ export function DevicesScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F6F7F8]">
-      {/* Top Bar */}
-      <View className="absolute inset-x-0 top-0 z-50 flex-row items-center justify-between border-b border-slate-100 bg-white/90 px-4" style={{ paddingTop: insets.top, height: topBarHeight, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
-        <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="arrow-back" size={24} color="#27BB97" /></Pressable>
-        <Text className="text-[20px] font-bold text-[#161D1A]">Devices</Text>
-        <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}><MaterialIcons name="settings" size={22} color="#64748B" /></Pressable>
+    <View style={{ flex: 1, backgroundColor: "#F6F7F8" }}>
+      {/* ── Top Bar ── */}
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: "rgba(255,255,255,0.97)",
+          borderBottomWidth: 1,
+          borderBottomColor: "#F1F5F9",
+          paddingHorizontal: 16,
+          paddingTop: insets.top,
+          height: topBarHeight,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.06,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => ({
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: pressed ? "#F1F5F9" : "transparent",
+            alignItems: "center",
+            justifyContent: "center",
+          })}
+        >
+          <MaterialIcons name="arrow-back" size={22} color="#27BB97" />
+        </Pressable>
+        <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 17, color: "#161D1A" }}>Devices</Text>
+        {loading && !refreshing ? (
+          <ActivityIndicator size="small" color="#27BB97" />
+        ) : (
+          <Pressable
+            onPress={() => void loadDevices()}
+            style={({ pressed }) => ({
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: pressed ? "#F1F5F9" : "transparent",
+              alignItems: "center",
+              justifyContent: "center",
+            })}
+          >
+            <MaterialIcons name="refresh" size={22} color="#64748B" />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -109,69 +164,219 @@ export function DevicesScreen() {
             progressViewOffset={topBarHeight}
           />
         }
-        contentContainerStyle={{ paddingTop: topBarHeight + 16, paddingBottom: 100 + Math.max(insets.bottom, 8) }}
+        contentContainerStyle={{ paddingTop: topBarHeight + 20, paddingBottom: 100 + Math.max(insets.bottom, 8), paddingHorizontal: 16 }}
       >
-        <View className="px-4">
-          {/* Hero */}
-          <View className="mb-6 h-48 overflow-hidden rounded-xl" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 }}>
-            <Image source={heroImage} contentFit="cover" className="h-full w-full" />
-            <LinearGradient colors={["transparent", "rgba(0,0,0,0.6)"]} style={{ position: "absolute", inset: 0 }} />
-            <View className="absolute bottom-0 left-0 p-6">
-              <Text className="text-[20px] font-semibold text-white">Security & Access</Text>
-              <Text className="text-[12px] text-white/80">Manage where you are currently signed in</Text>
+        {/* ── Hero Banner ── */}
+        <View
+          style={{
+            marginBottom: 20,
+            borderRadius: 20,
+            overflow: "hidden",
+            height: 140,
+            backgroundColor: "#161D1A",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 12,
+            elevation: 6,
+          }}
+        >
+          <LinearGradient
+            colors={["#1B4332", "#27BB97"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ flex: 1, padding: 20, justifyContent: "flex-end" }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <MaterialIcons name="security" size={24} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 18, color: "#FFFFFF" }}>
+                  Security & Access
+                </Text>
+                <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>
+                  Manage where you're signed in
+                </Text>
+              </View>
             </View>
-          </View>
+          </LinearGradient>
+        </View>
 
-          {/* Info */}
-          <View className="mb-6 flex-row gap-3 rounded-xl border border-[rgba(39,187,151,0.2)] bg-[rgba(39,187,151,0.1)] p-4">
-            <MaterialIcons name="info" size={22} color="#006B55" />
-            <Text className="flex-1 text-[14px] leading-5 text-[#004535]">If you see a device you don't recognize, log out immediately and change your password to keep your account secure.</Text>
-          </View>
+        {/* ── Info Banner ── */}
+        <View
+          style={{
+            marginBottom: 20,
+            flexDirection: "row",
+            gap: 12,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "rgba(39,187,151,0.2)",
+            backgroundColor: "rgba(39,187,151,0.07)",
+            padding: 14,
+          }}
+        >
+          <MaterialIcons name="info-outline" size={20} color="#27BB97" style={{ marginTop: 1 }} />
+          <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 13, color: "#004535", lineHeight: 19, flex: 1 }}>
+            If you see a device you don't recognize, remove it and change your password immediately.
+          </Text>
+        </View>
 
-          {/* Sessions */}
-          <Text className="mb-3 px-1 text-[18px] font-semibold text-[#161D1A]">Active Sessions</Text>
-          {loading ? (
-            <ActivityIndicator size="large" color="#27BB97" style={{ marginVertical: 32 }} />
-          ) : devices.length === 0 ? (
-            <Text className="py-8 text-center text-[14px] text-[#94A3B8]">No active sessions found.</Text>
-          ) : (
-          <View className="gap-3">
+        {/* ── Sessions Label ── */}
+        <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>
+          Active Sessions
+        </Text>
+
+        {/* ── Sessions list ── */}
+        {loading && devices.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color="#27BB97" />
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: "#94A3B8", marginTop: 12 }}>Loading sessions…</Text>
+          </View>
+        ) : error ? (
+          <View style={{ alignItems: "center", paddingVertical: 32, paddingHorizontal: 24, backgroundColor: "#FFFFFF", borderRadius: 16 }}>
+            <MaterialIcons name="wifi-off" size={40} color="#CBD5E1" />
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 16, color: "#161D1A", marginTop: 12 }}>Could not load sessions</Text>
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 13, color: "#94A3B8", marginTop: 4, textAlign: "center" }}>{error}</Text>
+            <Pressable
+              onPress={() => void loadDevices()}
+              style={({ pressed }) => ({ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: pressed ? "#1EA880" : "#27BB97", borderRadius: 20 })}
+            >
+              <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 14, color: "#FFFFFF" }}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : devices.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 48, backgroundColor: "#FFFFFF", borderRadius: 16 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#F0FDFA", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <MaterialIcons name="devices" size={32} color="#27BB97" />
+            </View>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 16, color: "#161D1A" }}>No active sessions</Text>
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: "#94A3B8", marginTop: 6, textAlign: "center", paddingHorizontal: 32 }}>You appear to only be logged in here.</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 10 }}>
             {devices.map((device) => (
-              <View key={device.deviceId} className="flex-row items-center justify-between rounded-xl border border-slate-100 bg-white/70 p-4" style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 2, elevation: 1 }}>
-                <View className="flex-row items-center gap-4">
-                  <View className="h-12 w-12 items-center justify-center rounded-lg" style={{ backgroundColor: device.current ? "rgba(39,187,151,0.2)" : "#F3F4F6" }}>
-                    <MaterialIcons name={getDeviceIcon(device)} size={24} color={device.current ? "#006B55" : "#64748B"} />
+              <View
+                key={device.deviceId}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 16,
+                  padding: 14,
+                  borderWidth: device.current ? 1.5 : 1,
+                  borderColor: device.current ? "rgba(39,187,151,0.35)" : "#F1F5F9",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 3,
+                  elevation: device.current ? 3 : 1,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <View
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 14,
+                      backgroundColor: device.current ? "#F0FDFA" : "#F8FAFC",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <MaterialIcons
+                      name={getDeviceIcon(device)}
+                      size={24}
+                      color={device.current ? "#27BB97" : "#64748B"}
+                    />
                   </View>
-                  <View>
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-[16px] font-semibold text-[#161D1A]">{device.deviceName || "Unknown Device"}</Text>
-                      {device.current && <View className="rounded-full bg-[rgba(0,107,85,0.1)] px-2 py-0.5"><Text className="text-[10px] font-bold uppercase tracking-wider text-[#006B55]">Current</Text></View>}
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 15, color: "#161D1A" }}>
+                        {device.deviceName || "Unknown Device"}
+                      </Text>
+                      {device.current ? (
+                        <View style={{ backgroundColor: "#F0FDFA", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 10, color: "#27BB97", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                            This device
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
-                    <Text className="text-[12px] text-[#64748B]">{device.location || device.ipAddress || "Unknown location"}{device.lastActiveText ? ` • ${device.lastActiveText}` : device.lastActive ? ` • ${new Date(device.lastActive).toLocaleDateString()}` : ""}</Text>
+                    <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 12, color: "#94A3B8", marginTop: 3 }}>
+                      {[
+                        device.location || device.ipAddress,
+                        device.lastActiveText ?? (device.lastActive ? new Date(device.lastActive).toLocaleDateString() : null),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Text>
                   </View>
                 </View>
-                {device.current ? (
-                  <MaterialIcons name="chevron-right" size={22} color="#CBD5E1" />
-                ) : (
-                  <Pressable onPress={() => handleRevokeDevice(device.deviceId)} className="p-2"><MaterialIcons name="close" size={22} color="#BA1A1A" /></Pressable>
+                {device.current ? null : (
+                  <Pressable
+                    onPress={() => handleRevokeDevice(device.deviceId)}
+                    style={({ pressed }) => ({
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: pressed ? "#FEF2F2" : "#FFF5F5",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    })}
+                  >
+                    <MaterialIcons name="close" size={18} color="#EF4444" />
+                  </Pressable>
                 )}
               </View>
             ))}
           </View>
-          )}
+        )}
 
-          {/* Logout All */}
-          <View className="mt-8">
-            <Pressable onPress={handleLogoutAll} className="overflow-hidden rounded-xl" style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
-              <LinearGradient colors={["#27BB97", "#1E9E7E"]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={{ height: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, shadowColor: "#27BB97", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 }}>
-                <MaterialIcons name="logout" size={20} color="#FFFFFF" />
-                <Text className="text-[16px] font-semibold text-white">Log out from all devices</Text>
-              </LinearGradient>
-            </Pressable>
-            <Text className="mt-4 text-center text-[12px] text-[#94A3B8]">This will sign you out of all devices except this one.</Text>
-          </View>
+        {/* ── Log out all ── */}
+        <View style={{ marginTop: 28 }}>
+          <Pressable
+            onPress={handleLogoutAll}
+            style={({ pressed }) => ({
+              overflow: "hidden",
+              borderRadius: 16,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            })}
+          >
+            <LinearGradient
+              colors={["#27BB97", "#1E9E7E"]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={{
+                height: 52,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <MaterialIcons name="logout" size={20} color="#FFFFFF" />
+              <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 15, color: "#FFFFFF" }}>
+                Log out from all devices
+              </Text>
+            </LinearGradient>
+          </Pressable>
+          <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 12, color: "#94A3B8", marginTop: 10, textAlign: "center" }}>
+            This will sign you out of all devices except this one.
+          </Text>
         </View>
       </ScrollView>
     </View>
   );
 }
+

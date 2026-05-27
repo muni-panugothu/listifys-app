@@ -18,6 +18,9 @@ router.put("/read-all", notificationController.markAllAsRead);
 // PUT /api/notifications/:id/read — mark single as read
 router.put("/:id/read", notificationController.markAsRead);
 
+// POST /api/notifications/track — analytics event tracking
+router.post("/track", notificationController.trackEvent);
+
 // DELETE /api/notifications/all — delete all notifications
 router.delete("/all", notificationController.deleteAllNotifications);
 

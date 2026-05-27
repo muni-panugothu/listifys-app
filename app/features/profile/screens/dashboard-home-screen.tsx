@@ -145,6 +145,34 @@ export function DashboardHomeScreen() {
   const displayName = user?.name?.trim() || DUMMY_PROFILE_NAME;
   const displayEmail = user?.email?.trim() || "";
 
+  const navigate = useCallback(
+    (href: Href) => {
+      router.push(href);
+    },
+    [router],
+  );
+
+  const navigateProtected = useCallback(
+    (href: Href) => {
+      if (isAuthenticated) {
+        router.push(href);
+        return;
+      }
+      dispatch(showAuthGate({ action: "profile", redirectTo: href as string }));
+    },
+    [dispatch, isAuthenticated, router],
+  );
+
+  const handleInviteFriend = useCallback(async () => {
+    try {
+      await Share.share({
+        message: "Join me on Listify — buy and sell locally!",
+      });
+    } catch {
+      // user dismissed
+    }
+  }, []);
+
   const stats = useMemo(
     () => [
       {
@@ -172,34 +200,6 @@ export function DashboardHomeScreen() {
       },
     ],
     [navigateProtected, user?.followersCount, user?.followingCount, user?.listingsCount],
-  );
-
-  const handleInviteFriend = useCallback(async () => {
-    try {
-      await Share.share({
-        message: "Join me on Listify — buy and sell locally!",
-      });
-    } catch {
-      // user dismissed
-    }
-  }, []);
-
-  const navigate = useCallback(
-    (href: Href) => {
-      router.push(href);
-    },
-    [router],
-  );
-
-  const navigateProtected = useCallback(
-    (href: Href) => {
-      if (isAuthenticated) {
-        router.push(href);
-        return;
-      }
-      dispatch(showAuthGate({ action: "profile", redirectTo: href as string }));
-    },
-    [dispatch, isAuthenticated, router],
   );
 
   return (
@@ -371,6 +371,20 @@ export function DashboardHomeScreen() {
             iconColor="#FB923C"
             label="Settings"
             onPress={() => navigate("/app-settings" as Href)}
+          />
+          <MenuRow
+            icon="history"
+            iconBg="rgba(99,102,241,0.12)"
+            iconColor="#6366F1"
+            label="Activity Log"
+            onPress={() => navigateProtected("/activity-log" as Href)}
+          />
+          <MenuRow
+            icon="devices"
+            iconBg="rgba(59,130,246,0.12)"
+            iconColor="#3B82F6"
+            label="Devices"
+            onPress={() => navigateProtected("/devices" as Href)}
           />
           <MenuRow
             icon="security"
