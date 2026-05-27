@@ -3,7 +3,6 @@ const { logger } = require('../utils/logger');
 
 let s3Client = null;
 
-
 if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_REGION) {
   logger.warn('AWS credentials not configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION). S3 uploads will fail.');
 } else {

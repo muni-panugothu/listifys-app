@@ -1,5 +1,31 @@
+# dependencies
 node_modules/
+
+# environment files
 .env
-.DS_Store
+.env.local
+.env.production
+
+# logs
 *.log
+
+# macOS
+.DS_Store
+
+# Firebase / Google secrets
+google-services.json
+serviceAccountKey.json
+
+# Google Cloud credentials
 config/gcp-*-service-account.json
+config/gcp-*-credentials.json
+server/config/*.json
+
+# certificates / keys
+*.pem
+*.p12
+*.key
+
+# Expo
+.expo/
+dist/
