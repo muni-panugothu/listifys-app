@@ -294,14 +294,16 @@ export function SellerPublicProfileScreen() {
 
   const handleMessage = useCallback(() => {
     if (!sellerId) return;
-    router.push({
-      pathname: "/chat-conversation",
-      params: {
-        recipientId: sellerId,
-        name: displayName,
-      },
-    } as Href);
-  }, [displayName, router, sellerId]);
+    requireAuth(() => {
+      router.push({
+        pathname: "/chat-conversation",
+        params: {
+          recipientId: sellerId,
+          name: displayName,
+        },
+      } as Href);
+    });
+  }, [displayName, requireAuth, router, sellerId]);
 
   const navigateToListing = useCallback(
     (item: SellerListing) => {

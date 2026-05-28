@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AUTH_API_BASE_URL, requestJson } from "@/features/auth/services/auth-api";
+import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import {
   addToRecentlyViewed,
   fetchListingById,
@@ -129,6 +130,30 @@ export function PropertyDetailScreen() {
 
   const topBarHeight = insets.top + 64;
   const footerBottomPadding = Math.max(insets.bottom, 10);
+
+  // ── Auth Gate ─────────────────────────────────────────────────────────
+  const [authGateVisible, setAuthGateVisible] = useState(false);
+  const [authGateAction, setAuthGateAction] = useState<"save" | "message" | "offer">("message");
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
+  const requireAuth = useCallback(
+    (action: "save" | "message" | "offer", callback: () => void) => {
+      if (!user) {
+        pendingActionRef.current = callback;
+        setAuthGateAction(action);
+        setAuthGateVisible(true);
+        return;
+      }
+      callback();
+    },
+    [user],
+  );
+
+  const handleAuthSuccess = useCallback(() => {
+    const pending = pendingActionRef.current;
+    pendingActionRef.current = null;
+    pending?.();
+  }, []);
 
   // ── Make Offer Bottom Sheet ───────────────────────────────────────────
   const [offerVisible, setOfferVisible] = useState(false);
@@ -467,9 +492,11 @@ export function PropertyDetailScreen() {
           <Pressable
             onPress={() => {
               if (sellerId) {
-                router.push(
-                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "₹")}` as Href,
-                );
+                requireAuth("message", () => {
+                  router.push(
+                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                  );
+                });
               }
             }}
             className="h-12 flex-1 items-center justify-center rounded-xl border border-[#BBCAC3]"
@@ -478,7 +505,7 @@ export function PropertyDetailScreen() {
             <Text className="text-[16px] font-semibold text-[#161D1A]">Contact Seller</Text>
           </Pressable>
           <Pressable
-            onPress={openOfferSheet}
+            onPress={() => requireAuth("offer", openOfferSheet)}
             className="h-12 flex-[1.5] items-center justify-center rounded-xl bg-[#27BB97]"
             style={({ pressed }) => ({
               opacity: pressed ? 0.9 : 1,
@@ -673,6 +700,13 @@ export function PropertyDetailScreen() {
           </View>
         </Animated.View>
       </Modal>
+
+      <AuthGateBottomSheet
+        visible={authGateVisible}
+        onClose={() => setAuthGateVisible(false)}
+        action={authGateAction}
+        onAuthenticated={handleAuthSuccess}
+      />
     </View>
   );
 }

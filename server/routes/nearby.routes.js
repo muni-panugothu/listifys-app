@@ -1,7 +1,7 @@
 /**
  * Nearby Routes — Unified cross-category location-based search
  *
- * GET /api/nearby?lat=17.38&lng=78.48&radius=20&search=bike&sort=nearest
+ * GET /api/nearby?lat=17.38&lng=78.48&radius=50&search=bike&sort=nearest
  */
 const express = require('express');
 const router = express.Router();

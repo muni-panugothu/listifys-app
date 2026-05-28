@@ -1,7 +1,8 @@
-import { MaterialIcons } from "@expo/vector-icons";
+﻿import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Animated,
     Dimensions,
     PanResponder,
@@ -18,67 +19,22 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
+import { useAppSelector } from "@/store/hooks";
+import { selectLocationCoords } from "@/store/slices/location-slice";
+import { fetchNearbyListings, type NearbyListingsResponse } from "@/features/listing/services/listing-api";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-type NearbyItem = {
-  id: string;
-  title: string;
-  location: string;
-  distance: string;
-  price: string;
-  badge: string;
-  image: string;
-  liked?: boolean;
-  active?: boolean;
-};
+const NEARBY_RADIUS = 50;
 
 const mapBackgroundImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuAKVZlC-TyqExGtIWEdUMKO7pl85Pw8XEo_B5x6FEDH-KjV1RQERm14jNlyFb5AIVl9_Q7fr0xHghNonRnFivXQS3Srrs8_iA2g4b26fuFJYn43fBWw2_ZEc4D7E-aHD31BjHataW9ilcK_oZY1knyNtcd1aPSQedeXQGlBUzo-Mbf9gNDu6v7PSFWXUj7r_n8DrDjOf7v7B8Rtk4NRx62PJaBR2Q_y-6Od0OiFGatp7Yik_9EsP3O5f58NhznQNBDWbJPxXnHvwWM";
 
-const activePinPreviewImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuBCJuVgpJKlEhIhg2dtFu-Pa6QN_NSQ4J3anBEn-xyk6EY0_-OHt_Iy7KdQm1fqhu7yKeGG8XPS94X6brw_I1eY9hdp69TBPDWIazu6idMx1kz8Q0W7t11wFUT47YvOZyyamJR7HjnZNTkxv6YHozDSnIVyFXJkZs9IW19DlUjACGfQ0RzLEQT5bR8UIrAT5j4nDaiXd6oWFsADj2rzhElJllKNRdxW54K5iKI6cZak5Oa1l9JsliAfW6qp0ZvxgWBYWDtYDH169Ig";
-
-const nearbyListings: NearbyItem[] = [
-  {
-    id: "chair",
-    title: "Premium Office Chair",
-    location: "Powai",
-    distance: "0.5 km",
-    price: "₹3,200",
-    badge: "Used - Like New",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCJFJl-kKRARvk_Ue3ik5ClkRcP8HveevJ2c_C0qItO00eFRjBzEkN2rkDWYFdpcWuVGlPExAzxDJagswazNAjw7AYBpKegG0VR6IJ_uSXUAAhTKrOEd2UhH8pr6XKCjFkAkFK5FIWMT800hnFV-dJ15gjffWX_T8OVR9vvtBsiwQBhzxDE9iBdOmPCnNBWMFOgVhKZyecDqoXk7ou3vkfZgJoTog0U3ERybkBuE9t7GpfeqC6hVP31Y2XF_vsMSSzNjPvmXeUJSY8",
-  },
-  {
-    id: "macbook",
-    title: "MacBook Pro M1",
-    location: "Chandivali",
-    distance: "0.8 km",
-    price: "₹45,000",
-    badge: "Promoted",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDLXUtQkTjTbxqR71KXIEX3j1CBBNW3bU2KdAYoa-JFOqxQgOzZMiOv5a9fmxYmPeqf2L75snCMQFuc9Neu9QC4Gvaq7aeNstjeeGhIEGXatYEk8nnUqXxZLOiBLbWcmVuEslq8bWt9ZNoU6JKJCf9p64pPNZ_JYSUKLar6x1EY2O-VLUnR1xO3Lo5647tG2e7w5Bi87a_e0Lz1Ov19rguE_9l1jgFP0U2iQdQH7rbuTXEKlOUKW4GCOzWakFLBhRyxe5AzCJKyMV0",
-    liked: true,
-    active: true,
-  },
-  {
-    id: "cycle",
-    title: "Hybrid City Cycle",
-    location: "Hiranandani",
-    distance: "1.2 km",
-    price: "₹8,500",
-    badge: "2 years old",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDpqRdWnPxa4P9TTTcaW-WZdU1djVx9eZmUarUBvJluo-svIJnov4turRr0jUCHVl1Nc16QalGLouay1e3ETMftxKFu4dqmKrbEdU0ZG1ZDOZQR991DxcfFIfeEFyHXcPY_SXC0IUV7PVqyCB2n4YJvunV1glNwXMexTyLKzStndJdm7nLbvB_2SHPnkHXlDRMxVLeQNvr_Vr3joRcCr-j4sYDUxr1Ys8lnMaXaVPpNYrbrzHilyBq9fRc_Iqkb_pCs21O31lGDjr4",
-  },
-];
-
 function parseQueryParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) {
-    return value[0] ?? "Search nearby...";
+    return value[0] ?? "";
   }
-  return value ?? "Search nearby...";
+  return value ?? "";
 }
 
 function MapPin({
@@ -118,7 +74,13 @@ export function NearbyMapViewBottomSheetScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState(() => parseQueryParam(params.q));
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
-  const { refreshing, onRefresh } = usePullToRefresh();
+
+  const locationCoords = useAppSelector(selectLocationCoords);
+
+  type NearbyListing = NearbyListingsResponse["listings"][number];
+  const [listings, setListings] = useState<NearbyListing[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const sheetTranslateRef = useRef(0);
@@ -137,6 +99,48 @@ export function NearbyMapViewBottomSheetScreen() {
   );
   const collapsedTranslateY = Math.max(0, sheetHeight - collapsedVisibleHeight);
   const bottomSheetListPadding = bottomNavPadding + 24;
+
+  const loadNearby = useCallback(async (searchQuery: string) => {
+    if (locationCoords.lat == null || locationCoords.lng == null) return;
+    setLoading(true);
+    try {
+      const result = await fetchNearbyListings({
+        lat: locationCoords.lat,
+        lng: locationCoords.lng,
+        radius: NEARBY_RADIUS,
+        search: searchQuery.trim() || undefined,
+        sort: "nearest",
+        limit: 30,
+      });
+      setListings(result.listings ?? []);
+      setTotalCount(result.pagination?.total ?? result.listings?.length ?? 0);
+    } catch {
+      // silently fail â€” show empty state
+      setListings([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [locationCoords.lat, locationCoords.lng]);
+
+  // Load on mount and when location is ready
+  useEffect(() => {
+    void loadNearby(query);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationCoords.lat, locationCoords.lng]);
+
+  // Search with debounce
+  useEffect(() => {
+    const t = setTimeout(() => { void loadNearby(query); }, 500);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const { refreshing, onRefresh: baseOnRefresh } = usePullToRefresh();
+  const onRefresh = useCallback(async () => {
+    baseOnRefresh();
+    await loadNearby(query);
+  }, [baseOnRefresh, loadNearby, query]);
 
   useEffect(() => {
     const listener = sheetTranslateY.addListener(({ value }) => {
@@ -204,6 +208,13 @@ export function NearbyMapViewBottomSheetScreen() {
 
   const handleBottomTabPress = useTabNavigation();
 
+  const subtitleText = useMemo(() => {
+    if (locationCoords.lat == null) return "Enable location to see nearby items";
+    if (loading && listings.length === 0) return "Loading...";
+    if (totalCount === 0) return `No listings found within ${NEARBY_RADIUS} km`;
+    return `${totalCount} item${totalCount !== 1 ? "s" : ""} within ${NEARBY_RADIUS} km`;
+  }, [locationCoords.lat, loading, listings.length, totalCount]);
+
   return (
     <View className="flex-1 bg-[#F6F7F8]">
       <View className="absolute inset-0">
@@ -229,43 +240,6 @@ export function NearbyMapViewBottomSheetScreen() {
         style={{ transform: [{ scale: 1.08 }] }}
       >
         <MapPin iconName="laptop-mac" active />
-
-        <View
-          className="absolute -left-20 -top-40 w-48 overflow-hidden rounded-xl border border-slate-100 bg-white"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.18,
-            shadowRadius: 14,
-            elevation: 10,
-          }}
-        >
-          <View className="relative h-24">
-            <Image
-              source={activePinPreviewImage}
-              contentFit="cover"
-              transition={150}
-              className="h-full w-full"
-            />
-            <View className="absolute right-2 top-2 rounded-md bg-white/90 px-2 py-1">
-              <Text className="text-[10px] font-bold text-[#27BB97]">
-                ₹45,000
-              </Text>
-            </View>
-          </View>
-          <View className="p-2">
-            <Text
-              numberOfLines={1}
-              className="text-[12px] font-semibold text-[#161D1A]"
-            >
-              MacBook Pro M1 2021
-            </Text>
-            <View className="mt-1 flex-row items-center gap-1">
-              <MaterialIcons name="location-on" size={12} color="#6C7A74" />
-              <Text className="text-[10px] text-[#6C7A74]">0.8 km away</Text>
-            </View>
-          </View>
-        </View>
       </View>
 
       <View
@@ -306,7 +280,11 @@ export function NearbyMapViewBottomSheetScreen() {
               className="flex-1 text-[14px] text-[#161D1A]"
               style={{ paddingVertical: 0 }}
             />
-            <MaterialIcons name="tune" size={20} color="#6C7A74" />
+            {query.length > 0 && (
+              <Pressable onPress={() => setQuery("")}>
+                <MaterialIcons name="close" size={18} color="#6C7A74" />
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
@@ -374,7 +352,7 @@ export function NearbyMapViewBottomSheetScreen() {
                   Nearby Listings
                 </Text>
                 <Text className="text-[12px] text-[#6C7A74]">
-                  Showing 24 items within 2 km
+                  {subtitleText}
                 </Text>
               </View>
 
@@ -405,75 +383,97 @@ export function NearbyMapViewBottomSheetScreen() {
               paddingBottom: bottomSheetListPadding,
             }}
           >
-            <View className="gap-4 pb-4">
-              {nearbyListings.map((item) => {
-                const isActive = !!item.active;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => router.push("/listing-detail-template")}
-                    className="flex-row gap-4 rounded-2xl p-3"
-                    style={{
-                      backgroundColor: isActive
-                        ? "rgba(39,187,151,0.05)"
-                        : "#FFFFFF",
-                      borderWidth: isActive ? 2 : 1,
-                      borderColor: isActive
-                        ? "rgba(39,187,151,0.2)"
-                        : "#F1F5F9",
-                    }}
-                  >
-                    <View className="h-24 w-24 overflow-hidden rounded-xl">
-                      <Image
-                        source={item.image}
-                        contentFit="cover"
-                        transition={150}
-                        className="h-full w-full"
-                      />
-                    </View>
+            {loading && listings.length === 0 ? (
+              <View className="items-center py-10">
+                <ActivityIndicator size="large" color="#27BB97" />
+                <Text className="mt-3 text-[13px] text-[#6C7A74]">
+                  Finding listings near you...
+                </Text>
+              </View>
+            ) : listings.length === 0 ? (
+              <View className="items-center py-10">
+                <MaterialIcons name="location-off" size={40} color="#CBD5E1" />
+                <Text className="mt-3 text-[14px] font-semibold text-[#3C4A44]">
+                  {locationCoords.lat == null
+                    ? "Location not set"
+                    : "No listings nearby"}
+                </Text>
+                <Text className="mt-1 text-center text-[12px] text-[#6C7A74]">
+                  {locationCoords.lat == null
+                    ? "Set your location to see items near you"
+                    : `No listings found within ${NEARBY_RADIUS} km of your location`}
+                </Text>
+              </View>
+            ) : (
+              <View className="gap-4 pb-4">
+                {listings.map((item) => {
+                  const firstImage = item.images?.[0];
+                  const distanceText =
+                    item.distance != null ? `${item.distance} km` : "";
+                  const locationText = item.location ?? "";
+                  const priceDisplay =
+                    item.price != null
+                      ? `${item.currency ?? "â‚¹"}${Number(item.price).toLocaleString("en-IN")}`
+                      : "Contact";
+                  return (
+                    <Pressable
+                      key={String(item._id)}
+                      onPress={() =>
+                        router.push(
+                          `/listing-detail-template?category=${item._entity ?? item.category}&id=${item._id}`,
+                        )
+                      }
+                      className="flex-row gap-4 rounded-2xl border border-[#F1F5F9] bg-white p-3"
+                      style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+                    >
+                      <View className="h-24 w-24 overflow-hidden rounded-xl bg-slate-100">
+                        {firstImage ? (
+                          <Image
+                            source={firstImage}
+                            contentFit="cover"
+                            transition={150}
+                            className="h-full w-full"
+                          />
+                        ) : (
+                          <View className="h-full w-full items-center justify-center">
+                            <MaterialIcons name="image" size={28} color="#CBD5E1" />
+                          </View>
+                        )}
+                      </View>
 
-                    <View className="flex-1 justify-between py-0.5">
-                      <View>
-                        <View className="flex-row items-start justify-between">
-                          <Text className="text-[18px] font-semibold leading-6 text-[#161D1A]">
+                      <View className="flex-1 justify-between py-0.5">
+                        <View>
+                          <Text
+                            numberOfLines={2}
+                            className="text-[15px] font-semibold leading-5 text-[#161D1A]"
+                          >
                             {item.title}
                           </Text>
-                          <MaterialIcons
-                            name={item.liked ? "favorite" : "favorite-border"}
-                            size={20}
-                            color={item.liked ? "#BA1A1A" : "#6C7A74"}
-                          />
-                        </View>
-                        <Text className="mt-1 text-[12px] text-[#6C7A74]">
-                          {item.location} • {item.distance}
-                        </Text>
-                      </View>
-
-                      <View className="flex-row items-end justify-between">
-                        <Text className="text-[16px] font-bold text-[#27BB97]">
-                          {item.price}
-                        </Text>
-                        <View
-                          className="rounded-md px-2 py-0.5"
-                          style={{
-                            backgroundColor: isActive
-                              ? "rgba(203,161,0,0.2)"
-                              : "#E9EFEB",
-                          }}
-                        >
-                          <Text
-                            className="text-[10px] font-bold uppercase"
-                            style={{ color: isActive ? "#755B00" : "#3C4A44" }}
-                          >
-                            {item.badge}
+                          <Text className="mt-1 text-[12px] text-[#6C7A74]">
+                            {[locationText, distanceText]
+                              .filter(Boolean)
+                              .join(" â€¢ ")}
                           </Text>
                         </View>
+
+                        <View className="flex-row items-end justify-between">
+                          <Text className="text-[16px] font-bold text-[#27BB97]">
+                            {priceDisplay}
+                          </Text>
+                          {item.condition ? (
+                            <View className="rounded-md bg-[#E9EFEB] px-2 py-0.5">
+                              <Text className="text-[10px] font-bold uppercase text-[#3C4A44]">
+                                {item.condition}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
                       </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </ScrollView>
         </View>
       </Animated.View>

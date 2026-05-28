@@ -18,7 +18,21 @@ const {
   geoQueryParams,
 } = require('./common');
 
-const MOBILE_SUBCATEGORIES = ['Mobile Phones', 'Accessories', 'Tablets'];
+const MOBILE_SUBCATEGORIES = [
+  'Mobile Phones',
+  'Tablets',
+  'Accessories',
+  'Cases & Covers',
+  'Chargers & Cables',
+  'Earphones & Headphones',
+  'Power Banks',
+  'Smart Watches & Bands',
+  'Memory Cards & Storage',
+  'Screen Guards & Protectors',
+  'Bluetooth Speakers',
+  'Selfie Sticks & Tripods',
+  'Other Accessories',
+];
 const WARRANTY_OPTIONS = ['Under Warranty', 'Expired', 'No Warranty', ''];
 
 const createMobileSchema = Joi.object({

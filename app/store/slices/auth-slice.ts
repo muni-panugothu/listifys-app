@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type PayloadAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
+import { LOCATION_STORAGE_KEY } from "@/lib/location-service";
 import {
   type AuthUser,
   clearTokens,
@@ -364,6 +365,7 @@ export const logout = createAsyncThunk("auth/logout", async () => {
   } finally {
     await AsyncStorage.removeItem(USER_STORAGE_KEY);
     await AsyncStorage.removeItem(FLOW_STATE_KEY);
+    await AsyncStorage.removeItem(LOCATION_STORAGE_KEY);
     await clearTokens();
   }
 });

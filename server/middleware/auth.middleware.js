@@ -135,15 +135,19 @@ exports.protect = async (req, res, next) => {
         const ua = req.get("user-agent") || "";
         const currentFgp = extractStableFgp(ua);
         if (decoded.fgp !== currentFgp) {
-          // Log but do NOT block — the token is still crypto-signed
-          // and served via HttpOnly secure cookies.  The fingerprint
-          // is defence-in-depth; blocking causes excessive logouts
-          // when the UA string changes (browser updates, extensions).
-          logger.warn("protect: token fingerprint mismatch (non-blocking)", {
+          // Block — stolen tokens used from a different device/browser family
+          // are rejected immediately. Mobile clients re-bind fgp on every
+          // fresh login, so legitimate UA changes only affect one session.
+          logger.warn("protect: token fingerprint mismatch — blocking request", {
             userId: decoded.id,
             expectedFgp: decoded.fgp,
             actualFgp: currentFgp,
             userAgent: ua.substring(0, 80),
+          });
+          return res.status(401).json({
+            success: false,
+            message: "Session invalid. Please log in again.",
+            code: "FINGERPRINT_MISMATCH",
           });
         }
       }

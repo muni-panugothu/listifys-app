@@ -115,6 +115,7 @@ const APPLIANCE_SUBCATEGORIES = ["Kitchen & Other Appliances", "Fridges", "Washi
 const CAMERA_SUBCATEGORIES = ["Cameras & Lenses"];
 
 const FUEL_OPTIONS = ["Petrol", "Diesel", "CNG", "Electric", "Hybrid", "LPG"];
+const BIKE_FUEL_OPTIONS = ["Petrol", "CNG", "Electric", "Hybrid", "LPG"]; // Bikes don't use Diesel
 const TRANSMISSION_OPTIONS = ["Manual", "Automatic"];
 const OWNERSHIP_OPTIONS = ["1st Owner", "2nd Owner", "3rd Owner", "4th+ Owner"];
 const CYCLE_TYPE_OPTIONS = ["Mountain", "Road", "Hybrid", "BMX", "Kids", "Folding", "Electric", "Cruiser"];
@@ -238,6 +239,209 @@ function Label({ text }: { text: string }) {
       {text}
     </Text>
   );
+}
+
+// ── Context-aware placeholders (category + subcategory → smart hints) ─────────
+type PlaceholderPair = { title: string; description: string };
+const AD_PLACEHOLDERS: Record<string, Record<string, PlaceholderPair> & { _default: PlaceholderPair }> = {
+  vehicles: {
+    Cars: {
+      title: "e.g. 2022 Maruti Swift VXi — 15,000 km, 1st owner",
+      description: "Include model year, fuel type, km driven, service history, any modifications, and reason for selling.",
+    },
+    Motorcycles: {
+      title: "e.g. Royal Enfield Classic 350 BS6 2021 — 8,000 km",
+      description: "Mention engine CC, km driven, service records, modifications, and current condition.",
+    },
+    Bicycles: {
+      title: "e.g. Hero Sprint Pro 21-speed Mountain Bike — Like New",
+      description: "Include brand, gear count, frame size, accessories included, and any repairs done.",
+    },
+    Scooters: {
+      title: "e.g. Honda Activa 6G 2023 — Single Owner, Full Insurance",
+      description: "Mention year, mileage, insurance validity, service history, and accessories.",
+    },
+    _default: {
+      title: "e.g. Hyundai i20 2021 — Petrol, 20,000 km, 1 Owner",
+      description: "Describe fuel type, km driven, ownership history, condition, and any extras included.",
+    },
+  },
+  mobiles: {
+    "Mobile Phones": {
+      title: "e.g. iPhone 14 Pro Max 256GB Deep Purple — Battery 96%",
+      description: "Include storage, color, battery health %, accessories in box, and any scratches or issues.",
+    },
+    Tablets: {
+      title: "e.g. Samsung Galaxy Tab S8 128GB — Wi-Fi, 6 months old",
+      description: "Mention storage, connectivity (Wi-Fi / 5G), screen condition, accessories, and purchase year.",
+    },
+    Accessories: {
+      title: "e.g. Apple AirPods Pro 2nd Gen — Original Box Included",
+      description: "Include compatibility, original accessories, usage duration, and any defects.",
+    },
+    "Chargers & Cables": {
+      title: "e.g. 65W USB-C Fast Charger — Compatible with Samsung, OnePlus",
+      description: "Mention watt rating, connector type, cable length, compatible brands, and condition.",
+    },
+    "Earphones & Headphones": {
+      title: "e.g. Sony WH-1000XM5 Noise-Cancelling Headphones — Like New",
+      description: "Include connectivity (wired/wireless), noise cancellation, battery life, and what's in the box.",
+    },
+    _default: {
+      title: "e.g. Samsung Galaxy S23 Ultra 256GB — Excellent Condition",
+      description: "Describe storage, color, battery health, accessories included, and purchase date.",
+    },
+  },
+  electronics: {
+    Televisions: {
+      title: "e.g. Sony 55-inch 4K OLED Smart TV — 1 Year Old",
+      description: "Include screen size, resolution, smart features, remote included, and any issues.",
+    },
+    Laptops: {
+      title: "e.g. MacBook Pro 14-inch M2 — 16GB RAM, 512GB SSD",
+      description: "Specify processor, RAM, storage, battery cycles, screen condition, and charger included.",
+    },
+    Cameras: {
+      title: "e.g. Sony Alpha A7III Mirrorless Camera Body — 10k Shutter Count",
+      description: "Include shutter count, accessories, lenses included, sensor condition, and original box.",
+    },
+    "Air Conditioners": {
+      title: "e.g. Voltas 1.5 Ton 5-Star Inverter AC — 2 Years Old",
+      description: "Mention tonnage, star rating, installation age, and service history.",
+    },
+    _default: {
+      title: "e.g. LG 8kg Front Load Washing Machine — Excellent Condition",
+      description: "Include brand, model, age, condition, features, and reason for selling.",
+    },
+  },
+  properties: {
+    "For Rent": {
+      title: "e.g. 2BHK Furnished Flat for Rent — Near Metro, Hyderabad",
+      description: "Mention BHK, furnishing, floor, nearby landmarks, amenities, and preferred tenant.",
+    },
+    "For Sale": {
+      title: "e.g. 3BHK Apartment for Sale — Gated Society, 1200 sqft",
+      description: "Include area in sqft, floor, amenities, possession status, loan eligibility, and location.",
+    },
+    "PG / Hostel": {
+      title: "e.g. Single Room PG for Girls — AC, Meals Included, Banjara Hills",
+      description: "Specify room type, gender preference, meals, curfew, amenities, and nearby transport.",
+    },
+    _default: {
+      title: "e.g. 2BHK Semi-Furnished Flat — Banjara Hills, Hyderabad",
+      description: "Describe size, furnishing status, floor, amenities, and any nearby highlights.",
+    },
+  },
+  jobs: {
+    "Full-Time": {
+      title: "e.g. Senior React Native Developer — Remote, 5+ yrs, ₹15–20 LPA",
+      description: "Include role responsibilities, required skills, experience range, salary, and perks.",
+    },
+    "Part-Time": {
+      title: "e.g. Part-Time Content Writer — Work from Home, Flexible Hours",
+      description: "Describe tasks, required skills, work hours per week, and payment terms.",
+    },
+    Internship: {
+      title: "e.g. Marketing Intern — 3-Month Paid Internship, Hyderabad",
+      description: "Specify duration, stipend, skills required, learning outcomes, and location.",
+    },
+    _default: {
+      title: "e.g. Field Sales Executive — FMCG, 2+ yrs Experience",
+      description: "Include key responsibilities, qualifications, CTC, location, and how to apply.",
+    },
+  },
+  services: {
+    Plumbing: {
+      title: "e.g. Expert Plumber — Pipe Fitting, Leak Repair, Available 24/7",
+      description: "Describe services offered, years of experience, service area, and pricing.",
+    },
+    Electrician: {
+      title: "e.g. Licensed Electrician — Wiring, Repair, Home Automation",
+      description: "List services, certifications, area covered, and emergency availability.",
+    },
+    Cleaning: {
+      title: "e.g. Professional Home Deep Cleaning — Hyderabad, ₹999 onwards",
+      description: "Mention what's included, frequency options, equipment used, and service guarantee.",
+    },
+    _default: {
+      title: "e.g. Professional Home Painting — Interior & Exterior",
+      description: "Describe your service, experience, area coverage, pricing, and contact availability.",
+    },
+  },
+  furniture: {
+    Sofas: {
+      title: "e.g. 3-Seater L-Shaped Sofa — Grey Fabric, 2 Years Old",
+      description: "Include dimensions, fabric type, colour, age, condition, and if dismantling is needed for delivery.",
+    },
+    Beds: {
+      title: "e.g. King-Size Wooden Bed with Storage — Teak Wood",
+      description: "Specify wood type, size, storage options, mattress included, and assembly status.",
+    },
+    _default: {
+      title: "e.g. IKEA Dining Table 4-Seater — White, Mint Condition",
+      description: "Include dimensions, material, colour, age, and delivery or pickup info.",
+    },
+  },
+  fashion: {
+    Footwear: {
+      title: "e.g. Nike Air Max 270 — Size UK 9, Black, Worn Twice",
+      description: "Mention size, colour, how many times worn, original box, and any sole wear.",
+    },
+    "Men's Clothing": {
+      title: "e.g. Zara Slim-Fit Chinos — Size 32, Navy Blue, Brand New",
+      description: "Include brand, size, colour, material, condition (worn/new), and wash instructions.",
+    },
+    "Women's Clothing": {
+      title: "e.g. Fabindia Cotton Salwar Suit — Size M, Unstitched",
+      description: "Describe fabric, size, colour, stitched/unstitched, condition, and occasion.",
+    },
+    _default: {
+      title: "e.g. Levi's 511 Slim Jeans — Size 32×30, Dark Blue",
+      description: "Specify brand, size, colour, condition, and times worn.",
+    },
+  },
+  events: {
+    _default: {
+      title: "e.g. Tech Summit 2026 — Networking & Innovation Conference",
+      description: "Mention date, venue, agenda, speakers, ticket price, and how to register.",
+    },
+  },
+  sports: {
+    _default: {
+      title: "e.g. Yonex Arcsaber 11 Badminton Racket — 3U, Excellent Grip",
+      description: "Include brand, sport, condition, accessories included, and any string/wear details.",
+    },
+  },
+  books: {
+    _default: {
+      title: "e.g. Clean Code by Robert C. Martin — 2nd Edition, Like New",
+      description: "Include author, edition, pages marked or highlighted, and current condition.",
+    },
+  },
+  pets: {
+    _default: {
+      title: "e.g. 3-Month-Old Golden Retriever Puppy — Vaccinated, Dewormed",
+      description: "Include breed, age, vaccination status, diet, temperament, and pickup location.",
+    },
+  },
+  collectibles: {
+    _default: {
+      title: "e.g. 1971 Indian 2-Paisa Coin — Uncirculated Condition",
+      description: "Describe year, condition, any certificates of authenticity, provenance, and rarity.",
+    },
+  },
+  _default: {
+    _default: {
+      title: "e.g. Brand new item — great condition",
+      description: "Describe what you're selling, its condition, age, and any extras included.",
+    },
+  },
+} as const;
+
+function getAdPlaceholders(category: string, subcategory: string): PlaceholderPair {
+  const catMap = (AD_PLACEHOLDERS as Record<string, Record<string, PlaceholderPair> & { _default: PlaceholderPair }>)[category];
+  if (!catMap) return AD_PLACEHOLDERS._default._default;
+  return catMap[subcategory] ?? catMap._default;
 }
 function LabelPill({ text }: { text: string }) {
   return (
@@ -455,7 +659,7 @@ export function PostAdStep2DetailsScreen() {
               value={title}
               onChangeText={(v) => dispatch(setTitle(v))}
               maxLength={70}
-              placeholder="e.g. iPhone 13 Pro Max with box"
+              placeholder={getAdPlaceholders(category, subcategory).title}
               placeholderTextColor="#94A3B8"
               className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-[14px] text-[#161D1A]"
               style={{ paddingVertical: 0 }}
@@ -468,7 +672,7 @@ export function PostAdStep2DetailsScreen() {
             <TextInput
               value={description}
               onChangeText={(v) => dispatch(setDescription(v))}
-              placeholder="Describe what you're selling, including features and any flaws..."
+              placeholder={getAdPlaceholders(category, subcategory).description}
               placeholderTextColor="#94A3B8"
               multiline
               numberOfLines={4}
@@ -703,12 +907,14 @@ export function PostAdStep2DetailsScreen() {
                   </View>
                   <View className="mb-6">
                     <LabelPill text="Fuel Type" />
-                    <PillRow options={FUEL_OPTIONS} value={fuelType} onSelect={(v) => dispatch(setFuelType(v))} />
+                    <PillRow options={isCar ? FUEL_OPTIONS : BIKE_FUEL_OPTIONS} value={fuelType} onSelect={(v) => dispatch(setFuelType(v))} />
                   </View>
-                  <View className="mb-6">
-                    <LabelPill text="Transmission" />
-                    <PillRow options={TRANSMISSION_OPTIONS} value={transmission} onSelect={(v) => dispatch(setTransmission(v))} />
-                  </View>
+                  {isCar && (
+                    <View className="mb-6">
+                      <LabelPill text="Transmission" />
+                      <PillRow options={TRANSMISSION_OPTIONS} value={transmission} onSelect={(v) => dispatch(setTransmission(v))} />
+                    </View>
+                  )}
                   <View className="mb-6">
                     <LabelPill text="Ownership" />
                     <PillRow options={OWNERSHIP_OPTIONS} value={ownership} onSelect={(v) => dispatch(setOwnership(v))} />

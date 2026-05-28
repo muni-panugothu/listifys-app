@@ -15,6 +15,7 @@ const {
 
 const VEHICLE_SUBCATEGORIES = ['Cars', 'Bikes', 'Cycle', 'Spare Parts'];
 const FUEL_TYPES = ['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid', 'LPG', ''];
+const BIKE_FUEL_TYPES = ['Petrol', 'CNG', 'Electric', 'Hybrid', 'LPG', '']; // Bikes don't use Diesel
 const TRANSMISSIONS = ['Manual', 'Automatic', ''];
 const OWNERSHIPS = ['1st Owner', '2nd Owner', '3rd Owner', '4th+ Owner', ''];
 const CYCLE_TYPES = ['Mountain', 'Road', 'Hybrid', 'BMX', 'Kids', 'Folding', 'Electric', 'Cruiser', ''];
@@ -53,8 +54,18 @@ const createVehicleSchema = Joi.object({
   color: Joi.string().trim().max(50).allow(''),
 
   // Cars / Bikes
-  fuelType: Joi.string().valid(...FUEL_TYPES).allow(''),
-  transmission: Joi.string().valid(...TRANSMISSIONS).allow(''),
+  fuelType: Joi.when('subcategory', {
+    is: Joi.valid('Bikes'),
+    then: Joi.string().valid(...BIKE_FUEL_TYPES).allow('').messages({
+      'any.only': 'Diesel is not applicable for Bikes. Valid options: Petrol, CNG, Electric, Hybrid, LPG.',
+    }),
+    otherwise: Joi.string().valid(...FUEL_TYPES).allow(''),
+  }),
+  transmission: Joi.when('subcategory', {
+    is: Joi.valid('Cars'),
+    then: Joi.string().valid(...TRANSMISSIONS).allow(''),
+    otherwise: Joi.any().strip(), // Transmission is Cars-only; strip silently for other subcategories
+  }),
   ownership: Joi.string().valid(...OWNERSHIPS).allow(''),
 
   // Bikes
@@ -116,6 +127,7 @@ module.exports = {
 
   VEHICLE_SUBCATEGORIES,
   FUEL_TYPES,
+  BIKE_FUEL_TYPES,
   TRANSMISSIONS,
   OWNERSHIPS,
   CYCLE_TYPES,

@@ -504,7 +504,7 @@ export function ActivityLogScreen() {
                               marginRight: 8,
                             }}
                           >
-                            {item.action}
+                            {item.title ?? item.action}
                           </Text>
                           <View
                             style={{

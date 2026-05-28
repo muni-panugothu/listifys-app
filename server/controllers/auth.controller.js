@@ -1445,7 +1445,9 @@ exports.verifyOTPAndRegister = async (req, res) => {
 // ==================== REFRESH TOKEN ====================
 exports.refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.cookies;
+    // React Native clients send the token in the request body (no cookie jar).
+    // Browser clients send it as an HttpOnly cookie. Accept both.
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (!refreshToken) {
       return res.status(401).json({
@@ -1479,9 +1481,13 @@ exports.refreshToken = async (req, res) => {
 
     setTokenCookies(res, result.tokens.accessToken, result.tokens.refreshToken);
 
+    // Return tokens in the body so React Native clients (which cannot rely
+    // on HttpOnly cookies) can read and store the new credentials.
     res.status(200).json({
       success: true,
       message: "Token refreshed successfully",
+      accessToken: result.tokens.accessToken,
+      refreshToken: result.tokens.refreshToken,
     });
   } catch (error) {
     logger.error("Refresh token error:", error);

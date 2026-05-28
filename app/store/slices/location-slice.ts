@@ -259,7 +259,22 @@ const locationSlice = createSlice({
       .addCase(useCurrentDeviceLocation.rejected, (state, action) => {
         state.status = state.lat != null ? "ready" : "error";
         state.error = (action.payload as string) ?? "Location unavailable";
-      });
+      })
+      // When user logs out, wipe their location so a guest/new login
+      // starts fresh with no location filter (shows all-countries data).
+      .addMatcher(
+        (action) => action.type === "auth/logout/fulfilled",
+        (state) => {
+          state.label = initialState.label;
+          state.lat = initialState.lat;
+          state.lng = initialState.lng;
+          state.isoCountryCode = initialState.isoCountryCode;
+          state.source = initialState.source;
+          state.status = initialState.status;
+          state.error = initialState.error;
+          state.hydrated = false;
+        },
+      );
   },
 });
 

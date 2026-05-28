@@ -178,13 +178,21 @@ function normalizeAuthUser<
 }
 
 // ── Device User-Agent for backend device tracking ───────────────────────────────
+// Format: "Listify/VERSION (Brand Model; OS Version)" — must match server Listify UA regex.
+// Do NOT add extra words between VERSION and "(" — the server regex expects whitespace only.
 function buildUserAgent(): string {
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const brand = deviceModule?.brand ?? "Unknown";
-  const modelName = deviceModule?.modelName ?? "Unknown";
+  const brand = deviceModule?.brand;
+  const modelName = deviceModule?.modelName;
   const osName = deviceModule?.osName ?? Platform.OS;
   const osVersion = deviceModule?.osVersion ?? Platform.Version?.toString() ?? "";
-  return `Listify/${appVersion} React-Native (${brand} ${modelName}; ${osName} ${osVersion})`;
+  // Build device model string — avoid "Unknown Unknown" when device module unavailable
+  const deviceModel =
+    brand && modelName ? `${brand} ${modelName}` :
+    brand ? brand :
+    modelName ? modelName :
+    "Mobile Device";
+  return `Listify/${appVersion} (${deviceModel}; ${osName} ${osVersion})`;
 }
 
 const APP_USER_AGENT = buildUserAgent();
@@ -251,7 +259,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       const res = await fetchWithTimeout(`${AUTH_API_BASE_URL}/api/auth/refresh`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": APP_USER_AGENT },
         body: JSON.stringify({ refreshToken: _refreshToken }),
       });
       const data = await parseJsonSafe(res);
@@ -719,12 +727,15 @@ export async function getActivityLog() {
     summary?: { totalActions: number; successfulLogins: number; securityEvents: number };
   }>("/api/auth/activity-log", { method: "GET" });
 
-  // Backend returns `activity`, normalize to `activities` with mapped field names
+  // Backend returns `activity`, normalize to `activities` with mapped field names.
+  // Prefer `type` (e.g. "login", "password_changed") for `action` so that icon
+  // selection and stat counters work correctly, while `title` is preserved for
+  // human-readable display in the UI.
   const raw = res.activity ?? res.activities ?? [];
   const activities = raw.map((item) => ({
     ...item,
     _id: item._id ?? item.id,
-    action: item.action ?? item.title ?? item.type ?? "Activity",
+    action: item.action ?? item.type ?? item.title ?? "Activity",
     createdAt: item.createdAt ?? item.timestamp ?? new Date().toISOString(),
   }));
 
