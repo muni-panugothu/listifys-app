@@ -617,6 +617,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     subtitle={item.condition || item.subcategory}
                     price={item.price ?? null}
                     currency={item.currency}
+                    isoCountryCode={isoCountryCode}
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}

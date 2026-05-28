@@ -128,7 +128,7 @@ async function fetchWithTimeout(
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new AuthApiError(
-        `Request timed out. Cannot reach ${AUTH_API_BASE_URL}. Start the server (cd server && npm run dev) and use the same Wi‑Fi as your phone.`,
+        "The request timed out. Please check your internet connection and try again.",
         0,
       );
     }
@@ -393,13 +393,13 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
 export function getAuthErrorMessage(error: unknown) {
   if (error instanceof AuthApiError) {
     if (error.status === 0 || error.message.toLowerCase().includes("network")) {
-      return `Cannot reach the server at ${AUTH_API_BASE_URL}. Check EXPO_PUBLIC_API_BASE_URL and that the API is running.`;
+      return "Unable to connect to the server. Please check your internet connection and try again.";
     }
     return error.message;
   }
 
   if (error instanceof TypeError) {
-    return `Cannot reach the server at ${AUTH_API_BASE_URL}. Check your network and API URL.`;
+    return "Unable to connect to the server. Please check your internet connection and try again.";
   }
 
   if (error instanceof Error && error.message) {
