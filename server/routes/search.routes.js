@@ -241,6 +241,15 @@ router.get('/', searchLimiter, async (req, res) => {
     // Send the cleaned/stripped query to ES (removes filler, price phrases, etc.)
     const effectiveQ         = parsed?.cleanQuery ?? q;
 
+    // ── Entity auto-detection — maps query keywords to a single entity ───────
+    // Used to return a `detectedEntity` hint so the frontend can auto-switch
+    // entity tabs (e.g. "bike" → vehicles, "mobile" → mobiles).
+    // Only triggered when entity=all (user didn't explicitly pick a tab).
+    const matchedEntities = matchEntityNames(effectiveQ || q || '');
+    const detectedEntity = (effectiveEntity === 'all' && matchedEntities.size === 1)
+      ? [...matchedEntities][0]
+      : null;
+
     // ── Step 2: Try Redis cache ──────────────────────────────────────────────
     const cacheKeyObj = { entity: effectiveEntity, q: effectiveQ, category, condition: effectiveCondition, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice, location: effectiveLocation, brand: effectiveBrand, fuelType, transmission, sort, page: +page, limit: +limit };
     const cacheKey = `search:${effectiveEntity}:${Buffer.from(JSON.stringify(cacheKeyObj)).toString('base64url')}`;
@@ -316,6 +325,7 @@ router.get('/', searchLimiter, async (req, res) => {
         success: true,
         query: q,
         entity: effectiveEntity,
+        detectedEntity: detectedEntity || undefined,
         parsed: parsed ? {
           cleanQuery: parsed.cleanQuery,
           chips: parsed.extractedChips,
@@ -329,7 +339,7 @@ router.get('/', searchLimiter, async (req, res) => {
 
     // ── 3. MongoDB fallback ──
     const entitiesToSearch = effectiveEntity === 'all' ? Object.keys(MODEL_MAP) : [effectiveEntity];
-    const matchedEntities  = matchEntityNames(effectiveQ || q || '');
+    // matchedEntities already computed above (entity auto-detection)
 
     const buildMongoFilter = (eName) => {
       const filter = { status: 'active' };
@@ -496,6 +506,7 @@ router.get('/', searchLimiter, async (req, res) => {
       success: true,
       query: q,
       entity: effectiveEntity,
+      detectedEntity: detectedEntity || undefined,
       parsed: parsed ? {
         cleanQuery: parsed.cleanQuery,
         chips: parsed.extractedChips,
@@ -552,6 +563,28 @@ router.get('/recommendations', protect, async (req, res) => {
   } catch (err) {
     logger.error('Recommendations error:', err);
     return res.status(200).json({ success: true, recentlyViewed: [], mightLike: [] });
+  }
+});
+
+// ── Record a listing view (recently-viewed → Redis, 2-day TTL) ───────────────
+// Called by the mobile client whenever a user opens a listing detail screen.
+// Uses the authenticated user ID so views are user-scoped.
+router.post('/view', protect, async (req, res) => {
+  try {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    const { _id, _entity, title, price, currency, image } = req.body;
+    if (!_id || !_entity) {
+      return res.status(400).json({ success: false, message: '_id and _entity are required' });
+    }
+    // TrendingService.recordView expects item with optional images array or image field
+    await TrendingService.recordView(userId, { _id, _entity, title, price, currency, image });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    logger.error('Record view error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to record view' });
   }
 });
 

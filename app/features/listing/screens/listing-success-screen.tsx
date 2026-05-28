@@ -15,10 +15,11 @@ export function ListingSuccessScreen() {
   const insets = useSafeAreaInsets();
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const bottomNavPadding = Math.max(insets.bottom, 8);
-
   const handleBottomTabPress = useTabNavigation();
 
   const params = useLocalSearchParams<{
+    id?: string;
+    categorySlug?: string;
     title?: string;
     price?: string;
     location?: string;
@@ -27,6 +28,8 @@ export function ListingSuccessScreen() {
     currency?: string;
   }>();
 
+  const listingId = params.id || "";
+  const categorySlug = params.categorySlug || "";
   const listingTitle = params.title || "Your Listing";
   const currencySymbol = getCurrencySymbol(params.currency || "INR");
   const listingPrice = params.price
@@ -35,6 +38,23 @@ export function ListingSuccessScreen() {
   const listingLocation = params.location || "";
   const listingImage = params.image || "";
   const listingCategory = params.category || "";
+
+  /** Navigate to the listing's detail screen based on entity type */
+  const handleViewListing = () => {
+    if (!listingId) return;
+    const SPECIAL: Record<string, string> = {
+      events: "/event-detail",
+      properties: "/property-detail",
+      jobs: "/job-detail",
+      services: "/service-detail",
+    };
+    const route = SPECIAL[categorySlug] ?? "/listing-detail-template";
+    // Use replace-string router push with loose typing via unknown cast
+    (router.push as (h: { pathname: string; params: Record<string, string> }) => void)({
+      pathname: route,
+      params: { category: categorySlug, id: listingId },
+    });
+  };
 
   return (
     <View className="flex-1 bg-[#F6F7F8]">
@@ -179,9 +199,12 @@ export function ListingSuccessScreen() {
           {/* Actions */}
           <View className="mb-6 w-full gap-4">
             <Pressable
+              onPress={handleViewListing}
+              disabled={!listingId}
               className="overflow-hidden rounded-lg"
               style={({ pressed }) => ({
                 transform: [{ scale: pressed ? 0.98 : 1 }],
+                opacity: !listingId ? 0.5 : 1,
               })}
             >
               <LinearGradient
@@ -196,9 +219,9 @@ export function ListingSuccessScreen() {
                   gap: 8,
                 }}
               >
-                <MaterialIcons name="share" size={20} color="#FFFFFF" />
+                <MaterialIcons name="open-in-new" size={20} color="#FFFFFF" />
                 <Text className="text-[16px] font-semibold text-white">
-                  Share Your Listing
+                  View Listing
                 </Text>
               </LinearGradient>
             </Pressable>

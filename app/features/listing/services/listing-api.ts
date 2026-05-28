@@ -258,6 +258,48 @@ export async function getCachedHomeFeed(): Promise<CachedHomeFeed | null> {
   }
 }
 
+// ── Nearby Listings ────────────────────────────────────────────────────────────
+
+export type NearbyListingsResponse = {
+  success: boolean;
+  listings: (ListingItem & { distance: number | null; _entity: string; _detailPath: string })[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+    hasMore: boolean;
+  };
+  location: { lat: number; lng: number; radius: number };
+  source?: string;
+};
+
+export async function fetchNearbyListings(params: {
+  lat: number;
+  lng: number;
+  radius?: number;
+  search?: string;
+  category?: string;
+  sort?: string;
+  page?: number;
+  limit?: number;
+}): Promise<NearbyListingsResponse> {
+  const query = new URLSearchParams({
+    lat: String(params.lat),
+    lng: String(params.lng),
+    radius: String(params.radius ?? 50),
+  });
+  if (params.search) query.set("search", params.search);
+  if (params.category) query.set("category", params.category);
+  if (params.sort) query.set("sort", params.sort);
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+
+  const data = await apiRequest<NearbyListingsResponse>(`/api/nearby?${query.toString()}`);
+  const listings = (data.listings ?? []).map((item) => normaliseListingImages(item as ListingItem) as typeof item);
+  return { ...data, listings };
+}
+
 // ── Category Listings ──────────────────────────────────────────────────────────
 
 export async function fetchCategoryListings(
@@ -271,6 +313,7 @@ export async function fetchCategoryListings(
     minPrice?: number;
     maxPrice?: number;
     sort?: string;
+    location?: string;
     lat?: number;
     lng?: number;
     radius?: number;
@@ -285,6 +328,7 @@ export async function fetchCategoryListings(
   if (params?.minPrice) query.set("minPrice", String(params.minPrice));
   if (params?.maxPrice) query.set("maxPrice", String(params.maxPrice));
   if (params?.sort) query.set("sort", params.sort);
+  if (params?.location) query.set("location", params.location);
   if (params?.lat != null) query.set("lat", String(params.lat));
   if (params?.lng != null) query.set("lng", String(params.lng));
   if (params?.radius != null) query.set("radius", String(params.radius));
@@ -299,6 +343,7 @@ export async function fetchCategoryListings(
     params?.search ?? "",
     params?.condition ?? "",
     params?.sort ?? "",
+    `loc:${encodeURIComponent(params?.location ?? "")}`,
     `lat:${params?.lat ?? ""}`,
     `lng:${params?.lng ?? ""}`,
   ].join(":");
@@ -564,15 +609,19 @@ export type RecentlyViewedItem = {
   viewedLocation?: string;
 };
 
+const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+
 export async function addToRecentlyViewed(
   item: ListingItem,
   locationLabel?: string,
 ): Promise<void> {
+  // ── 1. AsyncStorage (works for guests + offline) ────────────────────────
   try {
     const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
     const existing: RecentlyViewedItem[] = raw ? JSON.parse(raw) : [];
-    // Remove duplicate if present
-    const filtered = existing.filter((i) => i._id !== item._id);
+    // Remove duplicate and items older than 2 days
+    const now = Date.now();
+    const filtered = existing.filter((i) => i._id !== item._id && now - i.viewedAt < TWO_DAYS_MS);
     filtered.unshift({
       _id: item._id,
       title: item.title,
@@ -584,7 +633,6 @@ export async function addToRecentlyViewed(
       viewedAt: Date.now(),
       viewedLocation: locationLabel || undefined,
     });
-    // Cap at max
     await AsyncStorage.setItem(
       RECENTLY_VIEWED_KEY,
       JSON.stringify(filtered.slice(0, MAX_RECENTLY_VIEWED)),
@@ -592,12 +640,45 @@ export async function addToRecentlyViewed(
   } catch {
     // silently fail
   }
+
+  // ── 2. Server-side Redis (authenticated users — 2-day TTL) ─────────────
+  // Fire-and-forget; never blocks the detail screen from loading.
+  const token = getAccessToken();
+  if (token) {
+    const postView = async () => {
+      try {
+        await fetch(`${AUTH_API_BASE_URL}/api/search/view`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            _id: item._id,
+            _entity: item.category,
+            title: item.title,
+            price: item.price,
+            currency: (item as { currency?: string }).currency,
+            image: item.images?.[0] ?? null,
+          }),
+        });
+      } catch {
+        // Non-critical — ignore silently
+      }
+    };
+    postView();
+  }
 }
 
 export async function getRecentlyViewed(): Promise<RecentlyViewedItem[]> {
   try {
     const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const items: RecentlyViewedItem[] = JSON.parse(raw);
+    const now = Date.now();
+    // Return only items viewed within the last 2 days
+    return items.filter((i) => now - i.viewedAt < TWO_DAYS_MS);
   } catch {
     return [];
   }

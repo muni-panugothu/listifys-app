@@ -27,7 +27,7 @@ const KEYS = {
 // TTLs (seconds)
 const TTL = {
   TRENDING: 24 * 3600,         // 24 h — rotate trending daily
-  RECENTLY_VIEWED: 7 * 86400,  // 7 days
+  RECENTLY_VIEWED: 2 * 86400,  // 2 days (items expire after 48 hours)
   HOT_LISTINGS: 3600,          // 1 h
 };
 
@@ -147,8 +147,8 @@ class TrendingService {
       title: item.title,
       price: item.price,
       currency: item.currency,
-      image: Array.isArray(item.images) ? item.images[0] : null,
-      viewedAt: new Date().toISOString(),
+      image: Array.isArray(item.images) ? item.images[0] : (item.image ?? null),
+      viewedAt: Date.now(), // Unix ms timestamp — enables 2-day TTL filtering
     });
 
     try {
@@ -165,11 +165,19 @@ class TrendingService {
   // ─────────────────────────────────────────────────────────────
   static async getRecentlyViewed(userId, limit = 10) {
     if (!userId) return [];
+    const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
     try {
       const raw = await redis.lrange(KEYS.recentlyViewed(userId), 0, limit - 1);
       return (raw || []).map(r => {
         try { return JSON.parse(r); } catch { return null; }
-      }).filter(Boolean);
+      }).filter(item => {
+        if (!item) return false;
+        // Filter out items older than 2 days (handles both timestamp and ISO string formats)
+        const ts = typeof item.viewedAt === 'number'
+          ? item.viewedAt
+          : (item.viewedAt ? new Date(item.viewedAt).getTime() : 0);
+        return Date.now() - ts < TWO_DAYS_MS;
+      });
     } catch {
       return [];
     }

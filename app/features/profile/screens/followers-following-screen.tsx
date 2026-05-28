@@ -127,7 +127,7 @@ export function FollowersFollowingScreen() {
         formatFollowMeta(user).toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, followers, followingUsers]);
 
   const handleBottomTabPress = useTabNavigation();
 

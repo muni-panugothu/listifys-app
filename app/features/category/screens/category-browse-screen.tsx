@@ -158,10 +158,23 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const loadListings = useCallback(async () => {
     try {
       const hasCoords = userCoords.lat != null && userCoords.lng != null;
+
+      // Only filter by location when the user has actually set one.
+      // "Set location" / "Detecting location…" are UI placeholders \u2014 passing
+      // them to the server as a text filter returns 0 results.
+      const isRealLabel =
+        Boolean(locationLabel) &&
+        locationLabel !== "Set location" &&
+        !locationLabel.startsWith("Detecting");
+      const locationForApi = isRealLabel
+        ? locationLabel.split(",").map((p) => p.trim()).filter(Boolean).slice(0, 2).join(", ") || undefined
+        : undefined;
+
       const res = await Promise.race([
         fetchCategoryListings(categorySlug, {
           subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
           search: appliedSearch.trim() || undefined,
+          location: locationForApi,
           lat: hasCoords ? userCoords.lat! : undefined,
           lng: hasCoords ? userCoords.lng! : undefined,
           radius: hasCoords ? 100 : undefined,
@@ -182,7 +195,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     } catch {
       setListings((prev) => (prev.length > 0 ? prev : []));
     }
-  }, [appliedSearch, categorySlug, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng]);
+  }, [appliedSearch, categorySlug, locationLabel, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng]);
 
   // Fire on subcategory / search changes (screen already mounted)
   useEffect(() => {

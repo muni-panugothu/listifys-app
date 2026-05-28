@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -44,15 +44,23 @@ export function JobDetailScreen() {
   // Auth gate for guest users
   const [authGateVisible, setAuthGateVisible] = useState(false);
   const [authGateAction, setAuthGateAction] = useState<"save" | "message">("save");
+  const pendingActionRef = useRef<(() => void) | null>(null);
 
   const requireAuth = useCallback((action: "save" | "message", callback: () => void) => {
     if (!user) {
+      pendingActionRef.current = callback;
       setAuthGateAction(action);
       setAuthGateVisible(true);
       return;
     }
     callback();
   }, [user]);
+
+  const handleAuthSuccess = useCallback(() => {
+    const pending = pendingActionRef.current;
+    pendingActionRef.current = null;
+    pending?.();
+  }, []);
 
   const loadListing = useCallback(async () => {
     if (!listingId) return;
@@ -456,10 +464,12 @@ export function JobDetailScreen() {
         <View className="flex-row gap-3">
           <Pressable
             onPress={() => {
-              if (!sellerId) return;
-              router.push(
-                `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
-              );
+              requireAuth("message", () => {
+                if (!sellerId) return;
+                router.push(
+                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                );
+              });
             }}
             className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border-2 border-[#BBCAC3]/50 bg-white px-4"
           >
@@ -471,9 +481,11 @@ export function JobDetailScreen() {
             onPress={() => {
               if (applyLink) Linking.openURL(applyLink).catch(() => {});
               else if (sellerId) {
-                router.push(
-                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
-                );
+                requireAuth("message", () => {
+                  router.push(
+                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                  );
+                });
               }
             }}
             className="flex-1 overflow-hidden rounded-xl"
@@ -497,6 +509,7 @@ export function JobDetailScreen() {
         visible={authGateVisible}
         onClose={() => setAuthGateVisible(false)}
         action={authGateAction}
+        onAuthenticated={handleAuthSuccess}
       />
     </View>
   );

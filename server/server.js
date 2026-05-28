@@ -333,14 +333,29 @@ async function connectWithRetry(maxRetries = 5) {
 }
 
 let _dbReady = false;
-const dbReadyPromise = connectWithRetry(IS_PRODUCTION ? 5 : 10).then(() => {
+const dbReadyPromise = connectWithRetry(IS_PRODUCTION ? 5 : 10).then(async () => {
   _dbReady = true;
-  const { migrateAllSlugs } = require('./utils/migrate-slugs');
-  migrateAllSlugs().catch((err) => logger.error('Slug migration error', { error: err.message }));
+  // ── Distributed startup lock (Redis) ─────────────────────────────────────
+  // Prevents duplicate execution on multi-worker PM2 clusters.
+  // Only the process that acquires the lock runs one-time startup tasks.
+  // Other workers skip gracefully — tasks are idempotent so this is safe.
+  const _redis = require('./config/redis');
+  const _lockAcquired = await _redis
+    .set('startup:migrations:lock', process.pid.toString(), { NX: true, EX: 90 })
+    .catch(() => null); // Redis unavailable — allow fallthrough so server still starts
 
-  // Ensure optimal compound indexes for 10k+ concurrent query patterns
-  const { ensureIndexes } = require('./scripts/ensure-indexes');
-  ensureIndexes().catch((err) => logger.warn('Index optimization error (non-fatal)', { error: err.message }));
+  if (_lockAcquired) {
+    logger.info('[Startup] Lock acquired — running one-time migrations', { pid: process.pid });
+
+    const { migrateAllSlugs } = require('./utils/migrate-slugs');
+    migrateAllSlugs().catch((err) => logger.error('Slug migration error', { error: err.message }));
+
+    // Ensure optimal compound indexes for 10k+ concurrent query patterns
+    const { ensureIndexes } = require('./scripts/ensure-indexes');
+    ensureIndexes().catch((err) => logger.warn('Index optimization error (non-fatal)', { error: err.message }));
+  } else {
+    logger.info('[Startup] Migrations skipped — another worker holds the lock');
+  }
 });
 
 const { initElasticsearch } = require('./config/elasticsearch');

@@ -114,10 +114,14 @@ export function ListingDetailTemplateScreen() {
   const [sendingOffer, setSendingOffer] = useState(false);
   const [offerSent, setOfferSent] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  // Stores the action to run after the user successfully authenticates via
+  // the auth-gate bottom sheet (so we can auto-continue after login).
+  const pendingActionRef = useRef<(() => void) | null>(null);
 
   const requireAuth = useCallback(
     (action: "save" | "message" | "offer", callback: () => void) => {
       if (!user) {
+        pendingActionRef.current = callback;
         setAuthGateAction(action);
         setAuthGateVisible(true);
         return;
@@ -126,6 +130,12 @@ export function ListingDetailTemplateScreen() {
     },
     [user],
   );
+
+  const handleAuthSuccess = useCallback(() => {
+    const pending = pendingActionRef.current;
+    pendingActionRef.current = null;
+    pending?.();
+  }, []);
 
   const loadListing = useCallback(async () => {
     if (!listingId) return;
@@ -173,20 +183,22 @@ export function ListingDetailTemplateScreen() {
     const sellerName =
       listing.seller?.name ?? listing.sellerName ?? "Seller";
 
-    router.push({
-      pathname: "/chat-conversation",
-      params: {
-        recipientId: sellerId,
-        name: sellerName,
-        listingId: listing._id,
-        listingType: categorySlug,
-        listingTitle: listing.title ?? "",
-        listingPrice: String(listing.price ?? ""),
-        listingImage: listing.images?.[0] ?? "",
-        currency: listing.currency ?? "₹",
-      },
-    } as Href);
-  }, [categorySlug, listing, router]);
+    requireAuth("message", () => {
+      router.push({
+        pathname: "/chat-conversation",
+        params: {
+          recipientId: sellerId,
+          name: sellerName,
+          listingId: listing._id,
+          listingType: categorySlug,
+          listingTitle: listing.title ?? "",
+          listingPrice: String(listing.price ?? ""),
+          listingImage: listing.images?.[0] ?? "",
+          currency: listing.currency ?? "₹",
+        },
+      } as Href);
+    });
+  }, [categorySlug, listing, requireAuth, router]);
 
   const recommendedOffers = useMemo(() => {
     if (!listing?.price) return [];
@@ -983,6 +995,7 @@ export function ListingDetailTemplateScreen() {
         visible={authGateVisible}
         onClose={() => setAuthGateVisible(false)}
         action={authGateAction}
+        onAuthenticated={handleAuthSuccess}
       />
     </View>
   );

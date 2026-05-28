@@ -14,6 +14,8 @@ const { startEmailConsumers }        = require('./consumers/email.consumer');
 const { startAuditLogConsumer }      = require('./consumers/auditlog.consumer');
 const { startListingConsumers }      = require('./consumers/listing.consumer');
 const { startNotificationConsumer }  = require('./consumers/notification.consumer');
+const { startChatConsumer }          = require('./consumers/chat.consumer');
+const { startBookingConsumer }       = require('./consumers/booking.consumer');
 const { logger }                     = require('../utils/logger');
 
 let _started = false;
@@ -34,10 +36,12 @@ const startWorkers = async () => {
       startAuditLogConsumer(),
       startListingConsumers(),
       startNotificationConsumer(),
+      startChatConsumer(),
+      startBookingConsumer(),
     ]);
 
     _started = true;
-    logger.info('🚀 [Workers] All RabbitMQ consumers running (auth + listing + notification)');
+    logger.info('🚀 [Workers] All RabbitMQ consumers running (auth + listing + notification + chat + booking)');
   } catch (err) {
     logger.error('[Workers] Failed to start workers (non-fatal)', { error: err.message });
     // Never throw — server must keep running even if queue workers fail

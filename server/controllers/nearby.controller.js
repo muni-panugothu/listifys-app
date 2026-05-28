@@ -88,7 +88,7 @@ exports.getNearby = async (req, res) => {
     const {
       lat,
       lng,
-      radius = 20,
+      radius = 50,
       search,
       category,
       sort = 'nearest',

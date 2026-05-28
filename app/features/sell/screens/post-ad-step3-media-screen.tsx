@@ -194,7 +194,7 @@ export function PostAdStep3MediaScreen() {
 
       // Mark as scanning straight away so the overlay shows on each thumbnail.
       setImageScanMap((prev) => ({
-        ...prev,
+        ...(prev ?? {}),
         ...Object.fromEntries(newUris.map((u) => [u, { status: "scanning" } as ImageScanResult])),
       }));
 
@@ -202,9 +202,12 @@ export function PostAdStep3MediaScreen() {
       try {
         const modResult = await checkImageModeration(newUris);
         setImageScanMap((prev) => {
-          const next = { ...prev };
+          // Guard against undefined prev (Hermes throws on { ...undefined })
+          const next = { ...(prev ?? {}) };
+          // Guard against unexpected API response shape
+          const results = Array.isArray(modResult?.results) ? modResult.results : [];
           newUris.forEach((uri, i) => {
-            const r = modResult.results[i];
+            const r = results[i];
             if (r) {
               next[uri] = {
                 status: r.decision === "block" ? "blocked" : r.decision === "review" ? "review" : "allowed",
@@ -220,7 +223,7 @@ export function PostAdStep3MediaScreen() {
       } catch {
         // API unreachable — fail open so uploads aren't permanently broken.
         setImageScanMap((prev) => ({
-          ...prev,
+          ...(prev ?? {}),
           ...Object.fromEntries(newUris.map((u) => [u, { status: "allowed" } as ImageScanResult])),
         }));
       }
@@ -567,6 +570,8 @@ export function PostAdStep3MediaScreen() {
       router.push({
         pathname: "/listing-success",
         params: {
+          id: String(listing?._id ?? listing?.id ?? ""),
+          categorySlug: category,
           title: listing?.title ?? title,
           price: String(listing?.price ?? price),
           location: listing?.location ?? location,
@@ -703,7 +708,7 @@ export function PostAdStep3MediaScreen() {
                     onPress={() => {
                       dispatch(removeImageUri(idx));
                       setImageScanMap((prev) => {
-                        const next = { ...prev };
+                        const next = { ...(prev ?? {}) };
                         delete next[uri];
                         return next;
                       });

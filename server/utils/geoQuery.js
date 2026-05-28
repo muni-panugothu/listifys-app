@@ -14,11 +14,14 @@
  * Apply geo filter to a MongoDB filter object.
  * 
  * RULES:
- * - If the filter already has $text AND lat/lng → use $geoWithin (compatible)
- * - If NO $text and lat/lng → use $nearSphere (nearest-first ordering)
- * - If no lat/lng → no-op
+ * - If the filter already has a location text AND lat/lng → use $or (text OR geo)
+ *   This is the critical path: listings saved with text-only location (no GPS)
+ *   are found by the text branch; listings with GPS are found by the geo branch.
+ * - If ONLY lat/lng (no location text) → still use $or but with the geo branch only,
+ *   plus a fallback that allows docs WITHOUT a coordinates field (covers text-only listings).
+ * - If no lat/lng → no-op (return all listings unfiltered by location)
  *
- * @param {object} filter - MongoDB filter (may already have $text)
+ * @param {object} filter - MongoDB filter (may already have $text / location)
  * @param {number|string} lat
  * @param {number|string} lng
  * @param {number|string} radiusKm - default 50 km
@@ -65,8 +68,23 @@ function applyGeoFilter(filter, lat, lng, radiusKm = 50) {
       filter.$and = [locationOr];
     }
   } else {
-    // No text location filter — just add geo filter directly
-    filter.coordinates = geoCondition;
+    // No text location filter provided.
+    // Use $or: listings WITH valid coordinates in range, OR listings with NO
+    // coordinates field at all (those are text-only and should not be excluded
+    // just because the caller didn't supply a location string).
+    const locationOr = {
+      $or: [
+        { coordinates: geoCondition },
+        { coordinates: { $exists: false } },
+        { 'coordinates.coordinates': { $exists: false } },
+      ],
+    };
+
+    if (filter.$and) {
+      filter.$and.push(locationOr);
+    } else {
+      filter.$and = [locationOr];
+    }
   }
 }
 

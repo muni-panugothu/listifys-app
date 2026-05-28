@@ -11,21 +11,28 @@ class DeviceService {
    */
   parseUserAgent(userAgent) {
     // Handle custom Listify mobile app User-Agent:
-    // "Listify/2.4.1 (Xiaomi Redmi Note 11; Android 13)"
+    // "Listify/2.4.1 (Xiaomi Redmi Note 11; Android 13)"  — current format
+    // "Listify/2.4.1 React-Native (Brand Model; OS)"       — legacy format
     const listifyMatch = userAgent?.match(
-      /^Listify\/([\d.]+)\s*\(([^;]+);\s*([^)]+)\)/
+      /^Listify\/([\.\d]+)(?:\s+[\w-]+)?\s*\(([^;]+);\s*([^)]+)\)/
     );
     if (listifyMatch) {
       const [, appVersion, deviceModel, osInfo] = listifyMatch;
+      const cleanModel = deviceModel.trim();
       const osParts = osInfo.trim().split(/\s+/);
       const osName = osParts[0] || 'Unknown';
       const osVersion = osParts.slice(1).join(' ') || '';
+      // Skip generic placeholder models produced when device info was unavailable
+      const isUnknownModel = !cleanModel ||
+        cleanModel.toLowerCase() === 'unknown' ||
+        cleanModel.toLowerCase() === 'unknown unknown' ||
+        cleanModel.toLowerCase() === 'mobile device';
       return {
         browser: `Listify App`,
         browserVersion: appVersion,
         os: osName,
         osVersion,
-        device: { model: deviceModel.trim(), type: 'mobile' },
+        device: { model: isUnknownModel ? null : cleanModel, type: 'mobile' },
         deviceType: 'mobile',
       };
     }
@@ -115,15 +122,20 @@ class DeviceService {
    */
   getDeviceName(deviceInfo) {
     const { browser, os, deviceType } = deviceInfo;
-    
-    if (deviceType === 'mobile' && deviceInfo.device?.model) {
-      return `${deviceInfo.device.model} (${os})`;
+
+    if (deviceType === 'mobile') {
+      const model = deviceInfo.device?.model;
+      if (model && model.trim().toLowerCase() !== 'unknown' && !model.toLowerCase().includes('unknown unknown')) {
+        return `${model.trim()} (${os})`;
+      }
+      // No specific model available — use a friendly generic name
+      return `Android Device (${os})`;
     }
-    
+
     if (deviceType === 'tablet') {
       return `Tablet - ${os}`;
     }
-    
+
     return `${browser} on ${os}`;
   }
 

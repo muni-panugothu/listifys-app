@@ -158,15 +158,26 @@ export function HomeFeedRootScreen() {
     try {
       const hasCoords =
         locationCoords.lat != null && locationCoords.lng != null;
+      // A "real" label is any label the user/GPS has actually resolved —
+      // not the default placeholder shown before any location is set.
+      const isRealLabel =
+        Boolean(locationCoords.label) &&
+        locationCoords.label !== "Set location" &&
+        !locationCoords.label.startsWith("Detecting");
       const cityForFeed = extractCityFromLocationLabel(locationCoords.label);
+      // Only apply location filters when the user has an actual location.
+      // Without this, "Set location" is passed to the server, which treats it
+      // as a text filter and returns 0 results (no listing has that location).
+      const locationText = hasCoords
+        ? (cityForFeed ?? (isRealLabel ? locationCoords.label : undefined))
+        : (isRealLabel ? locationCoords.label : undefined);
 
       const res = await fetchHomeFeed({
         limit: 12,
         lat: hasCoords ? locationCoords.lat! : undefined,
         lng: hasCoords ? locationCoords.lng! : undefined,
         radius: hasCoords ? 100 : undefined,
-        // City-wide text match for listings without GPS coords (Madhapur, Hitech City, etc.)
-        location: hasCoords ? cityForFeed ?? locationCoords.label : locationCoords.label,
+        location: locationText,
       });
       const duration = Date.now() - startedAt;
 
@@ -626,7 +637,6 @@ export function HomeFeedRootScreen() {
                   params: {
                     q: "",
                     title: "Fresh recommendations",
-                    hideTabs: "1",
                   },
                 } as Href)
               }

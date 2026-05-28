@@ -239,8 +239,8 @@ export function SearchResultsEntityTabsScreen() {
 
   const headerHeight = insets.top + 12 + 52;
   const categoryTabsHeight = 52;
-  const stickyTopOffset =
-    headerHeight + (showEntityTabs ? categoryTabsHeight : 0);
+  // Category tabs are now inline in ListHeaderComponent — no extra sticky offset needed
+  const stickyTopOffset = headerHeight;
 
   const loadSaved = useCallback(async () => {
     try {
@@ -293,6 +293,10 @@ export function SearchResultsEntityTabsScreen() {
         }
 
         const hasCoords = locationCoords.lat != null && locationCoords.lng != null;
+        const isRealLabel =
+          Boolean(locationCoords.label) &&
+          locationCoords.label !== "Set location" &&
+          !locationCoords.label.startsWith("Detecting");
         const res = await searchListings({
           q,
           entity: activeEntity === "all" ? undefined : activeEntity,
@@ -307,10 +311,22 @@ export function SearchResultsEntityTabsScreen() {
           limit: 50,
           lat: hasCoords ? locationCoords.lat! : undefined,
           lng: hasCoords ? locationCoords.lng! : undefined,
-          location: locationCoords.label || undefined,
+          location: (hasCoords || isRealLabel) ? locationCoords.label : undefined,
         });
+
+        // Smart entity auto-detection: if server detected a single entity from
+        // the query (e.g. "bike" → vehicles) and user hasn't manually picked a
+        // tab yet, automatically switch to that entity tab.
+        if (res.detectedEntity && activeEntity === "all" && !lockedEntity) {
+          setActiveEntity(res.detectedEntity);
+        }
+
+        const effectiveEntity = (res.detectedEntity && activeEntity === "all" && !lockedEntity)
+          ? res.detectedEntity
+          : activeEntity;
+
         const items = res.results || [];
-        setResults(applyEntityAndSort(items, activeEntity, activeSort));
+        setResults(applyEntityAndSort(items, effectiveEntity, activeSort));
         setPagination(res.pagination || null);
         // Store AI-parsed chips from server response
         const meta = (res as unknown as { parsed?: ParsedMeta }).parsed;
@@ -635,45 +651,7 @@ export function SearchResultsEntityTabsScreen() {
         </View>
       </View>
 
-      {/* Category tabs — only for Trending / See all / search (not single-category browse) */}
-      {showEntityTabs ? (
-        <View
-          className="absolute inset-x-0 z-40 bg-[#F6F7F8]"
-          style={{ top: headerHeight, height: categoryTabsHeight }}
-        >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: GRID_SIDE_PADDING,
-              paddingVertical: 10,
-              gap: 20,
-              alignItems: "center",
-            }}
-          >
-            {CATEGORY_TABS.map((tab) => {
-              const isActive = tab.key === activeEntity;
-              return (
-                <Pressable
-                  key={tab.key}
-                  onPress={() => setActiveEntity(tab.key)}
-                  style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
-                >
-                  <Text
-                    className="text-[22px] tracking-tight"
-                    style={{
-                      fontFamily: ListifyFonts.bold,
-                      color: isActive ? "#1A1A1A" : "#C8CDD2",
-                    }}
-                  >
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
+      {/* Category tabs moved inline into ListHeaderComponent — no sticky absolute view */}
 
       <FlatList
         data={displayResults}
@@ -707,6 +685,40 @@ export function SearchResultsEntityTabsScreen() {
         }}
         ListHeaderComponent={(
           <>
+            {/* ── Category tabs ── always shown above sort chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: GRID_SIDE_PADDING,
+                paddingVertical: 10,
+                gap: 20,
+                alignItems: "center",
+              }}
+            >
+              {CATEGORY_TABS.map((tab) => {
+                const isActive = tab.key === activeEntity;
+                return (
+                  <Pressable
+                    key={tab.key}
+                    onPress={() => setActiveEntity(tab.key)}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+                  >
+                    <Text
+                      className="text-[22px] tracking-tight"
+                      style={{
+                        fontFamily: ListifyFonts.bold,
+                        color: isActive ? "#1A1A1A" : "#C8CDD2",
+                      }}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* ── Sort chips ── */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}

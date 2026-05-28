@@ -21,7 +21,12 @@ const QUEUES = {
   NOTIFICATION:   { name: 'notification_queue',    dlq: 'notification_dlq',   priority: 8 },
 
   // ── Bookings (high priority — money involved) ─────────────────
-  BOOKING:        { name: 'booking_queue',         dlq: 'booking_dlq',        priority: 9 },
+  // BOOKING has NO x-message-ttl — money-critical events must never silently expire.
+  // The TTL override is applied per-queue during assertQueue (see connect()).
+  BOOKING:        { name: 'booking_queue',         dlq: 'booking_dlq',        priority: 9, noTtl: true },
+
+  // ── Chat (critical priority — real-time messaging reliability) ────
+  CHAT_MESSAGES:  { name: 'chat_messages_queue',   dlq: 'chat_messages_dlq',  priority: 9 },
 };
 
 
@@ -108,17 +113,19 @@ const connect = async () => {
     // NOTE: x-max-priority removed — existing queues on CloudAMQP were created
     // without it, and RabbitMQ returns PRECONDITION_FAILED if queue arguments
     // differ from what was originally declared.
-    for (const { name, dlq } of Object.values(QUEUES)) {
+    for (const { name, dlq, noTtl } of Object.values(QUEUES)) {
       try {
         await _publishChannel.assertQueue(dlq, { durable: true });
         await _publishChannel.bindQueue(dlq, EXCHANGE.DLX, name);
+        // noTtl: true means messages never auto-expire (used for BOOKING queue)
+        const queueArgs = {
+          'x-dead-letter-exchange':    EXCHANGE.DLX,
+          'x-dead-letter-routing-key': name,
+          ...(noTtl ? {} : { 'x-message-ttl': 300_000 }), // skip TTL for money-critical queues
+        };
         await _publishChannel.assertQueue(name, {
           durable: true,
-          arguments: {
-            'x-dead-letter-exchange':    EXCHANGE.DLX,
-            'x-dead-letter-routing-key': name,
-            'x-message-ttl':             300_000, // auto-expire messages after 5 min
-          },
+          arguments: queueArgs,
         });
       } catch (assertErr) {
         // PRECONDITION_FAILED closes the channel — recreate and continue

@@ -1,13 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Pressable, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { SellFlowLayout, SellSectionCard } from "@/components/sell-flow-layout";
 import { CATEGORY_MAP, type CategorySlug } from "@/constants/categories";
 import { ListifyFonts } from "@/constants/typography";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setCategory,
   setSubcategory as setSubcategoryAction,
@@ -35,9 +35,21 @@ export function PostAdStep1CategoryScreen() {
   const categoryConfig = CATEGORY_MAP[categorySlug];
   const subcategories = categoryConfig?.subcategories ?? [];
 
-  const [selectedSubcategory, setSelectedSubcategoryLocal] = useState(
-    subcategories[0] ?? "",
-  );
+  // Read the current Redux subcategory so we can restore it when this screen
+  // remounts (e.g. user pressed Back from step 2 via router.replace).
+  const reduxSubcategory = useAppSelector((s) => s.postForm.subcategory);
+  // Keep a stable ref so the useEffect below can read the latest value without
+  // adding it as a dependency (which would reset on every user selection).
+  const reduxSubcategoryRef = useRef(reduxSubcategory);
+  reduxSubcategoryRef.current = reduxSubcategory;
+
+  const [selectedSubcategory, setSelectedSubcategoryLocal] = useState(() => {
+    // On first render, prefer a valid existing Redux selection over the default.
+    if (reduxSubcategory && subcategories.includes(reduxSubcategory)) {
+      return reduxSubcategory;
+    }
+    return subcategories[0] ?? "";
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleBack = useCallback(() => {
@@ -57,9 +69,18 @@ export function PostAdStep1CategoryScreen() {
 
   useEffect(() => {
     dispatch(setCategory(categorySlug));
-    const firstSub = subcategories[0] ?? "";
-    setSelectedSubcategoryLocal(firstSub);
-    dispatch(setSubcategoryAction(firstSub));
+    const currentSub = reduxSubcategoryRef.current;
+    const isValidForCategory = subcategories.includes(currentSub);
+    if (isValidForCategory) {
+      // Restore the user's previous selection (e.g. coming back from step 2).
+      setSelectedSubcategoryLocal(currentSub);
+      // Redux already has the correct value — no dispatch needed.
+    } else {
+      // No valid selection for this category — default to the first subcategory.
+      const firstSub = subcategories[0] ?? "";
+      setSelectedSubcategoryLocal(firstSub);
+      dispatch(setSubcategoryAction(firstSub));
+    }
   }, [categorySlug, dispatch, subcategories]);
 
   const handleSubcategorySelect = (sub: string) => {

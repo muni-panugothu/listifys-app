@@ -95,6 +95,7 @@ export type SearchResponse = {
   success: boolean;
   query: string;
   entity: string;
+  detectedEntity?: string;
   results: SearchResultItem[];
   total: number;
   pagination: SearchPagination;
@@ -162,6 +163,39 @@ async function searchFetch<T>(path: string): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data?.message || `Search request failed (${res.status})`);
+  }
+  return data as T;
+}
+
+async function searchPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const url = `${AUTH_API_BASE_URL}${path}`;
+
+  const doFetch = async () => {
+    const token = getAccessToken();
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": APP_USER_AGENT,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  };
+
+  let res = await doFetch();
+
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await doFetch();
+    }
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || `Search POST request failed (${res.status})`);
   }
   return data as T;
 }
@@ -375,6 +409,32 @@ export async function fetchRecommendations(): Promise<RecommendationsResponse> {
     };
   } catch {
     return { recentlyViewed: [], mightLike: [] };
+  }
+}
+
+/**
+ * Record a listing view on the server (Upstash Redis, 2-day TTL).
+ * Fire-and-forget — errors are silently swallowed so they never interrupt the UX.
+ */
+export async function recordView(item: {
+  _id: string;
+  _entity: string;
+  title?: string;
+  price?: number | null;
+  currency?: string;
+  image?: string | null;
+}): Promise<void> {
+  try {
+    await searchPost("/api/search/view", {
+      _id: item._id,
+      _entity: item._entity,
+      title: item.title,
+      price: item.price,
+      currency: item.currency,
+      image: item.image ?? null,
+    });
+  } catch {
+    // Non-critical — silently ignore (user still sees listing)
   }
 }
 
