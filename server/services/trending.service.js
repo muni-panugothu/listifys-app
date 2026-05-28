@@ -188,7 +188,7 @@ class TrendingService {
   //  Finds items in the same entity + subcategory with similar price.
   //  Uses MongoDB directly (fast, no ES overhead for small result sets).
   // ─────────────────────────────────────────────────────────────
-  static async getSimilarItems(item, MODEL_MAP, limit = 10) {
+  static async getSimilarItems(item, MODEL_MAP, limit = 10, countryCode) {
     if (!item || !item._entity) return [];
 
     const Model = MODEL_MAP[item._entity];
@@ -199,6 +199,11 @@ class TrendingService {
         status: 'active',
         _id: { $ne: item._id },
       };
+
+      // Country isolation
+      if (countryCode && typeof countryCode === 'string') {
+        filter.countryCode = countryCode.toUpperCase().trim();
+      }
 
       // Match subcategory first (most specific)
       if (item.subcategory) {
@@ -227,7 +232,7 @@ class TrendingService {
   //  Get "you might also like" — cross-category by interest
   //  Looks at user's recently viewed to suggest other categories.
   // ─────────────────────────────────────────────────────────────
-  static async getMightAlsoLike(userId, MODEL_MAP, limit = 12) {
+  static async getMightAlsoLike(userId, MODEL_MAP, limit = 12, countryCode) {
     const viewed = await this.getRecentlyViewed(userId, 5);
     if (viewed.length === 0) return [];
 
@@ -250,6 +255,7 @@ class TrendingService {
     try {
       const filter = { status: 'active' };
       if (subcategory) filter.subcategory = subcategory;
+      if (countryCode && typeof countryCode === 'string') filter.countryCode = countryCode.toUpperCase().trim();
 
       const docs = await Model.find(filter)
         .select('title price images location subcategory currency createdAt views')

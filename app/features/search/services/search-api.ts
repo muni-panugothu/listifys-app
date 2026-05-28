@@ -255,10 +255,12 @@ export async function fetchSuggestions(
   q: string,
   entity = "all",
   limit = 8,
+  countryCode?: string | null,
 ): Promise<SearchSuggestion[]> {
   if (!q || q.trim().length < 2) return [];
 
   const qs = new URLSearchParams({ q, entity, limit: String(limit) });
+  if (countryCode) qs.set("countryCode", countryCode);
   const res = await searchFetch<SuggestResponse>(
     `/api/search/suggest?${qs.toString()}`,
   );
@@ -447,10 +449,13 @@ export async function fetchSimilarItems(
   entity: string,
   id: string,
   limit = 10,
+  countryCode?: string | null,
 ): Promise<SearchResultItem[]> {
   try {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (countryCode) qs.set("countryCode", countryCode);
     const res = await searchFetch<{ success: boolean; results: SearchResultItem[] }>(
-      `/api/search/similar/${entity}/${id}?limit=${limit}`,
+      `/api/search/similar/${entity}/${id}?${qs.toString()}`,
     );
     return (res.results ?? []).map(normaliseImages);
   } catch {

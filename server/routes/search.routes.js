@@ -551,11 +551,11 @@ router.get('/trending', searchLimiter, async (req, res) => {
 router.get('/recommendations', protect, async (req, res) => {
   try {
     const userId = req.user?._id?.toString();
-    const { limit = 12 } = req.query;
+    const { limit = 12, countryCode } = req.query;
 
     const [recentlyViewed, mightLike] = await Promise.all([
       TrendingService.getRecentlyViewed(userId, Number(limit)),
-      TrendingService.getMightAlsoLike(userId, MODEL_MAP, Number(limit)),
+      TrendingService.getMightAlsoLike(userId, MODEL_MAP, Number(limit), countryCode),
     ]);
 
     return res.status(200).json({
@@ -595,7 +595,7 @@ router.post('/view', protect, async (req, res) => {
 router.get('/similar/:entity/:id', searchLimiter, async (req, res) => {
   try {
     const { entity, id } = req.params;
-    const { limit = 10 } = req.query;
+    const { limit = 10, countryCode } = req.query;
 
     const Model = MODEL_MAP[entity];
     if (!Model) return res.status(400).json({ success: false, message: 'Invalid entity' });
@@ -607,6 +607,7 @@ router.get('/similar/:entity/:id', searchLimiter, async (req, res) => {
       { ...item, _entity: entity },
       MODEL_MAP,
       Number(limit),
+      countryCode,
     );
 
     return res.status(200).json({ success: true, results: similar });
@@ -619,14 +620,14 @@ router.get('/similar/:entity/:id', searchLimiter, async (req, res) => {
 // ── Autocomplete / suggestions ────────────────────────────
 router.get('/suggest', searchLimiter, async (req, res) => {
   try {
-    const { q, entity = 'all', limit = 8 } = req.query;
+    const { q, entity = 'all', limit = 8, countryCode } = req.query;
 
     if (!q || q.trim().length < 2) {
       return res.status(200).json({ success: true, suggestions: [] });
     }
 
     // 1. Try Elasticsearch (works for both single entity and "all")
-    const suggestions = await SearchService.suggest(q, { entity, limit: Number(limit) });
+    const suggestions = await SearchService.suggest(q, { entity, limit: Number(limit), countryCode });
     if (suggestions && suggestions.length > 0) {
       return res.status(200).json({
         success: true,
@@ -649,6 +650,7 @@ router.get('/suggest', searchLimiter, async (req, res) => {
         const docs = await MODEL_MAP[eName].find(
           {
             status: 'active',
+            ...(countryCode ? { countryCode: countryCode.toUpperCase().trim() } : {}),
             $or: [
               { title: regex },
               { description: regex },

@@ -30,6 +30,7 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import { formatPrice } from "@/lib/currency";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BG = "#F6F7F8";
@@ -615,6 +616,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     title={item.title}
                     subtitle={item.condition || item.subcategory}
                     price={item.price ?? null}
+                    currency={item.currency}
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}

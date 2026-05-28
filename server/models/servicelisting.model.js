@@ -74,6 +74,7 @@ const serviceListingSchema = new mongoose.Schema({
     trim: true,
     default: '₹',
   },
+  countryCode: { type: String, trim: true, index: true },
   location: {
     type: {
       type: String,

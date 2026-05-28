@@ -3,12 +3,14 @@ import { Platform, Pressable, Text, View } from "react-native";
 
 import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyTypography } from "@/constants/typography";
+import { formatPrice as libFormatPrice } from "@/lib/currency";
 import { Image } from "@/lib/nativewind-interop";
 
 type TrendingListingCardProps = {
   id: string;
   title: string;
   price?: number | null;
+  currency?: string | null;
   image: string;
   cardWidth: number;
   distanceLabel?: string;
@@ -19,14 +21,15 @@ type TrendingListingCardProps = {
   onToggleSave: () => void;
 };
 
-function formatPrice(price?: number | null) {
+function formatPrice(price?: number | null, currency?: string | null) {
   if (price == null) return "Price on request";
-  return `₹${Number(price).toLocaleString("en-IN")}`;
+  return libFormatPrice(price, currency);
 }
 
 export function TrendingListingCard({
   title,
   price,
+  currency,
   image,
   cardWidth,
   distanceLabel,
@@ -100,7 +103,7 @@ export function TrendingListingCard({
             minimumFontScale={0.8}
             numberOfLines={2}
           >
-            {formatPrice(price)}
+            {formatPrice(price, currency)}
           </Text>
           {distanceLabel ? (
             <Text

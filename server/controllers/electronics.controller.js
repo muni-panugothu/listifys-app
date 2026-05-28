@@ -66,6 +66,7 @@ exports.createElectronics = async (req, res) => {
       phone,
       phoneCode,
       currency,
+      countryCode,
       features,
       images,
       // Product-specific fields
@@ -118,6 +119,7 @@ exports.createElectronics = async (req, res) => {
       phone,
       phoneCode,
       currency,
+      countryCode,
       features: features || [],
       images: images || [],
       // Product-specific (stored only when provided)

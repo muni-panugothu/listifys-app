@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts } from "@/constants/typography";
 import { type ListingItem } from "@/features/listing/services/listing-api";
+import { formatPrice } from "@/lib/currency";
 import { Image } from "@/lib/nativewind-interop";
 
 type MyListingManageCardProps = {
@@ -81,8 +82,8 @@ export function MyListingManageCard({
             className="text-[16px] text-[#27BB97]"
             style={{ fontFamily: ListifyFonts.bold }}
           >
-            {listing.price
-              ? `₹${Number(listing.price).toLocaleString("en-IN")}`
+            {listing.price != null
+              ? formatPrice(listing.price, listing.currency)
               : "On request"}
           </Text>
         </View>

@@ -54,7 +54,7 @@ const normaliseImages = (listing) => {
 // @route   GET /api/services/listings
 exports.getListings = async (req, res) => {
   try {
-    const { category, subcategory, minPrice, maxPrice, search, location } = req.query;
+    const { category, subcategory, minPrice, maxPrice, search, location, countryCode } = req.query;
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
     
@@ -114,6 +114,7 @@ exports.getListings = async (req, res) => {
       if (maxPrice) filter['pricing.basePrice'].$lte = Number(maxPrice);
     }
     if (location) filter['location.address'] = { $regex: escapeRegex(location), $options: 'i' };
+    if (countryCode && typeof countryCode === 'string') filter.countryCode = countryCode.toUpperCase().trim();
 
     const skip = (Number(page) - 1) * Number(limit);
     
@@ -176,7 +177,7 @@ exports.getListingById = async (req, res) => {
 exports.createListing = async (req, res) => {
   try {
     const {
-      title, description, category, subcategory, price, location, phone, phoneCode, currency, images, lat, lng,
+      title, description, category, subcategory, price, location, phone, phoneCode, currency, countryCode, images, lat, lng,
       condition,
       // Service-specific fields
       serviceType, experience, availability, priceType,
@@ -251,6 +252,7 @@ exports.createListing = async (req, res) => {
       phone,
       phoneCode,
       currency,
+      countryCode,
       images: normalisedImages,
       availability: availabilityObject,
       // Service-specific

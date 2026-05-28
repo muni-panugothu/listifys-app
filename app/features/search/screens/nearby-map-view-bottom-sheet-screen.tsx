@@ -20,8 +20,9 @@ import { Image } from "@/lib/nativewind-interop";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords } from "@/store/slices/location-slice";
+import { selectLocationCoords, selectIsoCountryCode } from "@/store/slices/location-slice";
 import { fetchNearbyListings, type NearbyListingsResponse } from "@/features/listing/services/listing-api";
+import { formatPrice } from "@/lib/currency";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -76,6 +77,7 @@ export function NearbyMapViewBottomSheetScreen() {
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
 
   const locationCoords = useAppSelector(selectLocationCoords);
+  const isoCountryCode = useAppSelector(selectIsoCountryCode);
 
   type NearbyListing = NearbyListingsResponse["listings"][number];
   const [listings, setListings] = useState<NearbyListing[]>([]);
@@ -111,17 +113,17 @@ export function NearbyMapViewBottomSheetScreen() {
         search: searchQuery.trim() || undefined,
         sort: "nearest",
         limit: 30,
+        countryCode: isoCountryCode,
       });
       setListings(result.listings ?? []);
       setTotalCount(result.pagination?.total ?? result.listings?.length ?? 0);
     } catch {
-      // silently fail â€” show empty state
       setListings([]);
       setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [locationCoords.lat, locationCoords.lng]);
+  }, [locationCoords.lat, locationCoords.lng, isoCountryCode]);
 
   // Load on mount and when location is ready
   useEffect(() => {
@@ -411,10 +413,7 @@ export function NearbyMapViewBottomSheetScreen() {
                   const distanceText =
                     item.distance != null ? `${item.distance} km` : "";
                   const locationText = item.location ?? "";
-                  const priceDisplay =
-                    item.price != null
-                      ? `${item.currency ?? "â‚¹"}${Number(item.price).toLocaleString("en-IN")}`
-                      : "Contact";
+                  const priceDisplay = formatPrice(item.price, item.currency, isoCountryCode);
                   return (
                     <Pressable
                       key={String(item._id)}

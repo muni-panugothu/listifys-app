@@ -422,7 +422,7 @@ class SearchService {
   //  Uses: search_as_you_type + edge_ngram + phrase_prefix
   //  Returns: title, price, thumbnail, entity for each match
   // ══════════════════════════════════════════════════════════
-  static async suggest(query, { entity = 'all', limit = 8 } = {}) {
+  static async suggest(query, { entity = 'all', limit = 8, countryCode } = {}) {
     if (!getIsConnected() || !query) return [];
 
     const client = getClient();
@@ -431,6 +431,9 @@ class SearchService {
       const filter = [{ term: { status: 'active' } }];
       if (entity && entity !== 'all') {
         filter.push({ term: { _entity: entity } });
+      }
+      if (countryCode) {
+        filter.push({ term: { 'countryCode.keyword': countryCode.toUpperCase() } });
       }
 
       const result = await client.search({
@@ -481,6 +484,7 @@ class SearchService {
         try {
           const filter = [{ term: { status: 'active' } }];
           if (entity && entity !== 'all') filter.push({ term: { _entity: entity } });
+          if (countryCode) filter.push({ term: { 'countryCode.keyword': countryCode.toUpperCase() } });
 
           const result = await client.search({
             index: UNIFIED_INDEX,

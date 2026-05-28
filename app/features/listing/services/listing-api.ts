@@ -285,6 +285,7 @@ export async function fetchNearbyListings(params: {
   sort?: string;
   page?: number;
   limit?: number;
+  countryCode?: string | null;
 }): Promise<NearbyListingsResponse> {
   const query = new URLSearchParams({
     lat: String(params.lat),
@@ -296,6 +297,7 @@ export async function fetchNearbyListings(params: {
   if (params.sort) query.set("sort", params.sort);
   if (params.page) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
+  if (params.countryCode) query.set("countryCode", params.countryCode);
 
   const data = await apiRequest<NearbyListingsResponse>(`/api/nearby?${query.toString()}`);
   const listings = (data.listings ?? []).map((item) => normaliseListingImages(item as ListingItem) as typeof item);

@@ -26,6 +26,7 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationLabel } from "@/store/slices/location-slice";
+import { formatPrice } from "@/lib/currency";
 
 export function JobDetailScreen() {
   const router = useRouter();

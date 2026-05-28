@@ -200,6 +200,7 @@ exports.createForSale = async (req, res) => {
       phone,
       phoneCode,
       currency,
+      countryCode,
       features,
       images,
       // Mobiles
@@ -249,6 +250,7 @@ exports.createForSale = async (req, res) => {
       phone,
       phoneCode,
       currency,
+      countryCode,
       features: features || [],
       images: images || [],
       // Mobiles

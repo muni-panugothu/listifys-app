@@ -10,6 +10,7 @@ import Animated, {
 
 import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
+import { formatPrice as libFormatPrice } from "@/lib/currency";
 import { Image } from "@/lib/nativewind-interop";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -18,6 +19,7 @@ type ListingItemsGridCardProps = {
   title: string;
   subtitle?: string;
   price?: number | null;
+  currency?: string | null;
   image?: string;
   width: number;
   distanceLabel?: string;
@@ -27,9 +29,9 @@ type ListingItemsGridCardProps = {
   onToggleSave?: () => void;
 };
 
-function formatPrice(price?: number | null) {
+function formatPrice(price?: number | null, currency?: string | null) {
   if (price == null) return "On request";
-  return `₹${Number(price).toLocaleString("en-IN")}`;
+  return libFormatPrice(price, currency);
 }
 
 const priceTextBase = {
@@ -43,6 +45,7 @@ export function ListingItemsGridCard({
   title,
   subtitle,
   price,
+  currency,
   image,
   width,
   distanceLabel,
@@ -179,7 +182,7 @@ export function ListingItemsGridCard({
           minimumFontScale={0.72}
           numberOfLines={2}
         >
-          {formatPrice(price)}
+          {formatPrice(price, currency)}
         </Text>
         {distanceLabel ? (
           <Text

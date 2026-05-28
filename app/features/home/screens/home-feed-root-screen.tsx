@@ -296,6 +296,7 @@ export function HomeFeedRootScreen() {
     id: string;
     title: string;
     price: number | null;
+    currency?: string;
     image: string;
     category: string;
     createdAt?: string;
@@ -333,6 +334,7 @@ export function HomeFeedRootScreen() {
       id: item._id,
       title: item.title,
       price: item.price ?? null,
+      currency: item.currency,
       image: item.images?.[0] ?? "",
       createdAt: item.createdAt,
       category,
@@ -663,6 +665,7 @@ export function HomeFeedRootScreen() {
                   id={item.id}
                   title={item.title}
                   price={item.price}
+                  currency={item.currency}
                   image={item.image}
                   cardWidth={trendingCardWidth}
                   createdAt={item.createdAt}
@@ -740,6 +743,7 @@ export function HomeFeedRootScreen() {
                     width={GRID_CARD_WIDTH}
                     title={item.title}
                     price={item.price}
+                    currency={item.currency}
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     distanceLabel={distanceLabel}

@@ -156,6 +156,7 @@ export function SavedItemsScreen() {
                 title={item.title}
                 subtitle={item.condition || item.location || undefined}
                 price={item.price}
+                currency={item.currency}
                 image={item.images?.[0]}
                 createdAt={item.createdAt}
                 distanceLabel={distanceLabel}

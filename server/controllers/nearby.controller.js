@@ -94,6 +94,7 @@ exports.getNearby = async (req, res) => {
       sort = 'nearest',
       page = 1,
       limit = 30,
+      countryCode,
     } = req.query;
 
     if (!lat || !lng) {
@@ -133,6 +134,7 @@ exports.getNearby = async (req, res) => {
         sort,
         page: safePage,
         limit: safeLimit,
+        countryCode,
       });
 
       if (esResults && esResults.listings) {
@@ -173,7 +175,7 @@ exports.getNearby = async (req, res) => {
               distanceField: 'distance',
               maxDistance: maxDistMeters,
               spherical: true,
-              query: { status: 'active' },
+              query: { status: 'active', ...(countryCode ? { countryCode: countryCode.toUpperCase().trim() } : {}) },
             },
           },
         ];
@@ -213,6 +215,7 @@ exports.getNearby = async (req, res) => {
           const { applyGeoFilter } = require('../utils/geoQuery');
           const filter = { status: 'active' };
           applyGeoFilter(filter, lat, lng, radius);
+          if (countryCode) filter.countryCode = countryCode.toUpperCase().trim();
 
           if (search && search.trim()) {
             const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

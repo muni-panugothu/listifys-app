@@ -33,6 +33,7 @@ import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import { formatPrice } from "@/lib/currency";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HORIZONTAL_PAD = 16;
@@ -284,7 +285,7 @@ export function ListingDetailTemplateScreen() {
 
   const title = listing?.title ?? "";
   const priceLabel = listing?.price
-    ? `₹${Number(listing.price).toLocaleString("en-IN")}`
+    ? formatPrice(listing.price, listing.currency, isoCountryCode)
     : "Price on request";
   const distanceLabel = listing
     ? getListingDistanceLabel(
@@ -884,7 +885,7 @@ export function ListingDetailTemplateScreen() {
                       </Text>
                       <View className="flex-row flex-wrap gap-2">
                         {recommendedOffers.map((amt) => {
-                          const label = `₹${amt.toLocaleString("en-IN")}`;
+                          const label = formatPrice(amt, listing?.currency, isoCountryCode);
                           const isSelected = selectedChip === String(amt);
                           return (
                             <Pressable

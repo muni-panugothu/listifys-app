@@ -511,6 +511,7 @@ export function SearchResultsEntityTabsScreen() {
             title={item.title}
             subtitle={metaSubtitle || undefined}
             price={item.price}
+            currency={item.currency}
             image={item.images?.[0]}
             createdAt={item.createdAt}
             distanceLabel={distanceLabel}

@@ -25,6 +25,7 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationLabel } from "@/store/slices/location-slice";
+import { formatPrice } from "@/lib/currency";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -110,7 +111,7 @@ export function EventDetailScreen() {
     ? "FREE"
     : listing?.price === 0
     ? "FREE"
-    : `${listing?.currency ?? "\u20B9"}${Number(listing?.price).toLocaleString("en-IN")}`;
+    : formatPrice(listing.price, listing.currency, isoCountryCode);
 
   const sellerName = listing?.seller?.name ?? listing?.sellerName ?? "Organizer";
   const sellerProfileImage = listing?.seller?.profileImage

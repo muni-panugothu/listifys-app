@@ -612,6 +612,7 @@ export function SellerPublicProfileScreen() {
                             title={item.title}
                             subtitle={item.condition}
                             price={item.price ?? null}
+                            currency={item.currency}
                             image={item.images?.[0]}
                             createdAt={item.createdAt}
                             width={CARD_WIDTH}

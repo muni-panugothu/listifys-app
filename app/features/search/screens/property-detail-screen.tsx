@@ -32,6 +32,7 @@ import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 import type { CategorySlug } from "@/constants/categories";
+import { formatPrice } from "@/lib/currency";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -88,7 +89,7 @@ export function PropertyDetailScreen() {
   const images = listing?.images?.length ? listing.images : [];
   const title = listing?.title ?? "";
   const price = listing?.price
-    ? `₹${Number(listing.price).toLocaleString("en-IN")}`
+    ? formatPrice(listing.price, listing.currency, isoCountryCode)
     : "";
   const description = listing?.description ?? "";
   const distanceLabel = listing
@@ -611,7 +612,7 @@ export function PropertyDetailScreen() {
                       </Text>
                       <View className="flex-row flex-wrap gap-2">
                         {recommendedOffers.map((amt) => {
-                          const label = `\u20B9${amt.toLocaleString("en-IN")}`;
+                          const label = formatPrice(amt, listing?.currency, isoCountryCode);
                           const isSelected = selectedChip === String(amt);
                           return (
                             <Pressable
