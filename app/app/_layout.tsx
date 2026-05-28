@@ -27,7 +27,10 @@ import { registerBackgroundCallHandler } from "@/lib/firebase-messaging";
 import { NotificationProvider } from "@/providers/notification-provider";
 
 // Register FCM background handler before any component renders (module-level)
-registerBackgroundCallHandler();
+// Wrapped in try/catch — fails gracefully if google-services.json is missing.
+try { registerBackgroundCallHandler(); } catch (e) {
+  console.warn('[Firebase] Background handler not registered:', e);
+}
 
 export default function RootLayout() {
   return (

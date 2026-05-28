@@ -15,7 +15,9 @@
  */
 import { useEffect } from 'react';
 import notifee, { EventType } from '@notifee/react-native';
-import messaging from '@react-native-firebase/messaging';
+// Lazy-load to avoid crash when google-services.json is missing.
+let messaging: (() => any) | null = null;
+try { messaging = require('@react-native-firebase/messaging').default; } catch {}
 import { useAppSelector } from '@/store/hooks';
 import { store } from '@/store';
 import { incomingCallReceived } from '@/store/slices/call-slice';
@@ -149,6 +151,7 @@ export function useNotifications() {
   // notifications when the socket is briefly unavailable.
   useEffect(() => {
     if (!enabled) return;
+    if (!messaging) return;
 
     return messaging().onMessage(async (remoteMessage) => {
       const data = remoteMessage.data as Record<string, string> | undefined;

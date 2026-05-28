@@ -6,7 +6,9 @@
  *  - Fetch and cache the FCM device token
  *  - Detect and surface token refresh events
  */
-import messaging from '@react-native-firebase/messaging';
+// Lazy-load to avoid crash when google-services.json is missing.
+let messaging: any = null;
+try { messaging = require('@react-native-firebase/messaging').default; } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { PermissionStatus } from './types';
 
@@ -80,7 +82,8 @@ export async function getCachedToken(): Promise<string | null> {
 export function subscribeTokenRefresh(
   onRefresh: (newToken: string) => void
 ): () => void {
-  return messaging().onTokenRefresh(async (token) => {
+  if (!messaging) return () => {};
+  return messaging().onTokenRefresh(async (token: string) => {
     await AsyncStorage.setItem(TOKEN_CACHE_KEY, token).catch(() => {});
     onRefresh(token);
   });
