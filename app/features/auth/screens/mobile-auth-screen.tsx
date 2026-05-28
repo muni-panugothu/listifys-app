@@ -45,7 +45,8 @@ export function MobileAuthScreen() {
     if (isAuthenticated) {
       router.replace("/(tabs)/home-feed-root" as Href);
     }
-  }, [isAuthenticated, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (error) {

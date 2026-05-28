@@ -56,7 +56,8 @@ export function PageTransitionLoader({ visible, label = 'Getting ready…' }: Pr
 
   return (
     <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
+      // Loader is visual-only; never block taps on underlying UI.
+      pointerEvents="none"
       style={[styles.overlay, { opacity }]}
     >
       {/* Frosted card container */}

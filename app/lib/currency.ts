@@ -209,10 +209,14 @@ export function getCurrencySymbol(currencyCode?: string | null): string {
 export function formatPrice(
   amount: number | null | undefined,
   currencyCode?: string | null,
+  isoCountryCode?: string | null,
 ): string {
   if (amount == null || !Number.isFinite(amount)) return "";
 
-  const code = (currencyCode?.toUpperCase() ?? DEFAULT_CURRENCY) as string;
+  const code = (
+    currencyCode?.toUpperCase() ??
+    getCurrencyCodeFromCountry(isoCountryCode)
+  ) as string;
   const locale = CURRENCY_LOCALE[code] ?? "en-IN";
 
   try {

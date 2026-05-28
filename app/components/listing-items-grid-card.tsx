@@ -20,6 +20,7 @@ type ListingItemsGridCardProps = {
   subtitle?: string;
   price?: number | null;
   currency?: string | null;
+  isoCountryCode?: string | null;
   image?: string;
   width: number;
   distanceLabel?: string;
@@ -29,9 +30,13 @@ type ListingItemsGridCardProps = {
   onToggleSave?: () => void;
 };
 
-function formatPrice(price?: number | null, currency?: string | null) {
+function formatPrice(
+  price?: number | null,
+  currency?: string | null,
+  isoCountryCode?: string | null,
+) {
   if (price == null) return "On request";
-  return libFormatPrice(price, currency);
+  return libFormatPrice(price, currency, isoCountryCode);
 }
 
 const priceTextBase = {
@@ -46,6 +51,7 @@ export function ListingItemsGridCard({
   subtitle,
   price,
   currency,
+  isoCountryCode,
   image,
   width,
   distanceLabel,
@@ -182,7 +188,7 @@ export function ListingItemsGridCard({
           minimumFontScale={0.72}
           numberOfLines={2}
         >
-          {formatPrice(price, currency)}
+          {formatPrice(price, currency, isoCountryCode)}
         </Text>
         {distanceLabel ? (
           <Text

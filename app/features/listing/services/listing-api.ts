@@ -345,13 +345,17 @@ export async function fetchCategoryListings(
     "list",
     categorySlug,
     params?.page ?? 1,
+    `limit:${params?.limit ?? ""}`,
     params?.subcategory ?? "",
     params?.search ?? "",
     params?.condition ?? "",
+    `min:${params?.minPrice ?? ""}`,
+    `max:${params?.maxPrice ?? ""}`,
     params?.sort ?? "",
     `loc:${encodeURIComponent(params?.location ?? "")}`,
     `lat:${params?.lat ?? ""}`,
     `lng:${params?.lng ?? ""}`,
+    `radius:${params?.radius ?? ""}`,
     `cc:${params?.countryCode ?? ""}`,
   ].join(":");
 

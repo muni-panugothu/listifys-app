@@ -247,6 +247,7 @@ class ListingCacheService {
           _id: l._id,
           title: l.title,
           price: l.price,
+          currency: l.currency,
           location: l.location,
           condition: l.condition,
           category: l.category || l.subcategory,
