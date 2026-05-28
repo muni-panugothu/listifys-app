@@ -30,7 +30,7 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
-import { formatPrice } from "@/lib/currency";
+import { formatPrice, getCurrencyCodeFromCountry, getCurrencySymbol } from "@/lib/currency";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BG = "#F6F7F8";
@@ -54,24 +54,26 @@ const SPECIAL_DETAIL: Record<string, string> = {
 
 const FETCH_TIMEOUT_MS = 8_000;
 
-function formatSalary(listing: ListingItem): string {
+function formatSalary(listing: ListingItem, isoCountryCode?: string | null): string {
   const salary = (listing as { salary?: { min?: number; max?: number } }).salary;
-  const currency = listing.currency ?? "₹";
+  const currencyCode = listing.currency ?? getCurrencyCodeFromCountry(isoCountryCode);
+  const symbol = getCurrencySymbol(currencyCode);
   if (salary?.min && salary?.max) {
     const fmt = (n: number) => {
       if (n >= 100000) return `${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)}L`;
       if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
       return n.toLocaleString("en-IN");
     };
-    return `${currency}${fmt(salary.min)} - ${currency}${fmt(salary.max)}`;
+    return `${symbol}${fmt(salary.min)} - ${symbol}${fmt(salary.max)}`;
   }
-  if (listing.price) return `${currency}${Number(listing.price).toLocaleString("en-IN")}`;
+  if (listing.price) return `${symbol}${Number(listing.price).toLocaleString("en-IN")}`;
   return "Salary not disclosed";
 }
 
-function formatEventPrice(price?: number, currency?: string): string {
+function formatEventPrice(price?: number, currency?: string, isoCountryCode?: string | null): string {
   if (!price || price === 0) return "FREE";
-  return `${currency ?? "₹"}${Number(price).toLocaleString("en-IN")}`;
+  const symbol = getCurrencySymbol(currency ?? getCurrencyCodeFromCountry(isoCountryCode));
+  return `${symbol}${Number(price).toLocaleString("en-IN")}`;
 }
 
 function sortListings(items: ListingItem[], sortKey: string) {
@@ -583,7 +585,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
               <JobListingCard
                 key={job._id}
                 job={job}
-                salaryText={formatSalary(job)}
+                salaryText={formatSalary(job, isoCountryCode)}
                 isSaved={savedIds.has(job._id)}
                 onPress={() => openDetail(job)}
                 onToggleSave={() => handleToggleSave(job._id)}
@@ -598,7 +600,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                 <EventListingCard
                   key={event._id}
                   event={event}
-                  priceLabel={formatEventPrice(event.price, event.currency)}
+                  priceLabel={formatEventPrice(event.price, event.currency, isoCountryCode)}
                   isSaved={savedIds.has(event._id)}
                   onPress={() => openDetail(event)}
                   onToggleSave={() => handleToggleSave(event._id)}

@@ -46,7 +46,13 @@ const App = () => {
     if (isAuthenticated && sessionHydrated) {
       router.replace('/(tabs)/home-feed-root' as Href)
     }
-  }, [isAuthenticated, sessionHydrated, router])
+    // `router` intentionally omitted from deps – its reference changes on every
+    // navigation (safe-router rebuilds on pathname), which would cause this
+    // effect to re-fire after the user navigates away from home-feed-root and
+    // bounce them back. The replace call is always safe with the current nav
+    // state regardless of which router reference is captured in the closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, sessionHydrated])
 
   useEffect(() => {
     if (error) {

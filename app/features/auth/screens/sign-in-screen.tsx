@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/google-sign-in";
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { clearError, googleLogin, login } from "@/store/slices/auth-slice";
 
 export function SignInScreen() {
@@ -52,15 +54,22 @@ export function SignInScreen() {
     void configureGoogleSignIn().catch(() => {});
   }, []);
 
+  // Navigate after any successful auth (session restore, social login fallback)
   useEffect(() => {
     if (isAuthenticated) {
+      Keyboard.dismiss();
+      dispatch(hideAuthGate());
       if (redirectTo && redirectTo.startsWith("/")) {
         router.replace(redirectTo as Href);
         return;
       }
       router.replace("/(tabs)/home-feed-root" as Href);
     }
-  }, [isAuthenticated, redirectTo, router]);
+    // `router` intentionally omitted from deps – its reference changes on every
+    // navigation (safe-router rebuilds on pathname), which would cause this
+    // effect to re-fire after the user navigates away and bounce them back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, isAuthenticated, redirectTo]);
 
   useEffect(() => {
     if (error) {
@@ -69,13 +78,27 @@ export function SignInScreen() {
     }
   }, [dispatch, error]);
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     const validation = validateSignInInput(credential, password);
     if (!validation.ok) {
       showErrorToast("Missing Details", validation.message);
       return;
     }
-    dispatch(login({ identity: validation.identity, password: validation.password }));
+    try {
+      // Mirror Google login: await + unwrap so navigation is driven imperatively,
+      // not via a useEffect. This guarantees keyboard is dismissed and the Redux
+      // state is fully committed before we push the tab navigator.
+      await dispatch(login({ identity: validation.identity, password: validation.password })).unwrap();
+      Keyboard.dismiss();
+      dispatch(hideAuthGate());
+      if (redirectTo && redirectTo.startsWith("/")) {
+        router.replace(redirectTo as Href);
+      } else {
+        router.replace("/(tabs)/home-feed-root" as Href);
+      }
+    } catch {
+      // Error is surfaced via the auth slice error state → showErrorToast useEffect below
+    }
   };
 
   const handleGoogleSignIn = async () => {

@@ -60,7 +60,8 @@ export function SignUpScreen() {
     if (isAuthenticated) {
       router.replace("/(tabs)/home-feed-root" as Href);
     }
-  }, [isAuthenticated, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   // Only navigate when registrationEmail transitions from null → value (fresh registration)
   useEffect(() => {
@@ -68,7 +69,8 @@ export function SignUpScreen() {
       prevRegEmail.current = registrationEmail;
       router.push("/otp-verification" as Href);
     }
-  }, [registrationEmail, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registrationEmail]);
 
   useEffect(() => {
     if (error) {

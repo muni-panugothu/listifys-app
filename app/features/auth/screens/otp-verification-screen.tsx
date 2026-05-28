@@ -77,7 +77,8 @@ export function OtpVerificationScreen() {
     if (isAuthenticated) {
       router.replace("/(tabs)/home-feed-root" as Href);
     }
-  }, [isAuthenticated, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const focusTimer = setTimeout(() => inputRef.current?.focus(), 400);
