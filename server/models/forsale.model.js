@@ -102,6 +102,7 @@ const forSaleSchema = new mongoose.Schema(
       trim: true,
       default: '₹',
     },
+    countryCode: { type: String, trim: true, index: true },
 
     // ── Mobiles-specific fields ──────────────────────────────
     brand: {

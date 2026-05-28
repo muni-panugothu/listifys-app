@@ -105,7 +105,20 @@ function buildSortOption(sort, hasGeo = false, hasText = false) {
   return { createdAt: -1 }; // default: newest
 }
 
-module.exports = { applyGeoFilter, buildSortOption, escapeRegex, buildLocationRegex };
+module.exports = { applyGeoFilter, buildSortOption, escapeRegex, buildLocationRegex, applyCountryFilter };
+
+/**
+ * Apply an ISO country code filter to a MongoDB filter object.
+ * Only adds the filter when countryCode is a non-empty string.
+ *
+ * @param {object} filter - MongoDB filter object (mutated in place)
+ * @param {string|undefined} countryCode - ISO 3166-1 alpha-2 code (e.g. "IN", "US")
+ */
+function applyCountryFilter(filter, countryCode) {
+  if (countryCode && typeof countryCode === 'string') {
+    filter.countryCode = countryCode.toUpperCase().trim();
+  }
+}
 
 /**
  * Escape regex special characters in a user-supplied string

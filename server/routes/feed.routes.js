@@ -5,7 +5,7 @@
  */
 const express = require("express");
 const router = express.Router();
-const { applyGeoFilter, buildLocationRegex } = require("../utils/geoQuery");
+const { applyGeoFilter, buildLocationRegex, applyCountryFilter } = require("../utils/geoQuery");
 const { esHydratedSearch } = require("../utils/esSearch");
 const redis = require("../config/redis");
 const { logger } = require("../utils/logger");
@@ -55,6 +55,7 @@ router.get("/", optionalAuth, async (req, res) => {
       lat,
       lng,
       radius = 50,
+      countryCode,
     } = req.query;
 
     const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 8, 1), 100);
@@ -64,7 +65,7 @@ router.get("/", optionalAuth, async (req, res) => {
     const excludeSellerId = req.user?._id ? String(req.user._id) : null;
 
     // ── Redis cache (60s TTL) ───────────────────────────────────
-    const cacheKey = `feed:${page}:${limit}:${search || ''}:${location || ''}:${lat || ''}:${lng || ''}:${radius}:ex:${excludeSellerId || "0"}`;
+    const cacheKey = `feed:${page}:${limit}:${search || ''}:${location || ''}:${lat || ''}:${lng || ''}:${radius}:cc:${countryCode || ''}:ex:${excludeSellerId || "0"}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -108,6 +109,7 @@ router.get("/", optionalAuth, async (req, res) => {
       if (lat && lng) {
         applyGeoFilter(filter, lat, lng, radius);
       }
+      applyCountryFilter(filter, countryCode);
 
       const listings = await Model.find(filter)
         .select(LISTING_FIELDS)

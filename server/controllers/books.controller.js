@@ -116,6 +116,7 @@ exports.getAllBooks = async (req, res) => {
       lat,
       lng,
       radius,
+      countryCode,
       page = 1,
       limit = 24,
     } = req.query;
@@ -134,6 +135,7 @@ exports.getAllBooks = async (req, res) => {
       lat || "",
       lng || "",
       radius || "",
+      countryCode || "",
       page,
       limit,
     ].join("|");
@@ -201,11 +203,12 @@ exports.getAllBooks = async (req, res) => {
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
-    const { applyGeoFilter, buildSortOption, buildLocationRegex } = require("../utils/geoQuery");
+    const { applyGeoFilter, buildSortOption, buildLocationRegex, applyCountryFilter } = require("../utils/geoQuery");
     if (locationFilter) {
       filter.location = buildLocationRegex(locationFilter);
     }
     applyGeoFilter(filter, lat, lng, radius);
+    applyCountryFilter(filter, countryCode);
 
     const sortOption = buildSortOption(sort, !!(lat && lng), !!search);
 

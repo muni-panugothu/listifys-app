@@ -194,6 +194,7 @@ exports.getAllElectronics = async (req, res) => {
       lat,
       lng,
       radius,
+      countryCode,
       page = 1,
       limit = 50,
     } = req.query;
@@ -213,6 +214,7 @@ exports.getAllElectronics = async (req, res) => {
       lat || '',
       lng || '',
       radius || '',
+      countryCode || '',
       page,
       limit,
     ].join('|');
@@ -285,12 +287,13 @@ exports.getAllElectronics = async (req, res) => {
     }
 
     // Geo filter + location text
-    const { applyGeoFilter, buildSortOption, buildLocationRegex } = require('../utils/geoQuery');
+    const { applyGeoFilter, buildSortOption, buildLocationRegex, applyCountryFilter } = require('../utils/geoQuery');
     if (locationFilter) {
       filter.location = buildLocationRegex(locationFilter);
     }
 
     applyGeoFilter(filter, lat, lng, radius);
+    applyCountryFilter(filter, countryCode);
 
     // Build sort
     const sortOption = buildSortOption(sort, !!(lat && lng), !!search);

@@ -29,7 +29,7 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BG = "#F6F7F8";
@@ -120,6 +120,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
+  const isoCountryCode = useAppSelector(selectIsoCountryCode);
 
   const categoryConfig = CATEGORY_MAP[categorySlug];
   const subcategories = useMemo(
@@ -178,6 +179,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           lat: hasCoords ? userCoords.lat! : undefined,
           lng: hasCoords ? userCoords.lng! : undefined,
           radius: hasCoords ? 100 : undefined,
+          countryCode: isoCountryCode,
         }),
         new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error("timeout")), FETCH_TIMEOUT_MS);
@@ -195,7 +197,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     } catch {
       setListings((prev) => (prev.length > 0 ? prev : []));
     }
-  }, [appliedSearch, categorySlug, locationLabel, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng]);
+  }, [appliedSearch, categorySlug, isoCountryCode, locationLabel, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng]);
 
   // Fire on subcategory / search changes (screen already mounted)
   useEffect(() => {
@@ -626,6 +628,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                       userCoords.lat != null && userCoords.lng != null
                         ? { lat: userCoords.lat, lng: userCoords.lng }
                         : null,
+                      isoCountryCode,
                     )}
                     isSaved={savedIds.has(item._id)}
                     onPress={() => openDetail(item)}

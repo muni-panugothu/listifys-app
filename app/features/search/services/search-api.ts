@@ -131,6 +131,7 @@ export type SearchParams = {
   sort?: "relevance" | "price_asc" | "price_desc" | "nearest" | "oldest" | "views";
   page?: number;
   limit?: number;
+  countryCode?: string | null;
 };
 
 // ── API helpers ─────────────────────────────────────────────────────────────────
@@ -236,6 +237,7 @@ export async function searchListings(
   if (params.sort) qs.set("sort", params.sort);
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
+  if (params.countryCode) qs.set("countryCode", params.countryCode);
 
   const res = await searchFetch<SearchResponse>(
     `/api/search?${qs.toString()}`,
@@ -398,10 +400,11 @@ export type RecommendationsResponse = {
   mightLike: SearchResultItem[];
 };
 
-export async function fetchRecommendations(): Promise<RecommendationsResponse> {
+export async function fetchRecommendations(countryCode?: string | null): Promise<RecommendationsResponse> {
   try {
+    const qs = countryCode ? `?countryCode=${encodeURIComponent(countryCode)}` : "";
     const res = await searchFetch<{ success: boolean } & RecommendationsResponse>(
-      "/api/search/recommendations",
+      `/api/search/recommendations${qs}`,
     );
     return {
       recentlyViewed: res.recentlyViewed ?? [],

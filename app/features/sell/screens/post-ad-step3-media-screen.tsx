@@ -334,6 +334,7 @@ export function PostAdStep3MediaScreen() {
         images: imageUrls,
         imageUrls,
         location,
+        ...(locationIso ? { countryCode: locationIso.toUpperCase() } : {}),
         ...(phone ? { phone: `${activePhoneCode}${phone}` } : {}),
         // GPS coordinates — listing-specific first, fall back to global device location
         ...(() => {

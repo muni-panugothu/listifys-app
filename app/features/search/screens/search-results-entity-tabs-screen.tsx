@@ -35,7 +35,7 @@ import {
 } from "@/features/search/services/search-api";
 import type { Href } from "@/lib/safe-router";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GUTTER = 14;
@@ -188,9 +188,10 @@ async function fetchHomeFeedWithTimeout(
   limit: number,
   lat?: number | null,
   lng?: number | null,
+  countryCode?: string | null,
 ) {
   return Promise.race([
-    fetchHomeFeed({ limit, lat: lat ?? undefined, lng: lng ?? undefined, radius: (lat != null && lng != null) ? 100 : undefined }),
+    fetchHomeFeed({ limit, lat: lat ?? undefined, lng: lng ?? undefined, radius: (lat != null && lng != null) ? 100 : undefined, countryCode: countryCode ?? undefined }),
     new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("feed_timeout")), FEED_FETCH_TIMEOUT_MS);
     }),
@@ -204,10 +205,15 @@ export function SearchResultsEntityTabsScreen() {
     entity?: string | string[];
     title?: string | string[];
     hideTabs?: string | string[];
+    countryCode?: string | string[];
   }>();
   const insets = useSafeAreaInsets();
   const locationCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
+  // Prefer Redux (always up-to-date), fall back to URL param passed by caller.
+  const reduxCountryCode = useAppSelector(selectIsoCountryCode);
+  const paramCountryCode = parseQueryParam(params.countryCode) || null;
+  const isoCountryCode = reduxCountryCode ?? paramCountryCode;
   const initialEntity = useMemo(
     () => parseEntityParam(params.entity),
     [params.entity],
@@ -267,7 +273,7 @@ export function SearchResultsEntityTabsScreen() {
           let mapped: SearchResultItem[] = [];
 
           try {
-            const feed = await fetchHomeFeedWithTimeout(60, locationCoords.lat, locationCoords.lng);
+            const feed = await fetchHomeFeedWithTimeout(60, locationCoords.lat, locationCoords.lng, isoCountryCode);
             const feedListings = feed?.categories
               ? Object.values(feed.categories).flatMap((cat) => cat.listings ?? [])
               : [];
@@ -312,6 +318,7 @@ export function SearchResultsEntityTabsScreen() {
           lat: hasCoords ? locationCoords.lat! : undefined,
           lng: hasCoords ? locationCoords.lng! : undefined,
           location: (hasCoords || isRealLabel) ? locationCoords.label : undefined,
+          countryCode: isoCountryCode,
         });
 
         // Smart entity auto-detection: if server detected a single entity from
@@ -345,7 +352,7 @@ export function SearchResultsEntityTabsScreen() {
         setRefreshing(false);
       }
     },
-    [appliedQuery, activeEntity, activeSort, locationCoords.lat, locationCoords.lng, locationCoords.label],
+    [appliedQuery, activeEntity, activeSort, locationCoords.lat, locationCoords.lng, locationCoords.label, isoCountryCode],
   );
 
   useEffect(() => {
@@ -478,11 +485,17 @@ export function SearchResultsEntityTabsScreen() {
 
   const renderResultCard = useCallback(
     ({ item }: { item: SearchResultItem }) => {
-      const distanceLabel = getListingDistanceLabel({
-        _id: item._id,
-        category: item._entity ?? item.category,
-        distance: item.distance,
-      });
+      const distanceLabel = getListingDistanceLabel(
+        {
+          _id: item._id,
+          category: item._entity ?? item.category,
+          distance: item.distance,
+        },
+        locationCoords.lat != null && locationCoords.lng != null
+          ? { lat: locationCoords.lat, lng: locationCoords.lng }
+          : null,
+        isoCountryCode,
+      );
       const metaSubtitle = [
         item.condition,
         item.subcategory,
@@ -508,7 +521,7 @@ export function SearchResultsEntityTabsScreen() {
         </View>
       );
     },
-    [handleToggleSave, openDetail, savedIds],
+    [handleToggleSave, openDetail, savedIds, locationCoords.lat, locationCoords.lng, isoCountryCode],
   );
 
   const renderEmptyState = useCallback(() => {

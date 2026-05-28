@@ -144,16 +144,20 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   // the user tapped a notification to open it.
   useEffect(() => {
     if (!messaging) return;
-    messaging()
-      .getInitialNotification()
-      .then((remoteMessage: any) => {
-        if (!remoteMessage?.data) return;
-        const data = remoteMessage.data as Record<string, string>;
-        if (data.type !== 'incoming_call' && data.type !== 'silent') {
-          navigateFromNotification(data as RichNotificationPayload);
-        }
-      })
-      .catch(() => {});
+    try {
+      messaging()
+        .getInitialNotification()
+        .then((remoteMessage: any) => {
+          if (!remoteMessage?.data) return;
+          const data = remoteMessage.data as Record<string, string>;
+          if (data.type !== 'incoming_call' && data.type !== 'silent') {
+            navigateFromNotification(data as RichNotificationPayload);
+          }
+        })
+        .catch(() => {});
+    } catch (_e) {
+      // Firebase not yet initialised by the native layer — skip quit-state routing
+    }
   }, []);
 
   // Notifee: getInitialNotification fires when app was killed and user tapped

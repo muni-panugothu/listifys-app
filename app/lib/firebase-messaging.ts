@@ -36,11 +36,15 @@ export { getFCMToken, subscribeTokenRefresh } from '@/lib/notifications/token-ma
 export function registerBackgroundCallHandler(): void {
   if (!messaging) return;
   // ── FCM: background / quit state ─────────────────────────────────────────
-  messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
-    const data = remoteMessage.data as Record<string, string> | undefined;
-    if (!data || data.type === 'silent') return;
-    await displayRichNotification(data);
-  });
+  try {
+    messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
+      const data = remoteMessage.data as Record<string, string> | undefined;
+      if (!data || data.type === 'silent') return;
+      await displayRichNotification(data);
+    });
+  } catch (_e) {
+    // Firebase not yet initialised — background handler not registered
+  }
 
   // ── Notifee: background / quit state event handler ────────────────────────
   notifee.onBackgroundEvent(async ({ type, detail }) => {
@@ -88,31 +92,35 @@ export function registerBackgroundCallHandler(): void {
  */
 export function subscribeForegroundCallHandler(): () => void {
   if (!messaging) return () => {};
-  return messaging().onMessage(async (remoteMessage: any) => {
-    const data = remoteMessage.data as Record<string, string> | undefined;
-    if (!data || data.type === 'silent') return;
+  try {
+    return messaging().onMessage(async (remoteMessage: any) => {
+      const data = remoteMessage.data as Record<string, string> | undefined;
+      if (!data || data.type === 'silent') return;
 
-    if (data.type === 'incoming_call') {
-      const callStatus = store.getState().call.status;
-      if (callStatus === 'incoming' || callStatus === 'active') return;
+      if (data.type === 'incoming_call') {
+        const callStatus = store.getState().call.status;
+        if (callStatus === 'incoming' || callStatus === 'active') return;
 
-      store.dispatch(
-        incomingCallReceived({
-          callId:          data.callId       ?? '',
-          remoteUserId:    data.from         ?? '',
-          remoteUserName:  data.callerName   ?? 'Unknown',
-          remoteUserPhoto: data.callerPhoto  ?? '',
-          callType:        (data.callType as 'audio' | 'video') ?? 'audio',
-          offer:           safeParseOffer(data.offer),
-        })
-      );
-      router.push('/incoming-call');
-      return;
-    }
+        store.dispatch(
+          incomingCallReceived({
+            callId:          data.callId       ?? '',
+            remoteUserId:    data.from         ?? '',
+            remoteUserName:  data.callerName   ?? 'Unknown',
+            remoteUserPhoto: data.callerPhoto  ?? '',
+            callType:        (data.callType as 'audio' | 'video') ?? 'audio',
+            offer:           safeParseOffer(data.offer),
+          })
+        );
+        router.push('/incoming-call');
+        return;
+      }
 
-    // All other types: show via Notifee
-    await displayRichNotification(data);
-  });
+      // All other types: show via Notifee
+      await displayRichNotification(data);
+    });
+  } catch (_e) {
+    return () => {};
+  }
 }
 
 function safeParseOffer(raw: string | undefined): object {

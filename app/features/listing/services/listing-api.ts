@@ -190,6 +190,7 @@ export async function fetchHomeFeed(params?: {
   lat?: number;
   lng?: number;
   radius?: number;
+  countryCode?: string;
 }): Promise<FeedResponse> {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", String(params.limit));
@@ -199,6 +200,7 @@ export async function fetchHomeFeed(params?: {
   if (params?.lat != null) query.set("lat", String(params.lat));
   if (params?.lng != null) query.set("lng", String(params.lng));
   if (params?.radius != null) query.set("radius", String(params.radius));
+  if (params?.countryCode) query.set("countryCode", params.countryCode);
 
   const qs = query.toString();
   const feedCacheKey = [
@@ -317,6 +319,7 @@ export async function fetchCategoryListings(
     lat?: number;
     lng?: number;
     radius?: number;
+    countryCode?: string | null;
   },
 ): Promise<ListingsResponse> {
   const query = new URLSearchParams();
@@ -332,6 +335,7 @@ export async function fetchCategoryListings(
   if (params?.lat != null) query.set("lat", String(params.lat));
   if (params?.lng != null) query.set("lng", String(params.lng));
   if (params?.radius != null) query.set("radius", String(params.radius));
+  if (params?.countryCode) query.set("countryCode", params.countryCode);
 
   const qs = query.toString();
 
@@ -346,6 +350,7 @@ export async function fetchCategoryListings(
     `loc:${encodeURIComponent(params?.location ?? "")}`,
     `lat:${params?.lat ?? ""}`,
     `lng:${params?.lng ?? ""}`,
+    `cc:${params?.countryCode ?? ""}`,
   ].join(":");
 
   return withCache(
@@ -607,6 +612,8 @@ export type RecentlyViewedItem = {
   viewedAt: number;
   /** The user's location label at the moment the item was viewed. */
   viewedLocation?: string;
+  /** ISO 3166-1 alpha-2 country code at the time of viewing (e.g. "US", "IN"). */
+  isoCountryCode?: string;
 };
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
@@ -614,6 +621,7 @@ const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 export async function addToRecentlyViewed(
   item: ListingItem,
   locationLabel?: string,
+  isoCountryCode?: string | null,
 ): Promise<void> {
   // ── 1. AsyncStorage (works for guests + offline) ────────────────────────
   try {
@@ -632,6 +640,7 @@ export async function addToRecentlyViewed(
       sellerId: getListingSellerId(item) ?? undefined,
       viewedAt: Date.now(),
       viewedLocation: locationLabel || undefined,
+      isoCountryCode: isoCountryCode ?? undefined,
     });
     await AsyncStorage.setItem(
       RECENTLY_VIEWED_KEY,
@@ -661,6 +670,7 @@ export async function addToRecentlyViewed(
             price: item.price,
             currency: (item as { currency?: string }).currency,
             image: item.images?.[0] ?? null,
+            countryCode: isoCountryCode ?? undefined,
           }),
         });
       } catch {
@@ -671,14 +681,21 @@ export async function addToRecentlyViewed(
   }
 }
 
-export async function getRecentlyViewed(): Promise<RecentlyViewedItem[]> {
+export async function getRecentlyViewed(isoCountryCode?: string | null): Promise<RecentlyViewedItem[]> {
   try {
     const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
     if (!raw) return [];
     const items: RecentlyViewedItem[] = JSON.parse(raw);
     const now = Date.now();
-    // Return only items viewed within the last 2 days
-    return items.filter((i) => now - i.viewedAt < TWO_DAYS_MS);
+    // Filter out expired items, then filter strictly by country when set.
+    // When the user has a country selected, only show items from that same country
+    // (items with no isoCountryCode, i.e. recorded before this feature, are also
+    // excluded so cross-country pollution does not surface).
+    return items.filter((i) => {
+      if (now - i.viewedAt >= TWO_DAYS_MS) return false;
+      if (isoCountryCode && i.isoCountryCode !== isoCountryCode) return false;
+      return true;
+    });
   } catch {
     return [];
   }

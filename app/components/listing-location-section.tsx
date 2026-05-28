@@ -7,17 +7,17 @@ import type { ListingItem } from "@/features/listing/services/listing-api";
 import { geocodeSearchQuery } from "@/lib/location-service";
 import {
   buildGoogleMapsUrl,
-  buildOpenStreetMapPreviewUrl,
   parseListingCoordinates,
   type LatLng,
 } from "@/lib/listing-coordinates";
+import { buildMapPreviewUrl } from "@/lib/map-tiles";
 import {
   getListingDistanceLabel,
   shouldShowListingDistance,
 } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords } from "@/store/slices/location-slice";
+import { selectIsoCountryCode, selectLocationCoords } from "@/store/slices/location-slice";
 
 type ListingLocationSectionProps = {
   listing: ListingItem;
@@ -29,11 +29,13 @@ export function ListingLocationSection({
   category,
 }: ListingLocationSectionProps) {
   const userCoords = useAppSelector(selectLocationCoords);
+  const isoCountryCode = useAppSelector(selectIsoCountryCode);
   const categorySlug = category ?? listing.category;
   const showDistance = shouldShowListingDistance(categorySlug);
 
   const [resolvedCoords, setResolvedCoords] = useState<LatLng | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const [mapError, setMapError] = useState(false);
 
   const listingCoords = useMemo(
     () => parseListingCoordinates(listing),
@@ -41,6 +43,9 @@ export function ListingLocationSection({
   );
 
   const mapCoords = listingCoords ?? resolvedCoords;
+
+  // Reset map error when coordinates change
+  useEffect(() => { setMapError(false); }, [listingCoords, resolvedCoords]);
 
   useEffect(() => {
     if (listingCoords || !listing.location?.trim()) {
@@ -80,6 +85,7 @@ export function ListingLocationSection({
         userCoords.lat != null && userCoords.lng != null
           ? { lat: userCoords.lat, lng: userCoords.lng }
           : null,
+        isoCountryCode,
       )
     : undefined;
 
@@ -161,10 +167,12 @@ export function ListingLocationSection({
         <View className="relative h-44 w-full items-center justify-center bg-[#EEF2F6]">
           {geocoding ? (
             <ActivityIndicator size="large" color="#27BB97" />
-          ) : mapCoords ? (
+          ) : mapCoords && !mapError ? (
             <Image
-              source={buildOpenStreetMapPreviewUrl(mapCoords.lat, mapCoords.lng)}
+              source={buildMapPreviewUrl(mapCoords.lat, mapCoords.lng) ?? ""}
               contentFit="cover"
+              onLoad={() => setMapError(false)}
+              onError={() => setMapError(true)}
               className="h-full w-full"
             />
           ) : (

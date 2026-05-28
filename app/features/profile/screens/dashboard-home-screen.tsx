@@ -92,6 +92,8 @@ export function DashboardHomeScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const network = useAppSelector((s) => s.network);
+  const isOffline = !network.isConnected || network.isInternetReachable === false;
   const [menuCounts, setMenuCounts] = useState({
     savedItems: 0,
     unreadMessages: 0,
@@ -99,6 +101,9 @@ export function DashboardHomeScreen() {
   });
 
   const loadDashboardData = useCallback(async () => {
+    // When offline, skip live API calls — keep last-known counts and cached profile
+    if (isOffline) return;
+
     const [savedResult, chatResult, notificationResult] = await Promise.allSettled([
       fetchSavedListings(),
       getChatUnreadCount(),
@@ -115,7 +120,7 @@ export function DashboardHomeScreen() {
           ? notificationResult.value.unreadCount ?? 0
           : 0,
     });
-  }, [dispatch]);
+  }, [dispatch, isOffline]);
 
   useFocusEffect(
     useCallback(() => {
@@ -292,6 +297,14 @@ export function DashboardHomeScreen() {
             >
               {displayEmail}
             </Text>
+          ) : null}
+
+          {/* Offline indicator */}
+          {isOffline ? (
+            <View className="mt-2 flex-row items-center gap-1.5 self-start rounded-full bg-[#10231D] px-3 py-1">
+              <MaterialIcons name="cloud-off" size={12} color="#6EE7C7" />
+              <Text className="text-[11px] font-medium text-[#6EE7C7]">Offline — showing cached data</Text>
+            </View>
           ) : null}
 
           <View className="mt-5 flex-row items-center self-start">

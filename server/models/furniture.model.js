@@ -60,6 +60,7 @@ const furnitureSchema = new mongoose.Schema(
     phone: { type: String, trim: true },
     phoneCode: { type: String, trim: true, default: '+91' },
     currency: { type: String, trim: true, default: '₹' },
+    countryCode: { type: String, trim: true, index: true },
 
     material: { type: String, trim: true },
     dimensions: { type: String, trim: true },

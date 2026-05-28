@@ -32,7 +32,7 @@ import { ListingLocationSection } from "@/components/listing-location-section";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HORIZONTAL_PAD = 16;
@@ -95,6 +95,7 @@ export function ListingDetailTemplateScreen() {
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
+  const isoCountryCode = useAppSelector(selectIsoCountryCode);
 
   const categorySlug = (params.category ?? "electronics") as CategorySlug;
   const listingId = params.id;
@@ -145,7 +146,7 @@ export function ListingDetailTemplateScreen() {
       const res = await fetchListingById(categorySlug, listingId);
       if (res.listing) {
         setListing(res.listing);
-        addToRecentlyViewed(res.listing, locationLabel).catch(() => {});
+        addToRecentlyViewed(res.listing, locationLabel, isoCountryCode).catch(() => {});
         if (user?.id && res.listing.savedBy?.includes(user.id)) {
           setIsSaved(true);
         }
@@ -296,6 +297,7 @@ export function ListingDetailTemplateScreen() {
         userCoords.lat != null && userCoords.lng != null
           ? { lat: userCoords.lat, lng: userCoords.lng }
           : null,
+        isoCountryCode,
       )
     : undefined;
   const condition = listing?.condition ?? "Like New";

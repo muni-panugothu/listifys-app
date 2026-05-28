@@ -202,6 +202,7 @@ router.get('/', searchLimiter, async (req, res) => {
       sort,
       page = 1,
       limit = 50,
+      countryCode,
     } = req.query;
 
     if (!q && !location && (!lat || !lng)) {
@@ -251,7 +252,7 @@ router.get('/', searchLimiter, async (req, res) => {
       : null;
 
     // ── Step 2: Try Redis cache ──────────────────────────────────────────────
-    const cacheKeyObj = { entity: effectiveEntity, q: effectiveQ, category, condition: effectiveCondition, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice, location: effectiveLocation, brand: effectiveBrand, fuelType, transmission, sort, page: +page, limit: +limit };
+    const cacheKeyObj = { entity: effectiveEntity, q: effectiveQ, category, condition: effectiveCondition, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice, location: effectiveLocation, brand: effectiveBrand, fuelType, transmission, sort, page: +page, limit: +limit, countryCode: countryCode || '' };
     const cacheKey = `search:${effectiveEntity}:${Buffer.from(JSON.stringify(cacheKeyObj)).toString('base64url')}`;
     const cachedResults = await ListingCache.getCachedSearchResults(effectiveEntity, cacheKey);
     if (cachedResults) {
@@ -288,6 +289,7 @@ router.get('/', searchLimiter, async (req, res) => {
       sort,
       page,
       limit,
+      countryCode,
     });
 
     if (esResults && esResults.listings && esResults.listings.length > 0) {
@@ -431,9 +433,10 @@ router.get('/', searchLimiter, async (req, res) => {
         }
       }
 
-      const { applyGeoFilter } = require('../utils/geoQuery');
+      const { applyGeoFilter, applyCountryFilter } = require('../utils/geoQuery');
       const radiusKm = req.query.radius || 50;
       if (lat && lng) applyGeoFilter(filter, lat, lng, radiusKm);
+      if (countryCode) applyCountryFilter(filter, countryCode);
       return filter;
     };
 

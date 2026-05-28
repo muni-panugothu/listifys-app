@@ -153,7 +153,8 @@ export function useNotifications() {
     if (!enabled) return;
     if (!messaging) return;
 
-    return messaging().onMessage(async (remoteMessage) => {
+    try {
+      return messaging().onMessage(async (remoteMessage: any) => {
       const data = remoteMessage.data as Record<string, string> | undefined;
       if (!data) return;
 
@@ -181,6 +182,10 @@ export function useNotifications() {
         await displayRichNotification(data);
       }
     });
+    } catch (_e) {
+      // Firebase not yet initialised — foreground message handler not registered
+      return undefined;
+    }
   }, [enabled]);
 }
 

@@ -79,6 +79,7 @@ const vehicleSchema = new mongoose.Schema(
       trim: true,
       default: '₹',
     },
+    countryCode: { type: String, trim: true, index: true },
     // Vehicle-specific fields
     brand: {
       type: String,

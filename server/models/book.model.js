@@ -70,6 +70,7 @@ const bookSchema = new mongoose.Schema(
     phone: { type: String, trim: true },
     phoneCode: { type: String, trim: true, default: "+91" },
     currency: { type: String, trim: true, default: "₹" },
+    countryCode: { type: String, trim: true, index: true },
 
     author: { type: String, trim: true },
     isbn: { type: String, trim: true },

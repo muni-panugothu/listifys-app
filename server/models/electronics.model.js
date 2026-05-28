@@ -163,6 +163,7 @@ const electronicsSchema = new mongoose.Schema(
       trim: true,
       default: '₹',
     },
+    countryCode: { type: String, trim: true, index: true },
     // Seller information - linked to User model
     seller: {
       type: mongoose.Schema.Types.ObjectId,

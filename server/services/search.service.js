@@ -203,6 +203,7 @@ class SearchService {
     sort = 'relevance',
     page = 1,
     limit = 50,
+    countryCode,
   } = {}) {
     if (!getIsConnected()) return null;
 
@@ -326,6 +327,7 @@ class SearchService {
       if (brand) filter.push({ term: { 'brand.keyword': brand } });
       if (fuelType) filter.push({ term: { 'fuelType.keyword': fuelType } });
       if (transmission) filter.push({ term: { 'transmission.keyword': transmission } });
+      if (countryCode) filter.push({ term: { 'countryCode.keyword': countryCode.toUpperCase() } });
 
       // ── Sort ──
       let sortOption;

@@ -94,6 +94,7 @@ const eventSchema = new mongoose.Schema(
       trim: true,
       default: '₹',
     },
+    countryCode: { type: String, trim: true, index: true },
     eventDate: {
       type: String,
       trim: true,

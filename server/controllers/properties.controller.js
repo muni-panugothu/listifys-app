@@ -175,6 +175,7 @@ exports.getProperties = async (req, res) => {
       lat,
       lng,
       radius = 50,
+      countryCode,
     } = req.query;
 
     const query = { status: "active" };
@@ -183,7 +184,7 @@ exports.getProperties = async (req, res) => {
     }
     if (subcategory) query.subcategory = subcategory;
     if (sellerId) query.seller = sellerId;
-    const { applyGeoFilter, buildSortOption, escapeRegex } = require('../utils/geoQuery');
+    const { applyGeoFilter, buildSortOption, escapeRegex, applyCountryFilter } = require('../utils/geoQuery');
 
     // ── Elasticsearch-first search (MongoDB regex fallback below) ──
     if (search && !(lat && lng)) {
@@ -221,6 +222,7 @@ exports.getProperties = async (req, res) => {
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
     applyGeoFilter(query, lat, lng, radius);
+    applyCountryFilter(query, countryCode);
 
     const sortOption = buildSortOption(sort, !!(lat && lng), !!search);
 

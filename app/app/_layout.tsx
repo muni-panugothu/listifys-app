@@ -1,6 +1,7 @@
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { TopSaveToast } from "@/components/top-save-toast";
 import { PageTransitionLoader } from "@/components/page-transition-loader";
+import { NetworkStatusLayer } from "@/lib/network-status-layer";
 import { subscribeToasts, type AppToastPayload } from "@/lib/toast";
 import {
     DarkTheme,
@@ -395,6 +396,8 @@ function AppLayout() {
         ) : null}
         {/* Page-transition loading overlay (Zepto / OLX style) */}
         <PageTransitionLoader visible={pageLoading} />
+        {/* Global real-time network status banner (offline / slow / back-online) */}
+        <NetworkStatusLayer />
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>

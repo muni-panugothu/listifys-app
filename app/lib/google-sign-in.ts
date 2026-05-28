@@ -132,16 +132,8 @@ export function isGoogleSignInAvailable() {
   return getGoogleModule() != null;
 }
 
-export async function signInWithGoogleNative(): Promise<string> {
-  const module = getGoogleModule();
-  if (!module) {
-    throw new GoogleSignInError(
-      "Google Sign-In requires a development build with @react-native-google-signin/google-signin. It is not available in Expo Go.",
-    );
-  }
-
-  await configureGoogleSignIn();
-
+/** One attempt of the native sign-in flow.  Exported for testability. */
+async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
   const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = module;
 
   try {
@@ -203,5 +195,38 @@ export async function signInWithGoogleNative(): Promise<string> {
     throw new GoogleSignInError(
       error instanceof Error ? error.message : "Google sign-in failed.",
     );
+  }
+}
+
+/** Returns true when the error is the "activity is null" native crash. */
+function isActivityNullError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.toLowerCase().includes("activity") && msg.toLowerCase().includes("null");
+}
+
+/**
+ * Sign in with Google.  Retries once if the Activity is temporarily
+ * unavailable (common right after an HMR reload in development, or during
+ * Activity recreation on a low-memory device).
+ */
+export async function signInWithGoogleNative(): Promise<string> {
+  const module = getGoogleModule();
+  if (!module) {
+    throw new GoogleSignInError(
+      "Google Sign-In requires a development build with @react-native-google-signin/google-signin. It is not available in Expo Go.",
+    );
+  }
+
+  await configureGoogleSignIn();
+
+  try {
+    return await _attemptGoogleSignIn(module);
+  } catch (firstError: unknown) {
+    if (isActivityNullError(firstError)) {
+      // Activity was null — wait for it to settle then try once more.
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      return _attemptGoogleSignIn(module);
+    }
+    throw firstError;
   }
 }

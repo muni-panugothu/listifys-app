@@ -104,6 +104,7 @@ const propertySchema = new mongoose.Schema(
       trim: true,
       default: '₹',
     },
+    countryCode: { type: String, trim: true, index: true },
     seller: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

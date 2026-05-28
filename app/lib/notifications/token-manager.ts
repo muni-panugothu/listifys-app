@@ -83,8 +83,13 @@ export function subscribeTokenRefresh(
   onRefresh: (newToken: string) => void
 ): () => void {
   if (!messaging) return () => {};
-  return messaging().onTokenRefresh(async (token: string) => {
-    await AsyncStorage.setItem(TOKEN_CACHE_KEY, token).catch(() => {});
-    onRefresh(token);
-  });
+  try {
+    return messaging().onTokenRefresh(async (token: string) => {
+      await AsyncStorage.setItem(TOKEN_CACHE_KEY, token).catch(() => {});
+      onRefresh(token);
+    });
+  } catch (_e) {
+    // Firebase not yet initialised — token refresh subscription skipped
+    return () => {};
+  }
 }

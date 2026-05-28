@@ -178,6 +178,7 @@ export function HomeFeedRootScreen() {
         lng: hasCoords ? locationCoords.lng! : undefined,
         radius: hasCoords ? 100 : undefined,
         location: locationText,
+        countryCode: isoCountryCode ?? undefined,
       });
       const duration = Date.now() - startedAt;
 
@@ -206,7 +207,7 @@ export function HomeFeedRootScreen() {
         applyFeedSnapshot(cached.data, { source: "cache" });
       }
     }
-  }, [applyFeedSnapshot, dispatch, locationCoords.label, locationCoords.lat, locationCoords.lng]);
+  }, [applyFeedSnapshot, dispatch, isoCountryCode, locationCoords.label, locationCoords.lat, locationCoords.lng]);
 
   useEffect(() => {
     void dispatch(hydrateAppLocation());
@@ -233,14 +234,14 @@ export function HomeFeedRootScreen() {
       await loadFeed({ allowCacheFallback: !cached });
     })().catch(() => {});
 
-    getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
+    getRecentlyViewed(isoCountryCode).then(setRecentlyViewed).catch(() => {});
     getNotificationUnreadCount()
       .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
       .catch(() => {});
     getChatUnreadCount()
       .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
       .catch(() => {});
-  }, [applyFeedSnapshot, loadFeed]);
+  }, [applyFeedSnapshot, loadFeed, isoCountryCode]);
 
   useEffect(() => {
     if (!locationHydrated) return;
@@ -257,21 +258,21 @@ export function HomeFeedRootScreen() {
   useFocusEffect(
     useCallback(() => {
       loadFeed({ allowCacheFallback: false }).catch(() => {});
-      getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
+      getRecentlyViewed(isoCountryCode).then(setRecentlyViewed).catch(() => {});
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
       getChatUnreadCount()
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
-    }, [loadFeed]),
+    }, [loadFeed, isoCountryCode]),
   );
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       dispatch(fetchProfile()).unwrap().catch(() => {}),
       loadFeed(),
-      getRecentlyViewed().then(setRecentlyViewed).catch(() => {}),
+      getRecentlyViewed(isoCountryCode).then(setRecentlyViewed).catch(() => {}),
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
         .catch(() => {}),
@@ -279,7 +280,7 @@ export function HomeFeedRootScreen() {
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {}),
     ]);
-  }, [dispatch, loadFeed]);
+  }, [dispatch, loadFeed, isoCountryCode]);
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
@@ -510,6 +511,7 @@ export function HomeFeedRootScreen() {
             progressViewOffset={topBarHeight}
           />
         }
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingTop: topBarHeight + 12,
           paddingBottom: 80 + Math.max(insets.bottom, 16),
@@ -624,7 +626,8 @@ export function HomeFeedRootScreen() {
           </View>
         </View> */}
 
-        {/* Fresh recommendations */}
+        {/* Fresh recommendations — hidden when offline (cached content only) */}
+        {!isOffline ? (
         <View className="mb-6 mt-5">
           <View className="mb-4 flex-row items-center justify-between px-4">
             <Text className="text-[22px] text-gray-600 font-bold" >
@@ -637,6 +640,7 @@ export function HomeFeedRootScreen() {
                   params: {
                     q: "",
                     title: "Fresh recommendations",
+                    countryCode: isoCountryCode ?? "",
                   },
                 } as Href)
               }
@@ -650,6 +654,8 @@ export function HomeFeedRootScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
+              decelerationRate="fast"
+              snapToInterval={trendingCardWidth + 16}
             >
               {freshRecommendations.map((item) => (
                 <TrendingListingCard
@@ -685,8 +691,21 @@ export function HomeFeedRootScreen() {
             </View>
           )}
         </View>
+        ) : null}
 
-        {/* Recently viewed — same card style as See all grid */}
+        {/* Offline notice — shown instead of fresh/recent sections */}
+        {isOffline ? (
+          <View className="mx-4 mb-6 mt-5 flex-row items-center gap-3 rounded-2xl border border-[#1E3A34] bg-[#10231D] px-4 py-4">
+            <MaterialIcons name="cloud-off" size={22} color="#6EE7C7" />
+            <View className="flex-1">
+              <Text className="text-[14px] font-semibold text-white">You&apos;re offline</Text>
+              <Text className="mt-0.5 text-[12px] text-[#9DCDC1]">Browse categories. Fresh recommendations and recently viewed are unavailable offline.</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Recently viewed — hidden when offline */}
+        {!isOffline ? (
         <View className="mb-8">
           <View className="mb-4 px-4">
             <Text className="text-[22px] text-gray-600 font-bold">
@@ -699,6 +718,7 @@ export function HomeFeedRootScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
+              decelerationRate="fast"
             >
               {filterOutOwnListings(recentlyViewed, user?.id)
                 .slice(0, 12)
@@ -745,6 +765,7 @@ export function HomeFeedRootScreen() {
             </View>
           )}
         </View>
+        ) : null}
       </ScrollView>
 
       {/* Login Required Bottom Sheet */}
