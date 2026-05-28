@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Listify-App",
-    "slug": "Listify-App",
+    "name": "Listifys",
+    "slug": "Listifys",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/splashscreenImg/splashImg.png",
+    "icon": "./assets/splashscreenImg/logo.png",
     "scheme": "listifyapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -20,9 +20,9 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/splashscreenImg/splashImg.png",
-        "backgroundImage": "./assets/splashscreenImg/splashImg.png",
-        "monochromeImage": "./assets/splashscreenImg/splashImg.png"
+        "foregroundImage": "./assets/splashscreenImg/logo.png",
+        "backgroundImage": "./assets/splashscreenImg/logo.png",
+        "monochromeImage": "./assets/splashscreenImg/logo.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

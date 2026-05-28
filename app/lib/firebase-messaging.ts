@@ -9,7 +9,14 @@
  *   registerBackgroundCallHandler()  — module-level background/quit bootstrap
  *   subscribeForegroundCallHandler() — foreground subscription (returns unsub fn)
  */
-import messaging from '@react-native-firebase/messaging';
+// Lazy-load — throws at module level when google-services.json is missing or
+// the native Firebase bridge isn't linked yet.
+let messaging: (() => any) | null = null;
+try {
+  messaging = require('@react-native-firebase/messaging').default;
+} catch (e) {
+  console.warn('[Firebase] @react-native-firebase/messaging not available:', e);
+}
 import notifee, { EventType } from '@notifee/react-native';
 import { router } from 'expo-router';
 import { store } from '@/store';
@@ -27,8 +34,9 @@ export { getFCMToken, subscribeTokenRefresh } from '@/lib/notifications/token-ma
  * event handler.  Must be called at module level before any React tree.
  */
 export function registerBackgroundCallHandler(): void {
+  if (!messaging) return;
   // ── FCM: background / quit state ─────────────────────────────────────────
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
     const data = remoteMessage.data as Record<string, string> | undefined;
     if (!data || data.type === 'silent') return;
     await displayRichNotification(data);
@@ -79,7 +87,8 @@ export function registerBackgroundCallHandler(): void {
  * Returns an unsubscribe function.
  */
 export function subscribeForegroundCallHandler(): () => void {
-  return messaging().onMessage(async (remoteMessage) => {
+  if (!messaging) return () => {};
+  return messaging().onMessage(async (remoteMessage: any) => {
     const data = remoteMessage.data as Record<string, string> | undefined;
     if (!data || data.type === 'silent') return;
 

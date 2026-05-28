@@ -11,8 +11,18 @@
  * call in app/_layout.tsx — they MUST run before the first React render.
  */
 import { useEffect, type ReactNode } from 'react';
-import notifee, { EventType } from '@notifee/react-native';
-import messaging from '@react-native-firebase/messaging';
+// Lazy-load native Firebase/Notifee modules to avoid crashing in Expo Go
+let notifee: any = null;
+let EventType: any = {};
+let messaging: any = null;
+try {
+  const notifeeMod = require('@notifee/react-native');
+  notifee = notifeeMod.default;
+  EventType = notifeeMod.EventType;
+  messaging = require('@react-native-firebase/messaging').default;
+} catch {
+  // Expo Go — native modules unavailable
+}
 import { store } from '@/store';
 import { incomingCallReceived } from '@/store/slices/call-slice';
 import { router } from 'expo-router';
@@ -32,8 +42,10 @@ import type { RichNotificationPayload } from '@/lib/notifications/types';
  * handler. Must be called at module level before any React tree renders.
  */
 export function bootstrapNotifications(): void {
+  if (!messaging || !notifee) return; // Expo Go guard
+
   // ── FCM: background / quit state handler ─────────────────────────────────
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
     const data = remoteMessage.data as Record<string, string> | undefined;
     if (!data) return;
 
@@ -131,9 +143,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   // FCM: getInitialNotification fires when the app was completely killed and
   // the user tapped a notification to open it.
   useEffect(() => {
+    if (!messaging) return;
     messaging()
       .getInitialNotification()
-      .then((remoteMessage) => {
+      .then((remoteMessage: any) => {
         if (!remoteMessage?.data) return;
         const data = remoteMessage.data as Record<string, string>;
         if (data.type !== 'incoming_call' && data.type !== 'silent') {
@@ -146,6 +159,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   // Notifee: getInitialNotification fires when app was killed and user tapped
   // a Notifee-displayed notification (e.g., a scheduled or call notification).
   useEffect(() => {
+    if (!notifee) return;
     notifee
       .getInitialNotification()
       .then((initial) => {

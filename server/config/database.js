@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const { logger } = require("../utils/logger");
 
-
 // ── Connection state tracking ──────────────────────────────────────────────────
 let _isConnected = false;
 let _reconnectAttempts = 0;
