@@ -23,6 +23,7 @@ import { useAppSelector } from "@/store/hooks";
 import { selectLocationCoords, selectIsoCountryCode } from "@/store/slices/location-slice";
 import { fetchNearbyListings, type NearbyListingsResponse } from "@/features/listing/services/listing-api";
 import { formatPrice } from "@/lib/currency";
+import { formatDistance } from "@/lib/listing-distance";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -411,9 +412,11 @@ export function NearbyMapViewBottomSheetScreen() {
                 {listings.map((item) => {
                   const firstImage = item.images?.[0];
                   const distanceText =
-                    item.distance != null ? `${item.distance} km` : "";
+                    item.distance != null
+                      ? formatDistance(item.distance, item.countryCode ?? isoCountryCode) ?? ""
+                      : "";
                   const locationText = item.location ?? "";
-                  const priceDisplay = formatPrice(item.price, item.currency, isoCountryCode);
+                  const priceDisplay = formatPrice(item.price, item.currency, item.countryCode ?? isoCountryCode);
                   return (
                     <Pressable
                       key={String(item._id)}

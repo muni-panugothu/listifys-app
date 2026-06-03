@@ -1,15 +1,42 @@
+﻿/**
+ * NetworkStatusLayer â€” Premium connectivity banner.
+ *
+ * Features:
+ *   - True internet validation via ConnectivityService (probes Cloudflare + Google + backend)
+ *   - Spring-based animations via react-native-reanimated (not legacy Animated API)
+ *   - Haptic feedback on state transitions
+ *   - Offline queue drain on reconnection
+ *   - Dark gradient backgrounds (Material Design 3, rounded pill)
+ *   - Accessibility labels for screen readers
+ *   - Debounced state changes to prevent flicker
+ */
 import NetInfo, { type NetInfoState } from "@react-native-community/netinfo";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { connectivityService } from "@/lib/connectivity-service";
+import { drainOfflineQueue, getQueueLength } from "@/lib/offline-queue";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   type CellularGeneration,
   type ConnectionType,
+  setActualInternetReachable,
+  setPendingQueueCount,
   updateNetworkSnapshot,
 } from "@/store/slices/network-slice";
+
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type BannerKind = "offline" | "online" | "slow";
 
@@ -18,14 +45,21 @@ type BannerConfig = {
   icon: keyof typeof MaterialIcons.glyphMap;
   title: string;
   message: string;
-  backgroundColor: string;
-  borderColor: string;
+  /** `[start, end]` for LinearGradient */
+  gradientColors: readonly [string, string];
   iconBackgroundColor: string;
   iconColor: string;
 };
 
-const TRANSIENT_BANNER_MS = 2600;
-const HIDDEN_TRANSLATE_Y = -24;
+// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const TRANSIENT_BANNER_MS = 3_000;
+const HIDDEN_TRANSLATE_Y = -80;
+
+const SPRING_SHOW = { damping: 18, stiffness: 220, mass: 0.8 };
+const SPRING_HIDE = { damping: 22, stiffness: 280, mass: 0.8 };
+
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function toConnectionType(type: NetInfoState["type"]): ConnectionType {
   switch (type) {
@@ -44,15 +78,12 @@ function toConnectionType(type: NetInfoState["type"]): ConnectionType {
 }
 
 function resolveCellularGeneration(state: NetInfoState): CellularGeneration {
-  if (state.type !== "cellular") {
-    return null;
-  }
-
+  if (state.type !== "cellular") return null;
   const details = state.details as { cellularGeneration?: CellularGeneration } | null;
   return details?.cellularGeneration ?? null;
 }
 
-function resolveIsConnectionExpensive(state: NetInfoState) {
+function resolveIsConnectionExpensive(state: NetInfoState): boolean {
   const details = state.details as { isConnectionExpensive?: boolean } | null;
   return Boolean(details?.isConnectionExpensive);
 }
@@ -63,116 +94,115 @@ function buildBanner(kind: BannerKind): BannerConfig {
       return {
         kind,
         icon: "cloud-off",
-        title: "You're offline",
-        message: "Showing cached content where available until the connection returns.",
-        backgroundColor: "#10231D",
-        borderColor: "#1E3A34",
-        iconBackgroundColor: "rgba(255,255,255,0.12)",
-        iconColor: "#F8FAFC",
+        title: "No Internet Connection",
+        message: "Your actions will sync automatically.",
+        gradientColors: ["#7F1D1D", "#991B1B"],
+        iconBackgroundColor: "rgba(255,255,255,0.18)",
+        iconColor: "#FECACA",
       };
     case "slow":
       return {
         kind,
-        icon: "network-check",
-        title: "Weak connection",
-        message: "Updates may take a little longer than usual.",
-        backgroundColor: "#FFF7E8",
-        borderColor: "#F3D28D",
-        iconBackgroundColor: "#FDE7B5",
-        iconColor: "#9A6700",
+        icon: "signal-cellular-alt",
+        title: "Slow Connection",
+        message: "Updates may take longer than usual.",
+        gradientColors: ["#78350F", "#92400E"],
+        iconBackgroundColor: "rgba(255,255,255,0.18)",
+        iconColor: "#FDE68A",
       };
     case "online":
       return {
         kind,
         icon: "wifi",
-        title: "Back online",
-        message: "Live updates restored.",
-        backgroundColor: "#ECFDF5",
-        borderColor: "#A7F3D0",
-        iconBackgroundColor: "#D1FAE5",
-        iconColor: "#047857",
+        title: "Back Online",
+        message: "Syncing your latest changes.",
+        gradientColors: ["#064E3B", "#065F46"],
+        iconBackgroundColor: "rgba(255,255,255,0.18)",
+        iconColor: "#A7F3D0",
       };
   }
 }
 
+async function triggerHaptic(kind: BannerKind): Promise<void> {
+  try {
+    if (kind === "offline") {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } else if (kind === "online") {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  } catch {
+    // Haptics unavailable on some devices â€” silently skip.
+  }
+}
+
+// â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 export function NetworkStatusLayer() {
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
-  const { isConnected, isInternetReachable, isSlowConnection } = useAppSelector((state) => state.network);
+
+  const { isConnected, isInternetReachable, isSlowConnection } = useAppSelector(
+    (state) => state.network,
+  );
+
   const [banner, setBanner] = useState<BannerConfig | null>(null);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(HIDDEN_TRANSLATE_Y)).current;
+  const bannerRef = useRef<BannerConfig | null>(null);
+
+  // Reanimated shared values
+  const translateY = useSharedValue(HIDDEN_TRANSLATE_Y);
+  const opacity = useSharedValue(0);
+
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMountedRef = useRef(false);
-  const previousStateRef = useRef({
-    isOffline: false,
-    isSlowConnection: false,
-  });
+  const previousIsOfflineRef = useRef(false);
+  const previousIsSlowRef = useRef(false);
 
-  const hideBanner = useCallback(() => {
+  // Keep banner ref in sync with state (used in callbacks to avoid stale closure).
+  useEffect(() => {
+    bannerRef.current = banner;
+  }, [banner]);
+
+  // â”€â”€ Animation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const clearHideTimeout = useCallback(() => {
     if (hideTimeoutRef.current) {
       clearTimeout(hideTimeoutRef.current);
       hideTimeoutRef.current = null;
     }
+  }, []);
 
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 180,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: HIDDEN_TRANSLATE_Y,
-        duration: 180,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
+  const hideBanner = useCallback(() => {
+    clearHideTimeout();
+    opacity.value = withTiming(0, { duration: 200 });
+    translateY.value = withSpring(HIDDEN_TRANSLATE_Y, SPRING_HIDE, (finished) => {
       if (finished) {
-        setBanner(null);
+        runOnJS(setBanner)(null);
       }
     });
-  }, [opacity, translateY]);
+  }, [clearHideTimeout, opacity, translateY]);
 
   const showBanner = useCallback(
     (nextBanner: BannerConfig, autoHideMs?: number) => {
-      if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = null;
-      }
-
+      clearHideTimeout();
       setBanner(nextBanner);
+      void triggerHaptic(nextBanner.kind);
 
-      opacity.stopAnimation();
-      translateY.stopAnimation();
-
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 220,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 220,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      opacity.value = withTiming(1, { duration: 200 });
+      translateY.value = withSpring(0, SPRING_SHOW);
 
       if (autoHideMs) {
-        hideTimeoutRef.current = setTimeout(() => {
-          hideBanner();
-        }, autoHideMs);
+        hideTimeoutRef.current = setTimeout(hideBanner, autoHideMs);
       }
     },
-    [hideBanner, opacity, translateY],
+    [clearHideTimeout, hideBanner, opacity, translateY],
   );
 
+  // â”€â”€ NetInfo listener â†’ dispatch to Redux + connectivityService â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
   useEffect(() => {
-    const handleNetInfoChange = (state: NetInfoState) => {
+    const handleNetInfo = (state: NetInfoState) => {
       const cellularGeneration = resolveCellularGeneration(state);
       const isConnectionExpensive = resolveIsConnectionExpensive(state);
       const transportIsSlow =
@@ -190,60 +220,90 @@ export function NetworkStatusLayer() {
           isConnectionExpensive,
         }),
       );
+
+      // Hand off to ConnectivityService for real probe validation.
+      connectivityService.handleNetInfoChange(Boolean(state.isConnected));
     };
 
-    const unsubscribe = NetInfo.addEventListener(handleNetInfoChange);
-    NetInfo.fetch().then(handleNetInfoChange).catch(() => {});
+    const unsubscribe = NetInfo.addEventListener(handleNetInfo);
+    NetInfo.fetch().then(handleNetInfo).catch(() => {});
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [dispatch]);
 
+  // â”€â”€ ConnectivityService â†’ real internet reachability â†’ Redux + banner â”€â”€â”€â”€â”€â”€
+
   useEffect(() => {
-    return () => {
-      if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current);
+    const unsubscribe = connectivityService.subscribe((online) => {
+      dispatch(setActualInternetReachable(online));
+
+      const wasOffline = previousIsOfflineRef.current;
+
+      if (!online) {
+        // Genuinely offline.
+        previousIsOfflineRef.current = true;
+        showBanner(buildBanner("offline"));
+      } else if (wasOffline) {
+        // Just came back online â†’ drain queue.
+        previousIsOfflineRef.current = false;
+        drainOfflineQueue()
+          .then(({ synced }) => {
+            dispatch(setPendingQueueCount(getQueueLength()));
+            if (synced > 0) {
+              console.info(`[OfflineQueue] Synced ${synced} actions on reconnect.`);
+            }
+          })
+          .catch(() => {});
+        showBanner(buildBanner("online"), TRANSIENT_BANNER_MS);
       }
-    };
-  }, []);
+    });
+
+    return () => unsubscribe();
+  }, [dispatch, showBanner]);
+
+  // â”€â”€ Slow connection banner (transport-layer slow, not internet offline) â”€â”€â”€â”€â”€
 
   useEffect(() => {
-    const isOffline = !isConnected || isInternetReachable === false;
-    const previousState = previousStateRef.current;
-
     if (!hasMountedRef.current) {
       hasMountedRef.current = true;
-
-      if (isOffline) {
-        showBanner(buildBanner("offline"));
-      } else if (isSlowConnection) {
-        showBanner(buildBanner("slow"), TRANSIENT_BANNER_MS);
-      }
-
-      previousStateRef.current = { isOffline, isSlowConnection };
+      const isOffline = !isConnected || isInternetReachable === false;
+      previousIsOfflineRef.current = isOffline;
+      previousIsSlowRef.current = isSlowConnection;
+      if (isOffline) showBanner(buildBanner("offline"));
+      else if (isSlowConnection) showBanner(buildBanner("slow"), TRANSIENT_BANNER_MS);
       return;
     }
 
-    if (isOffline) {
-      showBanner(buildBanner("offline"));
-    } else if (previousState.isOffline) {
-      showBanner(buildBanner("online"), TRANSIENT_BANNER_MS);
-    } else if (isSlowConnection && !previousState.isSlowConnection) {
+    const isOffline = !isConnected || isInternetReachable === false;
+
+    // Slow-connection transitions (only when actually online).
+    if (!isOffline && isSlowConnection && !previousIsSlowRef.current) {
       showBanner(buildBanner("slow"), TRANSIENT_BANNER_MS);
-    } else if (!isSlowConnection && previousState.isSlowConnection && banner?.kind === "slow") {
+    } else if (!isOffline && !isSlowConnection && previousIsSlowRef.current && bannerRef.current?.kind === "slow") {
       hideBanner();
     }
 
-    previousStateRef.current = { isOffline, isSlowConnection };
-  }, [banner?.kind, hideBanner, isConnected, isInternetReachable, isSlowConnection, showBanner]);
+    previousIsSlowRef.current = isSlowConnection;
+  }, [hideBanner, isConnected, isInternetReachable, isSlowConnection, showBanner]);
 
-  if (!banner) {
-    return null;
-  }
+  // â”€â”€ Cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  useEffect(() => {
+    return () => clearHideTimeout();
+  }, [clearHideTimeout]);
+
+  // â”€â”€ Animated styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  if (!banner) return null;
 
   return (
     <View
+      accessible={false}
       pointerEvents="none"
       style={{
         position: "absolute",
@@ -256,69 +316,78 @@ export function NetworkStatusLayer() {
       }}
     >
       <Animated.View
-        style={{
-          width: "100%",
-          paddingHorizontal: 16,
-          marginTop: insets.top + 12,
-          opacity,
-          transform: [{ translateY }],
-        }}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={`${banner.title}. ${banner.message}`}
+        style={[
+          {
+            width: "100%",
+            paddingHorizontal: 16,
+            marginTop: insets.top + 10,
+          },
+          animatedStyle,
+        ]}
       >
-        <View
+        <LinearGradient
+          colors={banner.gradientColors as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={{
             alignSelf: "center",
             width: "100%",
             maxWidth: 460,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: banner.borderColor,
-            backgroundColor: banner.backgroundColor,
+            borderRadius: 20,
             paddingHorizontal: 16,
             paddingVertical: 14,
             shadowColor: "#000",
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.14,
-            shadowRadius: 18,
-            elevation: 12,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.22,
+            shadowRadius: 20,
+            elevation: 14,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {/* Icon pill */}
             <View
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: banner.iconBackgroundColor,
                 marginRight: 12,
               }}
             >
-              <MaterialIcons name={banner.icon} size={18} color={banner.iconColor} />
+              <MaterialIcons name={banner.icon} size={19} color={banner.iconColor} />
             </View>
+
+            {/* Text */}
             <View style={{ flex: 1 }}>
               <Text
                 style={{
                   fontSize: 15,
                   fontWeight: "700",
-                  color: banner.kind === "offline" ? "#F8FAFC" : "#0F172A",
+                  color: "#FFFFFF",
                   marginBottom: 2,
+                  letterSpacing: 0.1,
                 }}
+                numberOfLines={1}
               >
                 {banner.title}
               </Text>
               <Text
                 style={{
                   fontSize: 13,
-                  lineHeight: 19,
-                  color: banner.kind === "offline" ? "rgba(248,250,252,0.84)" : "#475569",
+                  lineHeight: 18,
+                  color: "rgba(255,255,255,0.82)",
                 }}
+                numberOfLines={2}
               >
                 {banner.message}
               </Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
       </Animated.View>
     </View>
   );

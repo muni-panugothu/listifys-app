@@ -11,19 +11,20 @@
 require('dotenv').config();
 
 const mongoose = require('mongoose');
+const { logger } = require('../utils/logger');
 const { publishToQueue, QUEUES } = require('../queues/rabbitmq');
 
 const [,, recipientId] = process.argv;
 
 if (!recipientId || !mongoose.isValidObjectId(recipientId)) {
-  console.error('Usage: node scripts/test-notification.js <recipientUserId>');
+  logger.error('Usage: node scripts/test-notification.js <recipientUserId>');
   process.exit(1);
 }
 
 async function main() {
   // Connect to MongoDB (needed by the consumer to create the Notification doc)
   await mongoose.connect(process.env.MONGODB_URI);
-  console.log('[test] MongoDB connected');
+  logger.info('[test] MongoDB connected');
 
   const payload = {
     type:       'in_app_notification',
@@ -36,7 +37,7 @@ async function main() {
   };
 
   await publishToQueue(QUEUES.NOTIFICATION, payload);
-  console.log('[test] Notification published to queue:', payload);
+  logger.info('[test] Notification published to queue', { payload });
 
   // Give the consumer a moment to process, then exit
   await new Promise(r => setTimeout(r, 2000));
@@ -45,6 +46,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('[test] Failed:', err.message);
+  logger.error('[test] Failed', { error: err.message });
   process.exit(1);
 });

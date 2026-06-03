@@ -19,6 +19,7 @@ import {
   refreshAccessToken,
   resolveAbsoluteMediaUrl,
 } from "@/features/auth/services/auth-api";
+import { getCached, setCache } from "@/lib/cache";
 
 type ExpoDeviceModule = {
   brand?: string | null;
@@ -43,6 +44,10 @@ function buildUserAgent(): string {
 const APP_USER_AGENT = buildUserAgent();
 const RECENT_SEARCHES_KEY = "@listify/recent_searches";
 const MAX_RECENT_SEARCHES = 20;
+const SEARCH_CACHE_TTL_MS = 30_000;
+const SUGGEST_CACHE_TTL_MS = 20_000;
+const searchInFlight = new Map<string, Promise<SearchResponse>>();
+const suggestInFlight = new Map<string, Promise<SearchSuggestion[]>>();
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 
@@ -70,6 +75,7 @@ export type SearchResultItem = {
   subcategory?: string;
   condition?: string;
   location?: string;
+  countryCode?: string;
   images: string[];
   brand?: string;
   model?: string;
@@ -81,6 +87,8 @@ export type SearchResultItem = {
   _score?: number;
   _highlights?: Record<string, string[]>;
   distance?: number | null;
+  kmDriven?: string;
+  mileageUnit?: "km" | "mi" | string;
   createdAt?: string;
 };
 
@@ -239,14 +247,29 @@ export async function searchListings(
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.countryCode) qs.set("countryCode", params.countryCode);
 
-  const res = await searchFetch<SearchResponse>(
-    `/api/search?${qs.toString()}`,
-  );
+  const path = `/api/search?${qs.toString()}`;
+  const cacheKey = `search:${path}`;
+  const cached = getCached<SearchResponse>(cacheKey);
+  if (cached) return cached;
 
-  return {
-    ...res,
-    results: (res.results || []).map(normaliseImages),
-  };
+  const existing = searchInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const request = searchFetch<SearchResponse>(path)
+    .then((res) => {
+      const normalized = {
+        ...res,
+        results: (res.results || []).map(normaliseImages),
+      };
+      setCache(cacheKey, normalized, SEARCH_CACHE_TTL_MS);
+      return normalized;
+    })
+    .finally(() => {
+      searchInFlight.delete(cacheKey);
+    });
+
+  searchInFlight.set(cacheKey, request);
+  return request;
 }
 
 // ── Autocomplete Suggestions ────────────────────────────────────────────────────
@@ -261,14 +284,29 @@ export async function fetchSuggestions(
 
   const qs = new URLSearchParams({ q, entity, limit: String(limit) });
   if (countryCode) qs.set("countryCode", countryCode);
-  const res = await searchFetch<SuggestResponse>(
-    `/api/search/suggest?${qs.toString()}`,
-  );
+  const path = `/api/search/suggest?${qs.toString()}`;
+  const cacheKey = `suggest:${path}`;
+  const cached = getCached<SearchSuggestion[]>(cacheKey);
+  if (cached) return cached;
 
-  return (res.suggestions || []).map((s) => ({
-    ...s,
-    thumbnail: s.thumbnail ? (resolveAbsoluteMediaUrl(s.thumbnail) ?? s.thumbnail) : null,
-  }));
+  const existing = suggestInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const request = searchFetch<SuggestResponse>(path)
+    .then((res) => {
+      const suggestions = (res.suggestions || []).map((s) => ({
+        ...s,
+        thumbnail: s.thumbnail ? (resolveAbsoluteMediaUrl(s.thumbnail) ?? s.thumbnail) : null,
+      }));
+      setCache(cacheKey, suggestions, SUGGEST_CACHE_TTL_MS);
+      return suggestions;
+    })
+    .finally(() => {
+      suggestInFlight.delete(cacheKey);
+    });
+
+  suggestInFlight.set(cacheKey, request);
+  return request;
 }
 
 // ── Fetch results per entity for tab counts ─────────────────────────────────────
@@ -441,6 +479,54 @@ export async function recordView(item: {
   } catch {
     // Non-critical — silently ignore (user still sees listing)
   }
+}
+
+// ── Dynamic Categories (subcategories from DB) ─────────────────────────────────
+//
+// Production-level: subcategories are fetched live from the DB so any new
+// subcategory added to a model (or posted by a seller) appears in the app
+// immediately — no code change needed.  Mirrors how Flipkart/Amazon work.
+
+export type DynamicCategoryEntry = {
+  entity: string;
+  subcategories: string[];
+};
+
+export type CategoriesResponse = {
+  success: boolean;
+  categories: DynamicCategoryEntry[];
+  source: "cache" | "mongodb";
+};
+
+const CATEGORIES_CACHE_TTL_MS = 10 * 60 * 1000; // 10 min — matches server cache
+const CATEGORIES_CACHE_KEY = "categories:dynamic";
+
+let _categoriesInFlight: Promise<DynamicCategoryEntry[]> | null = null;
+
+/**
+ * Fetch all categories with their live subcategories from the server.
+ * Results are cached in-process for 10 minutes (same TTL as server cache).
+ * Falls back to an empty array on any error — callers should fall back to
+ * the static CATEGORIES constant from @/constants/categories.
+ */
+export async function fetchCategories(): Promise<DynamicCategoryEntry[]> {
+  const cached = getCached<DynamicCategoryEntry[]>(CATEGORIES_CACHE_KEY);
+  if (cached) return cached;
+
+  if (_categoriesInFlight) return _categoriesInFlight;
+
+  _categoriesInFlight = searchFetch<CategoriesResponse>("/api/search/categories")
+    .then((res) => {
+      const data = res.categories ?? [];
+      setCache(CATEGORIES_CACHE_KEY, data, CATEGORIES_CACHE_TTL_MS);
+      return data;
+    })
+    .catch(() => [])
+    .finally(() => {
+      _categoriesInFlight = null;
+    });
+
+  return _categoriesInFlight;
 }
 
 // ── Similar Items ───────────────────────────────────────────────────────────────

@@ -95,6 +95,11 @@ export const CATEGORY_TILE_VISUALS: Record<CategorySlug, CategoryTileVisual> = {
     iconColor: "#EA580C",
     accentOrb: "rgba(253, 186, 140, 0.48)",
   },
+  services: {
+    gradient: ["#F0FBFF", "#D4F2FA", "#B8E8F4"],
+    iconColor: "#0891B2",
+    accentOrb: "rgba(103, 232, 249, 0.4)",
+  },
 };
 
 export type CategoryTileIcon = ComponentProps<typeof MaterialIcons>["name"];

@@ -6,6 +6,7 @@ export type CategorySlug =
   | "vehicles"
   | "takecare"
   | "events"
+  | "services"
   | "properties"
   | "forsale"
   | "mobiles"
@@ -84,6 +85,24 @@ export const CATEGORIES: CategoryConfig[] = [
       "Education",
       "Community",
       "Other",
+    ],
+  },
+  {
+    slug: "services",
+    name: "Services",
+    icon: "home-repair-service",
+    apiPath: "/api/services/listings",
+    subcategories: [
+      "Home Repairs",
+      "Cleaning",
+      "Beauty & Wellness",
+      "Lessons & Tutoring",
+      "Moving & Transport",
+      "Plumbing",
+      "Electrical",
+      "Carpentry & Painting",
+      "IT & Tech Support",
+      "Other Services",
     ],
   },
   {
@@ -429,6 +448,7 @@ export const CONDITION_SKIP_CATEGORIES: CategorySlug[] = [
   "events",
   "properties",
   "takecare",
+  "services",
 ];
 
 /**
@@ -475,7 +495,6 @@ export const FORSALE_SUBCATEGORY_TO_CATEGORY: Record<string, string> = {
   "Ethnic Wear": "Fashion",
   "Sportswear": "Fashion",
   "Winter Wear": "Fashion",
-  "Accessories": "Fashion",
   "Fiction": "Books",
   "Non-Fiction": "Books",
   "Children's Books": "Books",

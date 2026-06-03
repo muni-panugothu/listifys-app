@@ -42,10 +42,13 @@ type SellerListing = {
   _id: string;
   title: string;
   price?: number;
+  currency?: string;
+  countryCode?: string;
   images: string[];
   location?: string;
   condition?: string;
   category?: string;
+  createdAt?: string;
   _listingType: string;
 };
 
@@ -613,6 +616,7 @@ export function SellerPublicProfileScreen() {
                             subtitle={item.condition}
                             price={item.price ?? null}
                             currency={item.currency}
+                            isoCountryCode={item.countryCode}
                             image={item.images?.[0]}
                             createdAt={item.createdAt}
                             width={CARD_WIDTH}

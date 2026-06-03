@@ -114,7 +114,22 @@ exports.getListings = async (req, res) => {
       if (maxPrice) filter['pricing.basePrice'].$lte = Number(maxPrice);
     }
     if (location) filter['location.address'] = { $regex: escapeRegex(location), $options: 'i' };
-    if (countryCode && typeof countryCode === 'string') filter.countryCode = countryCode.toUpperCase().trim();
+    if (countryCode && typeof countryCode === 'string') {
+      const code = countryCode.toUpperCase().trim();
+      // Include listings that match the country OR have no countryCode set (legacy/new without location)
+      const ccOr = [
+        { countryCode: { $regex: new RegExp(`^${code}$`, 'i') } },
+        { countryCode: { $exists: false } },
+        { countryCode: { $in: [null, ''] } },
+      ];
+      if (filter.$or) {
+        // Avoid conflicting top-level $or — combine with $and
+        filter.$and = (filter.$and || []).concat([{ $or: filter.$or }, { $or: ccOr }]);
+        delete filter.$or;
+      } else {
+        filter.$or = ccOr;
+      }
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
     
@@ -244,11 +259,9 @@ exports.createListing = async (req, res) => {
         priceType: normalizedPriceType,
         negotiable: isNegotiable,
       },
-      location: {
-        type: 'Point',
-        coordinates: lat && lng ? [Number(lng), Number(lat)] : undefined,
-        address: location || ''
-      },
+      location: lat && lng
+        ? { type: 'Point', coordinates: [Number(lng), Number(lat)], address: location || '' }
+        : { address: location || '' },
       phone,
       phoneCode,
       currency,
@@ -275,7 +288,7 @@ exports.createListing = async (req, res) => {
       .populate('category', 'name').lean();
       
     normaliseImages(populated);
-    res.status(201).json({ success: true, data: populated });
+    res.status(201).json({ success: true, listing: populated, data: populated });
 
     // ✅ Background via RabbitMQ (non-blocking)
     publishListingCreated({
@@ -287,7 +300,16 @@ exports.createListing = async (req, res) => {
     }).catch(() => {});
   } catch (error) {
     logger.error('Error in createListing:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' || 'Failed to create listing' });
+    console.error('[createListing] Full error stack:', error?.stack);
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({ success: false, message: messages.join('; '), errors: messages });
+    }
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Duplicate entry detected' });
+    }
+    const isDev = process.env.NODE_ENV !== 'production';
+    return res.status(500).json({ success: false, message: error.message || 'Failed to create listing', ...(isDev ? { stack: error.stack } : {}) });
   }
 };
 

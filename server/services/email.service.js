@@ -1110,6 +1110,117 @@ async function sendAccountActionEmail(email, username, action) {
   }
 }
 
+// ── Email-change: OTP to NEW address ────────────────────────────────────────
+function getEmailChangeOTPTemplate(username, otpCode, newEmail) {
+  return `<!DOCTYPE html><html><head><style>
+    body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background:#f5f5f5}
+    .container{max-width:600px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1)}
+    .header{background:linear-gradient(135deg,#27bb97 0%,#1fa987 100%);color:white;padding:40px 20px;text-align:center}
+    .header h1{margin:0;font-size:28px;font-weight:600}
+    .content{padding:40px;background:#fff}
+    .brand{font-weight:bold;color:#27bb97;font-size:18px;margin-bottom:10px}
+    .otp-container{text-align:center;margin:30px 0}
+    .otp-code{background:#27bb97;color:white;padding:20px;font-size:32px;font-weight:bold;text-align:center;letter-spacing:8px;border-radius:8px;margin:20px auto;display:inline-block;min-width:200px;box-shadow:0 4px 15px rgba(39,187,151,.3)}
+    .expiry{color:#666;font-style:italic;margin:10px 0}
+    .security-note{background:#fff8e1;padding:20px;border-left:4px solid #ffc107;border-radius:4px;margin:30px 0;font-size:14px}
+    .security-note h3{color:#d97706;margin-top:0}
+    .footer{text-align:center;padding:20px;color:#666;font-size:12px;border-top:1px solid #eee;background:#f9f9f9}
+  </style></head><body>
+    <div class="container">
+      <div class="header"><h1>Verify Your New Email</h1></div>
+      <div class="content">
+        <div class="brand">Listifys</div>
+        <h2 style="color:#333;margin-bottom:20px">Hello ${username}!</h2>
+        <p style="font-size:16px;color:#555;margin-bottom:25px">
+          You requested to change your email address to <strong>${newEmail}</strong>.
+          Enter the OTP below to confirm this change.
+        </p>
+        <div class="otp-container">
+          <p style="margin-bottom:15px;color:#666">Your verification code:</p>
+          <div class="otp-code">${otpCode}</div>
+          <p class="expiry">⏰ Expires in 5 minutes</p>
+        </div>
+        <div class="security-note">
+          <h3>🔒 Security Notice:</h3>
+          <ul style="margin:10px 0;padding-left:20px">
+            <li>Never share this code with anyone</li>
+            <li>This code expires in 5 minutes and can only be used once</li>
+            <li>If you did not request this change, please secure your account immediately</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer"><p>&copy; ${new Date().getFullYear()} Listifys. All rights reserved.</p></div>
+    </div>
+  </body></html>`;
+}
+
+// ── Email-change: security alert to OLD address ──────────────────────────────
+function getEmailChangeAlertTemplate(username, oldEmail, newEmail, ipAddress, timestamp) {
+  const time = new Date(timestamp).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+  return `<!DOCTYPE html><html><head><style>
+    body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background:#f5f5f5}
+    .container{max-width:600px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1)}
+    .header{background:linear-gradient(135deg,#DC2626 0%,#B91C1C 100%);color:white;padding:40px 20px;text-align:center}
+    .header h1{margin:0;font-size:28px;font-weight:600}
+    .content{padding:40px;background:#fff}
+    .brand{font-weight:bold;color:#27bb97;font-size:18px;margin-bottom:10px}
+    .alert-box{background:#FEF2F2;padding:20px;border-left:4px solid #EF4444;border-radius:4px;margin:20px 0;font-size:14px}
+    .detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px}
+    .footer{text-align:center;padding:20px;color:#666;font-size:12px;border-top:1px solid #eee;background:#f9f9f9}
+  </style></head><body>
+    <div class="container">
+      <div class="header"><h1>⚠️ Email Change Requested</h1></div>
+      <div class="content">
+        <div class="brand">Listifys</div>
+        <h2 style="color:#333;margin-bottom:20px">Hello ${username},</h2>
+        <p style="font-size:16px;color:#555;">
+          A request was made to change the email address on your Listifys account.
+        </p>
+        <div class="alert-box">
+          <strong>Change details:</strong><br>
+          <div class="detail-row"><span>Old email:</span><span>${oldEmail}</span></div>
+          <div class="detail-row"><span>New email:</span><span>${newEmail}</span></div>
+          <div class="detail-row"><span>Requested at:</span><span>${time}</span></div>
+          <div class="detail-row"><span>IP Address:</span><span>${ipAddress || 'Unknown'}</span></div>
+        </div>
+        <p style="font-size:15px;color:#374151;">
+          <strong>If this was you</strong>, you may ignore this email — your new address must still be verified.<br><br>
+          <strong>If you did NOT request this change</strong>, your account may be compromised.
+          Please change your password immediately and contact support.
+        </p>
+      </div>
+      <div class="footer"><p>&copy; ${new Date().getFullYear()} Listifys. All rights reserved.</p></div>
+    </div>
+  </body></html>`;
+}
+
+async function sendEmailChangeOTP(newEmail, username, otp) {
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+    to: newEmail,
+    subject: 'Listifys — Verify your new email address',
+    html: getEmailChangeOTPTemplate(username, otp, newEmail),
+  });
+  logger.info('Email-change OTP sent', { to: newEmail });
+}
+
+async function sendEmailChangeAlert(oldEmail, username, newEmail, ipAddress, timestamp) {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      to: oldEmail,
+      subject: 'Listifys — Email change requested on your account',
+      html: getEmailChangeAlertTemplate(username, oldEmail, newEmail, ipAddress, timestamp),
+    });
+    logger.info('Email-change alert sent to old address', { to: oldEmail });
+  } catch (err) {
+    // Non-fatal — old address may be undeliverable
+    logger.warn('Email-change alert failed (non-fatal)', { error: err.message });
+  }
+}
+
 module.exports = {
   sendOTPEmail,
   sendForgotPasswordOTPEmail,
@@ -1118,5 +1229,8 @@ module.exports = {
   sendOfferNotificationEmail,
   sendWelcomeEmail,
   sendAccountActionEmail,
+  sendEmailChangeOTP,
+  sendEmailChangeAlert,
 };
+
 

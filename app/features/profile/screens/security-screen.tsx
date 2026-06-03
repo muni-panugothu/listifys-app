@@ -240,7 +240,7 @@ export function SecurityScreen() {
               </View>
             </View>
             <Pressable
-              onPress={() => router.push("/profile-details-edit" as Href)}
+              onPress={() => router.push("/change-phone" as Href)}
               className="rounded-full border border-[#27BB97] px-4 py-2"
             >
               <Text

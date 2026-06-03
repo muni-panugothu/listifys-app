@@ -61,6 +61,7 @@ export type ListingItem = {
   subcategory?: string;
   condition?: string;
   location?: string;
+  countryCode?: string;
   images: string[];
   sellerName?: string;
   seller?: {
@@ -82,6 +83,8 @@ export type ListingItem = {
   color?: string;
   year?: number;
   mileage?: string;
+  kmDriven?: string;
+  mileageUnit?: "km" | "mi" | string;
   fuelType?: string;
   transmission?: string;
   bedrooms?: number;
@@ -210,6 +213,8 @@ export async function fetchHomeFeed(params?: {
     `lat:${params?.lat ?? ""}`,
     `lng:${params?.lng ?? ""}`,
     `loc:${encodeURIComponent(params?.location ?? "")}`,
+    `radius:${params?.radius ?? ""}`,
+    `cc:${params?.countryCode ?? ""}`,
   ].join(":");
 
   return withCache(
@@ -363,13 +368,21 @@ export async function fetchCategoryListings(
     cacheKey,
     async () => {
       const data = await apiRequest<ListingsResponse>(
-        `/api/${categorySlug}${qs ? `?${qs}` : ""}`,
+        `${categoryApiBase(categorySlug)}${qs ? `?${qs}` : ""}`,
       );
       data.listings = (data.listings || []).map(normaliseListingImages);
       return data;
     },
     60_000,
   );
+}
+
+// ── Category API base path helper ─────────────────────────────────────────────
+// Services listings live under /api/services/listings (not /api/services).
+
+function categoryApiBase(categorySlug: CategorySlug): string {
+  if (categorySlug === "services") return "/api/services/listings";
+  return `/api/${categorySlug}`;
 }
 
 // ── Single Listing Detail ──────────────────────────────────────────────────────
@@ -382,7 +395,7 @@ export async function fetchListingById(
     cacheKeys.listingDetail(categorySlug, id),
     async () => {
       const data = await apiRequest<SingleListingResponse>(
-        `/api/${categorySlug}/${id}`,
+        `${categoryApiBase(categorySlug)}/${id}`,
       );
       if (data.listing) {
         data.listing = normaliseListingImages(data.listing);
@@ -399,7 +412,7 @@ export async function createListing(
   categorySlug: CategorySlug,
   body: Record<string, unknown>,
 ): Promise<CreateListingResponse> {
-  const result = await apiRequest<CreateListingResponse>(`/api/${categorySlug}`, {
+  const result = await apiRequest<CreateListingResponse>(categoryApiBase(categorySlug), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -417,7 +430,7 @@ export async function updateListing(
   id: string,
   body: Record<string, unknown>,
 ): Promise<CreateListingResponse> {
-  const result = await apiRequest<CreateListingResponse>(`/api/${categorySlug}/${id}`, {
+  const result = await apiRequest<CreateListingResponse>(`${categoryApiBase(categorySlug)}/${id}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -434,7 +447,7 @@ export async function deleteListing(
   categorySlug: CategorySlug,
   id: string,
 ): Promise<{ success: boolean; message: string }> {
-  const result = await apiRequest<{ success: boolean; message: string }>(`/api/${categorySlug}/${id}`, { method: "DELETE" });
+  const result = await apiRequest<{ success: boolean; message: string }>(`${categoryApiBase(categorySlug)}/${id}`, { method: "DELETE" });
   invalidateCache(cacheKeys.listingDetail(categorySlug, id));
   invalidateCache(`list:${categorySlug}`);
   invalidateCache("feed:");
@@ -448,9 +461,40 @@ export async function toggleSaveListing(
   categorySlug: CategorySlug,
   id: string,
 ): Promise<{ success: boolean; saved: boolean }> {
-  return apiRequest(`/api/${categorySlug}/${id}/toggle-save`, {
+  return apiRequest(`${categoryApiBase(categorySlug)}/${id}/toggle-save`, {
     method: "POST",
   });
+}
+
+// ── Service Listings (different route pattern: /api/services/listings) ─────────
+
+export async function fetchServiceListings(params?: {
+  subcategory?: string;
+  search?: string;
+  location?: string;
+  lat?: number;
+  lng?: number;
+  radius?: number;
+  countryCode?: string | null;
+  page?: number;
+  limit?: number;
+}): Promise<{ listings: ListingItem[]; total: number }> {
+  const query = new URLSearchParams();
+  if (params?.subcategory) query.set("subcategory", params.subcategory);
+  if (params?.search) query.set("search", params.search);
+  if (params?.location) query.set("location", params.location);
+  if (params?.lat != null) query.set("lat", String(params.lat));
+  if (params?.lng != null) query.set("lng", String(params.lng));
+  if (params?.radius != null) query.set("radius", String(params.radius));
+  if (params?.countryCode) query.set("countryCode", params.countryCode);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  const res = await apiRequest<{ success: boolean; data: ListingItem[]; pagination?: { total: number } }>(
+    `/api/services/listings${qs ? `?${qs}` : ""}`,
+  );
+  const items = (res.data ?? []).map(normaliseListingImages);
+  return { listings: items, total: res.pagination?.total ?? items.length };
 }
 
 // ── Image Moderation ──────────────────────────────────────────────────────────
@@ -547,7 +591,7 @@ export async function uploadListingImages(
     return formData;
   };
 
-  const url = `${AUTH_API_BASE_URL}/api/${categorySlug}/upload-images`;
+  const url = `${AUTH_API_BASE_URL}${categoryApiBase(categorySlug)}/upload-images`;
 
   const doUpload = async () => {
     const token = getAccessToken();
@@ -611,14 +655,16 @@ export type RecentlyViewedItem = {
   _id: string;
   title: string;
   price?: number;
+  currency?: string;
   images: string[];
   category: string;
+  countryCode?: string;
   createdAt?: string;
   sellerId?: string;
   viewedAt: number;
   /** The user's location label at the moment the item was viewed. */
   viewedLocation?: string;
-  /** ISO 3166-1 alpha-2 country code at the time of viewing (e.g. "US", "IN"). */
+  /** Listing ISO 3166-1 alpha-2 country code (e.g. "US", "IN"). */
   isoCountryCode?: string;
 };
 
@@ -640,13 +686,15 @@ export async function addToRecentlyViewed(
       _id: item._id,
       title: item.title,
       price: item.price,
+      currency: item.currency,
       images: item.images,
       category: item.category,
       createdAt: item.createdAt,
       sellerId: getListingSellerId(item) ?? undefined,
       viewedAt: Date.now(),
       viewedLocation: locationLabel || undefined,
-      isoCountryCode: isoCountryCode ?? undefined,
+      countryCode: item.countryCode ?? isoCountryCode ?? undefined,
+      isoCountryCode: item.countryCode ?? isoCountryCode ?? undefined,
     });
     await AsyncStorage.setItem(
       RECENTLY_VIEWED_KEY,
@@ -699,7 +747,8 @@ export async function getRecentlyViewed(isoCountryCode?: string | null): Promise
     // excluded so cross-country pollution does not surface).
     return items.filter((i) => {
       if (now - i.viewedAt >= TWO_DAYS_MS) return false;
-      if (isoCountryCode && i.isoCountryCode !== isoCountryCode) return false;
+      const itemCountryCode = i.countryCode ?? i.isoCountryCode;
+      if (isoCountryCode && itemCountryCode !== isoCountryCode) return false;
       return true;
     });
   } catch {

@@ -279,6 +279,7 @@ const FIELD_ENUMS = {
   fuelType: ['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid', 'LPG'],
   transmission: ['Manual', 'Automatic'],
   ownership: ['1st Owner', '2nd Owner', '3rd Owner', '4th+ Owner'],
+  mileageUnit: ['km', 'mi', ''],
   assemblyRequired: ['Yes', 'No', ''],
   gender: ['Men', 'Women', 'Kids', 'Unisex', ''],
   cycleType: ['Mountain', 'Road', 'Hybrid', 'BMX', 'Kids', 'Folding', 'Electric', 'Cruiser'],
@@ -314,7 +315,7 @@ exports.validateListingInput = (req, res, next) => {
     // Common
     'title', 'description', 'location', 'phone', 'category', 'subcategory', 'condition',
     // Vehicle-specific
-    'brand', 'model', 'variant', 'year', 'kmDriven', 'fuelType', 'transmission',
+    'brand', 'model', 'variant', 'year', 'kmDriven', 'mileageUnit', 'fuelType', 'transmission',
     'ownership', 'color', 'engineCC', 'cycleType', 'gearCount', 'frameSize',
     'compatibleVehicle', 'partCategory',
     // ForSale (Mobiles / Furniture / Fashion / Books,Sports)
@@ -446,6 +447,9 @@ exports.validateListingInput = (req, res, next) => {
   }
   if (body.ownership && !FIELD_ENUMS.ownership.includes(body.ownership)) {
     errors.ownership = `Ownership must be one of: ${FIELD_ENUMS.ownership.join(', ')}`;
+  }
+  if (body.mileageUnit && !FIELD_ENUMS.mileageUnit.includes(body.mileageUnit)) {
+    errors.mileageUnit = 'Mileage unit must be km or mi';
   }
   if (body.assemblyRequired && !FIELD_ENUMS.assemblyRequired.includes(body.assemblyRequired)) {
     errors.assemblyRequired = `Assembly required must be one of: ${FIELD_ENUMS.assemblyRequired.filter(Boolean).join(', ')}`;

@@ -5,7 +5,7 @@
 const Joi = require('joi');
 const { mongoId, validate } = require('./common');
 
-const PRICE_TYPES = ['fixed', 'Fixed', 'Hourly', 'hourly', 'Daily', 'daily', 'Per Visit', 'Per Project', 'Monthly', 'monthly', 'Negotiable', 'project', 'weekly'];
+const PRICE_TYPES = ['fixed', 'Fixed', 'Hourly', 'hourly', 'Daily', 'daily', 'Per Visit', 'Per Project', 'Monthly', 'monthly', 'Negotiable', 'project', 'weekly', 'Per Hour', 'Per Day', 'Per Month', 'Fixed Quote'];
 const STATUS_VALUES = ['active', 'inactive', 'suspended', 'expired'];
 const VISIBILITY_VALUES = ['public', 'private'];
 const RECURRING_VALUES = ['none', 'daily', 'weekly', 'monthly'];
@@ -101,6 +101,7 @@ const createServiceListingSchema = Joi.object({
   tags: Joi.array().items(Joi.string().trim().max(50)).max(15),
   visibility: Joi.string().valid(...VISIBILITY_VALUES).default('public'),
   specifications: Joi.object().pattern(Joi.string(), Joi.any()).optional(),
+  countryCode: Joi.string().trim().max(10).allow('').optional(),
 });
 
 const updateServiceListingSchema = createServiceListingSchema.fork(
@@ -124,6 +125,7 @@ const queryServiceListingSchema = Joi.object({
   radius: Joi.number().min(0).max(50000).default(5000),
   location: Joi.string().trim().max(200).allow(''),
   activeOnly: Joi.string().valid('true', 'false').allow(''),
+  countryCode: Joi.string().trim().max(10).allow('').optional(),
 }).unknown(false);
 
 const paramsIdSchema = Joi.object({

@@ -3,6 +3,7 @@ import { TopSaveToast } from "@/components/top-save-toast";
 import { PageTransitionLoader } from "@/components/page-transition-loader";
 import { NetworkStatusLayer } from "@/lib/network-status-layer";
 import { subscribeToasts, type AppToastPayload } from "@/lib/toast";
+import { initOfflineQueue } from "@/lib/offline-queue";
 import {
     DarkTheme,
     DefaultTheme,
@@ -23,9 +24,11 @@ import { LocaleProvider } from "@/providers/locale-provider";
 import { TypographyProvider } from "@/providers/typography-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
+import { logout } from "@/store/slices/auth-slice";
 import { store } from "@/store";
 import { registerBackgroundCallHandler } from "@/lib/firebase-messaging";
 import { NotificationProvider } from "@/providers/notification-provider";
+import { getSocket, disconnectSocket } from "@/features/messaging/services/socket-service";
 
 // Register FCM background handler before any component renders (module-level)
 // Wrapped in try/catch — fails gracefully if google-services.json is missing.
@@ -152,6 +155,11 @@ function AppLayout() {
     return unsubscribe;
   }, []);
 
+  // Initialise offline queue — loads persisted items from AsyncStorage on mount.
+  useEffect(() => {
+    void initOfflineQueue();
+  }, []);
+
   // ── Attach call socket listeners after session hydration ─────────────────
   // We wait for sessionHydrated + isAuthenticated so the socket connects with
   // a valid (or freshly-refreshed) access token instead of an expired one.
@@ -165,6 +173,28 @@ function AppLayout() {
     // FCM token registration + foreground message handler are managed
     // by the useNotifications hook inside NotificationProvider.
   }, [sessionHydrated, isAuthenticated]);
+
+  // ── Real-time force-logout listener ───────────────────────────────────────
+  // The server emits `auth:force_logout` to the user's socket room whenever
+  // `POST /api/auth/logout-all` is called from another device.
+  // We listen here (in the root layout) so ALL screens are covered.
+  useEffect(() => {
+    if (!sessionHydrated || !isAuthenticated) return;
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleForceLogout = () => {
+      disconnectSocket();
+      dispatch(logout());
+      router.replace('/sign-in' as Href);
+    };
+
+    socket.on('auth:force_logout', handleForceLogout);
+    return () => {
+      socket.off('auth:force_logout', handleForceLogout);
+    };
+  }, [sessionHydrated, isAuthenticated, dispatch, router]);
 
   const handleCloseAuthGate = useCallback(() => {
     dispatch(hideAuthGate());

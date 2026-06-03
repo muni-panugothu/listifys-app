@@ -113,6 +113,12 @@ const vehicleSchema = new mongoose.Schema(
       trim: true,
       maxlength: [30, "KM driven cannot exceed 30 characters"],
     },
+    mileageUnit: {
+      type: String,
+      trim: true,
+      enum: ["km", "mi", ""],
+      default: "km",
+    },
     fuelType: {
       type: String,
       trim: true,

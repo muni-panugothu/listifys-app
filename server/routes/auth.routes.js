@@ -122,6 +122,16 @@ router.post("/google/token", authController.googleTokenAuth);
 router.post("/phone/send-otp", authController.phoneSendOTP);
 router.post("/phone/verify-otp", authController.phoneVerifyOTP);
 
+// ==================== Recovery phone update (authenticated) ====================
+router.post("/phone/update-send-otp", protect, authController.recoveryPhoneSendOTP);
+router.post("/phone/update-verify-otp", protect, authController.recoveryPhoneVerifyOTP);
+
+// ==================== Primary email / phone change (OTP-verified) ====================
+router.post("/email/change-request", protect, authController.requestEmailChange);
+router.post("/email/change-verify",  protect, authController.verifyEmailChange);
+router.post("/phone/change-request", protect, authController.requestPhoneChange);
+router.post("/phone/change-verify",  protect, authController.verifyPhoneChange);
+
 // ==================== Existing routes ====================
 router.post("/login", validateLogin, authController.login);
 router.post(

@@ -95,14 +95,13 @@ const serviceCategorySchema = new mongoose.Schema({
 });
 
 // Pre-save middleware to generate slug
-serviceCategorySchema.pre('save', function(next) {
-  if (this.isModified('name')) {
+serviceCategorySchema.pre('save', async function() {
+  if (this.isModified('name') || !this.slug) {
     this.slug = this.name
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
       .replace(/\s+/g, '-');
   }
-  next();
 });
 
 module.exports = mongoose.model('ServiceCategory', serviceCategorySchema);

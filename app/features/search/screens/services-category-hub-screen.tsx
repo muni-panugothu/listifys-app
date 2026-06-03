@@ -1,471 +1,412 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+﻿import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "@/lib/safe-router";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { VoiceSearchModal } from "@/components/voice-search-modal";
+import { CATEGORIES } from "@/constants/categories";
+import { ListifyFonts, ListifyTypography } from "@/constants/typography";
+import {
+  fetchServiceListings,
+  toggleSaveListing,
+  type ListingItem,
+} from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { Image } from "@/lib/nativewind-interop";
-import { useTabNavigation } from "@/lib/use-tab-navigation";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
+import { useAppSelector } from "@/store/hooks";
+import {
+  selectIsoCountryCode,
+  selectLocationCoords,
+  selectLocationLabel,
+} from "@/store/slices/location-slice";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
+import { useTabNavigation } from "@/lib/use-tab-navigation";
 
-type ServiceCategory = {
-  id: string;
-  title: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-  iconBg: string;
-  iconColor: string;
-};
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const BRAND = "#27BB97";
+const BG = "#F6F7F8";
+const GRID_GUTTER = 14;
+const GRID_SIDE_PADDING = 16;
+const CARD_WIDTH = (SCREEN_WIDTH - GRID_SIDE_PADDING * 2 - GRID_GUTTER) / 2;
 
-type ProfessionalCard = {
-  id: string;
-  name: string;
-  subtitle: string;
-  rating: string;
-  price: string;
-  unit: string;
-  image: string;
-  topRated?: boolean;
-};
+const SERVICE_FILTERS = [
+  { key: "top_rated",  label: "Top Rated",       icon: "star"         as const },
+  { key: "available", label: "Available Now",   icon: "bolt"         as const },
+  { key: "budget",    label: "Budget Friendly", icon: "savings"      as const },
+  { key: "latest",    label: "Latest",          icon: "schedule"     as const },
+] as const;
 
-const CONTAINER_PADDING = 16;
-const GRID_GAP = 12;
-
-const serviceCategories: ServiceCategory[] = [
-  {
-    id: "home-repairs",
-    title: "Home Repairs",
-    icon: "home-repair-service",
-    iconBg: "#FFF7ED",
-    iconColor: "#F97316",
-  },
-  {
-    id: "cleaning",
-    title: "Cleaning",
-    icon: "cleaning-services",
-    iconBg: "#EFF6FF",
-    iconColor: "#3B82F6",
-  },
-  {
-    id: "beauty",
-    title: "Beauty",
-    icon: "face-retouching-natural",
-    iconBg: "#FDF2F8",
-    iconColor: "#EC4899",
-  },
-  {
-    id: "lessons",
-    title: "Lessons",
-    icon: "school",
-    iconBg: "#FEFCE8",
-    iconColor: "#CA8A04",
-  },
-  {
-    id: "moving",
-    title: "Moving",
-    icon: "local-shipping",
-    iconBg: "#FAF5FF",
-    iconColor: "#A855F7",
-  },
-  {
-    id: "more",
-    title: "More",
-    icon: "more-horiz",
-    iconBg: "#F8FAFC",
-    iconColor: "#64748B",
-  },
+const SERVICE_SUBCATEGORIES = [
+  "All",
+  ...( CATEGORIES.find((c) => c.slug === "services")?.subcategories ?? []),
 ];
-
-const featuredProfessionals: ProfessionalCard[] = [
-  {
-    id: "amit-home-fix",
-    name: "Amit's Home Fix",
-    subtitle: "Plumbing & Electrical",
-    rating: "4.9",
-    price: "₹499",
-    unit: "/ per visit",
-    topRated: true,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuC656NZRT5tfeOeGDSmYyblDMfhkUstZRIN1ioy2xQCS8yI7_RF4d0fPKN0VYwcmGkogX85-ZUHSAxmFkzUoy2a2MVB7qZk5InMNL6Krnmk4sV9-OaybnJqCnlG51bwrgB_3BIHpWGby2YEAEBKImf_RCpkwkOkSBR7IqczYAgXXJD37ttEfiQQd7JTjvFsea4uKGYAsqlnZgxxrbsyVBawCyCZKH8WTPm4YGOq9hAhBQQgtfxaUa0GRXy7eaSVdbJ0REXUVQgHIKA",
-  },
-  {
-    id: "pristine-cleaners",
-    name: "Pristine Cleaners",
-    subtitle: "Deep House Cleaning",
-    rating: "4.8",
-    price: "₹1,299",
-    unit: "/ session",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBe0CDfy2_s56CJFW4z6PgMHbhIy5bCAEJPpKn-Y7PQ-mcJdsO7L49UHFxV6lrgVAMdJhbOn-wSErSrcqRdFiJg7l4aZVEhCLDb7uSGOmPlkRJELNRAW5B4_hoJBXB3m21S7h2ccZnzk4EOQ2mR46mBVSLoXY2O10TB-sCa2GtmGH72BLSlCXjinMag6zse2rQ5mmUNCbm1rkbKeMAdV0PsDsaeSzR1YYA57Nfk7Sk7Upu7Ogq9YdrAFmQxBUVWjfJbJq90VmVnrbE",
-  },
-];
-
-const seasonalPromoImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDdKp2gedTW5TK1ecawpDBHA_UJuCEOsLAlIQUUL8Fjl0mwdAadZbmTBdsHq71YhJdXiJDtlz22rx8I7k_pJlStDHGO6t_63Pm1arJOVR4nsecWduuOrnsG-x1irl_UPMazZO_DGJYt_z5eSgSIy0Q0pu06N6Rf7TUzIof9tY54ryKd3apUyuQBpItDmLrO-m3FppFARA4kp2aCOBRZlcE5AGnh4muKPJuHEqkm6RjNC9iJ7ElJcFDnI9JTmkMPsMx_aynvUZ24n4M";
 
 export function ServicesCategoryHubScreen() {
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState("");
-  const { refreshing, onRefresh } = usePullToRefresh();
-
-  const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
-  const bottomNavPadding = Math.max(insets.bottom, 8);
-  const categoryCardWidth = useMemo(
-    () => (screenWidth - CONTAINER_PADDING * 2 - GRID_GAP) / 2,
-    [screenWidth],
-  );
-
-  const openSearchResults = (value: string) => {
-    router.push({
-      pathname: "/search-results-entity-tabs",
-      params: { q: value },
-    });
-  };
-
-  const openServiceCategory = (name: string) => {
-    const listingTitle =
-      name === "Home Repairs" ? "Plumbing Services" : `${name} Services`;
-
-    router.push({
-      pathname: "/service-listing-grid",
-      params: { title: listingTitle },
-    });
-  };
-
+  const user = useAppSelector((s) => s.auth.user);
+  const userCoords = useAppSelector(selectLocationCoords);
+  const locationLabel = useAppSelector(selectLocationLabel);
+  const rawCountryCode = useAppSelector(selectIsoCountryCode);
+  const hasLocation = userCoords.lat != null && userCoords.lng != null;
+  const isoCountryCode = hasLocation ? rawCountryCode : null;
   const handleBottomTabPress = useTabNavigation();
 
-  return (
-    <View className="flex-1 bg-[#F6F7F8]">
-      {/* ===== TOP APP BAR ===== */}
-      <View
-        className="absolute inset-x-0 top-0 z-50 border-b border-slate-100 bg-white/80 px-4"
-        style={{
-          paddingTop: insets.top,
-          height: topBarHeight,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-          elevation: 2,
-        }}
-      >
-        <View className="h-16 flex-row items-center justify-between">
-          <Pressable
-            className="flex-row items-center gap-2"
-            onPress={() => router.back()}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <MaterialIcons name="storefront" size={24} color="#27BB97" />
-            <Text className="text-[20px] font-black tracking-tight text-[#27BB97]">
-              Listify
-            </Text>
-          </Pressable>
+  const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("All");
+  const [activeFilter, setActiveFilter] = useState<string>("top_rated");
+  const [listings, setListings] = useState<ListingItem[]>([]);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [voiceVisible, setVoiceVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  const headerHeight = insets.top + 12 + 52;
+  const categoryTabsHeight = 52;
+  const stickyOffset = headerHeight + categoryTabsHeight;
+
+  const cityName = useMemo(() => {
+    if (!locationLabel || locationLabel === "Set location" || locationLabel.startsWith("Detecting")) return null;
+    return locationLabel.split(",")[0].trim() || null;
+  }, [locationLabel]);
+
+  const loadListings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchServiceListings({
+        subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
+        search: appliedSearch.trim() || undefined,
+        lat: hasLocation ? userCoords.lat! : undefined,
+        lng: hasLocation ? userCoords.lng! : undefined,
+        radius: hasLocation ? 100 : undefined,
+        countryCode: isoCountryCode,
+      });
+      const items = res.listings ?? [];
+      setListings(items);
+      if (user?.id) {
+        const saved = new Set<string>();
+        for (const item of items) {
+          if (item.savedBy?.includes(user.id)) saved.add(item._id);
+        }
+        setSavedIds(saved);
+      }
+    } catch {
+      setListings((prev) => (prev.length > 0 ? prev : []));
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedSearch, isoCountryCode, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng, hasLocation]);
+
+  useEffect(() => {
+    void loadListings();
+  }, [loadListings]);
+
+  const isMounted = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (isMounted.current) {
+        void loadListings();
+      } else {
+        isMounted.current = true;
+      }
+    }, [loadListings]),
+  );
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadListings);
+
+  const displayListings = useMemo(() => {
+    let items = [...listings];
+
+    if (activeFilter === "top_rated") {
+      items.sort((a, b) => Number((b as any).rating ?? 0) - Number((a as any).rating ?? 0));
+    } else if (activeFilter === "available") {
+      items = items.filter((item) => (item as any).isAvailable !== false);
+    } else if (activeFilter === "budget") {
+      items.sort((a, b) => Number(a.price ?? 1e12) - Number(b.price ?? 1e12));
+    } else if (activeFilter === "latest") {
+      items.sort((a, b) => {
+        const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bt - at;
+      });
+    }
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      items = items.filter(
+        (item) =>
+          item.title?.toLowerCase().includes(q) ||
+          item.location?.toLowerCase().includes(q) ||
+          item.subcategory?.toLowerCase().includes(q),
+      );
+    }
+    return items;
+  }, [activeFilter, listings, searchQuery]);
+
+  const handleToggleSave = useCallback(async (id: string) => {
+    try {
+      const res = await toggleSaveListing("services", id);
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        if (res.saved) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const listingRows = useMemo(() => {
+    const rows: ListingItem[][] = [];
+    for (let i = 0; i < displayListings.length; i += 2) {
+      rows.push(displayListings.slice(i, i + 2));
+    }
+    return rows;
+  }, [displayListings]);
+
+  const handleVoiceResult = useCallback((text: string) => {
+    setSearchQuery(text);
+    setAppliedSearch(text);
+  }, []);
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: BG }}>
+      <VoiceSearchModal
+        visible={voiceVisible}
+        onResult={handleVoiceResult}
+        onClose={() => setVoiceVisible(false)}
+      />
+      {/* ── Top bar: back arrow + search ── */}
+      <View
+        className="absolute inset-x-0 top-0 z-50 px-4"
+        style={{ paddingTop: insets.top + 8, height: headerHeight, backgroundColor: BG }}
+      >
+        <View className="h-11 flex-row items-center gap-3">
           <Pressable
-            className="rounded-full p-2"
+            onPress={() => router.back()}
+            hitSlop={12}
+            className="h-10 w-10 items-center justify-center"
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <MaterialIcons name="notifications" size={24} color="#64748B" />
+            <MaterialIcons name="arrow-back-ios" size={20} color="#1A1A1A" />
           </Pressable>
+          <View
+            className="h-17 flex-1 flex-row items-center rounded-full border border-[#E8E8E8] bg-white px-4"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.04,
+              shadowRadius: 6,
+              elevation: 1,
+            }}
+          >
+            <MaterialIcons name="search" size={22} color="#B8B8B8" />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={() => setAppliedSearch(searchQuery.trim())}
+              returnKeyType="search"
+              placeholder="Search services…"
+              placeholderTextColor="#B0B0B0"
+              className="ml-3 flex-1 text-[15px] text-[#1A1A1A]"
+              style={{ fontFamily: ListifyFonts.regular, paddingVertical: 0 }}
+            />
+            {searchQuery.length > 0 ? (
+              <Pressable
+                onPress={() => { setSearchQuery(""); setAppliedSearch(""); }}
+                hitSlop={8}
+              >
+                <MaterialIcons name="close" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setVoiceVisible(true)}
+                hitSlop={8}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              >
+                <MaterialIcons name="mic" size={20} color="#9CA3AF" />
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
 
-      {/* ===== SCROLLABLE CONTENT ===== */}
+      {/* ── Subcategory chips (bold, Vehicles style) ── */}
+      <View
+        className="absolute inset-x-0 z-40 bg-[#F6F7F8]"
+        style={{ top: headerHeight, height: categoryTabsHeight }}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: GRID_SIDE_PADDING,
+            paddingVertical: 10,
+            gap: 20,
+            alignItems: "center",
+          }}
+        >
+          {SERVICE_SUBCATEGORIES.map((chip) => {
+            const isActive = selectedSubcategory === chip;
+            return (
+              <Pressable
+                key={chip}
+                onPress={() => setSelectedSubcategory(chip)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+              >
+                <Text
+                  className="text-[22px] tracking-tight"
+                  style={{
+                    fontFamily: ListifyFonts.bold,
+                    color: isActive ? "#1A1A1A" : "#C8CDD2",
+                  }}
+                >
+                  {chip}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* ── Listings ── */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#27BB97"]}
-            tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
+            colors={[BRAND]}
+            tintColor={BRAND}
+            progressViewOffset={stickyOffset}
           />
         }
         contentContainerStyle={{
-          paddingTop: topBarHeight + 20,
-          paddingBottom: 88 + bottomNavPadding,
-          paddingHorizontal: CONTAINER_PADDING,
+          paddingTop: stickyOffset + 8,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
         }}
       >
-        {/* Local Services Header & Location */}
-        <View className="mb-6">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-[24px] font-bold tracking-tight text-[#161D1A]">
-              Local Services
-            </Text>
-            <Pressable className="flex-row items-center gap-1">
-              <MaterialIcons name="location-on" size={18} color="#005FB0" />
-              <Text className="text-[12px] font-medium tracking-wide text-[#005FB0]">
-                Bangalore, KA
-              </Text>
-            </Pressable>
-          </View>
-          <Text className="mt-1 text-[14px] text-[#3C4A44]">
-            Find trusted professionals for every task.
-          </Text>
-        </View>
-
-        {/* Search Bar */}
-        <View className="relative mb-6">
-          <View className="pointer-events-none absolute bottom-0 left-4 top-0 z-10 justify-center">
-            <MaterialIcons name="search" size={24} color="#6C7A74" />
-          </View>
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            onSubmitEditing={() =>
-              openSearchResults(query.trim() || "Services")
-            }
-            placeholder="Search for cleaning, repairs, etc."
-            placeholderTextColor="#6C7A74"
-            className="h-12 rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-[#161D1A]"
-            style={{
-              paddingVertical: 0,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.04,
-              shadowRadius: 2,
-              elevation: 1,
-            }}
-          />
-        </View>
-
-        {/* Safety Guarantee Banner */}
-        <View
-          className="mb-6 flex-row items-start gap-3 rounded-xl border p-4"
-          style={{
-            borderColor: "rgba(0,95,176,0.2)",
-            backgroundColor: "rgba(0,95,176,0.1)",
-            shadowColor: "#005FB0",
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.12,
-            shadowRadius: 20,
-            elevation: 2,
-          }}
+        {/* Professional filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="mb-5"
+          contentContainerStyle={{ paddingHorizontal: GRID_SIDE_PADDING, paddingVertical: 4, gap: 10 }}
         >
-          <View className="rounded-lg bg-[#005FB0] p-2">
-            <MaterialIcons name="verified-user" size={20} color="#FFFFFF" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-[18px] font-semibold leading-6 text-[#005FB0]">
-              Safety Guarantee
-            </Text>
-            <Text className="mt-1 text-[12px] font-medium tracking-wide text-[#005FB0]/80">
-              Every service is backed by our ₹50k insurance and verified
-              experts.
-            </Text>
-          </View>
-        </View>
-
-        {/* Explore Categories */}
-        <View className="mb-6">
-          <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
-              Explore Categories
-            </Text>
-            <Pressable onPress={() => openSearchResults("Services")}>
-              <Text className="text-[12px] font-semibold tracking-wide text-[#005FB0]">
-                View All
-              </Text>
-            </Pressable>
-          </View>
-
-          <View
-            className="flex-row flex-wrap"
-            style={{ columnGap: GRID_GAP, rowGap: GRID_GAP }}
-          >
-            {serviceCategories.map((category) => (
+          {SERVICE_FILTERS.map((f) => {
+            const isActive = f.key === activeFilter;
+            return (
               <Pressable
-                key={category.id}
-                onPress={() => openServiceCategory(category.title)}
-                className="items-center gap-2 rounded-xl border border-slate-100 bg-white p-4"
+                key={f.key}
+                onPress={() => setActiveFilter(f.key)}
                 style={({ pressed }) => ({
-                  width: categoryCardWidth,
-                  minHeight: 108,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                  borderColor: pressed ? "#005FB0" : "#F1F5F9",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.04,
-                  shadowRadius: 2,
-                  elevation: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                  borderRadius: 24,
+                  backgroundColor: isActive ? BRAND : "#FFFFFF",
+                  borderWidth: 1,
+                  borderColor: isActive ? BRAND : "#E5E7EB",
+                  opacity: pressed ? 0.82 : 1,
+                  shadowColor: isActive ? BRAND : "#000",
+                  shadowOffset: { width: 0, height: isActive ? 4 : 1 },
+                  shadowOpacity: isActive ? 0.28 : 0.07,
+                  shadowRadius: isActive ? 10 : 3,
+                  elevation: isActive ? 5 : 1,
                 })}
               >
-                <View
-                  className="h-12 w-12 items-center justify-center rounded-full"
-                  style={{ backgroundColor: category.iconBg }}
+                <MaterialIcons
+                  name={f.icon}
+                  size={14}
+                  color={isActive ? "#FFFFFF" : "#6B7280"}
+                />
+                <Text
+                  style={{
+                    fontFamily: ListifyFonts.semiBold,
+                    fontSize: 13,
+                    color: isActive ? "#FFFFFF" : "#374151",
+                  }}
                 >
-                  <MaterialIcons
-                    name={category.icon}
-                    size={24}
-                    color={category.iconColor}
-                  />
-                </View>
-                <Text className="text-center text-[14px] font-medium text-[#161D1A]">
-                  {category.title}
+                  {f.label}
                 </Text>
               </Pressable>
-            ))}
-          </View>
-        </View>
+            );
+          })}
+        </ScrollView>
 
-        {/* Featured Professionals */}
-        <View className="mb-6">
-          <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-[20px] font-semibold tracking-tight text-[#161D1A]">
-              Featured Professionals
+        {(loading || refreshing) && displayListings.length === 0 ? (
+          <View className="items-center py-20">
+            <ActivityIndicator size="large" color={BRAND} />
+            <Text className="mt-3 text-[14px]" style={ListifyTypography.label}>
+              Loading…
             </Text>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/nearby-map-view-bottom-sheet",
-                  params: { q: "services near me" },
-                })
-              }
-            >
-              <Text className="text-[12px] font-semibold tracking-wide text-[#005FB0]">
-                View Map
-              </Text>
-            </Pressable>
           </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 16, paddingRight: 4 }}
-          >
-            {featuredProfessionals.map((pro) => (
-              <Pressable
-                key={pro.id}
-                onPress={() => router.push("/listing-detail-template")}
-                className="w-70 overflow-hidden rounded-xl border border-slate-100 bg-white"
-                style={({ pressed }) => ({
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.04,
-                  shadowRadius: 2,
-                  elevation: 1,
-                })}
-              >
-                {/* Card Image */}
-                <View className="relative h-32 overflow-hidden bg-slate-200">
-                  <Image
-                    source={pro.image}
-                    contentFit="cover"
-                    transition={200}
-                    className="h-full w-full"
+        ) : displayListings.length === 0 ? (
+          <View className="items-center px-6 py-20">
+            <MaterialIcons name="home-repair-service" size={56} color="#D1D5DB" />
+            <Text className="mt-4 text-[18px]" style={ListifyTypography.sectionTitle}>
+              {cityName ? `No services found in ${cityName}` : "No services found"}
+            </Text>
+            <Text className="mt-2 text-center text-[14px]" style={ListifyTypography.body}>
+              Try another filter or search term
+            </Text>
+          </View>
+        ) : (
+          <View className="px-4" style={{ gap: GRID_GUTTER }}>
+            {listingRows.map((row) => (
+              <View key={row.map((i) => i._id).join("-")} className="flex-row" style={{ gap: GRID_GUTTER }}>
+                {row.map((item) => (
+                  <ListingItemsGridCard
+                    key={item._id}
+                    title={item.title}
+                    subtitle={item.subcategory}
+                    price={item.price ?? null}
+                    currency={item.currency}
+                    isoCountryCode={item.countryCode ?? isoCountryCode}
+                    image={item.images?.[0]}
+                    createdAt={item.createdAt}
+                    width={CARD_WIDTH}
+                    distanceLabel={hasLocation ? getListingDistanceLabel(
+                      {
+                        _id: item._id,
+                        category: "services",
+                        distance: item.distance as number | undefined,
+                        coordinates: item.coordinates,
+                        countryCode: item.countryCode,
+                        currency: item.currency,
+                      },
+                      { lat: userCoords.lat!, lng: userCoords.lng! },
+                      isoCountryCode,
+                    ) : undefined}
+                    isSaved={savedIds.has(item._id)}
+                    onPress={() =>
+                      router.push(
+                        `/service-detail?category=services&id=${item._id}` as any,
+                      )
+                    }
+                    onToggleSave={() => handleToggleSave(item._id)}
                   />
-
-                  {/* Favorite */}
-                  <Pressable
-                    className="absolute right-3 top-3 rounded-full p-2"
-                    style={{ backgroundColor: "rgba(255,255,255,0.7)" }}
-                  >
-                    <MaterialIcons
-                      name="favorite-border"
-                      size={18}
-                      color="#161D1A"
-                    />
-                  </Pressable>
-
-                  {/* Top Rated Badge */}
-                  {pro.topRated ? (
-                    <View className="absolute bottom-3 left-3 rounded bg-[#005FB0] px-2 py-1">
-                      <Text className="text-[10px] font-bold uppercase text-white">
-                        Top Rated
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* Card Info */}
-                <View className="gap-2 p-4">
-                  <View className="flex-row items-start justify-between">
-                    <View className="flex-1">
-                      <Text className="text-[18px] font-semibold leading-6 text-[#161D1A]">
-                        {pro.name}
-                      </Text>
-                      <Text className="text-[12px] font-medium tracking-wide text-[#3C4A44]">
-                        {pro.subtitle}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row items-center gap-0.5">
-                      <MaterialIcons name="star" size={16} color="#005FB0" />
-                      <Text className="text-[12px] font-bold text-[#005FB0]">
-                        {pro.rating}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-[16px] font-bold text-[#005FB0]">
-                      {pro.price}
-                    </Text>
-                    <Text className="text-[12px] italic text-[#BBCAC3]">
-                      {pro.unit}
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
+                ))}
+                {row.length === 1 ? <View style={{ width: CARD_WIDTH }} /> : null}
+              </View>
             ))}
-          </ScrollView>
-        </View>
-
-        {/* Season Special Promo Banner */}
-        <View
-          className="mb-4 overflow-hidden rounded-2xl"
-          style={{ aspectRatio: 16 / 9 }}
-        >
-          <Image
-            source={seasonalPromoImage}
-            contentFit="cover"
-            transition={200}
-            className="absolute inset-0 h-full w-full"
-          />
-          <LinearGradient
-            colors={["rgba(0,95,176,0.9)", "rgba(0,95,176,0.4)", "transparent"]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            className="absolute inset-0 justify-center p-6"
-          >
-            <Text className="text-[10px] font-bold uppercase tracking-[2px] text-white/80">
-              Season Special
-            </Text>
-            <Text className="mt-1 max-w-45 text-[24px] font-bold leading-8 text-white">
-              AC Servicing Starts @ ₹299
-            </Text>
-            <Pressable
-              onPress={() => openSearchResults("AC servicing")}
-              className="mt-4 self-start rounded-lg bg-white px-4 py-2"
-              style={({ pressed }) => ({
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                elevation: 4,
-              })}
-            >
-              <Text className="text-[12px] font-bold text-[#005FB0]">
-                Book Now
-              </Text>
-            </Pressable>
-          </LinearGradient>
-        </View>
+          </View>
+        )}
       </ScrollView>
 
       <FloatingBottomNav activeTabId="search" onTabPress={handleBottomTabPress} />

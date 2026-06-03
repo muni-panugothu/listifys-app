@@ -173,6 +173,117 @@ const CONDITION_INDICATOR_WORDS = new Set([
   'new', 'brand new', 'sealed', 'unboxed', 'unused',
 ]);
 
+// Deterministic commerce intent rules.  Elasticsearch is excellent at ranking,
+// but marketplace category words like "bike" should be hard filters, otherwise
+// vehicle listings such as cars can rank alongside bikes.
+const CATALOG_INTENTS = [
+  { entity: 'vehicles', category: 'Spare Parts', aliases: ['spare parts', 'vehicle parts', 'car parts', 'bike parts', 'auto parts'] },
+  { entity: 'vehicles', category: 'Bikes', aliases: ['bike', 'bikes', 'motorbike', 'motor bike', 'motorcycle', 'motor cycle', 'scooter', 'scooty', 'two wheeler', '2 wheeler'] },
+  { entity: 'vehicles', category: 'Cars', aliases: ['car', 'cars', 'automobile', 'auto', 'sedan', 'hatchback', 'suv'] },
+  { entity: 'vehicles', category: 'Cycle', aliases: ['cycle', 'cycles', 'bicycle', 'bicycles'] },
+
+  { entity: 'mobiles', category: 'Mobile Phones', aliases: ['mobile', 'mobiles', 'phone', 'phones', 'smartphone', 'smartphones', 'iphone', 'android'] },
+  { entity: 'mobiles', category: 'Tablets', aliases: ['tablet', 'tablets', 'ipad'] },
+  { entity: 'mobiles', category: 'Chargers & Cables', aliases: ['charger', 'chargers', 'cable', 'cables', 'charging cable'] },
+  { entity: 'mobiles', category: 'Earphones & Headphones', aliases: ['earphone', 'earphones', 'headphone', 'headphones', 'earbuds', 'airpods'] },
+  { entity: 'mobiles', category: 'Power Banks', aliases: ['power bank', 'powerbank'] },
+  { entity: 'mobiles', category: 'Smart Watches & Bands', aliases: ['smart watch', 'smartwatch', 'fitness band'] },
+
+  { entity: 'electronics', category: 'Computers & Laptops', aliases: ['laptop', 'laptops', 'computer', 'computers', 'desktop', 'pc'] },
+  { entity: 'electronics', category: 'TVs, Video - Audio', aliases: ['tv', 'television', 'audio', 'speaker', 'speakers', 'home theater'] },
+  { entity: 'electronics', category: 'Fridges', aliases: ['fridge', 'fridges', 'refrigerator'] },
+  { entity: 'electronics', category: 'Washing Machines', aliases: ['washing machine', 'washer'] },
+  { entity: 'electronics', category: 'ACs', aliases: ['ac', 'air conditioner', 'air conditioning'] },
+  { entity: 'electronics', category: 'Cameras & Lenses', aliases: ['camera', 'cameras', 'lens', 'lenses', 'dslr'] },
+
+  { entity: 'furniture', category: 'Sofas & Dining', aliases: ['sofa', 'sofas', 'dining'] },
+  { entity: 'furniture', category: 'Beds & Wardrobes', aliases: ['bed', 'beds', 'wardrobe', 'wardrobes'] },
+  { entity: 'furniture', category: 'Tables & Chairs', aliases: ['table', 'tables', 'chair', 'chairs'] },
+
+  { entity: 'fashion', category: "Men's Clothing", aliases: ['mens clothing', "men's clothing", 'men clothes', 'shirt', 'shirts', 'jeans'] },
+  { entity: 'fashion', category: "Women's Clothing", aliases: ['womens clothing', "women's clothing", 'women clothes', 'dress', 'dresses', 'saree', 'kurti'] },
+  { entity: 'fashion', category: 'Footwear', aliases: ['shoe', 'shoes', 'footwear', 'sandals', 'sneakers'] },
+  { entity: 'fashion', category: 'Watches', aliases: ['watch', 'watches'] },
+
+  { entity: 'properties', category: 'Apartments', aliases: ['apartment', 'apartments', 'flat', 'flats'] },
+  { entity: 'properties', category: 'Houses', aliases: ['house', 'houses', 'home', 'villa'] },
+  { entity: 'properties', category: 'Single Room', aliases: ['single room', 'room'] },
+  { entity: 'properties', category: 'Shared Room', aliases: ['shared room', 'roommate'] },
+  { entity: 'properties', category: 'Paying Guest', aliases: ['pg', 'paying guest'] },
+
+  { entity: 'pets', category: 'Dogs', aliases: ['dog', 'dogs', 'puppy', 'puppies'] },
+  { entity: 'pets', category: 'Cats', aliases: ['cat', 'cats', 'kitten', 'kittens'] },
+  { entity: 'books', category: 'Textbooks', aliases: ['textbook', 'textbooks'] },
+  { entity: 'books', category: 'Comics', aliases: ['comic', 'comics'] },
+  { entity: 'toys', category: 'Video Games', aliases: ['video game', 'video games', 'gaming'] },
+  { entity: 'sports', category: 'Cricket Equipment', aliases: ['cricket bat', 'cricket kit', 'cricket'] },
+  { entity: 'sports', category: 'Gym Equipment', aliases: ['gym equipment', 'treadmill', 'dumbbell', 'dumbbells'] },
+  { entity: 'beauty', category: 'Makeup', aliases: ['makeup', 'cosmetic', 'cosmetics'] },
+  { entity: 'beauty', category: 'Skincare', aliases: ['skincare', 'skin care'] },
+  { entity: 'jobs', category: 'IT Jobs', aliases: ['it job', 'software job', 'developer job', 'programmer job'] },
+  { entity: 'jobs', category: 'Part Time', aliases: ['part time job', 'part-time job'] },
+  { entity: 'services', aliases: ['service', 'services', 'plumber', 'electrician', 'mechanic', 'cleaning', 'repair'] },
+  { entity: 'events', aliases: ['event', 'events', 'concert', 'show', 'festival', 'party'] },
+  { entity: 'takecare', aliases: ['nanny', 'babysitter', 'elder care', 'caretaker'] },
+  { entity: 'collectibles', aliases: ['collectible', 'collectibles', 'antique', 'vintage', 'coin', 'stamp'] },
+  { entity: 'others', category: 'Other Items', aliases: ['other items', 'miscellaneous'] },
+];
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function aliasRegex(alias) {
+  return new RegExp(`(^|[^a-z0-9])${escapeRegex(alias)}([^a-z0-9]|$)`, 'i');
+}
+
+function parseCatalogIntent(query, explicitEntity = 'all') {
+  const q = String(query || '').toLowerCase().trim();
+  if (!q) return { entity: explicitEntity !== 'all' ? explicitEntity : null, category: null, matchedAliases: [] };
+
+  const matches = CATALOG_INTENTS
+    .map((intent) => {
+      if (explicitEntity !== 'all' && intent.entity !== explicitEntity) return null;
+      const alias = intent.aliases
+        .slice()
+        .sort((a, b) => b.length - a.length)
+        .find((candidate) => aliasRegex(candidate.toLowerCase()).test(q));
+      return alias ? { ...intent, alias } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.alias.length - a.alias.length);
+
+  if (!matches.length) {
+    return { entity: explicitEntity !== 'all' ? explicitEntity : null, category: null, matchedAliases: [] };
+  }
+
+  const bestAliasLength = matches[0].alias.length;
+  const strongestMatches = matches.filter((m) => m.alias.length === bestAliasLength);
+  const entitySet = new Set(strongestMatches.map((m) => m.entity));
+  const categorySet = new Set(strongestMatches.map((m) => m.category).filter(Boolean));
+  if (entitySet.size > 1 || categorySet.size > 1) {
+    return {
+      entity: explicitEntity !== 'all' ? explicitEntity : null,
+      category: null,
+      matchedAliases: matches.map((m) => m.alias),
+    };
+  }
+
+  return {
+    entity: strongestMatches[0].entity,
+    category: strongestMatches[0].category || null,
+    matchedAliases: matches.map((m) => m.alias),
+  };
+}
+
+function stripCatalogAliases(text, aliases) {
+  let out = String(text || '');
+  for (const alias of aliases || []) {
+    out = out.replace(aliasRegex(alias), ' ');
+  }
+  return out.replace(/\s{2,}/g, ' ').trim();
+}
+
 function stripWords(text, wordsSet) {
   let result = text;
   for (const word of wordsSet) {
@@ -237,10 +348,14 @@ router.get('/', searchLimiter, async (req, res) => {
     const effectiveMaxPrice  = maxPrice  || (parsed?.maxPrice  != null ? String(parsed.maxPrice)  : undefined);
     const effectiveBrand     = brand     ?? undefined;   // ES matches brand field natively
     const effectiveLocation  = location  ?? undefined;   // ES matches location field natively
-    // Entity: use explicitly-provided entity; ES ranking handles category inference
-    const effectiveEntity    = (entity !== 'all') ? entity : 'all';
-    // Send the cleaned/stripped query to ES (removes filler, price phrases, etc.)
-    const effectiveQ         = parsed?.cleanQuery ?? q;
+    const catalogIntent = parseCatalogIntent(parsed?.cleanQuery ?? q, entity);
+    // Entity/category words become hard filters.  This keeps "bike" scoped to
+    // Vehicles/Bikes instead of fuzzy matching cars inside Vehicles.
+    const effectiveEntity    = (entity !== 'all') ? entity : (catalogIntent.entity || 'all');
+    const effectiveCategory  = category || catalogIntent.category || undefined;
+    // Send only remaining product keywords to ES.  A pure category query like
+    // "bike" becomes empty and browses the Bikes filter.
+    const effectiveQ         = stripCatalogAliases(parsed?.cleanQuery ?? q, catalogIntent.matchedAliases);
 
     // ── Entity auto-detection — maps query keywords to a single entity ───────
     // Used to return a `detectedEntity` hint so the frontend can auto-switch
@@ -249,10 +364,10 @@ router.get('/', searchLimiter, async (req, res) => {
     const matchedEntities = matchEntityNames(effectiveQ || q || '');
     const detectedEntity = (effectiveEntity === 'all' && matchedEntities.size === 1)
       ? [...matchedEntities][0]
-      : null;
+      : (entity === 'all' && catalogIntent.entity ? catalogIntent.entity : null);
 
     // ── Step 2: Try Redis cache ──────────────────────────────────────────────
-    const cacheKeyObj = { entity: effectiveEntity, q: effectiveQ, category, condition: effectiveCondition, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice, location: effectiveLocation, brand: effectiveBrand, fuelType, transmission, sort, page: +page, limit: +limit, countryCode: countryCode || '' };
+    const cacheKeyObj = { v: 2, entity: effectiveEntity, q: effectiveQ, category: effectiveCategory, condition: effectiveCondition, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice, location: effectiveLocation, brand: effectiveBrand, fuelType, transmission, sort, page: +page, limit: +limit, countryCode: countryCode || '' };
     const cacheKey = `search:${effectiveEntity}:${Buffer.from(JSON.stringify(cacheKeyObj)).toString('base64url')}`;
     const cachedResults = await ListingCache.getCachedSearchResults(effectiveEntity, cacheKey);
     if (cachedResults) {
@@ -263,7 +378,8 @@ router.get('/', searchLimiter, async (req, res) => {
       return res.status(200).json({
         success: true,
         query: q,
-        entity,
+        entity: effectiveEntity,
+        detectedEntity: detectedEntity || undefined,
         results: cachedArray,
         total: cachedResults.pagination?.total || cachedArray.length,
         pagination: cachedResults.pagination,
@@ -273,9 +389,9 @@ router.get('/', searchLimiter, async (req, res) => {
 
     // ── 2. Try Elasticsearch (unified index — one query for all entities) ──
     const esResults = await SearchService.search({
-      query: effectiveQ || q,          // use AI-cleaned query
+      query: effectiveQ,               // use AI/category-cleaned query
       entity: effectiveEntity,          // use AI-suggested entity
-      category,
+      category: effectiveCategory,
       condition: effectiveCondition,
       minPrice: effectiveMinPrice,
       maxPrice: effectiveMaxPrice,
@@ -329,7 +445,7 @@ router.get('/', searchLimiter, async (req, res) => {
         entity: effectiveEntity,
         detectedEntity: detectedEntity || undefined,
         parsed: parsed ? {
-          cleanQuery: parsed.cleanQuery,
+          cleanQuery: effectiveQ,
           chips: parsed.extractedChips,
         } : null,
         results: ranked,
@@ -346,7 +462,7 @@ router.get('/', searchLimiter, async (req, res) => {
     const buildMongoFilter = (eName) => {
       const filter = { status: 'active' };
 
-      const qText = effectiveQ || q || '';
+      const qText = effectiveQ;
 
       if (matchedEntities.has(eName)) {
         // Entity alias found in query (e.g. "mobile" in "used mobile under 20k").
@@ -396,7 +512,7 @@ router.get('/', searchLimiter, async (req, res) => {
         }
       }
 
-      if (category) filter.subcategory = { $in: category.split(',').map(c => c.trim()) };
+      if (effectiveCategory) filter.subcategory = { $in: effectiveCategory.split(',').map(c => c.trim()) };
       // Apply AI-extracted condition if not explicit
       // Normalize to DB enum format: "Used", "New", "Like New", "Good", "Fair"
       const CONDITION_NORM = { used: 'Used', new: 'New', 'like new': 'Like New', good: 'Good', fair: 'Fair' };
@@ -441,11 +557,11 @@ router.get('/', searchLimiter, async (req, res) => {
     };
 
     const { buildSortOption } = require('../utils/geoQuery');
-    const mongoSort = buildSortOption(sort, !!(lat && lng), !!(effectiveQ || q));
+    const mongoSort = buildSortOption(sort, !!(lat && lng), !!effectiveQ);
     const perEntityLimit = effectiveEntity === 'all' ? Math.min(Number(limit), 20) : Number(limit);
     const skip = effectiveEntity === 'all' ? 0 : (Number(page) - 1) * Number(limit);
 
-    const SEARCH_PROJECTION = 'title slug price images location condition brand model year fuelType transmission kmDriven seller currency subcategory createdAt views';
+    const SEARCH_PROJECTION = 'title slug price images location countryCode condition brand model year fuelType transmission kmDriven mileageUnit seller currency subcategory createdAt views';
 
     const promises = entitiesToSearch.map(async (eName) => {
       const Model = MODEL_MAP[eName];
@@ -511,7 +627,7 @@ router.get('/', searchLimiter, async (req, res) => {
       entity: effectiveEntity,
       detectedEntity: detectedEntity || undefined,
       parsed: parsed ? {
-        cleanQuery: parsed.cleanQuery,
+        cleanQuery: effectiveQ,
         chips: parsed.extractedChips,
       } : null,
       results,
@@ -626,8 +742,18 @@ router.get('/suggest', searchLimiter, async (req, res) => {
       return res.status(200).json({ success: true, suggestions: [] });
     }
 
+    const catalogIntent = parseCatalogIntent(q, entity);
+    const effectiveEntity = entity !== 'all' ? entity : (catalogIntent.entity || 'all');
+    const effectiveCategory = catalogIntent.category || undefined;
+    const effectiveQ = stripCatalogAliases(q, catalogIntent.matchedAliases) || q;
+
     // 1. Try Elasticsearch (works for both single entity and "all")
-    const suggestions = await SearchService.suggest(q, { entity, limit: Number(limit), countryCode });
+    const suggestions = await SearchService.suggest(effectiveQ, {
+      entity: effectiveEntity,
+      category: effectiveCategory,
+      limit: Number(limit),
+      countryCode,
+    });
     if (suggestions && suggestions.length > 0) {
       return res.status(200).json({
         success: true,
@@ -637,20 +763,21 @@ router.get('/suggest', searchLimiter, async (req, res) => {
     }
 
     // 2. MongoDB fallback
-    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    const entitiesToQuery = entity === 'all' ? Object.keys(MODEL_MAP) : (MODEL_MAP[entity] ? [entity] : []);
+    const regex = new RegExp(effectiveQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const entitiesToQuery = effectiveEntity === 'all' ? Object.keys(MODEL_MAP) : (MODEL_MAP[effectiveEntity] ? [effectiveEntity] : []);
 
     if (entitiesToQuery.length === 0) {
       return res.status(200).json({ success: true, suggestions: [] });
     }
 
-    const perEntityLimit = entity === 'all' ? Math.max(2, Math.ceil(Number(limit) / entitiesToQuery.length)) : Number(limit);
+    const perEntityLimit = effectiveEntity === 'all' ? Math.max(2, Math.ceil(Number(limit) / entitiesToQuery.length)) : Number(limit);
     const promises = entitiesToQuery.map(async (eName) => {
       try {
         const docs = await MODEL_MAP[eName].find(
           {
             status: 'active',
             ...(countryCode ? { countryCode: countryCode.toUpperCase().trim() } : {}),
+            ...(effectiveCategory ? { subcategory: { $in: effectiveCategory.split(',').map(c => c.trim()) } } : {}),
             $or: [
               { title: regex },
               { description: regex },
@@ -827,6 +954,74 @@ router.get('/status', protect, authorize('admin'), async (req, res) => {
       fallback: 'MongoDB regex search',
     },
   });
+});
+
+// ── Dynamic categories with live subcategories from DB ────────────────────────
+//
+// Production-level (Flipkart / Amazon style): subcategories are aggregated
+// directly from the DB so any new subcategory added to a model's enum — or
+// posted by a seller — is surfaced in the app automatically, with ZERO code
+// changes required.
+//
+// In-memory cache (10 min TTL) avoids hitting the DB on every app open.
+// The cache is invalidated on server restart, which is fine for this data.
+
+let _subcatCache = null;       // { entity: string; subcategories: string[] }[]
+let _subcatCacheExpiry = 0;    // epoch ms
+const SUBCAT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * GET /api/search/categories
+ *
+ * Returns all categories with their subcategories fetched live from the DB.
+ * Response:
+ *   { success: true, categories: [ { entity, subcategories: string[] }, … ], source: 'cache'|'mongodb' }
+ */
+router.get('/categories', searchLimiter, async (req, res) => {
+  try {
+    // Serve from in-memory cache when fresh
+    if (_subcatCache && Date.now() < _subcatCacheExpiry) {
+      return res.status(200).json({
+        success: true,
+        categories: _subcatCache,
+        source: 'cache',
+      });
+    }
+
+    // Fan-out: query every collection for its distinct active subcategories
+    const results = await Promise.all(
+      Object.entries(MODEL_MAP).map(async ([entity, Model]) => {
+        try {
+          // distinct() is a MongoDB index scan — fast even on large collections
+          const raw = await Model.distinct('subcategory', { status: 'active' });
+          const subcategories = raw
+            .filter((s) => typeof s === 'string' && s.trim().length > 0)
+            .map((s) => s.trim())
+            .sort((a, b) => a.localeCompare(b));
+          return { entity, subcategories };
+        } catch (err) {
+          logger.warn(`categories: distinct failed for "${entity}":`, err.message);
+          return { entity, subcategories: [] };
+        }
+      }),
+    );
+
+    // Populate cache
+    _subcatCache = results;
+    _subcatCacheExpiry = Date.now() + SUBCAT_CACHE_TTL_MS;
+
+    return res.status(200).json({
+      success: true,
+      categories: results,
+      source: 'mongodb',
+    });
+  } catch (error) {
+    logger.error('Categories fetch error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch categories',
+    });
+  }
 });
 
 // Export MODEL_MAP for use in server.js (background reindex + change streams)

@@ -22,7 +22,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   subcategory: 1, images: 1, sellerName: 1, seller: 1, views: 1,
   features: 1, phone: 1, status: 1, savedBy: 1, createdAt: 1,
   brand: 1, model: 1, year: 1, fuelType: 1, transmission: 1,
-  kmDriven: 1, ownership: 1, coordinates: 1,
+  kmDriven: 1, mileageUnit: 1, ownership: 1, coordinates: 1,
 };
 
 // Normalise all image URLs in a listing to proxy format
@@ -65,6 +65,7 @@ exports.createVehicle = async (req, res) => {
       variant,
       year,
       kmDriven,
+      mileageUnit,
       fuelType,
       transmission,
       ownership,
@@ -119,6 +120,7 @@ exports.createVehicle = async (req, res) => {
       variant,
       year,
       kmDriven,
+      mileageUnit: mileageUnit === "mi" ? "mi" : "km",
       fuelType,
       transmission,
       ownership,
@@ -468,6 +470,7 @@ exports.updateVehicle = async (req, res) => {
       "variant",
       "year",
       "kmDriven",
+      "mileageUnit",
       "fuelType",
       "transmission",
       "ownership",

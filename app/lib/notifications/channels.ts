@@ -92,8 +92,9 @@ export async function createAllChannels(): Promise<void> {
       name:        'System',
       description: 'Account security and system notices',
       groupId:     GROUP_ID,
-      importance:  AndroidImportance.DEFAULT,
-      vibration:   false,
+      importance:  AndroidImportance.HIGH,
+      vibration:   true,
+      sound:       'default',
     }),
   ]);
 }
@@ -120,6 +121,7 @@ export function channelForType(type: NotificationType | string): ChannelId {
     case 'flash_sale':
       return CHANNEL.PROMOTIONS;
     case 'system':
+    case 'security_alert':
       return CHANNEL.SYSTEM;
     default:
       return CHANNEL.GENERAL;

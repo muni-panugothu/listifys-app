@@ -7,6 +7,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   Text,
@@ -426,6 +427,18 @@ export function ChatConversationScreen() {
     return resolveAbsoluteMediaUrl(other?.profileImageUrl);
   }, [conversation?.participants, user?.id]);
 
+  const handlePhoneCall = useCallback(() => {
+    // Open native phone dialer with the other participant's phone number
+    const other = conversation?.participants?.find((p) => {
+      const pid = p.id || p._id;
+      return pid !== user?.id;
+    });
+    const phone = (other as { phone?: string } | undefined)?.phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`);
+    }
+  }, [conversation?.participants, user?.id]);
+
   const handleAudioCall = useCallback(() => {
     const recipientId = typeof params.recipientId === 'string' ? params.recipientId : params.recipientId?.[0];
     if (!recipientId || !user?.id) return;
@@ -593,7 +606,7 @@ export function ChatConversationScreen() {
           </View>
 
           <Pressable
-            onPress={handleAudioCall}
+            onPress={handlePhoneCall}
             hitSlop={12}
             className="h-10 w-10 items-center justify-center"
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}

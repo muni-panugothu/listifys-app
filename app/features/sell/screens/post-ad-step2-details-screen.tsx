@@ -8,12 +8,14 @@ import { SellFlowLayout } from "@/components/sell-flow-layout";
 import { ListifyFonts } from "@/constants/typography";
 import { useLocale } from "@/providers/locale-provider";
 import { showErrorToast } from "@/lib/toast";
+import { getMileageUnitForCountry } from "@/lib/listing-distance";
 
 import {
   CONDITION_OPTIONS,
   CONDITION_SKIP_CATEGORIES,
   PRICE_OPTIONAL_CATEGORIES,
 } from "@/constants/categories";
+import { CURRENCY_OPTIONS, type CurrencyEntry } from "@/constants/currencies";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setTitle, setDescription, setPrice, setCondition, setListingType, setCurrency,
@@ -23,7 +25,7 @@ import {
   setBrand, setModel, setWarranty, setPurchaseYear, setScreenSize, setDisplayType,
   setProcessor, setRam, setStorage, setCapacity, setEnergyRating, setMegapixels, setLensType,
   // Vehicles
-  setVariant, setYear, setKmDriven, setFuelType, setTransmission, setOwnership, setColor,
+  setVariant, setYear, setKmDriven, setMileageUnit, setFuelType, setTransmission, setOwnership, setColor,
   setEngineCC, setCycleType, setGearCount, setFrameSize, setCompatibleVehicle, setPartCategory,
   // Jobs
   setCompanyName, setCompanyEmail, setApplyLink, setJobType, setExperience, setEducation,
@@ -51,53 +53,11 @@ import {
   setSkinType, setShade, setVolume, setIngredients, setExpiryDate,
   // Toys
   setBatteryRequired, setPlayMode, setCharacterTheme,
+  // Services
+  setPriceUnit, setServiceArea, setServiceMode, setResponseTime,
 } from "@/store/slices/post-form-slice";
 
 // ── Option constants ────────────────────────────────────────────────────────────
-
-type CurrencyEntry = { code: string; symbol: string; name: string };
-const CURRENCY_OPTIONS: CurrencyEntry[] = [
-  { code: "INR",  symbol: "₹",     name: "Indian Rupee" },
-  { code: "USD",  symbol: "$",     name: "US Dollar" },
-  { code: "EUR",  symbol: "€",     name: "Euro" },
-  { code: "GBP",  symbol: "£",     name: "British Pound" },
-  { code: "AED",  symbol: "د.إ",  name: "UAE Dirham" },
-  { code: "SAR",  symbol: "﷼",    name: "Saudi Riyal" },
-  { code: "QAR",  symbol: "ر.ق", name: "Qatari Riyal" },
-  { code: "KWD",  symbol: "د.ك",  name: "Kuwaiti Dinar" },
-  { code: "BHD",  symbol: "BD",    name: "Bahraini Dinar" },
-  { code: "OMR",  symbol: "ر.ع.", name: "Omani Rial" },
-  { code: "PKR",  symbol: "Rs",    name: "Pakistani Rupee" },
-  { code: "BDT",  symbol: "৳",    name: "Bangladeshi Taka" },
-  { code: "LKR",  symbol: "Rs",    name: "Sri Lankan Rupee" },
-  { code: "NPR",  symbol: "Rs",    name: "Nepalese Rupee" },
-  { code: "SGD",  symbol: "S$",    name: "Singapore Dollar" },
-  { code: "MYR",  symbol: "RM",    name: "Malaysian Ringgit" },
-  { code: "PHP",  symbol: "₱",    name: "Philippine Peso" },
-  { code: "IDR",  symbol: "Rp",    name: "Indonesian Rupiah" },
-  { code: "THB",  symbol: "฿",    name: "Thai Baht" },
-  { code: "VND",  symbol: "₫",    name: "Vietnamese Dong" },
-  { code: "JPY",  symbol: "¥",    name: "Japanese Yen" },
-  { code: "CNY",  symbol: "¥",    name: "Chinese Yuan" },
-  { code: "KRW",  symbol: "₩",    name: "South Korean Won" },
-  { code: "HKD",  symbol: "HK$",  name: "Hong Kong Dollar" },
-  { code: "TWD",  symbol: "NT$",  name: "New Taiwan Dollar" },
-  { code: "AUD",  symbol: "A$",   name: "Australian Dollar" },
-  { code: "CAD",  symbol: "C$",   name: "Canadian Dollar" },
-  { code: "NZD",  symbol: "NZ$",  name: "New Zealand Dollar" },
-  { code: "CHF",  symbol: "CHF",  name: "Swiss Franc" },
-  { code: "ZAR",  symbol: "R",    name: "South African Rand" },
-  { code: "NGN",  symbol: "₦",    name: "Nigerian Naira" },
-  { code: "GHS",  symbol: "₵",    name: "Ghanaian Cedi" },
-  { code: "KES",  symbol: "KSh",  name: "Kenyan Shilling" },
-  { code: "EGP",  symbol: "E£",   name: "Egyptian Pound" },
-  { code: "MXN",  symbol: "MX$",  name: "Mexican Peso" },
-  { code: "BRL",  symbol: "R$",   name: "Brazilian Real" },
-  { code: "RUB",  symbol: "₽",    name: "Russian Ruble" },
-  { code: "TRY",  symbol: "₺",    name: "Turkish Lira" },
-  { code: "PLN",  symbol: "zł",   name: "Polish Złoty" },
-  { code: "SEK",  symbol: "kr",   name: "Swedish Krona" },
-];
 const FURNISHING_OPTIONS = ["Fully Furnished", "Semi-Furnished", "Unfurnished"];
 const PROPERTY_AMENITIES = [
   "Parking", "Swimming Pool", "Gym", "Power Backup", "Lift",
@@ -141,6 +101,11 @@ const TRAINED_OPTIONS = ["Yes", "No", "Partial"];
 const SKIN_TYPE_OPTIONS = ["All", "Oily", "Dry", "Combination", "Sensitive", "Normal"];
 const BEAUTY_GENDER_OPTIONS = ["Men", "Women", "Unisex"];
 const BATTERY_REQUIRED_OPTIONS = ["Yes", "No", "Not Sure"];
+
+const SERVICE_PRICE_UNIT_OPTIONS = ["Per Hour", "Per Visit", "Per Day", "Per Month", "Fixed Quote"];
+const SERVICE_MODE_OPTIONS = ["On-site", "Remote", "Both"];
+const SERVICE_AVAILABILITY_OPTIONS = ["Available Now", "Weekdays", "Weekends", "Flexible", "By Appointment"];
+const SERVICE_RESPONSE_OPTIONS = ["Within 1 hour", "Within 2-4 hours", "Same Day", "Next Day"];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -459,7 +424,7 @@ function LabelPill({ text }: { text: string }) {
 export function PostAdStep2DetailsScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { currencyCode, currencySymbol } = useLocale();
+  const { currencyCode, currencySymbol, isoCountryCode } = useLocale();
 
   // Track if user has manually chosen a currency this session.
   // When false, currency always mirrors the selected location's locale.
@@ -481,7 +446,7 @@ export function PostAdStep2DetailsScreen() {
     bedrooms, bathrooms, furnishing, squareFeet, features, petFriendly, genderPreference, occupancy,
     brand, model: productModel, warranty, purchaseYear, screenSize, displayType,
     processor, ram, storage, capacity, energyRating, megapixels, lensType,
-    variant, year, kmDriven, fuelType, transmission, ownership, color, engineCC,
+    variant, year, kmDriven, mileageUnit, fuelType, transmission, ownership, color, engineCC,
     cycleType, gearCount, frameSize, compatibleVehicle, partCategory,
     companyName, companyEmail, applyLink, jobType, experience, education,
     employmentType, workMode, salaryMin, salaryMax, salaryType, industry, positions,
@@ -496,6 +461,7 @@ export function PostAdStep2DetailsScreen() {
     author, isbn, publisher, edition, language, pages,
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
+    priceUnit, serviceArea, serviceMode, responseTime,
   } = pf;
 
   const filteredCurrencies = useMemo(() => {
@@ -509,6 +475,10 @@ export function PostAdStep2DetailsScreen() {
   // Show the symbol for the selected currency code, falling back to locale symbol
   const displayCurrency =
     CURRENCY_OPTIONS.find((c) => c.code === currency)?.symbol ?? currencySymbol;
+  const localeMileageUnit = getMileageUnitForCountry(isoCountryCode);
+  const activeMileageUnit = mileageUnit || localeMileageUnit;
+  const mileageLabel = activeMileageUnit === "mi" ? "Miles Driven" : "KM Driven";
+  const mileagePlaceholder = activeMileageUnit === "mi" ? "e.g. 15000" : "e.g. 25000";
 
   const isProperty = category === "properties";
   const isElectronics = category === "electronics";
@@ -526,6 +496,7 @@ export function PostAdStep2DetailsScreen() {
   const isBeauty = category === "beauty";
   const isToy = category === "toys";
   const isForSale = category === "forsale";
+  const isService = category === "services";
 
   // Electronics subcategory-specific
   const showTvFields = isElectronics && TV_AUDIO_SUBCATEGORIES.includes(subcategory);
@@ -737,6 +708,40 @@ export function PostAdStep2DetailsScreen() {
           )}
 
           {/* ═══════════════════════════════════════════════════════════════
+              SERVICES FIELDS
+             ═══════════════════════════════════════════════════════════════ */}
+          {isService && (
+            <>
+              <View className="mb-6 flex-row gap-4">
+                <View className="flex-1">
+                  <Label text="Experience" />
+                  <IconField icon="trending-up" value={experience} onChangeText={(v) => dispatch(setExperience(v))} placeholder="e.g. 3 years" />
+                </View>
+                <View className="flex-1">
+                  <Label text="Service Area" />
+                  <IconField icon="location-on" value={serviceArea} onChangeText={(v) => dispatch(setServiceArea(v))} placeholder="e.g. 10 km radius" />
+                </View>
+              </View>
+              <View className="mb-6">
+                <LabelPill text="Price Unit" />
+                <PillRow options={SERVICE_PRICE_UNIT_OPTIONS} value={priceUnit} onSelect={(v) => dispatch(setPriceUnit(v))} />
+              </View>
+              <View className="mb-6">
+                <LabelPill text="Service Mode" />
+                <PillRow options={SERVICE_MODE_OPTIONS} value={serviceMode} onSelect={(v) => dispatch(setServiceMode(v))} />
+              </View>
+              <View className="mb-6">
+                <LabelPill text="Availability" />
+                <PillRow options={SERVICE_AVAILABILITY_OPTIONS} value={availability} onSelect={(v) => dispatch(setAvailability(v))} />
+              </View>
+              <View className="mb-8">
+                <LabelPill text="Typical Response Time" />
+                <PillRow options={SERVICE_RESPONSE_OPTIONS} value={responseTime} onSelect={(v) => dispatch(setResponseTime(v))} />
+              </View>
+            </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════
               PROPERTY FIELDS
              ═══════════════════════════════════════════════════════════════ */}
           {isProperty && (
@@ -901,8 +906,16 @@ export function PostAdStep2DetailsScreen() {
                       <IconField icon="date-range" value={year} onChangeText={(v) => dispatch(setYear(v))} placeholder="e.g. 2022" numeric maxLength={4} />
                     </View>
                     <View className="flex-1">
-                      <Label text="KM Driven" />
-                      <IconField icon="speed" value={kmDriven} onChangeText={(v) => dispatch(setKmDriven(v))} placeholder="e.g. 25000" />
+                      <Label text={mileageLabel} />
+                      <IconField
+                        icon="speed"
+                        value={kmDriven}
+                        onChangeText={(v) => {
+                          dispatch(setMileageUnit(activeMileageUnit));
+                          dispatch(setKmDriven(v));
+                        }}
+                        placeholder={mileagePlaceholder}
+                      />
                     </View>
                   </View>
                   <View className="mb-6">

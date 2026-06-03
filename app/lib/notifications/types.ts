@@ -23,6 +23,7 @@ export type NotificationType =
   | 'price_drop'
   | 'promotion'
   | 'flash_sale'
+  | 'security_alert'
   | 'system'
   | 'silent'; // data-only, no visible notification
 

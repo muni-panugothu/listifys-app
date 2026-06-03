@@ -8,10 +8,12 @@ const { logger } = require("../utils/logger");
 const { invalidateEntityCache } = require("../middleware/cache.middleware");
 const { handleGoogleAuth } = require("../services/googleAuth.OAuth");
 const TwilioService = require("../services/twilio.service");
+const TwilioVerify = require("../services/twilio-verify.service");
 const passwordSecurity = require("../utils/passwordSecurity");
 const { createNotification } = require("./notification.controller");
 const deviceService = require("../services/device.service");
 const s3Service = require("../services/s3.service");
+const securityNotificationService = require("../services/security-notification.service");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const redis = require("../config/redis");
@@ -76,7 +78,9 @@ const invalidateAccountCaches = async (userId) => {
     const id = String(userId);
     invalidateAuthCache(id);
     await Promise.all([
-      redis.del(`profile:${id}`),
+      redis.del(`profile:${id}`),        // legacy key (kept for backward compat)
+      redis.del(`profile_meta:${id}`),   // new metadata cache
+      redis.del(`counts:${id}`),         // new counts cache
       redis.del(`devices:${id}`),
       redis.del(`activity:${id}`),
       redis.del(`settings:${id}`),
@@ -466,6 +470,9 @@ exports.login = async (req, res) => {
         location: deviceSession.location,
       },
     }).catch(() => {});
+
+    // ✅ NON-BLOCKING: Security push notification for new device/location
+    securityNotificationService.checkAndNotifyNewLogin(user, deviceSession).catch(() => {});
   } catch (error) {
     logger.error("❌ Login error:", error);
     return res.status(500).json({
@@ -1653,15 +1660,30 @@ exports.checkAuth = async (req, res) => {
 // ==================== GET PROFILE ====================
 exports.getProfile = async (req, res) => {
   try {
-    const cacheKey = `profile:${req.user.id}`;
-    const cached = await readJsonCache(cacheKey);
-    if (cached) {
-      return res.status(200).json(cached);
+    const user   = req.user;
+    const userId = String(user._id || user.id);
+
+    // Two-tier cache:
+    //   profile_meta:{id}  — name, email, bio, prefs, etc.  → 5-minute TTL
+    //   counts:{id}        — listingsCount, followersCount, followingCount → 60-second TTL
+    // Splitting lets listing/follow actions bust ONLY the counts key, so profile
+    // metadata stays warm while counts are always fresh (≤ 60 s stale).
+    const metaKey   = `profile_meta:${userId}`;
+    const countsKey = `counts:${userId}`;
+
+    const [cachedMeta, cachedCounts] = await Promise.all([
+      readJsonCache(metaKey),
+      readJsonCache(countsKey),
+    ]);
+
+    // Fast path: both caches warm — skip all DB queries
+    if (cachedMeta && cachedCounts) {
+      return res.status(200).json({
+        success: true,
+        user: { ...cachedMeta, ...cachedCounts },
+      });
     }
 
-    const user = req.user;
-
-    // Count active listings across all category models
     const listingModels = [
       require("../models/electronics.model"),
       require("../models/vehicle.model"),
@@ -1683,69 +1705,84 @@ exports.getProfile = async (req, res) => {
       require("../models/takecare.model"),
     ];
 
-    const [passwordProbeUser, followCounts, ...listingCounts] = await Promise.all([
-      User.findById(user._id).select("+password"),
-      User.aggregate([
-        { $match: { _id: user._id } },
-        { $project: {
-          followersCount: { $size: { $ifNull: ['$followers', []] } },
-          followingCount: { $size: { $ifNull: ['$following', []] } },
-        }},
-      ]),
-      ...listingModels.map((Model) =>
-        Model.countDocuments({ seller: user._id, status: "active" })
-      ),
+    // Only run the queries that are actually needed
+    const [passwordProbeUser, followData, ...listingCountResults] = await Promise.all([
+      // hasPassword — only needed when metadata cache is cold
+      cachedMeta
+        ? Promise.resolve(null)
+        : User.findById(user._id).select("+password"),
+      // follow aggregate — only needed when counts cache is cold
+      cachedCounts
+        ? Promise.resolve(null)
+        : User.aggregate([
+            { $match: { _id: user._id } },
+            { $project: {
+              followersCount: { $size: { $ifNull: ['$followers', []] } },
+              followingCount: { $size: { $ifNull: ['$following', []] } },
+            }},
+          ]),
+      // listing counts — only needed when counts cache is cold
+      ...(cachedCounts
+        ? []
+        : listingModels.map((Model) =>
+            Model.countDocuments({ seller: user._id, status: "active" })
+          )),
     ]);
-    const hasPassword = !!passwordProbeUser?.password;
-    const followersCount = followCounts[0]?.followersCount || 0;
-    const followingCount = followCounts[0]?.followingCount || 0;
-    const listingsCount = listingCounts.reduce((sum, c) => sum + c, 0);
 
-    const profileImageUrl = getResolvedProfileImage(user);
+    // ── Build / restore profile metadata ──────────────────────────────────
+    let metaData = cachedMeta;
+    if (!cachedMeta) {
+      const profileImageUrl = getResolvedProfileImage(user);
+      metaData = {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        provider: user.provider,
+        hasPassword: !!passwordProbeUser?.password,
+        avatar: user.avatar,
+        profileImage: s3Service.toProxyUrl(user.profileImage) || null,
+        profileImageKey: user.profileImageKey,
+        googleProfileImage: user.googleProfileImage,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        phone: user.phone || null,
+        address: user.address || null,
+        bio: user.bio || null,
+        dateOfBirth: user.dateOfBirth || null,
+        gender: user.gender || null,
+        profileImageUrl,
+        preferences: {
+          emailNotifications: user.preferences?.emailNotifications ?? true,
+          pushNotifications: user.preferences?.pushNotifications ?? true,
+          marketingEmails: user.preferences?.marketingEmails ?? false,
+          twoFactorAuth: user.preferences?.twoFactorAuth ?? false,
+          theme: user.preferences?.theme ?? 'auto',
+        },
+        passwordExpiration: user.passwordNeedsChange
+          ? user.passwordNeedsChange()
+          : null,
+      };
+      await writeJsonCache(metaKey, metaData, PROFILE_CACHE_TTL_SECONDS);
+    }
 
-    const userResponse = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      provider: user.provider,
-      hasPassword,
-      avatar: user.avatar,
-      profileImage: s3Service.toProxyUrl(user.profileImage) || null,
-      profileImageKey: user.profileImageKey,
-      googleProfileImage: user.googleProfileImage,
-      isVerified: user.isVerified,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      phone: user.phone || null,
-      address: user.address || null,
-      bio: user.bio || null,
-      dateOfBirth: user.dateOfBirth || null,
-      gender: user.gender || null,
-      profileImageUrl: profileImageUrl,
-      followersCount,
-      followingCount,
-      listingsCount,
-      preferences: {
-        emailNotifications: user.preferences?.emailNotifications ?? true,
-        pushNotifications: user.preferences?.pushNotifications ?? true,
-        marketingEmails: user.preferences?.marketingEmails ?? false,
-        twoFactorAuth: user.preferences?.twoFactorAuth ?? false,
-        theme: user.preferences?.theme ?? 'auto',
-      },
-      passwordExpiration: user.passwordNeedsChange
-        ? user.passwordNeedsChange()
-        : null,
-    };
+    // ── Build / restore activity counts (60-second cache) ─────────────────
+    // Short TTL means dashboard counts refresh within 1 minute of any action
+    // without needing per-controller cache invalidation.
+    let countsData = cachedCounts;
+    if (!cachedCounts) {
+      const followersCount = followData?.[0]?.followersCount || 0;
+      const followingCount = followData?.[0]?.followingCount || 0;
+      const listingsCount  = listingCountResults.reduce((sum, c) => sum + (c || 0), 0);
+      countsData = { followersCount, followingCount, listingsCount };
+      await writeJsonCache(countsKey, countsData, 60); // 60-second TTL
+    }
 
-    const payload = {
+    res.status(200).json({
       success: true,
-      user: userResponse,
-    };
-
-    await writeJsonCache(cacheKey, payload, PROFILE_CACHE_TTL_SECONDS);
-
-    res.status(200).json(payload);
+      user: { ...metaData, ...countsData },
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -2229,8 +2266,11 @@ exports.verifyForgotPasswordOTP = async (req, res) => {
     await RedisService.clearOTPAttempts(email);
     await RedisService.clearOTPBlock(email);
 
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    // Generate a raw cryptographically random reset token (returned to client)
+    // Store ONLY the SHA-256 hash as the Redis key so a Redis dump yields
+    // no usable tokens.
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
     const redis = require("../config/redis");
     
     // Create a clean data object with all required fields
@@ -2240,18 +2280,16 @@ exports.verifyForgotPasswordOTP = async (req, res) => {
       createdAt: new Date().toISOString()
     };
 
-    // Store in Redis with 10 minute expiry
     const stringifiedData = JSON.stringify(resetData);
     
+    // Key = SHA-256(rawToken) — safe to store; only the holder of rawToken can look it up
     await redis.setex(
-      `reset:${resetToken}`,
+      `reset:${hashedToken}`,
       600, // 10 minutes
       stringifiedData
     );
-
-    // Store email separately for verification
     await redis.setex(
-      `reset_email:${resetToken}`,
+      `reset_email:${hashedToken}`,
       600,
       email
     );
@@ -2265,7 +2303,7 @@ exports.verifyForgotPasswordOTP = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "OTP verified successfully",
-      resetToken,
+      resetToken: rawToken,   // raw token sent to client; hash stored in Redis
     });
   } catch (error) {
     logger.error("Verify forgot password OTP error:", error);
@@ -2405,9 +2443,10 @@ exports.resetPasswordWithToken = async (req, res) => {
       });
     }
 
-    // Get data from Redis
-    const resetKey = `reset:${resetToken}`;
-    const resetEmailKey = `reset_email:${resetToken}`;
+    // Hash the incoming token before Redis lookup — only the hash is stored
+    const hashedResetToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const resetKey = `reset:${hashedResetToken}`;
+    const resetEmailKey = `reset_email:${hashedResetToken}`;
     
     const stored = await redis.get(resetKey);
     const storedEmail = await redis.get(resetEmailKey);
@@ -3079,10 +3118,12 @@ exports.toggleFollow = async (req, res) => {
     const targetCounts = counts[0]?.target?.[0] || {};
     const currentCounts = counts[0]?.current?.[0] || {};
 
-    // Bust both users' profile caches so follower/following counts reflect immediately
+    // Bust both users' profile + counts caches so follower/following counts reflect immediately
     await Promise.allSettled([
       redis.del(`profile:${currentUserId}`),
       redis.del(`profile:${targetUserId}`),
+      redis.del(`counts:${currentUserId}`),
+      redis.del(`counts:${targetUserId}`),
     ]);
 
     res.status(200).json({
@@ -3282,7 +3323,7 @@ exports.getSellerListings = async (req, res) => {
         const docs = await Model.find({ seller: sellerId, status: "active" })
           .sort({ createdAt: -1 })
           .limit(50)
-          .select("title price images location condition subcategory category createdAt")
+          .select("title price currency countryCode images location condition subcategory category createdAt")
           .lean();
         return docs.map((d) => ({
           ...d,
@@ -3359,12 +3400,16 @@ exports.requestEmailChange = async (req, res) => {
       });
     }
 
-    // Generate and store OTP
+    // Generate and store OTP — HMAC-SHA-256 so a Redis dump can't be brute-forced
     const otp = OTPGenerator.generateOTP();
+    const _ecSecret =
+      process.env.OTP_HMAC_SECRET ||
+      process.env.JWT_ACCESS_SECRET ||
+      process.env.JWT_SECRET;
     const pendingKey = `email_change:${userId}`;
     await redis.setex(pendingKey, 600, JSON.stringify({
       newEmail: trimmedEmail,
-      otpHash: crypto.createHash('sha256').update(String(otp)).digest('hex'),
+      otpHash: crypto.createHmac('sha256', _ecSecret).update(String(otp)).digest('hex'),
       createdAt: new Date().toISOString(),
     }));
 
@@ -3409,9 +3454,13 @@ exports.verifyEmailChange = async (req, res) => {
     }
 
     const pending = typeof pendingRaw === 'string' ? JSON.parse(pendingRaw) : pendingRaw;
-    const otpHash = crypto.createHash('sha256').update(String(otp).trim()).digest('hex');
+    const _ecSecret =
+      process.env.OTP_HMAC_SECRET ||
+      process.env.JWT_ACCESS_SECRET ||
+      process.env.JWT_SECRET;
+    const otpHash = crypto.createHmac('sha256', _ecSecret).update(String(otp).trim()).digest('hex');
 
-    if (otpHash !== pending.otpHash) {
+    if (!crypto.timingSafeEqual(Buffer.from(otpHash), Buffer.from(pending.otpHash))) {
       return res.status(400).json({ success: false, message: "Invalid verification code." });
     }
 
@@ -3461,11 +3510,13 @@ exports.verifyEmailChange = async (req, res) => {
   }
 };
 
-// ==================== PHONE AUTH: SEND OTP ====================
+// ==================== PHONE AUTH: SEND OTP (Twilio Verify) ====================
 /**
  * POST /api/auth/phone/send-otp
  * Body: { phone: "+919876543210", channel?: "sms" | "whatsapp" }
- * Sends a 6-digit OTP via Twilio SMS or WhatsApp. Stores hashed OTP in Redis.
+ *
+ * Uses Twilio Verify API. Twilio stores the OTP server-side — no Redis needed.
+ * Requires TWILIO_VERIFY_SERVICE_SID in .env.
  */
 exports.phoneSendOTP = async (req, res) => {
   try {
@@ -3479,13 +3530,17 @@ exports.phoneSendOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "Channel must be 'sms' or 'whatsapp'" });
     }
 
-    const normalizedPhone = TwilioService.normalizePhone(phone);
-    if (!normalizedPhone || !/^\+\d{7,15}$/.test(normalizedPhone)) {
-      return res.status(400).json({ success: false, message: "Invalid phone number format" });
+    // Require E.164 format: the client must send the full "+CC number" string.
+    // The mobile-auth-screen uses PhoneInputWithCountry which provides E.164 directly.
+    if (!TwilioVerify.isValidE164(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number. Please include the country code (e.g. +919876543210).",
+      });
     }
 
-    // Rate-limit: check if phone is blocked
-    const phoneKey = normalizedPhone.replace("+", "");
+    // Coarse rate limit: check if phone is in hard-blocked state (flood protection)
+    const phoneKey = phone.replace("+", "");
     const blocked = await RedisService.checkEmailBlocked(phoneKey);
     if (blocked) {
       return res.status(429).json({
@@ -3494,38 +3549,31 @@ exports.phoneSendOTP = async (req, res) => {
       });
     }
 
-    const otp = OTPGenerator.generateOTP();
-    logger.info(`Generated phone OTP for ${normalizedPhone.slice(0, 5)}****`, { channel });
+    // Send via Twilio Verify (Twilio generates and stores the OTP)
+    const result = await TwilioVerify.sendVerification(phone, channel);
 
-    // Store OTP hashed in Redis (keyed by phone number)
-    const otpStored = await RedisService.storeOTP(phoneKey, otp);
-    if (!otpStored) {
-      return res.status(500).json({ success: false, message: "Failed to generate OTP. Try again." });
-    }
-
-    // Send via selected channel
-    const sendResult = channel === "whatsapp"
-      ? await TwilioService.sendWhatsAppOTP(normalizedPhone, otp)
-      : await TwilioService.sendOTP(normalizedPhone, otp);
-
-    if (!sendResult.success) {
-      await RedisService.deleteOTP(phoneKey);
-      logger.error(`${channel.toUpperCase()} OTP send failed`, { error: sendResult.error });
-      return res.status(500).json({
+    if (!result.success) {
+      logger.error("phoneSendOTP: Twilio Verify failed", { error: result.error, code: result.code });
+      // Map Twilio rate-limit codes to user-friendly 429
+      if (result.code === 60212 || result.code === 60202) {
+        return res.status(429).json({
+          success: false,
+          message: result.error,
+        });
+      }
+      return res.status(502).json({
         success: false,
-        message: `Failed to send OTP via ${channel === "whatsapp" ? "WhatsApp" : "SMS"}. Please try again.`,
+        message: result.error || "Failed to send OTP. Please try again.",
       });
     }
 
     await RedisService.incrementRegistrationAttempts(phoneKey);
 
-    const channelLabel = channel === "whatsapp" ? "WhatsApp" : "SMS";
     res.status(200).json({
       success: true,
-      message: `OTP sent via ${channelLabel} to your phone number.`,
-      phone: normalizedPhone.slice(0, 5) + "****" + normalizedPhone.slice(-2),
-      channel,
-      expiresIn: 300,
+      message: "OTP sent to your phone number via SMS.",
+      phone: TwilioVerify.maskPhone(phone),
+      expiresIn: 600,
     });
   } catch (error) {
     logger.error("Phone send OTP error:", error);
@@ -3533,11 +3581,13 @@ exports.phoneSendOTP = async (req, res) => {
   }
 };
 
-// ==================== PHONE AUTH: VERIFY OTP & LOGIN/REGISTER ====================
+// ==================== PHONE AUTH: VERIFY OTP & LOGIN/REGISTER (Twilio Verify) ==
 /**
  * POST /api/auth/phone/verify-otp
  * Body: { phone: "+919876543210", otp: "123456", name?: "John" }
- * Verifies OTP. If user exists with this phone → login.
+ *
+ * Verifies OTP via Twilio Verify API.
+ * If user exists with this phone → login.
  * If user does NOT exist → register new account with phone provider.
  */
 exports.phoneVerifyOTP = async (req, res) => {
@@ -3551,35 +3601,31 @@ exports.phoneVerifyOTP = async (req, res) => {
       });
     }
 
-    if (!/^\d{6}$/.test(otp)) {
+    if (!/^\d{4,10}$/.test(String(otp).trim())) {
       return res.status(400).json({
         success: false,
-        message: "OTP must be 6 digits",
+        message: "OTP must be 4–10 digits",
       });
     }
 
-    const normalizedPhone = TwilioService.normalizePhone(phone);
-    const phoneKey = normalizedPhone.replace("+", "");
-
-    // Verify OTP from Redis
-    const otpResult = await RedisService.verifyOTP(phoneKey, otp);
-
-    if (!otpResult.valid) {
-      await RedisService.incrementOTPAttempts(phoneKey, {
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-        phone: normalizedPhone,
-      });
-
+    if (!TwilioVerify.isValidE164(phone)) {
       return res.status(400).json({
         success: false,
-        message: otpResult.message || "Invalid or expired OTP",
-        attemptsRemaining: otpResult.attemptsRemaining,
+        message: "Invalid phone number. Please include the country code.",
       });
     }
 
-    // OTP valid — clean up
-    await RedisService.deleteOTP(phoneKey);
+    // Verify OTP via Twilio Verify API
+    const verifyResult = await TwilioVerify.checkVerification(phone, String(otp).trim());
+
+    if (!verifyResult.success || !verifyResult.valid) {
+      return res.status(400).json({
+        success: false,
+        message: verifyResult.error || "Invalid or expired OTP",
+      });
+    }
+
+    const normalizedPhone = phone; // Already E.164 from the client
 
     // Find existing user by phone
     let user = await User.findOne({ phone: normalizedPhone }).select(
@@ -3717,7 +3763,86 @@ exports.phoneVerifyOTP = async (req, res) => {
   }
 };
 
-// ==================== GOOGLE CLIENT IDs FOR MOBILE ====================
+// ==================== RECOVERY PHONE: SEND OTP (authenticated) ====================
+/**
+ * POST /api/auth/phone/update-send-otp  [protected]
+ * Body: { phone: "+919876543210", channel?: "sms" | "whatsapp" }
+ * Sends an OTP to the new phone number the user wants to set as recovery phone.
+ */
+exports.recoveryPhoneSendOTP = async (req, res) => {
+  try {
+    const { phone, channel = "sms" } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: "Phone number is required" });
+    if (!["sms", "whatsapp"].includes(channel)) return res.status(400).json({ success: false, message: "Channel must be 'sms' or 'whatsapp'" });
+    if (!TwilioVerify.isValidE164(phone)) {
+      return res.status(400).json({ success: false, message: "Invalid phone number. Please include the country code (e.g. +919876543210)." });
+    }
+
+    const phoneKey = phone.replace("+", "");
+    const blocked = await RedisService.checkEmailBlocked(phoneKey);
+    if (blocked) return res.status(429).json({ success: false, message: "Too many OTP requests. Please try again in 1 hour." });
+
+    const result = await TwilioVerify.sendVerification(phone, channel);
+    if (!result.success) {
+      if (result.code === 60212 || result.code === 60202) return res.status(429).json({ success: false, message: result.error });
+      return res.status(502).json({ success: false, message: result.error || "Failed to send OTP. Please try again." });
+    }
+
+    await RedisService.incrementRegistrationAttempts(phoneKey);
+    res.status(200).json({
+      success: true,
+      message: "OTP sent to your phone number via SMS.",
+      phone: TwilioVerify.maskPhone(phone),
+      expiresIn: 600,
+    });
+  } catch (error) {
+    logger.error("Recovery phone send OTP error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ==================== RECOVERY PHONE: VERIFY OTP & UPDATE (authenticated) ====================
+/**
+ * POST /api/auth/phone/update-verify-otp  [protected]
+ * Body: { phone: "+919876543210", otp: "123456" }
+ * Verifies OTP then updates the authenticated user's phone + marks phoneVerified.
+ */
+exports.recoveryPhoneVerifyOTP = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ success: false, message: "Phone number and OTP are required" });
+    if (!/^\d{4,10}$/.test(String(otp).trim())) return res.status(400).json({ success: false, message: "OTP must be 4–10 digits" });
+    if (!TwilioVerify.isValidE164(phone)) return res.status(400).json({ success: false, message: "Invalid phone number. Please include the country code." });
+
+    const verifyResult = await TwilioVerify.checkVerification(phone, String(otp).trim());
+    if (!verifyResult.success || !verifyResult.valid) {
+      return res.status(400).json({ success: false, message: verifyResult.error || "Invalid or expired OTP" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { phone, phoneVerified: true, updatedAt: new Date() },
+      { new: true },
+    );
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    await invalidateAccountCaches(user._id);
+
+    try {
+      await user.addSecurityLog("phone_updated", req.ip, req.get("user-agent"), { phone: TwilioVerify.maskPhone(phone) });
+    } catch (_) {}
+
+    res.status(200).json({
+      success: true,
+      message: "Recovery phone updated and verified.",
+      phone: user.phone,
+      phoneVerified: user.phoneVerified,
+    });
+  } catch (error) {
+    logger.error("Recovery phone verify OTP error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 /**
  * GET /api/auth/google/client-ids
  * Returns all configured Google OAuth client IDs (web + iOS + Android)
@@ -3743,7 +3868,296 @@ exports.getGoogleClientIds = (req, res) => {
       clientIds,
     });
   } catch (error) {
-    logger.error("Get Google client IDs error:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ============================================================
+//  EMAIL CHANGE  (authenticated, OTP-verified)
+// ============================================================
+
+/**
+ * POST /api/auth/email/change-request  [protected]
+ * Body: { email }
+ */
+exports.requestEmailChange = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "New email is required." });
+    const normalised = email.toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalised)) {
+      return res.status(400).json({ success: false, message: "Invalid email address." });
+    }
+
+    const userId = req.user.id;
+    const user = await User.findById(userId).select("+pendingEmailChange");
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+
+    if (user.email && normalised === user.email.toLowerCase()) {
+      return res.status(400).json({ success: false, message: "This is already your current email address." });
+    }
+
+    const conflict = await User.findOne({ email: normalised, _id: { $ne: userId } });
+    if (conflict) {
+      return res.status(409).json({ success: false, message: "This email address is already in use by another account." });
+    }
+
+    // Rate-gate: 3 OTPs per 10 min per user
+    const rateLimitKey = `email_change_otp:${userId}`;
+    const hits = await redis.incr(rateLimitKey);
+    if (hits === 1) await redis.expire(rateLimitKey, 600);
+    if (hits > 3) {
+      const ttl = await redis.ttl(rateLimitKey);
+      return res.status(429).json({ success: false, message: "Too many OTP requests. Please wait before trying again.", retryAfter: ttl > 0 ? ttl : 600, code: "RATE_LIMITED" });
+    }
+
+    // CSPRNG — crypto.randomInt is backed by the OS CSPRNG, unlike Math.random()
+    const otp = OTPGenerator.generateOTP();
+    // HMAC-SHA-256 with server secret: an offline attacker who reads the DB
+    // cannot brute-force the 6-digit OTP without knowing the secret key.
+    const _otpSecret =
+      process.env.OTP_HMAC_SECRET ||
+      process.env.JWT_ACCESS_SECRET ||
+      process.env.JWT_SECRET;
+    const otpHash = crypto.createHmac("sha256", _otpSecret).update(otp).digest("hex");
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    await User.findByIdAndUpdate(userId, {
+      pendingEmailChange: { email: normalised, otpHash, expiresAt, attempts: 0, requestedAt: new Date() },
+    });
+
+    await EmailService.sendEmailChangeOTP(normalised, user.name || "there", otp);
+
+    if (user.email) {
+      void EmailService.sendEmailChangeAlert(user.email, user.name || "there", normalised, req.ip, Date.now());
+    }
+
+    logger.info("[email_change] OTP sent", { userId, newEmail: normalised });
+
+    res.status(200).json({
+      success: true,
+      message: "A 6-digit verification code has been sent to your new email address.",
+      maskedEmail: normalised.replace(/^(.{2}).+(@.+)$/, "$1****$2"),
+      expiresIn: 300,
+    });
+  } catch (error) {
+    logger.error("requestEmailChange error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
+/**
+ * POST /api/auth/email/change-verify  [protected]
+ * Body: { email, otp }
+ */
+exports.verifyEmailChange = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ success: false, message: "Email and OTP are required." });
+    if (!/^\d{6}$/.test(String(otp).trim())) return res.status(400).json({ success: false, message: "OTP must be 6 digits." });
+    const normalised = email.toLowerCase().trim();
+
+    const userId = req.user.id;
+    const user = await User.findById(userId).select("+pendingEmailChange.otpHash +pendingEmailChange");
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+
+    const pending = user.pendingEmailChange;
+    if (!pending || !pending.email || !pending.otpHash) {
+      return res.status(400).json({ success: false, message: "No pending email change found. Please request a new OTP." });
+    }
+    if (pending.email.toLowerCase() !== normalised) {
+      return res.status(400).json({ success: false, message: "Email mismatch. Please request a new OTP." });
+    }
+    if (new Date() > new Date(pending.expiresAt)) {
+      return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one.", code: "OTP_EXPIRED" });
+    }
+    if ((pending.attempts || 0) >= 5) {
+      return res.status(429).json({ success: false, message: "Maximum OTP attempts exceeded. Please request a new OTP.", code: "MAX_ATTEMPTS" });
+    }
+
+    const _otpSecret =
+      process.env.OTP_HMAC_SECRET ||
+      process.env.JWT_ACCESS_SECRET ||
+      process.env.JWT_SECRET;
+    const otpHash = crypto.createHmac("sha256", _otpSecret).update(String(otp).trim()).digest("hex");
+    if (otpHash !== pending.otpHash) {
+      await User.findByIdAndUpdate(userId, { $inc: { "pendingEmailChange.attempts": 1 } });
+      const remaining = 4 - (pending.attempts || 0);
+      return res.status(400).json({
+        success: false,
+        message: `Incorrect OTP. ${remaining > 0 ? remaining + " attempt(s) remaining." : "Please request a new OTP."}`,
+        attemptsRemaining: Math.max(0, remaining),
+      });
+    }
+
+    const oldEmail = user.email;
+    await User.findByIdAndUpdate(userId, {
+      email: normalised,
+      isVerified: true,
+      lastEmailChange: new Date(),
+      $unset: { pendingEmailChange: 1 },
+    });
+
+    await invalidateAccountCaches(userId);
+
+    try {
+      await User.findByIdAndUpdate(userId, {
+        $push: {
+          securityLogs: {
+            action: "email_changed",
+            timestamp: new Date(),
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+            details: { oldEmail, newEmail: normalised },
+          },
+        },
+      });
+    } catch (_) {}
+
+    logger.info("[email_change] email updated", { userId, oldEmail, newEmail: normalised });
+
+    res.status(200).json({
+      success: true,
+      message: "Email address updated successfully.",
+      email: normalised,
+    });
+  } catch (error) {
+    logger.error("verifyEmailChange error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
+// ============================================================
+//  PRIMARY PHONE CHANGE  (authenticated, OTP-verified via Twilio)
+// ============================================================
+
+/**
+ * POST /api/auth/phone/change-request  [protected]
+ * Body: { phone, channel? }
+ */
+exports.requestPhoneChange = async (req, res) => {
+  try {
+    const { phone, channel = "sms" } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: "Phone number is required." });
+    if (!["sms", "whatsapp"].includes(channel)) return res.status(400).json({ success: false, message: "Channel must be 'sms' or 'whatsapp'." });
+    if (!TwilioVerify.isValidE164(phone)) {
+      return res.status(400).json({ success: false, message: "Invalid phone number. Please include the country code (e.g. +919876543210)." });
+    }
+
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+
+    if (user.phone && user.phone === phone) {
+      return res.status(400).json({ success: false, message: "This is already your current phone number." });
+    }
+
+    const conflict = await User.findOne({ phone, _id: { $ne: userId } });
+    if (conflict) {
+      return res.status(409).json({ success: false, message: "This phone number is already registered to another account." });
+    }
+
+    const phoneKey = phone.replace("+", "");
+    const blocked = await RedisService.checkEmailBlocked(phoneKey);
+    if (blocked) return res.status(429).json({ success: false, message: "Too many OTP requests. Please try again in 1 hour." });
+
+    const result = await TwilioVerify.sendVerification(phone, channel);
+    if (!result.success) {
+      if (result.code === 60212 || result.code === 60202) return res.status(429).json({ success: false, message: result.error });
+      return res.status(502).json({ success: false, message: result.error || "Failed to send OTP. Please try again." });
+    }
+
+    await RedisService.incrementRegistrationAttempts(phoneKey);
+
+    await User.findByIdAndUpdate(userId, {
+      pendingPhoneChange: { phone, requestedAt: new Date() },
+    });
+
+    // Best-effort SMS alert to old number
+    if (user.phone) {
+      try {
+        await TwilioService.sendSMS(
+          user.phone,
+          "Listifys security alert: A request was made to change your phone number. If this wasn't you, please secure your account immediately.",
+        );
+      } catch (_) {}
+    }
+
+    logger.info("[phone_change] OTP sent", { userId, newPhone: TwilioVerify.maskPhone(phone) });
+
+    res.status(200).json({
+      success: true,
+      message: `A verification code has been sent via ${channel === "whatsapp" ? "WhatsApp" : "SMS"}.`,
+      phone: TwilioVerify.maskPhone(phone),
+      expiresIn: 300,
+    });
+  } catch (error) {
+    logger.error("requestPhoneChange error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
+  }
+};
+
+/**
+ * POST /api/auth/phone/change-verify  [protected]
+ * Body: { phone, otp }
+ */
+exports.verifyPhoneChange = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ success: false, message: "Phone number and OTP are required." });
+    if (!/^\d{4,10}$/.test(String(otp).trim())) return res.status(400).json({ success: false, message: "OTP must be 4–10 digits." });
+    if (!TwilioVerify.isValidE164(phone)) return res.status(400).json({ success: false, message: "Invalid phone number. Please include the country code." });
+
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+
+    if (!user.pendingPhoneChange || user.pendingPhoneChange.phone !== phone) {
+      return res.status(400).json({ success: false, message: "No pending phone change found for this number. Please request a new OTP." });
+    }
+
+    const verifyResult = await TwilioVerify.checkVerification(phone, String(otp).trim());
+    if (!verifyResult.success || !verifyResult.valid) {
+      return res.status(400).json({ success: false, message: verifyResult.error || "Invalid or expired OTP." });
+    }
+
+    const oldPhone = user.phone;
+    await User.findByIdAndUpdate(userId, {
+      phone,
+      phoneVerified: true,
+      lastPhoneChange: new Date(),
+      $unset: { pendingPhoneChange: 1 },
+    });
+
+    await invalidateAccountCaches(userId);
+
+    try {
+      await User.findByIdAndUpdate(userId, {
+        $push: {
+          securityLogs: {
+            action: "phone_changed",
+            timestamp: new Date(),
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+            details: {
+              oldPhone: oldPhone ? TwilioVerify.maskPhone(oldPhone) : null,
+              newPhone: TwilioVerify.maskPhone(phone),
+            },
+          },
+        },
+      });
+    } catch (_) {}
+
+    logger.info("[phone_change] phone updated", { userId, newPhone: TwilioVerify.maskPhone(phone) });
+
+    res.status(200).json({
+      success: true,
+      message: "Phone number updated and verified.",
+      phone,
+      phoneVerified: true,
+    });
+  } catch (error) {
+    logger.error("verifyPhoneChange error:", error);
+    res.status(500).json({ success: false, message: "Server error." });
   }
 };

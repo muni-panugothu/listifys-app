@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, sendPhoneOtp, verifyPhoneOtp } from "@/store/slices/auth-slice";
@@ -25,7 +26,13 @@ export function MobileAuthScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { status, error, isAuthenticated } = useAppSelector((s) => s.auth);
-  const [phoneNumber, setPhoneNumber] = useState("");
+  // Global phone input state
+  const [phoneCode, setPhoneCode] = useState("+91");
+  const [isoCode, setIsoCode] = useState("IN");
+  const [phoneDigits, setPhoneDigits] = useState("");
+  // Full E.164 derived from code + digits
+  const e164Phone = `${phoneCode}${phoneDigits.replace(/\D/g, "")}`;
+
   const [requestedPhone, setRequestedPhone] = useState<string | null>(null);
   const [otpDigits, setOtpDigits] = useState<string[]>(
     Array(OTP_LENGTH).fill(""),
@@ -70,16 +77,15 @@ export function MobileAuthScreen() {
   }, [isOtpStep, secondsRemaining]);
 
   const handleSendOtp = async () => {
-    const digitsOnly = phoneNumber.replace(/\D/g, "");
-    if (digitsOnly.length !== 10) {
-      showErrorToast("Invalid Phone", "Please enter a valid 10-digit phone number.");
+    if (!/^\+[1-9]\d{6,14}$/.test(e164Phone)) {
+      showErrorToast("Invalid Phone", "Please enter a valid phone number with country code.");
       return;
     }
 
-    const phone = `+91${digitsOnly}`;
+    const phone = e164Phone;
 
     try {
-      await dispatch(sendPhoneOtp({ phone })).unwrap();
+      await dispatch(sendPhoneOtp({ phone, channel: "sms" })).unwrap();
       setRequestedPhone(phone);
       setOtpDigits(Array(OTP_LENGTH).fill(""));
       setSecondsRemaining(INITIAL_RESEND_SECONDS);
@@ -97,7 +103,7 @@ export function MobileAuthScreen() {
     }
 
     try {
-      await dispatch(sendPhoneOtp({ phone: requestedPhone })).unwrap();
+      await dispatch(sendPhoneOtp({ phone: requestedPhone, channel: "sms" })).unwrap();
       setOtpDigits(Array(OTP_LENGTH).fill(""));
       setSecondsRemaining(INITIAL_RESEND_SECONDS);
       setTimeout(() => {
@@ -177,35 +183,28 @@ export function MobileAuthScreen() {
 
               {!isOtpStep ? (
                 <View className="w-full flex flex-col gap-3">
-                  <View className="flex-row items-center border border-gray-300 rounded-full px-4">
-                    <Text className="text-gray-700 mr-2">+91</Text>
-                    <TextInput
-                      value={phoneNumber}
-                      onChangeText={(value) => {
-                        setPhoneNumber(value.replace(/\D/g, "").slice(0, 10));
-                      }}
-                      placeholder="9876543210"
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="phone-pad"
-                      className="flex-1 py-4 text-gray-800"
-                    />
-                  </View>
+                  {/* Global phone input with country picker */}
+                  <PhoneInputWithCountry
+                    phoneCode={phoneCode}
+                    phone={phoneDigits}
+                    isoCode={isoCode}
+                    onChangePhoneCode={(code, iso) => {
+                      setPhoneCode(code);
+                      setIsoCode(iso);
+                    }}
+                    onChangePhone={(digits) => setPhoneDigits(digits)}
+                  />
 
                   <Pressable
                     onPress={handleSendOtp}
                     disabled={isLoading}
-                    style={({ pressed }) => [
-                      { opacity: pressed ? 0.9 : 1 },
-                      { opacity: isLoading ? 0.7 : 1 },
-                    ]}
-                    className="bg-black text-white px-5 py-3 rounded-full w-full items-center"
+                    style={({ pressed }) => [{ opacity: pressed || isLoading ? 0.75 : 1 }]}
+                    className="w-full bg-black px-4 py-3 rounded-full items-center"
                   >
                     {isLoading ? (
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
-                      <Text className="text-white text-center font-semibold">
-                        Send OTP
-                      </Text>
+                      <Text className="text-white font-semibold">Send OTP</Text>
                     )}
                   </Pressable>
                 </View>
@@ -271,6 +270,7 @@ export function MobileAuthScreen() {
                     <Pressable
                       onPress={() => {
                         setRequestedPhone(null);
+                        setPhoneDigits("");
                         setOtpDigits(Array(OTP_LENGTH).fill(""));
                       }}
                     >

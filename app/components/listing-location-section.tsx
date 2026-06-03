@@ -81,6 +81,8 @@ export function ListingLocationSection({
           category: categorySlug,
           distance: listing.distance as number | undefined,
           coordinates: listing.coordinates,
+          countryCode: listing.countryCode,
+          currency: listing.currency,
         },
         userCoords.lat != null && userCoords.lng != null
           ? { lat: userCoords.lat, lng: userCoords.lng }

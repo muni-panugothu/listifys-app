@@ -289,6 +289,29 @@ async function sendFollowNotification(fcmToken, {
   });
 }
 
+async function sendSecurityAlertNotification(fcmToken, {
+  notificationId, deviceName, deviceId, deviceType,
+  city, state, country, ipAddress, loginTime, timezone,
+  isNewDevice, isNewLocation,
+}) {
+  const locationStr = [city, state, country].filter(Boolean).join(', ');
+  return sendRichNotification(fcmToken, {
+    notificationId,
+    type:     'security_alert',
+    title:    '🔐 New Login Detected',
+    body:     `A new sign-in to your Listify account was detected.\n\nDevice: ${deviceName}\nLocation: ${locationStr}\nTime: ${loginTime}\n\nIf this wasn't you, TAP TO TAKE ACTION immediately.`,
+    route:    '/security-alert',
+    params:   { deviceId, deviceName, deviceType, city, state, country, ipAddress, loginTime, timezone, isNewDevice, isNewLocation },
+    actions:  [
+      { id: 'secure_account', title: '🔒 Secure Account' },
+      { id: 'dismiss',        title: '✓ This Was Me' },
+    ],
+    groupKey: 'security',
+    sound:    'default',
+    extra:    { deviceId, deviceName, deviceType, city, state, country, ipAddress, loginTime, timezone, isNewDevice, isNewLocation },
+  });
+}
+
 module.exports = {
   sendCallNotification,
   sendRichNotification,
@@ -300,4 +323,5 @@ module.exports = {
   sendOfferNotification,
   sendBookingNotification,
   sendFollowNotification,
+  sendSecurityAlertNotification,
 };

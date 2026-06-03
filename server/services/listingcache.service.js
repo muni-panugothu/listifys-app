@@ -249,6 +249,7 @@ class ListingCacheService {
           price: l.price,
           currency: l.currency,
           location: l.location,
+          countryCode: l.countryCode,
           condition: l.condition,
           category: l.category || l.subcategory,
           subcategory: l.subcategory,
@@ -269,6 +270,7 @@ class ListingCacheService {
           fuelType: l.fuelType,
           transmission: l.transmission,
           kmDriven: l.kmDriven,
+          mileageUnit: l.mileageUnit,
         })),
         cachedAt: new Date().toISOString(),
       };
@@ -381,6 +383,7 @@ class ListingCacheService {
           slug: r.slug,
           price: r.price,
           location: r.location,
+          countryCode: r.countryCode,
           thumbnail: r.images?.[0] || null,
           images: r.images || [],
           condition: r.condition,
@@ -396,6 +399,7 @@ class ListingCacheService {
           fuelType: r.fuelType,
           transmission: r.transmission,
           kmDriven: r.kmDriven,
+          mileageUnit: r.mileageUnit,
           currency: r.currency,
           subcategory: r.subcategory,
           createdAt: r.createdAt,
@@ -570,8 +574,10 @@ class ListingCacheService {
       listingCache.delByPrefix(`listing:${entity}:list:`);
       listingCache.delByPrefix(`listing:${entity}:gallery`);
       listingCache.delByPrefix(`search:${entity}:`);
+      listingCache.delByPrefix('search:all:');
       listingCache.delByPrefix(`redis:listing:${entity}:list:`);
       listingCache.delByPrefix(`redis:search:${entity}:`);
+      listingCache.delByPrefix('redis:search:all:');
 
       // L2: Only delete aggregate keys — NOT individual listing keys
       const indexKey = `listing:${entity}:index`;
@@ -585,7 +591,20 @@ class ListingCacheService {
         );
         for (const key of listKeys) {
           await redis.del(key);
+          await redis.del(this._staleKey(key));
           await redis.srem(indexKey, key);
+        }
+      }
+
+      // Any entity change can affect "all" search pages, so clear those too.
+      if (entity !== 'all') {
+        const allIndexKey = 'listing:all:index';
+        const allKeys = await redis.smembers(allIndexKey);
+        const allSearchKeys = (allKeys || []).filter(k => k.startsWith('search:all:'));
+        for (const key of allSearchKeys) {
+          await redis.del(key);
+          await redis.del(this._staleKey(key));
+          await redis.srem(allIndexKey, key);
         }
       }
 
@@ -612,7 +631,9 @@ class ListingCacheService {
       listingCache.delByPrefix(`listing:${entity}:`);
       listingCache.delByPrefix(`redis:listing:${entity}:`);
       listingCache.delByPrefix(`search:${entity}:`);
+      listingCache.delByPrefix('search:all:');
       listingCache.delByPrefix(`redis:search:${entity}:`);
+      listingCache.delByPrefix('redis:search:all:');
 
       if (id) {
         // Delete specific listing caches
@@ -630,8 +651,20 @@ class ListingCacheService {
       if (keys && keys.length > 0) {
         for (const key of keys) {
           await redis.del(key);
+          await redis.del(this._staleKey(key));
         }
         await redis.del(indexKey);
+      }
+
+      if (entity !== 'all') {
+        const allIndexKey = 'listing:all:index';
+        const allKeys = await redis.smembers(allIndexKey);
+        const allSearchKeys = (allKeys || []).filter(k => k.startsWith('search:all:'));
+        for (const key of allSearchKeys) {
+          await redis.del(key);
+          await redis.del(this._staleKey(key));
+          await redis.srem(allIndexKey, key);
+        }
       }
 
       // Clear common keys
@@ -692,6 +725,7 @@ class ListingCacheService {
         payload.fuelType = listing.fuelType;
         payload.transmission = listing.transmission;
         payload.kmDriven = listing.kmDriven;
+        payload.mileageUnit = listing.mileageUnit;
         payload.ownership = listing.ownership;
       }
 
@@ -718,7 +752,7 @@ class ListingCacheService {
       const trackFields = [
         'title', 'price', 'description', 'condition', 'location',
         'phone', 'category', 'subcategory', 'brand', 'model',
-        'year', 'fuelType', 'transmission', 'kmDriven', 'ownership',
+        'year', 'fuelType', 'transmission', 'kmDriven', 'mileageUnit', 'ownership',
       ];
 
       for (const field of trackFields) {

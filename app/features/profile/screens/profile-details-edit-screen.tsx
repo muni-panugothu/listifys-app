@@ -25,6 +25,11 @@ import {
   setAuthUser,
   updateUserProfile,
 } from "@/store/slices/auth-slice";
+import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
+import { setLocationDirect, setProfileFallbackLocation, selectLocationLabel } from "@/store/slices/location-slice";
+import { saveStoredLocation } from "@/lib/location-service";
+import { useLocale, CALLING_CODE } from "@/providers/locale-provider";
+import { selectLocationCoords } from "@/store/slices/location-slice";
 
 const BRAND = "#27BB97";
 const TEXT_PRIMARY = "#1A1A1A";
@@ -74,10 +79,17 @@ export function ProfileDetailsEditScreen() {
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const sessionHydrated = useAppSelector((s) => s.auth.sessionHydrated);
   const status = useAppSelector((s) => s.auth.status);
+  const locationCoords = useAppSelector(selectLocationCoords);
+  const reduxLocationLabel = useAppSelector(selectLocationLabel);
+  const locationHydrated = useAppSelector((s) => s.location.hydrated);
+  const { phoneCode: localePhoneCode, isoCountryCode: localeIso } = useLocale();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  // phone split into country code and digits for the picker
+  const [phoneCode, setPhoneCode] = useState(localePhoneCode);
+  const [phoneIso, setPhoneIso] = useState(localeIso);
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [gender, setGender] = useState("");
@@ -105,12 +117,48 @@ export function ProfileDetailsEditScreen() {
     }
   }, [dispatch, isAuthenticated, router, sessionHydrated, user]);
 
+  // ── Location sync ──────────────────────────────────────────────────────────
+  // Always follow the Redux location slice so any change made in the location
+  // picker (or home-feed header) is immediately reflected here.
+  // Falls back to user.address when the slice has no real value yet.
+  useEffect(() => {
+    if (!locationHydrated) return;
+    const PLACEHOLDER = ["Set location", "Detecting location\u2026"];
+    const sliceReady = reduxLocationLabel && !PLACEHOLDER.includes(reduxLocationLabel);
+    if (sliceReady) {
+      setLocation(reduxLocationLabel);
+    } else if (user) {
+      const addr = (user as { address?: string }).address || (user as { location?: string }).location || "";
+      setLocation(addr);
+    }
+  }, [user, reduxLocationLabel, locationHydrated]);
+
   useEffect(() => {
     if (user) {
       setFullName(user.name || "");
       setEmail(user.email || "");
-      setPhone(user.phone || "");
-      setLocation((user as { address?: string; location?: string }).address || (user as { location?: string }).location || "");
+      // Parse stored phone: it may be "+91XXXXXXXXXX" or just "XXXXXXXXXX"
+      const rawPhone: string = (user as { phone?: string }).phone || "";
+      if (rawPhone.startsWith("+")) {
+        // Sort all known calling codes longest-first so +355 matches before +35
+        const allCodes = [...new Set(Object.values(CALLING_CODE))]
+          .sort((a, b) => b.length - a.length);
+        const matchedCode = allCodes.find((c) => rawPhone.startsWith(c));
+        if (matchedCode) {
+          setPhoneCode(matchedCode);
+          setPhoneDigits(rawPhone.slice(matchedCode.length));
+          // Reverse-lookup ISO from calling code so the flag updates correctly.
+          // For ambiguous codes (+1 → US, +7 → RU) prefer the primary country.
+          const PREFERRED_ISO: Record<string, string> = { "+1": "US", "+7": "RU" };
+          const iso = PREFERRED_ISO[matchedCode] ??
+            (Object.entries(CALLING_CODE).find(([, c]) => c === matchedCode)?.[0] ?? localeIso);
+          setPhoneIso(iso);
+        } else {
+          setPhoneDigits(rawPhone.replace(/^\+\d{1,4}/, ""));
+        }
+      } else {
+        setPhoneDigits(rawPhone);
+      }
       setBio((user as { bio?: string }).bio || "");
       setGender((user as { gender?: string }).gender || "");
       const dob = (user as { dateOfBirth?: string }).dateOfBirth;
@@ -130,8 +178,6 @@ export function ProfileDetailsEditScreen() {
     const result = await dispatch(
       updateUserProfile({
         name: fullName,
-        email,
-        phone,
         address: location,
         bio,
         dateOfBirth,
@@ -139,11 +185,38 @@ export function ProfileDetailsEditScreen() {
       }),
     );
     if (updateUserProfile.fulfilled.match(result)) {
+      // Sync the location text back to the Redux location slice so the home
+      // feed, post form, and any other consumer that reads selectLocationLabel
+      // reflects the profile's address immediately.
+      // setProfileFallbackLocation is a no-op when the user already has a
+      // GPS or manually-picked location (it never overrides those).
+      if (location.trim()) {
+        dispatch(setProfileFallbackLocation(location.trim()));
+      }
       showSuccessToast("Saved", "Your profile was updated.");
       handleBack();
     } else {
       showErrorToast("Error", (result.payload as string) || "Failed to update profile");
     }
+  };
+
+  const handleLocationSelect = async (result: PlacesSelectResult) => {
+    setLocation(result.label);
+    // Sync to global location slice so all screens instantly see new location
+    dispatch(setLocationDirect({
+      label: result.label,
+      lat: result.lat,
+      lng: result.lng,
+      isoCountryCode: result.isoCountryCode,
+    }));
+    await saveStoredLocation({
+      label: result.label,
+      lat: result.lat,
+      lng: result.lng,
+      isoCountryCode: result.isoCountryCode,
+      source: "manual",
+      updatedAt: Date.now(),
+    });
   };
 
   const handlePickImage = async () => {
@@ -311,29 +384,82 @@ export function ProfileDetailsEditScreen() {
             />
           </FormCard>
 
+          {/* ── Email & Phone read-only ── */}
           <FormCard>
             <FieldLabel>Email</FieldLabel>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder="you@email.com"
-              placeholderTextColor="#9CA3AF"
-              className="h-12 rounded-xl bg-[#F6F7F8] px-4 text-[15px]"
-              style={{ fontFamily: ListifyFonts.regular, color: TEXT_PRIMARY }}
-            />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                height: 48,
+                backgroundColor: "#F6F7F8",
+                borderRadius: 12,
+                paddingHorizontal: 14,
+              }}
+            >
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  fontFamily: ListifyFonts.regular,
+                  color: TEXT_PRIMARY,
+                }}
+                numberOfLines={1}
+              >
+                {email || "—"}
+              </Text>
+              <Pressable
+                onPress={() => router.push("/change-email" as Href)}
+                hitSlop={8}
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.6 : 1,
+                  paddingVertical: 4,
+                  paddingLeft: 8,
+                })}
+              >
+                <Text style={{ fontSize: 13.5, fontFamily: ListifyFonts.semiBold, color: BRAND }}>
+                  Change
+                </Text>
+              </Pressable>
+            </View>
+
             <View className="mt-4">
               <FieldLabel>Phone</FieldLabel>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                placeholder="+1 555 000 0000"
-                placeholderTextColor="#9CA3AF"
-                className="h-12 rounded-xl bg-[#F6F7F8] px-4 text-[15px]"
-                style={{ fontFamily: ListifyFonts.regular, color: TEXT_PRIMARY }}
-              />
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  height: 48,
+                  backgroundColor: "#F6F7F8",
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                }}
+              >
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 15,
+                    fontFamily: ListifyFonts.regular,
+                    color: TEXT_PRIMARY,
+                  }}
+                  numberOfLines={1}
+                >
+                  {phoneDigits ? `${phoneCode} ${phoneDigits}` : (email ? "—" : "—")}
+                </Text>
+                <Pressable
+                  onPress={() => router.push("/change-phone-primary" as Href)}
+                  hitSlop={8}
+                  style={({ pressed }) => ({
+                    opacity: pressed ? 0.6 : 1,
+                    paddingVertical: 4,
+                    paddingLeft: 8,
+                  })}
+                >
+                  <Text style={{ fontSize: 13.5, fontFamily: ListifyFonts.semiBold, color: BRAND }}>
+                    Change
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </FormCard>
 
@@ -381,17 +507,14 @@ export function ProfileDetailsEditScreen() {
 
           <FormCard>
             <FieldLabel>Location</FieldLabel>
-            <View className="h-12 flex-row items-center rounded-xl bg-[#F6F7F8] px-4">
-              <MaterialIcons name="location-on" size={20} color={BRAND} />
-              <TextInput
-                value={location}
-                onChangeText={setLocation}
-                placeholder="City, area"
-                placeholderTextColor="#9CA3AF"
-                className="ml-2 flex-1 text-[15px]"
-                style={{ fontFamily: ListifyFonts.regular, color: TEXT_PRIMARY }}
-              />
-            </View>
+            <GooglePlacesInput
+              value={location}
+              onChangeText={setLocation}
+              onSelect={handleLocationSelect}
+              placeholder="City, area"
+              userLat={locationCoords?.lat}
+              userLng={locationCoords?.lng}
+            />
             <View className="mt-4">
               <FieldLabel>Bio</FieldLabel>
               <TextInput

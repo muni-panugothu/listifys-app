@@ -29,7 +29,7 @@ import {
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { ListingLocationSection } from "@/components/listing-location-section";
-import { getListingDistanceLabel } from "@/lib/listing-distance";
+import { formatVehicleOdometer, getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
@@ -42,7 +42,7 @@ const THUMB_SIZE = 72;
 const TAB_BLUE = "#6BA3FF";
 const READ_MORE_LIMIT = 320;
 
-const CONDITION_OPTIONS = ["New", "Like New", "Good", "Fair"];
+const CONDITION_OPTIONS = ["New", "Like New", "Good", "Fair", "Used"];
 
 function HeaderIconButton({
   icon,
@@ -285,7 +285,7 @@ export function ListingDetailTemplateScreen() {
 
   const title = listing?.title ?? "";
   const priceLabel = listing?.price
-    ? formatPrice(listing.price, listing.currency, isoCountryCode)
+    ? formatPrice(listing.price, listing.currency, listing.countryCode ?? isoCountryCode)
     : "Price on request";
   const distanceLabel = listing
     ? getListingDistanceLabel(
@@ -294,6 +294,8 @@ export function ListingDetailTemplateScreen() {
           category: categorySlug,
           distance: listing.distance as number | undefined,
           coordinates: listing.coordinates,
+          countryCode: listing.countryCode,
+          currency: listing.currency,
         },
         userCoords.lat != null && userCoords.lng != null
           ? { lat: userCoords.lat, lng: userCoords.lng }
@@ -301,7 +303,7 @@ export function ListingDetailTemplateScreen() {
         isoCountryCode,
       )
     : undefined;
-  const condition = listing?.condition ?? "Like New";
+  const condition = listing?.condition?.trim() ?? "";
   const description =
     listing?.description ??
     "No description provided for this listing. Contact the seller to ask for more details.";
@@ -358,7 +360,13 @@ export function ListingDetailTemplateScreen() {
     push("Year", listing.year);
     push("Fuel Type", listing.fuelType);
     push("Transmission", listing.transmission);
-    push("Mileage", listing.mileage);
+    push(
+      "Driven",
+      formatVehicleOdometer(listing.kmDriven ?? listing.mileage, {
+        unit: listing.mileageUnit,
+        isoCountryCode: listing.countryCode ?? isoCountryCode,
+      }),
+    );
     push("Engine CC", l.engineCC);
     push("Color", listing.color);
 
@@ -401,7 +409,7 @@ export function ListingDetailTemplateScreen() {
     push("Organizer", l.organizer);
 
     return rows;
-  }, [listing]);
+  }, [isoCountryCode, listing]);
 
   if (loading && !listing) {
     return (
@@ -533,9 +541,7 @@ export function ListingDetailTemplateScreen() {
           </Text>
           <View className="flex-row flex-wrap gap-2">
             {CONDITION_OPTIONS.map((opt) => {
-              const selected =
-                condition.toLowerCase().includes(opt.toLowerCase()) ||
-                (opt === "Like New" && condition.toLowerCase().includes("like"));
+              const selected = condition.toLowerCase() === opt.toLowerCase();
               return (
                 <View
                   key={opt}
@@ -885,7 +891,7 @@ export function ListingDetailTemplateScreen() {
                       </Text>
                       <View className="flex-row flex-wrap gap-2">
                         {recommendedOffers.map((amt) => {
-                          const label = formatPrice(amt, listing?.currency, isoCountryCode);
+                          const label = formatPrice(amt, listing?.currency, listing?.countryCode ?? isoCountryCode);
                           const isSelected = selectedChip === String(amt);
                           return (
                             <Pressable

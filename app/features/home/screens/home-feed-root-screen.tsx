@@ -152,62 +152,60 @@ export function HomeFeedRootScreen() {
     return filterOutOwnListings(flat, user?.id);
   }, [feedData, user?.id]);
 
-  const loadFeed = useCallback(async (options?: { allowCacheFallback?: boolean }) => {
-    const startedAt = Date.now();
-
-    try {
-      const hasCoords =
-        locationCoords.lat != null && locationCoords.lng != null;
-      // A "real" label is any label the user/GPS has actually resolved —
-      // not the default placeholder shown before any location is set.
-      const isRealLabel =
-        Boolean(locationCoords.label) &&
-        locationCoords.label !== "Set location" &&
-        !locationCoords.label.startsWith("Detecting");
-      const cityForFeed = extractCityFromLocationLabel(locationCoords.label);
-      // Only apply location filters when the user has an actual location.
-      // Without this, "Set location" is passed to the server, which treats it
-      // as a text filter and returns 0 results (no listing has that location).
-      const locationText = hasCoords
-        ? (cityForFeed ?? (isRealLabel ? locationCoords.label : undefined))
-        : (isRealLabel ? locationCoords.label : undefined);
-
-      const res = await fetchHomeFeed({
-        limit: 12,
-        lat: hasCoords ? locationCoords.lat! : undefined,
-        lng: hasCoords ? locationCoords.lng! : undefined,
-        radius: hasCoords ? 100 : undefined,
-        location: locationText,
-        countryCode: isoCountryCode ?? undefined,
-      });
-      const duration = Date.now() - startedAt;
-
-      if (duration >= SLOW_HOME_FEED_MS) {
-        dispatch(reportSlowRequest(duration));
-      } else {
-        dispatch(clearSlowRequestSignal());
+  const loadFeed = useCallback(
+    async (options?: { allowCacheFallback?: boolean }) => {
+      const startedAt = Date.now();
+      try {
+        let feedParams: any = { limit: 12 };
+        if (isAuthenticated) {
+          // Authenticated: filter by user location as before
+          const hasCoords = locationCoords.lat != null && locationCoords.lng != null;
+          const isRealLabel =
+            Boolean(locationCoords.label) &&
+            locationCoords.label !== "Set location" &&
+            !locationCoords.label.startsWith("Detecting");
+          const cityForFeed = extractCityFromLocationLabel(locationCoords.label);
+          const locationText = hasCoords
+            ? cityForFeed ?? (isRealLabel ? locationCoords.label : undefined)
+            : isRealLabel ? locationCoords.label : undefined;
+          feedParams = {
+            ...feedParams,
+            lat: hasCoords ? locationCoords.lat : undefined,
+            lng: hasCoords ? locationCoords.lng : undefined,
+            radius: hasCoords ? 100 : undefined,
+            location: locationText,
+            countryCode: isoCountryCode ?? undefined,
+          };
+        } else {
+          // Guest: fetch all countries, no location filter
+          feedParams = { ...feedParams };
+        }
+        const res = await fetchHomeFeed(feedParams);
+        const duration = Date.now() - startedAt;
+        if (duration >= SLOW_HOME_FEED_MS) {
+          dispatch(reportSlowRequest(duration));
+        } else {
+          dispatch(clearSlowRequestSignal());
+        }
+        applyFeedSnapshot(res, { source: "live" });
+      } catch {
+        const duration = Date.now() - startedAt;
+        if (duration >= SLOW_HOME_FEED_MS) {
+          dispatch(reportSlowRequest(duration));
+        } else {
+          dispatch(clearSlowRequestSignal());
+        }
+        if (options?.allowCacheFallback === false) {
+          return;
+        }
+        const cached = await getCachedHomeFeed();
+        if (cached) {
+          applyFeedSnapshot(cached.data, { source: "cache" });
+        }
       }
-
-      applyFeedSnapshot(res, { source: "live" });
-    } catch {
-      const duration = Date.now() - startedAt;
-
-      if (duration >= SLOW_HOME_FEED_MS) {
-        dispatch(reportSlowRequest(duration));
-      } else {
-        dispatch(clearSlowRequestSignal());
-      }
-
-      if (options?.allowCacheFallback === false) {
-        return;
-      }
-
-      const cached = await getCachedHomeFeed();
-      if (cached) {
-        applyFeedSnapshot(cached.data, { source: "cache" });
-      }
-    }
-  }, [applyFeedSnapshot, dispatch, isoCountryCode, locationCoords.label, locationCoords.lat, locationCoords.lng]);
+    },
+    [applyFeedSnapshot, dispatch, isoCountryCode, locationCoords.label, locationCoords.lat, locationCoords.lng, isAuthenticated]
+  );
 
   useEffect(() => {
     void dispatch(hydrateAppLocation());
@@ -304,24 +302,53 @@ export function HomeFeedRootScreen() {
   };
 
   const freshRecommendations = useMemo((): FreshRecommendationItem[] => {
+    // For guest: show all listings, distance is from listing's own location (or just city/country)
+    // For authenticated: show as before (distance from user)
     const userLatLng =
-      locationCoords.lat != null && locationCoords.lng != null
+      isAuthenticated && locationCoords.lat != null && locationCoords.lng != null
         ? { lat: locationCoords.lat, lng: locationCoords.lng }
         : null;
 
     const withDistance = allListings.map((item) => {
-      const category =
-        (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics";
-      const distanceKm = resolveListingDistanceKm(
-        {
-          _id: item._id,
-          category,
-          distance: (item as { distance?: number }).distance,
-          coordinates: item.coordinates,
-        },
-        userLatLng,
-      );
-      return { item, category, distanceKm };
+      const category = (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics";
+      let distanceKm: number | undefined = undefined;
+      let distanceLabel: string | undefined = undefined;
+      if (isAuthenticated && userLatLng) {
+        distanceKm = resolveListingDistanceKm(
+          {
+            _id: item._id,
+            category,
+            distance: (item as { distance?: number }).distance,
+            coordinates: item.coordinates,
+          },
+          userLatLng,
+        );
+        distanceLabel = getListingDistanceLabel(
+          {
+            _id: item._id,
+            category,
+            distance: distanceKm ?? undefined,
+            coordinates: item.coordinates,
+          },
+          userLatLng,
+          isoCountryCode,
+        );
+      } else {
+        // Guest: show location/city/country, or km if available from listing
+        distanceKm = (item as { distance?: number }).distance;
+        distanceLabel = getListingDistanceLabel(
+          {
+            _id: item._id,
+            category,
+            distance: distanceKm ?? undefined,
+            coordinates: item.coordinates,
+            location: item.location,
+          },
+          null,
+          item.countryCode || undefined,
+        );
+      }
+      return { item, category, distanceKm, distanceLabel };
     });
 
     withDistance.sort((a, b) => {
@@ -330,7 +357,7 @@ export function HomeFeedRootScreen() {
       return bTime - aTime;
     });
 
-    return withDistance.slice(0, 12).map(({ item, category, distanceKm }) => ({
+    return withDistance.slice(0, 12).map(({ item, category, distanceLabel }) => ({
       id: item._id,
       title: item.title,
       price: item.price ?? null,
@@ -338,18 +365,9 @@ export function HomeFeedRootScreen() {
       image: item.images?.[0] ?? "",
       createdAt: item.createdAt,
       category,
-      distanceLabel: getListingDistanceLabel(
-        {
-          _id: item._id,
-          category,
-          distance: distanceKm ?? undefined,
-          coordinates: item.coordinates,
-        },
-        userLatLng,
-        isoCountryCode,
-      ),
+      distanceLabel,
     }));
-  }, [allListings, locationCoords.lat, locationCoords.lng, isoCountryCode]);
+  }, [allListings, locationCoords.lat, locationCoords.lng, isoCountryCode, isAuthenticated]);
 
   const navigateToCategory = useCallback(
     (catId: CategorySlug) => {
@@ -730,11 +748,17 @@ export function HomeFeedRootScreen() {
                   {
                     _id: item._id,
                     category: item.category,
+                    // Pass the listing's own country code so that when the user
+                    // has no country selected (isoCountryCode is null) the unit
+                    // is still determined from the listing's origin, not a
+                    // hardcoded default of "km".
+                    countryCode: item.countryCode ?? item.isoCountryCode,
+                    currency: item.currency,
                   },
                   locationCoords.lat != null && locationCoords.lng != null
                     ? { lat: locationCoords.lat, lng: locationCoords.lng }
                     : null,
-                  isoCountryCode,
+                  isoCountryCode || item.countryCode || item.isoCountryCode,
                 );
 
                 return (

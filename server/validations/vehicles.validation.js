@@ -51,6 +51,7 @@ const createVehicleSchema = Joi.object({
     'string.pattern.base': 'Year must be a 4-digit number',
   }),
   kmDriven: Joi.string().trim().max(30).allow(''),
+  mileageUnit: Joi.string().valid('km', 'mi', '').default('km'),
   color: Joi.string().trim().max(50).allow(''),
 
   // Cars / Bikes

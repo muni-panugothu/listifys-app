@@ -79,11 +79,11 @@ const serviceListingSchema = new mongoose.Schema({
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point'
     },
     coordinates: {
       type: [Number],
-      required: true
+      required: false,
+      default: undefined,
     },
     address: String,
     city: String,
@@ -115,7 +115,7 @@ const serviceListingSchema = new mongoose.Schema({
   serviceAvailability: { type: String },
   priceType: {
     type: String,
-    enum: ['fixed', 'Fixed', 'Hourly', 'hourly', 'Daily', 'daily', 'Per Visit', 'Per Project', 'Monthly', 'monthly', 'Negotiable', 'project', 'weekly'],
+    enum: ['fixed', 'Fixed', 'Hourly', 'hourly', 'Daily', 'daily', 'Per Visit', 'Per Project', 'Monthly', 'monthly', 'Negotiable', 'project', 'weekly', 'Per Hour', 'Per Day', 'Per Month', 'Fixed Quote'],
     default: 'fixed'
   },
   serviceArea: { type: String },
@@ -171,7 +171,7 @@ const serviceListingSchema = new mongoose.Schema({
 });
 
 // Indexes
-serviceListingSchema.index({ location: '2dsphere' });
+serviceListingSchema.index({ location: '2dsphere' }, { sparse: true });
 serviceListingSchema.index({ category: 1, subcategory: 1 });
 serviceListingSchema.index({ status: 1, visibility: 1 });
 serviceListingSchema.index({ 'pricing.basePrice': 1 });

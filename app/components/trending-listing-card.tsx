@@ -11,6 +11,7 @@ type TrendingListingCardProps = {
   title: string;
   price?: number | null;
   currency?: string | null;
+  isoCountryCode?: string | null;
   image: string;
   cardWidth: number;
   distanceLabel?: string;
@@ -21,15 +22,20 @@ type TrendingListingCardProps = {
   onToggleSave: () => void;
 };
 
-function formatPrice(price?: number | null, currency?: string | null) {
+function formatPrice(
+  price?: number | null,
+  currency?: string | null,
+  isoCountryCode?: string | null,
+) {
   if (price == null) return "Price on request";
-  return libFormatPrice(price, currency);
+  return libFormatPrice(price, currency, isoCountryCode);
 }
 
 export function TrendingListingCard({
   title,
   price,
   currency,
+  isoCountryCode,
   image,
   cardWidth,
   distanceLabel,
@@ -103,7 +109,7 @@ export function TrendingListingCard({
             minimumFontScale={0.8}
             numberOfLines={2}
           >
-            {formatPrice(price, currency)}
+            {formatPrice(price, currency, isoCountryCode)}
           </Text>
           {distanceLabel ? (
             <Text

@@ -31,6 +31,7 @@ import { PostLocationMapPreview } from "@/components/post-location-map-preview";
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
 import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
 import { useLocale } from "@/providers/locale-provider";
+import { getMileageUnitForCountry } from "@/lib/listing-distance";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { refreshDeviceLocation, selectLocationCoords, setLocationDirect } from "@/store/slices/location-slice";
 import {
@@ -67,7 +68,7 @@ const MODERATION_CATEGORY_SHORT: Record<string, string> = {
 export function PostAdStep3MediaScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { phoneCode: localePhoneCode } = useLocale();
+  const { phoneCode: localePhoneCode, isoCountryCode: localeCountryCode } = useLocale();
   const locationIso = useAppSelector((s) => s.location.isoCountryCode);
 
   // Phone code is derived from locale (which tracks location globally).
@@ -87,7 +88,7 @@ export function PostAdStep3MediaScreen() {
     genderPreference, occupancy,
     brand, model: productModel, warranty, purchaseYear, screenSize, displayType,
     processor, ram, storage, capacity, energyRating, megapixels, lensType,
-    variant, year, kmDriven, fuelType, transmission, ownership, color, engineCC,
+    variant, year, kmDriven, mileageUnit, fuelType, transmission, ownership, color, engineCC,
     cycleType, gearCount, frameSize, compatibleVehicle, partCategory,
     companyName, companyEmail, applyLink, jobType, experience, education,
     employmentType, workMode, salaryMin, salaryMax, salaryType, industry, positions,
@@ -102,6 +103,7 @@ export function PostAdStep3MediaScreen() {
     author, isbn, publisher, edition, language, pages,
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
+    priceUnit, serviceArea, serviceMode, responseTime,
     imageUris, phone, currency, locationLat, locationLng, isSubmitting, submitError,
   } = useAppSelector((s) => s.postForm);
 
@@ -380,7 +382,11 @@ export function PostAdStep3MediaScreen() {
         if (productModel) listingBody.model = productModel;
         if (variant) listingBody.variant = variant;
         if (year) listingBody.year = year;
-        if (kmDriven) listingBody.kmDriven = kmDriven;
+        if (kmDriven) {
+          listingBody.kmDriven = kmDriven;
+          listingBody.mileageUnit =
+            mileageUnit || getMileageUnitForCountry(locationIso ?? localeCountryCode);
+        }
         if (fuelType) listingBody.fuelType = fuelType;
         if (transmission) listingBody.transmission = transmission;
         if (ownership) listingBody.ownership = ownership;
@@ -557,8 +563,25 @@ export function PostAdStep3MediaScreen() {
         if (sportType) listingBody.sportType = sportType;
       }
 
+      // Attach services-specific fields
+      if (category === "services") {
+        const PRICE_UNIT_MAP: Record<string, string> = {
+          "Per Hour": "Hourly",
+          "Per Visit": "Per Visit",
+          "Per Day": "Daily",
+          "Per Month": "Monthly",
+          "Fixed Quote": "fixed",
+        };
+        if (serviceArea) listingBody.serviceArea = serviceArea;
+        if (priceUnit) listingBody.priceType = PRICE_UNIT_MAP[priceUnit] ?? priceUnit;
+        if (serviceMode) listingBody.serviceType = serviceMode;
+        if (responseTime) listingBody.turnaroundTime = responseTime;
+      }
+
       console.log("[PostAd] createListing body:", JSON.stringify(listingBody));
       const result = await createListing(category, listingBody);
+      console.log("[PostAd] createListing result keys:", Object.keys(result));
+      console.log("[PostAd] createListing success:", (result as Record<string, unknown>).success);
 
       dispatch(setSubmitting(false));
       dispatch(resetPostForm());
@@ -568,6 +591,8 @@ export function PostAdStep3MediaScreen() {
       // over listing.images[0] which may be a relative path if the server
       // doesn't fully resolve it in the create-listing response.
       const listing = result.listing;
+      console.log("[PostAd] listing from result:", listing);
+      console.log("[PostAd] navigating to listing-success...");
       router.push({
         pathname: "/listing-success",
         params: {
@@ -581,7 +606,17 @@ export function PostAdStep3MediaScreen() {
           currency,
         },
       } as Href);
+      console.log("[PostAd] router.push completed successfully");
     } catch (err: unknown) {
+      console.error("[PostAd] handleSubmit error:", err);
+      if (err instanceof Error) {
+        console.error("[PostAd] Error name:", err.name);
+        console.error("[PostAd] Error message:", err.message);
+        console.error("[PostAd] Error stack:", err.stack);
+        if ("details" in err) {
+          console.error("[PostAd] Error details (server response):", JSON.stringify((err as { details: unknown }).details, null, 2));
+        }
+      }
       const message =
         err instanceof Error ? err.message : "Failed to post listing";
       dispatch(setSubmitError(message));

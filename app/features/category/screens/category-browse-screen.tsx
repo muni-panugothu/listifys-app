@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { VoiceSearchModal } from "@/components/voice-search-modal";
-import { CATEGORY_MAP, type CategorySlug } from "@/constants/categories";
+import type { CategorySlug } from "@/constants/categories";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import { EventListingCard } from "@/features/category/components/event-listing-card";
 import { JobListingCard } from "@/features/category/components/job-listing-card";
@@ -27,6 +27,7 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useDynamicSubcategories } from "@/hooks/use-dynamic-subcategories";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
@@ -123,13 +124,16 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
-  const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const rawCountryCode = useAppSelector(selectIsoCountryCode);
+  // Show all countries when no location is selected (both guest and authenticated users).
+  // Once a location is picked (coords exist), scope results to that country.
+  const hasLocation = userCoords.lat != null && userCoords.lng != null;
+  const isoCountryCode = hasLocation ? rawCountryCode : null;
 
-  const categoryConfig = CATEGORY_MAP[categorySlug];
-  const subcategories = useMemo(
-    () => ["All", ...(categoryConfig?.subcategories ?? [])],
-    [categoryConfig?.subcategories],
-  );
+  // Subcategories fetched live from the DB so any new subcategory added to
+  // the model (or posted by a seller) appears immediately — static list from
+  // CATEGORY_MAP is used as fallback while loading or when offline.
+  const { subcategories } = useDynamicSubcategories(categorySlug);
 
   const layout = categorySlug === "jobs" ? "jobs" : categorySlug === "events" ? "events" : "grid";
 
@@ -619,22 +623,22 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     subtitle={item.condition || item.subcategory}
                     price={item.price ?? null}
                     currency={item.currency}
-                    isoCountryCode={isoCountryCode}
+                    isoCountryCode={item.countryCode ?? isoCountryCode}
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}
-                    distanceLabel={getListingDistanceLabel(
+                    distanceLabel={hasLocation ? getListingDistanceLabel(
                       {
                         _id: item._id,
                         category: categorySlug,
                         distance: item.distance as number | undefined,
                         coordinates: item.coordinates,
+                        countryCode: item.countryCode,
+                        currency: item.currency,
                       },
-                      userCoords.lat != null && userCoords.lng != null
-                        ? { lat: userCoords.lat, lng: userCoords.lng }
-                        : null,
+                      { lat: userCoords.lat!, lng: userCoords.lng! },
                       isoCountryCode,
-                    )}
+                    ) : undefined}
                     isSaved={savedIds.has(item._id)}
                     onPress={() => openDetail(item)}
                     onToggleSave={() => handleToggleSave(item._id)}

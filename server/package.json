@@ -31,6 +31,7 @@
     "@smithy/signature-v4": "^5.3.14",
     "@socket.io/redis-adapter": "^8.3.0",
     "@upstash/redis": "^1.36.1",
+    "agora-token": "^2.0.5",
     "amqplib": "^1.0.3",
     "argon2": "^0.44.0",
     "bcryptjs": "^2.4.3",

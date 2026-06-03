@@ -33,7 +33,7 @@ const CATEGORY_MODELS = {
 };
 
 const LISTING_FIELDS =
-  "title slug price pricing currency location images condition category subcategory createdAt savedBy coordinates seller";
+  "title slug price pricing currency location countryCode images condition category subcategory createdAt savedBy coordinates seller";
 
 /**
  * GET /api/feed

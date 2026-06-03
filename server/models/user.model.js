@@ -281,9 +281,24 @@ const userSchema = new mongoose.Schema({
     ref: "User",
   }],
 
+  // ==================== PENDING CONTACT CHANGES ====================
+  // Stores in-flight email/phone change requests (cleared after verification or expiry)
+  pendingEmailChange: {
+    email:       { type: String, lowercase: true },
+    otpHash:     { type: String, select: false },   // SHA-256 hex of 6-digit OTP
+    expiresAt:   Date,
+    attempts:    { type: Number, default: 0 },
+    requestedAt: Date,
+  },
+  pendingPhoneChange: {
+    phone:       String,                            // E.164 e.g. +919876543210
+    requestedAt: Date,
+  },
+
   // Security Audit Trail
   lastPasswordChange: Date,
   lastEmailChange: Date,
+  lastPhoneChange: Date,
   securityLogs: [
     {
       action: String,

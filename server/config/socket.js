@@ -484,6 +484,21 @@ function getIO() {
   return io;
 }
 
+/**
+ * Push a real-time force-logout event to every socket belonging to a user.
+ * Called after /api/auth/logout-all revokes all tokens in Redis.
+ * The client listens to `auth:force_logout` and clears local session.
+ *
+ * @param {string} userId   – The user to force-logout
+ * @param {string} [reason] – Reason string shown on the client ("signed_out_all_devices" | "session_revoked")
+ */
+function forceLogoutUser(userId, reason = 'signed_out_all_devices') {
+  if (!io) return; // not yet initialised (e.g. during startup)
+  const userIdStr = userId.toString();
+  io.to(`user:${userIdStr}`).emit('auth:force_logout', { reason });
+  logger.info('[Socket] force_logout emitted', { userId: userIdStr, reason });
+}
+
 /** Check if a user is online */
 function isUserOnline(userId) {
   return onlineUsers.has(userId.toString());
@@ -508,4 +523,4 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000);
 
-module.exports = { initSocket, getIO, isUserOnline, socketMetrics, lastSeenMap, getSocketStats };
+module.exports = { initSocket, getIO, isUserOnline, forceLogoutUser, socketMetrics, lastSeenMap, getSocketStats };

@@ -213,7 +213,10 @@ export function SearchResultsEntityTabsScreen() {
   // Prefer Redux (always up-to-date), fall back to URL param passed by caller.
   const reduxCountryCode = useAppSelector(selectIsoCountryCode);
   const paramCountryCode = parseQueryParam(params.countryCode) || null;
-  const isoCountryCode = reduxCountryCode ?? paramCountryCode;
+  // Show all countries when no location is selected (both guest and authenticated users).
+  // Once a location is picked (coords exist), scope results to that country.
+  const hasLocation = locationCoords.lat != null && locationCoords.lng != null;
+  const isoCountryCode = hasLocation ? (reduxCountryCode ?? paramCountryCode) : null;
   const initialEntity = useMemo(
     () => parseEntityParam(params.entity),
     [params.entity],
@@ -485,17 +488,18 @@ export function SearchResultsEntityTabsScreen() {
 
   const renderResultCard = useCallback(
     ({ item }: { item: SearchResultItem }) => {
-      const distanceLabel = getListingDistanceLabel(
+      const hasLoc = locationCoords.lat != null && locationCoords.lng != null;
+      const distanceLabel = hasLoc ? getListingDistanceLabel(
         {
           _id: item._id,
           category: item._entity ?? item.category,
           distance: item.distance,
+          countryCode: item.countryCode,
+          currency: item.currency,
         },
-        locationCoords.lat != null && locationCoords.lng != null
-          ? { lat: locationCoords.lat, lng: locationCoords.lng }
-          : null,
+        { lat: locationCoords.lat!, lng: locationCoords.lng! },
         isoCountryCode,
-      );
+      ) : undefined;
       const metaSubtitle = [
         item.condition,
         item.subcategory,
@@ -512,6 +516,7 @@ export function SearchResultsEntityTabsScreen() {
             subtitle={metaSubtitle || undefined}
             price={item.price}
             currency={item.currency}
+            isoCountryCode={item.countryCode ?? isoCountryCode}
             image={item.images?.[0]}
             createdAt={item.createdAt}
             distanceLabel={distanceLabel}

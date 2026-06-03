@@ -41,6 +41,7 @@ export type PostFormState = {
   variant: string;
   year: string;
   kmDriven: string;
+  mileageUnit: "km" | "mi" | "";
   fuelType: string;
   transmission: string;
   ownership: string;
@@ -133,6 +134,11 @@ export type PostFormState = {
   batteryRequired: string;
   playMode: string;
   characterTheme: string;
+  // ── Services ──
+  priceUnit: string;
+  serviceArea: string;
+  serviceMode: string;
+  responseTime: string;
   // Step 3
   imageUris: string[];
   uploadedImageUrls: string[];
@@ -180,6 +186,7 @@ const initialState: PostFormState = {
   variant: "",
   year: "",
   kmDriven: "",
+  mileageUnit: "",
   fuelType: "",
   transmission: "",
   ownership: "",
@@ -260,6 +267,10 @@ const initialState: PostFormState = {
   batteryRequired: "",
   playMode: "",
   characterTheme: "",
+  priceUnit: "",
+  serviceArea: "",
+  serviceMode: "",
+  responseTime: "",
   imageUris: [],
   uploadedImageUrls: [],
   phone: "",
@@ -378,6 +389,9 @@ const postFormSlice = createSlice({
     },
     setKmDriven(state, action: PayloadAction<string>) {
       state.kmDriven = action.payload;
+    },
+    setMileageUnit(state, action: PayloadAction<"km" | "mi" | "">) {
+      state.mileageUnit = action.payload;
     },
     setFuelType(state, action: PayloadAction<string>) {
       state.fuelType = action.payload;
@@ -639,6 +653,18 @@ const postFormSlice = createSlice({
     setCharacterTheme(state, action: PayloadAction<string>) {
       state.characterTheme = action.payload;
     },
+    setPriceUnit(state, action: PayloadAction<string>) {
+      state.priceUnit = action.payload;
+    },
+    setServiceArea(state, action: PayloadAction<string>) {
+      state.serviceArea = action.payload;
+    },
+    setServiceMode(state, action: PayloadAction<string>) {
+      state.serviceMode = action.payload;
+    },
+    setResponseTime(state, action: PayloadAction<string>) {
+      state.responseTime = action.payload;
+    },
     setImageUris(state, action: PayloadAction<string[]>) {
       state.imageUris = action.payload;
     },
@@ -710,6 +736,7 @@ export const {
   setVariant,
   setYear,
   setKmDriven,
+  setMileageUnit,
   setFuelType,
   setTransmission,
   setOwnership,
@@ -794,6 +821,10 @@ export const {
   setBatteryRequired,
   setPlayMode,
   setCharacterTheme,
+  setPriceUnit,
+  setServiceArea,
+  setServiceMode,
+  setResponseTime,
   setImageUris,
   addImageUri,
   removeImageUri,

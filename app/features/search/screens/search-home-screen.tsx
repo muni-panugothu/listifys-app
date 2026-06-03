@@ -54,7 +54,9 @@ export function SearchHomeScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const displayLocation = useAppSelector(selectLocationLabel);
+  const displayLocationText = isAuthenticated ? displayLocation : "Select location";
   const [query, setQuery] = useState("");
   const [savedCount, setSavedCount] = useState(0);
   const [voiceVisible, setVoiceVisible] = useState(false);
@@ -76,14 +78,15 @@ export function SearchHomeScreen() {
   }, [loadSavedCount]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     void dispatch(hydrateAppLocation());
-  }, [dispatch]);
+  }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
-    if (user?.address?.trim()) {
+    if (isAuthenticated && user?.address?.trim()) {
       dispatch(setProfileFallbackLocation(user.address.trim()));
     }
-  }, [dispatch, user?.address]);
+  }, [dispatch, isAuthenticated, user?.address]);
 
   const handleQueryChange = useCallback((text: string) => {
     setQuery(text);
@@ -194,7 +197,7 @@ export function SearchHomeScreen() {
                 style={{ fontFamily: ListifyFonts.bold }}
                 numberOfLines={1}
               >
-                {displayLocation}
+                {displayLocationText}
               </Text>
               <MaterialIcons name="keyboard-arrow-down" size={20} color="#9CA3AF" />
             </View>
@@ -202,7 +205,7 @@ export function SearchHomeScreen() {
               className="mt-0.5 text-[13px] text-[#9CA3AF]"
               style={{ fontFamily: ListifyFonts.regular }}
             >
-              Tap to change location
+              {isAuthenticated ? "Tap to change location" : "Tap to choose location"}
             </Text>
           </Pressable>
 

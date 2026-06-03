@@ -353,6 +353,13 @@ exports.logoutAll = async (req, res) => {
     const userId = req.user.id;
     await revokeAllUserTokens(userId);
 
+    // Real-time: push force-logout event to ALL active sockets for this user
+    // so other open sessions are kicked instantly without waiting for token expiry.
+    try {
+      const { forceLogoutUser } = require('../config/socket');
+      forceLogoutUser(userId, 'signed_out_all_devices');
+    } catch (_) { /* socket may not be init yet during tests */ }
+
     clearTokenCookies(res);
 
     return res.status(200).json({

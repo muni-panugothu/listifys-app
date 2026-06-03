@@ -142,6 +142,8 @@ export function SavedItemsScreen() {
               {
                 _id: item._id,
                 category,
+                countryCode: item.countryCode,
+                currency: item.currency,
               },
               locationCoords.lat != null && locationCoords.lng != null
                 ? { lat: locationCoords.lat, lng: locationCoords.lng }
@@ -157,6 +159,7 @@ export function SavedItemsScreen() {
                 subtitle={item.condition || item.location || undefined}
                 price={item.price}
                 currency={item.currency}
+                isoCountryCode={item.countryCode ?? isoCountryCode}
                 image={item.images?.[0]}
                 createdAt={item.createdAt}
                 distanceLabel={distanceLabel}

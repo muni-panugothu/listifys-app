@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Active Call Screen — WhatsApp-style
  *
  * Video call: remote video fills screen, local PiP in corner, gradient overlays.

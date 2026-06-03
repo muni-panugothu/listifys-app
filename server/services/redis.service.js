@@ -65,15 +65,24 @@ class RedisService {
     }
   }
 
-// ============== SECURE: Store OTP as SHA-256 hash ==============
+// ============== SECURE: Store OTP as HMAC-SHA-256 hash ==============
+// HMAC-SHA-256 with a server secret key prevents offline brute-force:
+// even if the Redis dump is leaked, an attacker cannot enumerate the
+// 6-digit space (1 000 000 combos) without knowing the HMAC secret.
+static _otpHmac(otp) {
+  const crypto = require('crypto');
+  const secret =
+    process.env.OTP_HMAC_SECRET ||
+    process.env.JWT_ACCESS_SECRET ||
+    process.env.JWT_SECRET;
+  if (!secret) throw new Error('OTP_HMAC_SECRET is not configured');
+  return crypto.createHmac('sha256', secret).update(String(otp).trim()).digest('hex');
+}
+
 static async storeOTP(email, otp) {
   try {
     const key = `otp:${email}`;
-    // SECURITY: Hash the OTP before storing — even if Redis is
-    // compromised, the attacker cannot recover the plaintext OTP.
-    const crypto = require('crypto');
-    const otpHash = crypto.createHash('sha256').update(String(otp).trim()).digest('hex');
-
+    const otpHash = this._otpHmac(otp);
     await redis.setex(key, 300, otpHash);
     return true;
   } catch (error) {
@@ -265,7 +274,7 @@ static async storeOTP(email, otp) {
     }
   }
 
-  // ============== SECURE: Verify OTP by comparing SHA-256 hashes ==============
+  // ============== SECURE: Verify OTP using HMAC-SHA-256 ==============
   static async verifyOTP(email, otp) {
     try {
       const key = `otp:${email}`;
@@ -275,21 +284,21 @@ static async storeOTP(email, otp) {
         return { valid: false, reason: "OTP expired or not found" };
       }
 
-      // SECURITY: Hash the incoming OTP and compare to stored hash.
-      // Never log the actual OTP value.
-      const crypto = require('crypto');
-      const receivedHash = crypto.createHash('sha256').update(String(otp).trim()).digest('hex');
+      // Compute HMAC of the received OTP and compare with stored HMAC
+      const receivedHash = this._otpHmac(otp);
       const storedHashStr = String(storedHash).trim();
 
-      // Use timing-safe comparison to prevent timing attacks
-      const hashesMatch = storedHashStr.length === receivedHash.length &&
+      const crypto = require('crypto');
+      // Timing-safe comparison prevents timing side-channel attacks
+      const hashesMatch =
+        storedHashStr.length === receivedHash.length &&
         crypto.timingSafeEqual(Buffer.from(storedHashStr), Buffer.from(receivedHash));
 
       if (!hashesMatch) {
         return { valid: false, reason: "Invalid OTP" };
       }
 
-      // Delete OTP after successful verification
+      // Delete OTP after successful verification (one-time use)
       await redis.del(key);
       return { valid: true };
     } catch (error) {

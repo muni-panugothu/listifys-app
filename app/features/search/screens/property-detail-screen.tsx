@@ -89,7 +89,7 @@ export function PropertyDetailScreen() {
   const images = listing?.images?.length ? listing.images : [];
   const title = listing?.title ?? "";
   const price = listing?.price
-    ? formatPrice(listing.price, listing.currency, isoCountryCode)
+    ? formatPrice(listing.price, listing.currency, listing.countryCode ?? isoCountryCode)
     : "";
   const description = listing?.description ?? "";
   const distanceLabel = listing
@@ -99,6 +99,8 @@ export function PropertyDetailScreen() {
           category: categorySlug,
           distance: listing.distance as number | undefined,
           coordinates: listing.coordinates,
+          countryCode: listing.countryCode,
+          currency: listing.currency,
         },
         userCoords.lat != null && userCoords.lng != null
           ? { lat: userCoords.lat, lng: userCoords.lng }
@@ -612,7 +614,7 @@ export function PropertyDetailScreen() {
                       </Text>
                       <View className="flex-row flex-wrap gap-2">
                         {recommendedOffers.map((amt) => {
-                          const label = formatPrice(amt, listing?.currency, isoCountryCode);
+                          const label = formatPrice(amt, listing?.currency, listing?.countryCode ?? isoCountryCode);
                           const isSelected = selectedChip === String(amt);
                           return (
                             <Pressable

@@ -111,7 +111,7 @@ export function EventDetailScreen() {
     ? "FREE"
     : listing?.price === 0
     ? "FREE"
-    : formatPrice(listing.price, listing.currency, isoCountryCode);
+    : formatPrice(listing.price, listing.currency, listing.countryCode ?? isoCountryCode);
 
   const sellerName = listing?.seller?.name ?? listing?.sellerName ?? "Organizer";
   const sellerProfileImage = listing?.seller?.profileImage

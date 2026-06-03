@@ -115,6 +115,25 @@ function resolveHref(
     return '/incoming-call' as Href;
   }
 
+  if (type === 'security_alert') {
+    return {
+      pathname: '/security-alert',
+      params: {
+        ...(payload.deviceId    ? { deviceId:    payload.deviceId }    : {}),
+        ...(payload.deviceName  ? { deviceName:  payload.deviceName }  : {}),
+        ...(payload.deviceType  ? { deviceType:  payload.deviceType }  : {}),
+        ...(payload.city        ? { city:        payload.city }        : {}),
+        ...(payload.state       ? { state:       payload.state }       : {}),
+        ...(payload.country     ? { country:     payload.country }     : {}),
+        ...(payload.ipAddress   ? { ipAddress:   payload.ipAddress }   : {}),
+        ...(payload.loginTime   ? { loginTime:   payload.loginTime }   : {}),
+        ...(payload.timezone    ? { timezone:    payload.timezone }    : {}),
+        ...(payload.isNewDevice ? { isNewDevice: payload.isNewDevice } : {}),
+        ...(payload.isNewLocation ? { isNewLocation: payload.isNewLocation } : {}),
+      },
+    } as Href;
+  }
+
   // Default: home feed
   return '/(tabs)/home-feed-root' as Href;
 }

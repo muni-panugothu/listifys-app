@@ -40,6 +40,9 @@ const routeMap = [
   ["/api/others", "./others.routes"],
   ["/api/toys", "./toys.routes"],
 
+  // ── Marketplace contact & analytics ──
+  ["/api/marketplace", "./marketplace-contact.routes"],
+
   // ── Service marketplace ──
   ["/api/services/categories", "./servicecategory.routes"],
   ["/api/services/listings", "./servicelisting.routes"],

@@ -16,6 +16,8 @@ export type CellularGeneration = "2g" | "3g" | "4g" | "5g" | null;
 type NetworkState = {
   isConnected: boolean;
   isInternetReachable: boolean | null;
+  /** Result of real probe validation (Cloudflare + Google + backend). */
+  actualInternetReachable: boolean | null;
   isSlowConnection: boolean;
   transportIsSlow: boolean;
   requestIsSlow: boolean;
@@ -25,6 +27,8 @@ type NetworkState = {
   lastStatusChangeAt: string | null;
   lastSlowRequestAt: string | null;
   lastSlowRequestDurationMs: number | null;
+  /** Number of actions waiting to be synced once connectivity returns. */
+  pendingQueueCount: number;
 };
 
 type NetworkSnapshot = {
@@ -39,6 +43,7 @@ type NetworkSnapshot = {
 const initialState: NetworkState = {
   isConnected: true,
   isInternetReachable: null,
+  actualInternetReachable: null,
   isSlowConnection: false,
   transportIsSlow: false,
   requestIsSlow: false,
@@ -48,6 +53,7 @@ const initialState: NetworkState = {
   lastStatusChangeAt: null,
   lastSlowRequestAt: null,
   lastSlowRequestDurationMs: null,
+  pendingQueueCount: 0,
 };
 
 const networkSlice = createSlice({
@@ -90,6 +96,12 @@ const networkSlice = createSlice({
       state.lastSlowRequestDurationMs = null;
       state.lastStatusChangeAt = new Date().toISOString();
     },
+    setActualInternetReachable(state, action: PayloadAction<boolean>) {
+      state.actualInternetReachable = action.payload;
+    },
+    setPendingQueueCount(state, action: PayloadAction<number>) {
+      state.pendingQueueCount = action.payload;
+    },
   },
 });
 
@@ -97,6 +109,8 @@ export const {
   clearSlowRequestSignal,
   reportSlowRequest,
   updateNetworkSnapshot,
+  setActualInternetReachable,
+  setPendingQueueCount,
 } = networkSlice.actions;
 
 export default networkSlice.reducer;

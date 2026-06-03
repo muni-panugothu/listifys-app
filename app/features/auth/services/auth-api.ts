@@ -88,22 +88,20 @@ function getExpoDevHost() {
 
 function resolveApiBaseUrl() {
   const devHost = getExpoDevHost();
-
-  // Explicit .env override takes TOP priority — set EXPO_PUBLIC_API_BASE_URL to your
-  // current LAN IPv4. This overrides a stale Metro devHost after a WiFi IP change.
   const explicitBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
-  if (explicitBaseUrl) {
-    return explicitBaseUrl.replace(/\/$/, "");
-  }
 
-  // Fall back to Metro's dev-server host (works on first build without .env).
+  // In DEV mode, prefer the runtime Metro host over the .env value.
+  // Constants.expoConfig.hostUri is set at runtime by the Expo packager to
+  // the CURRENT LAN IP — it is always accurate even when the machine's IP
+  // changes between sessions, so we never hit a stale baked-in URL.
   if (typeof __DEV__ !== "undefined" && __DEV__ && devHost) {
     return `http://${devHost}:5000`;
   }
 
-  // Fallback: Metro host without __DEV__ (edge case — should rarely hit).
-  if (devHost) {
-    return `http://${devHost}:5000`;
+  // Outside dev (production build) or when Metro host is unavailable,
+  // fall back to the explicit .env override.
+  if (explicitBaseUrl) {
+    return explicitBaseUrl.replace(/\/$/, "");
   }
 
   if (Platform.OS === "android") {
@@ -699,6 +697,52 @@ export function logoutAllDevices() {
   return requestJson<{ success: boolean; message?: string }>(
     "/api/auth/logout-all",
     { method: "POST" },
+  );
+}
+
+export function sendRecoveryPhoneOTP(phone: string, channel: "sms" | "whatsapp" = "sms") {
+  return requestJson<{ success: boolean; message?: string; phone?: string; expiresIn?: number }>(
+    "/api/auth/phone/update-send-otp",
+    { method: "POST", body: JSON.stringify({ phone, channel }) },
+  );
+}
+
+export function verifyRecoveryPhoneOTP(phone: string, otp: string) {
+  return requestJson<{ success: boolean; message?: string; phone?: string; phoneVerified?: boolean }>(
+    "/api/auth/phone/update-verify-otp",
+    { method: "POST", body: JSON.stringify({ phone, otp }) },
+  );
+}
+
+// ── Primary email change (OTP-verified) ──────────────────────────────────────
+
+export function requestEmailChange(email: string) {
+  return requestJson<{ success: boolean; message?: string; maskedEmail?: string; expiresIn?: number }>(
+    "/api/auth/email/change-request",
+    { method: "POST", body: JSON.stringify({ email }) },
+  );
+}
+
+export function verifyEmailChange(email: string, otp: string) {
+  return requestJson<{ success: boolean; message?: string; email?: string; attemptsRemaining?: number }>(
+    "/api/auth/email/change-verify",
+    { method: "POST", body: JSON.stringify({ email, otp }) },
+  );
+}
+
+// ── Primary phone change (OTP-verified via Twilio) ───────────────────────────
+
+export function requestPhoneChange(phone: string, channel: "sms" | "whatsapp" = "sms") {
+  return requestJson<{ success: boolean; message?: string; phone?: string; expiresIn?: number }>(
+    "/api/auth/phone/change-request",
+    { method: "POST", body: JSON.stringify({ phone, channel }) },
+  );
+}
+
+export function verifyPhoneChange(phone: string, otp: string) {
+  return requestJson<{ success: boolean; message?: string; phone?: string; phoneVerified?: boolean }>(
+    "/api/auth/phone/change-verify",
+    { method: "POST", body: JSON.stringify({ phone, otp }) },
   );
 }
 
