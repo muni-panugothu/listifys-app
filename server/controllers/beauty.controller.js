@@ -41,6 +41,7 @@ const LIST_PROJECTION = {
   expiryDate: 1,
   gender: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {

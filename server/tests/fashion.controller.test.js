@@ -38,6 +38,8 @@ jest.mock('../services/notifyfollowers.service', () => ({ notifyFollowersOfNewLi
 
 jest.mock('../utils/geoQuery', () => ({
   applyGeoFilter: jest.fn(),
+  applyCountryFilter: jest.fn(),
+  buildLocationRegex: jest.fn(() => ({ $regex: 'mock', $options: 'i' })),
   buildSortOption: jest.fn(() => ({ createdAt: -1 })),
 }));
 

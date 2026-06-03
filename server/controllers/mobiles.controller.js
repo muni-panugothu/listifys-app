@@ -40,6 +40,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   warranty: 1,
   color: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {
@@ -55,13 +56,18 @@ const normaliseImages = (listing) => {
 
 exports.createMobile = async (req, res) => {
   try {
+    const { lat, lng, ...rest } = req.body;
+
     const payload = {
-      ...req.body,
+      ...rest,
       category: "Mobiles",
       seller: req.user._id,
       sellerName: req.user.firstName
         ? `${req.user.firstName} ${req.user.lastName || ""}`.trim()
         : req.user.email.split("@")[0],
+      ...(lat && lng && isFinite(Number(lat)) && isFinite(Number(lng)) && {
+        coordinates: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+      }),
     };
 
     const listing = await Mobile.create(payload);
