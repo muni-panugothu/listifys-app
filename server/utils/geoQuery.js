@@ -116,7 +116,22 @@ module.exports = { applyGeoFilter, buildSortOption, escapeRegex, buildLocationRe
  */
 function applyCountryFilter(filter, countryCode) {
   if (countryCode && typeof countryCode === 'string') {
-    filter.countryCode = countryCode.toUpperCase().trim();
+    const cc = countryCode.toUpperCase().trim();
+    // Use $or so listings created before countryCode was required still appear.
+    // Once all documents carry a countryCode this fallback can be removed.
+    const countryCondition = {
+      $or: [
+        { countryCode: cc },
+        { countryCode: { $exists: false } },
+        { countryCode: null },
+        { countryCode: '' },
+      ],
+    };
+    if (filter.$and) {
+      filter.$and.push(countryCondition);
+    } else {
+      filter.$and = [countryCondition];
+    }
   }
 }
 

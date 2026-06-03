@@ -76,6 +76,8 @@ const createJobSchema = Joi.object({
   currency: Joi.string().trim().max(8).allow(''),
   lat: Joi.number().min(-90).max(90).optional(),
   lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 });
 
 // ── Update schema (all fields optional) ─────────────────────────

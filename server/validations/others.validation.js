@@ -24,6 +24,10 @@ const createOtherSchema = Joi.object({
   phone: Joi.string().trim().allow(""),
   phoneCode: Joi.string().trim().allow(""),
   currency: Joi.string().trim().allow(""),
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 }).options({ stripUnknown: true });
 
 const updateOtherSchema = Joi.object({
@@ -64,6 +68,7 @@ const queryOtherSchema = Joi.object({
   radius: Joi.number().min(0).allow(""),
   page: Joi.number().integer().min(1).allow(""),
   limit: Joi.number().integer().min(1).max(100).allow(""),
+  countryCode: Joi.string().trim().max(8).allow(""),
 }).options({ stripUnknown: true });
 
 const paramsIdSchema = Joi.object({

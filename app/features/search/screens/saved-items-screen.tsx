@@ -156,7 +156,12 @@ export function SavedItemsScreen() {
                 key={item._id}
                 width={CARD_WIDTH}
                 title={item.title}
-                subtitle={item.condition || item.location || undefined}
+                subtitle={
+                  item.condition ||
+                  (typeof item.location === "string"
+                    ? item.location
+                    : item.location?.address ?? item.location?.city ?? undefined)
+                }
                 price={item.price}
                 currency={item.currency}
                 isoCountryCode={item.countryCode ?? isoCountryCode}

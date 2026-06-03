@@ -61,6 +61,11 @@ const createMobileSchema = Joi.object({
   batteryHealth: Joi.string().trim().max(40).allow(''),
   warranty: Joi.string().valid(...WARRANTY_OPTIONS).allow(''),
   color: Joi.string().trim().max(40).allow(''),
+
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 });
 
 const updateMobileSchema = createMobileSchema.fork(

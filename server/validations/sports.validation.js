@@ -95,6 +95,8 @@ const createSportsSchema = Joi.object({
     .allow(""),
   lat: Joi.number().min(-90).max(90).optional(),
   lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 });
 
 const updateSportsSchema = createSportsSchema.fork(
@@ -127,8 +129,7 @@ const querySportsSchema = Joi.object({
   brand: Joi.string().trim().max(100).allow(""),
   minPrice: Joi.number().min(0),
   maxPrice: Joi.number().min(0),
-  location: Joi.string().trim().max(200).allow(""),
-  ...geoQueryParams,
+  location: Joi.string().trim().max(200).allow(""),  countryCode: Joi.string().trim().max(8).allow('').optional(),  ...geoQueryParams,
 }).unknown(false);
 
 const paramsIdSchema = Joi.object({

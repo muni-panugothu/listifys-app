@@ -24,6 +24,14 @@ const FURNITURE_SUBCATEGORIES = [
   'Tables & Chairs',
   'Home Decor',
   'Office Furniture',
+  'Wardrobes & Storage',
+  'Kitchen Furniture',
+  'Outdoor & Garden Furniture',
+  'Kids Furniture',
+  'Lighting & Lamps',
+  'Curtains & Blinds',
+  'Rugs & Carpets',
+  'Other Furniture',
 ];
 
 const createFurnitureSchema = Joi.object({
@@ -50,6 +58,11 @@ const createFurnitureSchema = Joi.object({
   assemblyRequired: Joi.string().valid('Yes', 'No', '').allow(''),
   numberOfPieces: Joi.string().trim().max(20).allow(''),
   color: Joi.string().trim().max(40).allow(''),
+
+  lat: Joi.number().min(-90).max(90).optional(),
+  lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 });
 
 const updateFurnitureSchema = createFurnitureSchema.fork(

@@ -55,13 +55,17 @@ const normaliseImages = (listing) => {
 
 exports.createMobile = async (req, res) => {
   try {
+    const { lat, lng, imageUrls, ...rest } = req.body;
     const payload = {
-      ...req.body,
+      ...rest,
       category: "Mobiles",
       seller: req.user._id,
       sellerName: req.user.firstName
         ? `${req.user.firstName} ${req.user.lastName || ""}`.trim()
         : req.user.email.split("@")[0],
+      ...(lat && lng && {
+        coordinates: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+      }),
     };
 
     const listing = await Mobile.create(payload);

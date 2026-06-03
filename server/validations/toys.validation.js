@@ -55,6 +55,8 @@ const createToySchema = Joi.object({
   currency: Joi.string().trim().max(8).allow(''),
   lat: Joi.number().min(-90).max(90).optional(),
   lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 
   brand: Joi.string().trim().max(100).allow(''),
   ageGroup: Joi.string().trim().max(60).allow(''),
@@ -84,6 +86,7 @@ const queryToySchema = Joi.object({
   minPrice: Joi.number().min(0),
   maxPrice: Joi.number().min(0),
   location: Joi.string().trim().max(200).allow(''),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
   ...geoQueryParams,
 }).unknown(false);
 

@@ -51,7 +51,9 @@ const propertyValidationSchema = Joi.object({
   }),
 
   // Optional
-  phone: Joi.string().allow('', null).optional()
+  phone: Joi.string().allow('', null).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string()).max(15).optional(),
 }).unknown(true);
 
 const validateProperty = (data) => {

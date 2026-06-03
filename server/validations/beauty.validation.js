@@ -51,6 +51,8 @@ const createBeautySchema = Joi.object({
   gender: Joi.string().valid("Men", "Women", "Unisex", "").allow(""),
   lat: Joi.number().min(-90).max(90).optional(),
   lng: Joi.number().min(-180).max(180).optional(),
+  countryCode: Joi.string().trim().max(8).allow('').optional(),
+  imageUrls: Joi.array().items(Joi.string().trim()).max(6).optional(),
 }).options({ stripUnknown: true });
 
 const updateBeautySchema = Joi.object({
@@ -100,6 +102,7 @@ const queryBeautySchema = Joi.object({
   radius: Joi.number().min(0).allow(""),
   page: Joi.number().integer().min(1).allow(""),
   limit: Joi.number().integer().min(1).max(100).allow(""),
+  countryCode: Joi.string().trim().max(8).allow(""),
 }).options({ stripUnknown: true });
 
 const paramsIdSchema = Joi.object({
