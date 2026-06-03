@@ -181,9 +181,12 @@ exports.createEvent = async (req, res) => {
     }).catch(() => {});
   } catch (error) {
     logger.error("Create event error:", error);
-    res.status(500).json({
+    const isValidationError = error.name === "ValidationError";
+    res.status(isValidationError ? 400 : 500).json({
       success: false,
-      message: "Failed to create event listing",
+      message: isValidationError
+        ? Object.values(error.errors).map((e) => e.message).join("; ")
+        : "Failed to create event listing",
     });
   }
 };

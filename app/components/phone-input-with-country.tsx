@@ -23,7 +23,6 @@ import {
 } from "react-native";
 
 import { ListifyFonts } from "@/constants/typography";
-import { CALLING_CODE } from "@/providers/locale-provider";
 
 // ---------------------------------------------------------------------------
 // Country catalogue (name + ISO code)

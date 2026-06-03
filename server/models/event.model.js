@@ -98,22 +98,22 @@ const eventSchema = new mongoose.Schema(
     eventDate: {
       type: String,
       trim: true,
-      maxlength: [60, "Event date cannot exceed 60 characters"],
+      maxlength: [300, "Event date cannot exceed 300 characters"],
     },
     eventTime: {
       type: String,
       trim: true,
-      maxlength: [60, "Event time cannot exceed 60 characters"],
+      maxlength: [300, "Event time cannot exceed 300 characters"],
     },
     organizer: {
       type: String,
       trim: true,
-      maxlength: [120, "Organizer cannot exceed 120 characters"],
+      maxlength: [200, "Organizer cannot exceed 200 characters"],
     },
     venue: {
       type: String,
       trim: true,
-      maxlength: [200, "Venue cannot exceed 200 characters"],
+      maxlength: [300, "Venue cannot exceed 300 characters"],
     },
     ticketsAvailable: {
       type: Number,

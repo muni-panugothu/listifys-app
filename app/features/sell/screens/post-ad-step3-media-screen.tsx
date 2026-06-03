@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -32,6 +32,7 @@ import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
 import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
 import { useLocale } from "@/providers/locale-provider";
 import { getMileageUnitForCountry } from "@/lib/listing-distance";
+import { validateListingContactPhone } from "@/lib/phone-validation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { refreshDeviceLocation, selectLocationCoords, setLocationDirect } from "@/store/slices/location-slice";
 import {
@@ -68,7 +69,11 @@ const MODERATION_CATEGORY_SHORT: Record<string, string> = {
 export function PostAdStep3MediaScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { phoneCode: localePhoneCode, isoCountryCode: localeCountryCode } = useLocale();
+  const {
+    phoneCode: localePhoneCode,
+    isoCountryCode: localeCountryCode,
+    phoneCodeForCountry,
+  } = useLocale();
   const locationIso = useAppSelector((s) => s.location.isoCountryCode);
 
   // Phone code is derived from locale (which tracks location globally).
@@ -104,13 +109,30 @@ export function PostAdStep3MediaScreen() {
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
     priceUnit, serviceArea, serviceMode, responseTime,
-    imageUris, phone, currency, locationLat, locationLng, isSubmitting, submitError,
+    imageUris, phone, currency, locationLat, locationLng, isSubmitting,
   } = useAppSelector((s) => s.postForm);
 
   const locationStatus = useAppSelector((s) => s.location.status);
   const locationCoords = useAppSelector(selectLocationCoords);
   const globalLocationLabel = useAppSelector((s) => s.location.label);
   const globalLocationSource = useAppSelector((s) => s.location.source);
+
+  const expectedPhoneIso = (locationIso ?? localeCountryCode)?.toUpperCase();
+  const expectedPhoneCode = expectedPhoneIso
+    ? phoneCodeForCountry(expectedPhoneIso)
+    : activePhoneCode;
+
+  const phoneValidation = useMemo(
+    () =>
+      validateListingContactPhone({
+        phone,
+        selectedIso: activePhoneIso,
+        selectedPhoneCode: activePhoneCode,
+        expectedIso: expectedPhoneIso,
+        expectedPhoneCode,
+      }),
+    [activePhoneCode, activePhoneIso, expectedPhoneCode, expectedPhoneIso, phone],
+  );
 
   // Sync listing location whenever the app-wide location changes (also runs on mount).
   // This keeps the item-location input in step 3 in sync with whatever the user
@@ -127,8 +149,7 @@ export function PostAdStep3MediaScreen() {
         dispatch(setListingCoords({ lat: locationCoords.lat, lng: locationCoords.lng }));
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalLocationLabel]);
+  }, [dispatch, globalLocationLabel, globalLocationSource, locationCoords.lat, locationCoords.lng]);
 
   // Sync phone code + ISO with locale (updates when location changes globally)
   useEffect(() => {
@@ -136,11 +157,11 @@ export function PostAdStep3MediaScreen() {
     // override so the new location's code is shown automatically.
     setOverridePhoneCode(null);
     setOverridePhoneIso(null);
-  }, [localePhoneCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [localePhoneCode]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     router.replace("/post-ad-step2-details" as Href);
-  };
+  }, [router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -154,7 +175,7 @@ export function PostAdStep3MediaScreen() {
         onHardwareBack,
       );
       return () => sub.remove();
-    }, [router]),
+    }, [handleBack]),
   );
 
   const handleUseCurrentLocation = async () => {
@@ -249,6 +270,13 @@ export function PostAdStep3MediaScreen() {
       showErrorToast("Location required", "Please enter a location (at least 2 characters).");
       return;
     }
+    if (phone && !phoneValidation.isValid) {
+      showErrorToast(
+        "Invalid contact number",
+        phoneValidation.message ?? "Enter a valid phone number for the selected listing country.",
+      );
+      return;
+    }
 
     // ── Human-readable labels for violation categories ─────────────────────────
     const MODERATION_LABELS: Record<string, string> = {
@@ -337,7 +365,7 @@ export function PostAdStep3MediaScreen() {
         imageUrls,
         location,
         ...(locationIso ? { countryCode: locationIso.toUpperCase() } : {}),
-        ...(phone ? { phone: `${activePhoneCode}${phone}` } : {}),
+        ...(phoneValidation.e164Phone ? { phone: phoneValidation.e164Phone } : {}),
         // GPS coordinates — listing-specific first, fall back to global device location
         ...(() => {
           const lat = locationLat ?? locationCoords.lat;
@@ -830,8 +858,19 @@ export function PostAdStep3MediaScreen() {
               setOverridePhoneCode(code);
               setOverridePhoneIso(iso);
             }}
-            onChangePhone={(v) => dispatch(setPhone(v))}
+            onChangePhone={(v) => dispatch(setPhone(v.replace(/[^\d\s()+-]/g, "")))}
           />
+          {phone && !phoneValidation.isValid ? (
+            <View className="mt-2 flex-row items-start gap-2">
+              <MaterialIcons name="error-outline" size={16} color="#BA1A1A" />
+              <Text
+                className="flex-1 text-[12px] text-[#BA1A1A]"
+                style={{ fontFamily: ListifyFonts.medium }}
+              >
+                {phoneValidation.message}
+              </Text>
+            </View>
+          ) : null}
           <View
             className="mt-3 flex-row items-center gap-3 rounded-2xl p-3"
             style={{ backgroundColor: "#F3F4F6" }}

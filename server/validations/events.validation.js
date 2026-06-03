@@ -31,10 +31,10 @@ const createEventSchema = Joi.object({
   phone: phone,
 
   // Event-specific
-  eventDate: Joi.string().trim().max(60).allow(''),
-  eventTime: Joi.string().trim().max(60).allow(''),
-  organizer: Joi.string().trim().max(120).allow(''),
-  venue: Joi.string().trim().max(200).allow(''),
+  eventDate: Joi.string().trim().max(300).allow(''),
+  eventTime: Joi.string().trim().max(300).allow(''),
+  organizer: Joi.string().trim().max(200).allow(''),
+  venue: Joi.string().trim().max(300).allow(''),
   ticketsAvailable: Joi.number().integer().min(0).default(0),
   ageRestriction: Joi.string().trim().max(80).allow(''),
   dressCode: Joi.string().trim().max(120).allow(''),
