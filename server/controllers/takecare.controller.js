@@ -40,6 +40,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   languages: 1,
   certifications: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {

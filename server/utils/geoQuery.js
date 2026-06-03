@@ -115,8 +115,23 @@ module.exports = { applyGeoFilter, buildSortOption, escapeRegex, buildLocationRe
  * @param {string|undefined} countryCode - ISO 3166-1 alpha-2 code (e.g. "IN", "US")
  */
 function applyCountryFilter(filter, countryCode) {
-  if (countryCode && typeof countryCode === 'string') {
-    filter.countryCode = countryCode.toUpperCase().trim();
+  if (!countryCode || typeof countryCode !== 'string') return;
+
+  const code = countryCode.toUpperCase().trim();
+  if (!code) return;
+
+  const countryOr = {
+    $or: [
+      { countryCode: { $regex: new RegExp(`^${escapeRegex(code)}$`, 'i') } },
+      { countryCode: { $exists: false } },
+      { countryCode: { $in: [null, ''] } },
+    ],
+  };
+
+  if (filter.$and) {
+    filter.$and.push(countryOr);
+  } else {
+    filter.$and = [countryOr];
   }
 }
 
@@ -139,13 +154,95 @@ function escapeRegex(str) {
  * @param {string} locationStr - raw location string from the client
  * @returns {{ $regex: string, $options: string }} MongoDB regex filter
  */
+const US_STATE_ALIASES = {
+  alabama: 'AL',
+  alaska: 'AK',
+  arizona: 'AZ',
+  arkansas: 'AR',
+  california: 'CA',
+  colorado: 'CO',
+  connecticut: 'CT',
+  delaware: 'DE',
+  florida: 'FL',
+  georgia: 'GA',
+  hawaii: 'HI',
+  idaho: 'ID',
+  illinois: 'IL',
+  indiana: 'IN',
+  iowa: 'IA',
+  kansas: 'KS',
+  kentucky: 'KY',
+  louisiana: 'LA',
+  maine: 'ME',
+  maryland: 'MD',
+  massachusetts: 'MA',
+  michigan: 'MI',
+  minnesota: 'MN',
+  mississippi: 'MS',
+  missouri: 'MO',
+  montana: 'MT',
+  nebraska: 'NE',
+  nevada: 'NV',
+  'new hampshire': 'NH',
+  'new jersey': 'NJ',
+  'new mexico': 'NM',
+  'new york': 'NY',
+  'north carolina': 'NC',
+  'north dakota': 'ND',
+  ohio: 'OH',
+  oklahoma: 'OK',
+  oregon: 'OR',
+  pennsylvania: 'PA',
+  'rhode island': 'RI',
+  'south carolina': 'SC',
+  'south dakota': 'SD',
+  tennessee: 'TN',
+  texas: 'TX',
+  utah: 'UT',
+  vermont: 'VT',
+  virginia: 'VA',
+  washington: 'WA',
+  'west virginia': 'WV',
+  wisconsin: 'WI',
+  wyoming: 'WY',
+  'district of columbia': 'DC',
+};
+
+const US_STATE_NAMES_BY_CODE = Object.fromEntries(
+  Object.entries(US_STATE_ALIASES).map(([name, code]) => [code, name]),
+);
+
+function expandLocationPart(part) {
+  const trimmed = part.trim();
+  if (!trimmed) return [];
+
+  const lower = trimmed.toLowerCase();
+  const upper = trimmed.toUpperCase();
+  const aliases = [trimmed];
+
+  if (US_STATE_ALIASES[lower]) {
+    aliases.push(US_STATE_ALIASES[lower]);
+  }
+  if (US_STATE_NAMES_BY_CODE[upper]) {
+    aliases.push(US_STATE_NAMES_BY_CODE[upper]);
+  }
+
+  return aliases;
+}
+
 function buildLocationRegex(locationStr) {
   if (!locationStr) return null;
   const parts = String(locationStr)
     .split(',')
+    .flatMap(expandLocationPart)
     .map(p => p.trim())
+    .filter(Boolean);
+
+  const uniqueParts = [...new Set(parts.map(p => p.toLowerCase()))]
+    .map(lower => parts.find(p => p.toLowerCase() === lower))
     .filter(Boolean)
     .map(escapeRegex);
-  if (parts.length === 0) return null;
-  return { $regex: parts.join('|'), $options: 'i' };
+
+  if (uniqueParts.length === 0) return null;
+  return { $regex: uniqueParts.join('|'), $options: 'i' };
 }

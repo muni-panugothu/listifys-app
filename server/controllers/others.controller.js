@@ -34,6 +34,7 @@ const LIST_PROJECTION = {
   savedBy: 1,
   createdAt: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {
@@ -51,13 +52,18 @@ const normaliseImages = (listing) => {
 
 exports.createOther = async (req, res) => {
   try {
+    const { lat, lng, ...rest } = req.body;
+
     const payload = {
-      ...req.body,
+      ...rest,
       category: "Others",
       seller: req.user._id,
       sellerName: req.user.firstName
         ? `${req.user.firstName} ${req.user.lastName || ""}`.trim()
         : req.user.email.split("@")[0],
+      ...(lat && lng && isFinite(Number(lat)) && isFinite(Number(lng)) && {
+        coordinates: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+      }),
     };
 
     const listing = await Other.create(payload);

@@ -41,6 +41,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   venue: 1,
   ticketsAvailable: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {
