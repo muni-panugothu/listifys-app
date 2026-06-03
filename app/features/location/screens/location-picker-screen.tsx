@@ -23,9 +23,11 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Keyboard,
+  Linking,
   Platform,
   Pressable,
   Text,
@@ -33,12 +35,17 @@ import {
   View,
   type ListRenderItem,
 } from "react-native";
+import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   PlacePredictionItem,
   RecentLocationItem,
 } from "@/components/location-suggestion-item";
+import {
+  LocationPermissionSheet,
+  type LocationPermissionSheetReason,
+} from "@/components/location-permission-sheet";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import {
@@ -163,6 +170,10 @@ export function LocationPickerScreen() {
   const [query, setQuery] = useState("");
   const [selecting, setSelecting] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [permissionSheet, setPermissionSheet] = useState<{
+    visible: boolean;
+    reason: LocationPermissionSheetReason;
+  }>({ visible: false, reason: "permanently_denied" });
 
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList<ListRow>>(null);
@@ -329,22 +340,113 @@ export function LocationPickerScreen() {
     [dispatch, handleBack],
   );
 
+  // ── Open device Settings (app permissions page) ─────────────────────────────
+  const openSettings = useCallback(() => {
+    Linking.openSettings().catch(() => {
+      Alert.alert(
+        "Open Settings",
+        "Go to Settings → Apps → Listify → Permissions → Location and enable it.",
+        [{ text: "OK" }],
+      );
+    });
+  }, []);
+
   const handleUseCurrentLocation = useCallback(async () => {
+    Keyboard.dismiss();
     setGpsLoading(true);
+
     try {
+      // ── Step 1: Check whether GPS (location services) is enabled ──────────
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+
+      if (!servicesEnabled) {
+        if (Platform.OS === "android") {
+          // Android: trigger the native system dialog —
+          // "For a better experience, turn on device location"
+          // Same dialog shown by Google Maps / Uber / Swiggy
+          try {
+            await Location.enableNetworkProviderAsync();
+          } catch {
+            // User tapped "No thanks" — fall through to services_disabled sheet
+          }
+
+          const nowEnabled = await Location.hasServicesEnabledAsync();
+          if (!nowEnabled) {
+            setGpsLoading(false);
+            setPermissionSheet({ visible: true, reason: "services_disabled" });
+            return;
+          }
+          // GPS is now on — continue
+        } else {
+          // iOS has no programmatic GPS toggle — send user to Settings
+          setGpsLoading(false);
+          setPermissionSheet({ visible: true, reason: "services_disabled" });
+          return;
+        }
+      }
+
+      // ── Step 2: Check / request location permission ───────────────────────
+      const { status: existingStatus, canAskAgain } =
+        await Location.getForegroundPermissionsAsync();
+
+      if (existingStatus !== Location.PermissionStatus.GRANTED) {
+        if (!canAskAgain) {
+          // Permanently denied — user must go to app settings
+          setGpsLoading(false);
+          setPermissionSheet({ visible: true, reason: "permanently_denied" });
+          return;
+        }
+
+        // Show native OS permission dialog
+        const { status: newStatus, canAskAgain: canStillAsk } =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (newStatus !== Location.PermissionStatus.GRANTED) {
+          setGpsLoading(false);
+          if (!canStillAsk) {
+            setPermissionSheet({ visible: true, reason: "permanently_denied" });
+          } else {
+            showErrorToast(
+              "Location denied",
+              "Tap \"Use current location\" again to grant access.",
+            );
+          }
+          return;
+        }
+      }
+
+      // ── Step 3: Fetch GPS coordinates and update location ─────────────────
       await dispatch(useCurrentDeviceLocation()).unwrap();
       handleBack();
     } catch (err) {
-      showErrorToast(
-        "Location unavailable",
-        err instanceof Error
-          ? err.message
-          : "Allow location access in settings and try again.",
-      );
+      const msg = err instanceof Error ? err.message : "";
+
+      if (msg === "GPS_TIMEOUT") {
+        showErrorToast(
+          "GPS timed out",
+          "Weak signal. Move outdoors or to a window and try again.",
+        );
+      } else if (msg === "SERVICES_DISABLED") {
+        setPermissionSheet({ visible: true, reason: "services_disabled" });
+      } else {
+        showErrorToast(
+          "Could not get location",
+          "Make sure GPS is on and try again.",
+        );
+      }
     } finally {
       setGpsLoading(false);
     }
   }, [dispatch, handleBack]);
+
+  const handlePermissionSheetSettings = useCallback(() => {
+    setPermissionSheet((s) => ({ ...s, visible: false }));
+    openSettings();
+  }, [openSettings]);
+
+  const handlePermissionSheetCancel = useCallback(() => {
+    setPermissionSheet((s) => ({ ...s, visible: false }));
+  }, []);
 
   // ── List data ────────────────────────────────────────────────────────────────
 
@@ -772,6 +874,14 @@ export function LocationPickerScreen() {
       ) : null}
 
       <View style={{ height: insets.bottom + 16 }} />
+
+      {/* Permission / GPS disabled sheet */}
+      <LocationPermissionSheet
+        visible={permissionSheet.visible}
+        reason={permissionSheet.reason}
+        onOpenSettings={handlePermissionSheetSettings}
+        onCancel={handlePermissionSheetCancel}
+      />
     </View>
   );
 }

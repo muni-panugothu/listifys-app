@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { ServiceGridCard } from "@/components/service-grid-card";
 import { VoiceSearchModal } from "@/components/voice-search-modal";
 import { CATEGORIES } from "@/constants/categories";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
@@ -24,7 +25,6 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { useAppSelector } from "@/store/hooks";
 import {
   selectIsoCountryCode,
@@ -72,6 +72,7 @@ export function ServicesCategoryHubScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [voiceVisible, setVoiceVisible] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const headerHeight = insets.top + 12 + 52;
   const categoryTabsHeight = 52;
@@ -84,7 +85,15 @@ export function ServicesCategoryHubScreen() {
 
   const loadListings = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
+      // Map UI filter keys → server sort values
+      const sortMap: Record<string, string> = {
+        top_rated:  "-pricing.basePrice", // no rating index on server; server-side: latest by default, client re-sorts by rating
+        available:  "serviceAvailability",
+        budget:     "pricing.basePrice",
+        latest:     "-createdAt",
+      };
       const res = await fetchServiceListings({
         subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
         search: appliedSearch.trim() || undefined,
@@ -92,6 +101,7 @@ export function ServicesCategoryHubScreen() {
         lng: hasLocation ? userCoords.lng! : undefined,
         radius: hasLocation ? 100 : undefined,
         countryCode: isoCountryCode,
+        sort: sortMap[activeFilter] ?? "-createdAt",
       });
       const items = res.listings ?? [];
       setListings(items);
@@ -102,12 +112,14 @@ export function ServicesCategoryHubScreen() {
         }
         setSavedIds(saved);
       }
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load services";
+      setLoadError(msg);
       setListings((prev) => (prev.length > 0 ? prev : []));
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch, isoCountryCode, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng, hasLocation]);
+  }, [appliedSearch, isoCountryCode, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng, hasLocation, activeFilter]);
 
   useEffect(() => {
     void loadListings();
@@ -129,12 +141,28 @@ export function ServicesCategoryHubScreen() {
   const displayListings = useMemo(() => {
     let items = [...listings];
 
+    // Client-side re-sort as a secondary sort (server already sorted, this refines it)
     if (activeFilter === "top_rated") {
-      items.sort((a, b) => Number((b as any).rating ?? 0) - Number((a as any).rating ?? 0));
+      // Sort by stats.rating desc (populated from aggregation if available)
+      items.sort(
+        (a, b) =>
+          Number((b as any).stats?.rating ?? (b as any).rating ?? 0) -
+          Number((a as any).stats?.rating ?? (a as any).rating ?? 0),
+      );
     } else if (activeFilter === "available") {
-      items = items.filter((item) => (item as any).isAvailable !== false);
+      // Put listings with serviceAvailability text first
+      items.sort((a, b) => {
+        const aHas = !!(a as any).serviceAvailability;
+        const bHas = !!(b as any).serviceAvailability;
+        if (aHas === bHas) return 0;
+        return aHas ? -1 : 1;
+      });
     } else if (activeFilter === "budget") {
-      items.sort((a, b) => Number(a.price ?? 1e12) - Number(b.price ?? 1e12));
+      items.sort(
+        (a, b) =>
+          Number((a as any).pricing?.basePrice ?? a.price ?? 1e12) -
+          Number((b as any).pricing?.basePrice ?? b.price ?? 1e12),
+      );
     } else if (activeFilter === "latest") {
       items.sort((a, b) => {
         const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -356,6 +384,23 @@ export function ServicesCategoryHubScreen() {
               Loading…
             </Text>
           </View>
+        ) : loadError ? (
+          <View className="items-center px-6 py-20">
+            <MaterialIcons name="wifi-off" size={56} color="#D1D5DB" />
+            <Text className="mt-4 text-[18px]" style={ListifyTypography.sectionTitle}>
+              Could not load services
+            </Text>
+            <Text className="mt-2 text-center text-[13px]" style={ListifyTypography.body}>
+              {loadError}
+            </Text>
+            <Pressable
+              onPress={() => void loadListings()}
+              className="mt-5 rounded-full bg-[#27BB97] px-6 py-3"
+              style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+            >
+              <Text className="text-[14px] font-semibold text-white">Retry</Text>
+            </Pressable>
+          </View>
         ) : displayListings.length === 0 ? (
           <View className="items-center px-6 py-20">
             <MaterialIcons name="home-repair-service" size={56} color="#D1D5DB" />
@@ -370,38 +415,32 @@ export function ServicesCategoryHubScreen() {
           <View className="px-4" style={{ gap: GRID_GUTTER }}>
             {listingRows.map((row) => (
               <View key={row.map((i) => i._id).join("-")} className="flex-row" style={{ gap: GRID_GUTTER }}>
-                {row.map((item) => (
-                  <ListingItemsGridCard
-                    key={item._id}
-                    title={item.title}
-                    subtitle={item.subcategory}
-                    price={item.price ?? null}
-                    currency={item.currency}
-                    isoCountryCode={item.countryCode ?? isoCountryCode}
-                    image={item.images?.[0]}
-                    createdAt={item.createdAt}
-                    width={CARD_WIDTH}
-                    distanceLabel={hasLocation ? getListingDistanceLabel(
-                      {
-                        _id: item._id,
-                        category: "services",
-                        distance: item.distance as number | undefined,
-                        coordinates: item.coordinates,
-                        countryCode: item.countryCode,
-                        currency: item.currency,
-                      },
-                      { lat: userCoords.lat!, lng: userCoords.lng! },
-                      isoCountryCode,
-                    ) : undefined}
-                    isSaved={savedIds.has(item._id)}
-                    onPress={() =>
-                      router.push(
-                        `/service-detail?category=services&id=${item._id}` as any,
-                      )
-                    }
-                    onToggleSave={() => handleToggleSave(item._id)}
-                  />
-                ))}
+                {row.map((item) => {
+                  const pricing = (item as any).pricing;
+                  const priceVal = pricing?.basePrice ?? item.price ?? null;
+                  const priceType = pricing?.priceType ?? (item as any).priceType ?? undefined;
+
+                  return (
+                    <ServiceGridCard
+                      key={item._id}
+                      title={item.title}
+                      subcategory={item.subcategory}
+                      price={priceVal}
+                      priceType={priceType}
+                      currency={item.currency}
+                      isoCountryCode={item.countryCode ?? isoCountryCode}
+                      image={item.images?.[0]}
+                      rating={(item as any).stats?.rating ?? null}
+                      reviewCount={(item as any).stats?.reviewCount ?? null}
+                      width={CARD_WIDTH}
+                      isSaved={savedIds.has(item._id)}
+                      onPress={() =>
+                        router.push(`/service-detail?category=services&id=${item._id}` as any)
+                      }
+                      onToggleSave={() => handleToggleSave(item._id)}
+                    />
+                  );
+                })}
                 {row.length === 1 ? <View style={{ width: CARD_WIDTH }} /> : null}
               </View>
             ))}

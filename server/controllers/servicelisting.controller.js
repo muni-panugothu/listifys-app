@@ -34,18 +34,18 @@ const normalizePriceType = (rawPriceType) => {
   return map[value] || 'fixed';
 };
 
-// Normalize image URLs
+// Normalize image URLs — always returns plain string URLs so the client
+// receives images as string[] matching the ListingItem type.
 const normaliseImages = (listing) => {
   if (!listing) return listing;
   if (listing.images && Array.isArray(listing.images)) {
-    listing.images = listing.images.map(img => {
-      if (typeof img === 'string') return S3Service.toProxyUrl(img);
-      if (img.url) {
-        img.url = S3Service.toProxyUrl(img.url);
-        return img;
-      }
-      return img;
-    });
+    listing.images = listing.images
+      .map(img => {
+        if (typeof img === 'string') return S3Service.toProxyUrl(img) || null;
+        if (img && typeof img === 'object' && img.url) return S3Service.toProxyUrl(img.url) || null;
+        return null;
+      })
+      .filter(Boolean);
   }
   return listing;
 };
@@ -55,9 +55,20 @@ const normaliseImages = (listing) => {
 exports.getListings = async (req, res) => {
   try {
     const { category, subcategory, minPrice, maxPrice, search, location, countryCode } = req.query;
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    const radius = parseFloat(req.query.radius) || 100; // km, default 100
+    const hasGeo = !isNaN(lat) && !isNaN(lng);
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
     
+    const { sort = '-createdAt' } = req.query;
+    const ALLOWED_SORTS = ['-createdAt', 'createdAt', 'pricing.basePrice', '-pricing.basePrice', 'serviceAvailability', '-serviceAvailability'];
+    const safeSort = ALLOWED_SORTS.includes(sort) ? sort : '-createdAt';
+    const sortObj = safeSort.startsWith('-')
+      ? { [safeSort.slice(1)]: -1 }
+      : { [safeSort]: 1 };
+
     const filter = { status: 'active', visibility: 'public' };
 
     // ── Elasticsearch-first search (MongoDB regex fallback below) ──
@@ -114,28 +125,55 @@ exports.getListings = async (req, res) => {
       if (maxPrice) filter['pricing.basePrice'].$lte = Number(maxPrice);
     }
     if (location) filter['location.address'] = { $regex: escapeRegex(location), $options: 'i' };
-    if (countryCode && typeof countryCode === 'string') {
+
+    // ── Geographic or country scoping ────────────────────────────────────────
+    // Priority: geo-coordinates (precise) > countryCode (broad) > none (all)
+    if (hasGeo) {
+      // Use MongoDB $geoWithin with $centerSphere for listings that have coordinates.
+      // Also include listings without coordinates but matching the same country —
+      // so newly posted listings (no coords yet) still appear for the right user.
+      const radiusRadians = radius / 6371; // Earth radius ≈ 6371 km
+      const geoOr = [
+        {
+          'location.coordinates': {
+            $geoWithin: { $centerSphere: [[lng, lat], radiusRadians] },
+          },
+        },
+        // Include listings with no coordinates (posted without GPS):
+        // match by countryCode if available, otherwise include all
+        ...(countryCode
+          ? [{ countryCode: { $regex: new RegExp(`^${countryCode.toUpperCase().trim()}$`, 'i') }, 'location.coordinates': { $exists: false } }]
+          : [{ 'location.coordinates': { $exists: false } }]
+        ),
+      ];
+      if (filter.$or) {
+        filter.$and = (filter.$and || []).concat([{ $or: filter.$or }, { $or: geoOr }]);
+        delete filter.$or;
+      } else {
+        filter.$or = geoOr;
+      }
+    } else if (countryCode && typeof countryCode === 'string') {
+      // No GPS — fall back to country-level scoping, always including listings without a countryCode
       const code = countryCode.toUpperCase().trim();
-      // Include listings that match the country OR have no countryCode set (legacy/new without location)
       const ccOr = [
         { countryCode: { $regex: new RegExp(`^${code}$`, 'i') } },
         { countryCode: { $exists: false } },
         { countryCode: { $in: [null, ''] } },
       ];
       if (filter.$or) {
-        // Avoid conflicting top-level $or — combine with $and
         filter.$and = (filter.$and || []).concat([{ $or: filter.$or }, { $or: ccOr }]);
         delete filter.$or;
       } else {
         filter.$or = ccOr;
       }
     }
+    // else: no location context — return all active public listings
 
     const skip = (Number(page) - 1) * Number(limit);
     
     const [listings, total] = await Promise.all([
       ServiceListing.find(filter)
-        .sort({ createdAt: -1 })
+        .sort(sortObj)
         .skip(skip)
         .limit(Number(limit))
         .populate('userId', 'name profileImage')

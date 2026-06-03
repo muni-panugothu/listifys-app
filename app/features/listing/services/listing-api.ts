@@ -154,9 +154,11 @@ export type ImageUploadResponse = {
 function normaliseListingImages(listing: ListingItem): ListingItem {
   return {
     ...listing,
-    images: (listing.images || []).map(
-      (url) => resolveAbsoluteMediaUrl(url) ?? url,
-    ),
+    images: (listing.images || []).map((img) => {
+      // Server may return image objects {url, publicId, isPrimary} — extract the URL string
+      const rawUrl = typeof img === "string" ? img : ((img as unknown as { url?: string }).url ?? "");
+      return resolveAbsoluteMediaUrl(rawUrl) ?? rawUrl;
+    }).filter(Boolean),
     seller: listing.seller
       ? {
           ...listing.seller,
@@ -394,13 +396,13 @@ export async function fetchListingById(
   return withCache(
     cacheKeys.listingDetail(categorySlug, id),
     async () => {
-      const data = await apiRequest<SingleListingResponse>(
+      // Some endpoints return { listing } while others (e.g. services) return { data }
+      const raw = await apiRequest<{ success: boolean; listing?: ListingItem; data?: ListingItem }>(
         `${categoryApiBase(categorySlug)}/${id}`,
       );
-      if (data.listing) {
-        data.listing = normaliseListingImages(data.listing);
-      }
-      return data;
+      const found = raw.listing ?? raw.data;
+      const normalised = found ? normaliseListingImages(found) : undefined;
+      return { ...raw, listing: normalised } as SingleListingResponse;
     },
     120_000, // 2 minutes TTL
   );
@@ -478,6 +480,7 @@ export async function fetchServiceListings(params?: {
   countryCode?: string | null;
   page?: number;
   limit?: number;
+  sort?: string;
 }): Promise<{ listings: ListingItem[]; total: number }> {
   const query = new URLSearchParams();
   if (params?.subcategory) query.set("subcategory", params.subcategory);
@@ -489,6 +492,7 @@ export async function fetchServiceListings(params?: {
   if (params?.countryCode) query.set("countryCode", params.countryCode);
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.sort) query.set("sort", params.sort);
   const qs = query.toString();
   const res = await apiRequest<{ success: boolean; data: ListingItem[]; pagination?: { total: number } }>(
     `/api/services/listings${qs ? `?${qs}` : ""}`,

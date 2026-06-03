@@ -275,27 +275,76 @@ export async function saveStoredLocation(location: StoredAppLocation) {
   await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location));
 }
 
-export async function requestLocationPermission() {
+export async function requestLocationPermission(): Promise<boolean> {
   const { status } = await Location.requestForegroundPermissionsAsync();
   return status === Location.PermissionStatus.GRANTED;
 }
 
-export async function getCurrentCoordinates(options?: { highAccuracy?: boolean }) {
+export async function getCurrentCoordinates(options?: {
+  highAccuracy?: boolean;
+  timeoutMs?: number;
+}) {
   const servicesEnabled = await Location.hasServicesEnabledAsync();
   if (!servicesEnabled) {
-    throw new Error("Turn on location services to use this feature.");
+    throw new Error("SERVICES_DISABLED");
   }
 
-  const position = await Location.getCurrentPositionAsync({
-    accuracy: options?.highAccuracy
-      ? Location.Accuracy.High
-      : Location.Accuracy.Balanced,
-  });
+  const timeoutMs = options?.timeoutMs ?? 15_000;
+
+  // Wrap in a timeout so we don't hang forever on weak GPS
+  const position = await Promise.race([
+    Location.getCurrentPositionAsync({
+      accuracy: options?.highAccuracy
+        ? Location.Accuracy.BestForNavigation
+        : Location.Accuracy.Balanced,
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("GPS_TIMEOUT")), timeoutMs),
+    ),
+  ]);
 
   return {
     lat: position.coords.latitude,
     lng: position.coords.longitude,
+    accuracy: position.coords.accuracy ?? null,
   };
+}
+
+/**
+ * Try a high-accuracy fix first, then fall back to last-known position.
+ * This mirrors the UX of Swiggy / DoorDash which show an instant approximate
+ * pin while waiting for a precise fix.
+ */
+export async function getBestAvailableCoordinates(): Promise<{
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  source: "current" | "last_known";
+}> {
+  // Fast path: last-known location while we wait for GPS lock
+  const lastKnown = await Location.getLastKnownPositionAsync({
+    requiredAccuracy: 5_000, // accept up to 5 km stale accuracy
+    maxAge: 5 * 60 * 1000,   // no older than 5 minutes
+  });
+
+  try {
+    const current = await getCurrentCoordinates({
+      highAccuracy: true,
+      timeoutMs: 15_000,
+    });
+    return { ...current, source: "current" };
+  } catch (err) {
+    if (lastKnown) {
+      return {
+        lat: lastKnown.coords.latitude,
+        lng: lastKnown.coords.longitude,
+        accuracy: lastKnown.coords.accuracy ?? null,
+        source: "last_known",
+      };
+    }
+    // Re-throw the original error (GPS_TIMEOUT / unavailable)
+    throw err;
+  }
 }
 
 export async function reverseGeocodeDetails(
@@ -358,23 +407,29 @@ export async function detectDeviceLocation(options?: {
   previous?: StoredAppLocation | null;
   force?: boolean;
 }) {
-  const granted = await requestLocationPermission();
-  if (!granted) {
-    throw new Error("Location permission is required to show listings near you.");
+  // Permission is assumed already granted when this is called from the thunk.
+  // The picker screen handles the permission flow before dispatching.
+  const servicesEnabled = await Location.hasServicesEnabledAsync();
+  if (!servicesEnabled) {
+    throw new Error("SERVICES_DISABLED");
   }
 
   const previous = options?.previous ?? null;
-  const { lat, lng } = await getCurrentCoordinates({ highAccuracy: options?.force });
-  const { label, isoCountryCode } = await reverseGeocodeDetails(lat, lng, {
-    previousLabel: previous?.label,
-    previousLat: previous?.lat,
-    previousLng: previous?.lng,
-  });
+  const coords = await getBestAvailableCoordinates();
+  const { label, isoCountryCode } = await reverseGeocodeDetails(
+    coords.lat,
+    coords.lng,
+    {
+      previousLabel: previous?.label,
+      previousLat: previous?.lat,
+      previousLng: previous?.lng,
+    },
+  );
 
   const stored: StoredAppLocation = {
     label,
-    lat,
-    lng,
+    lat: coords.lat,
+    lng: coords.lng,
     isoCountryCode: isoCountryCode ?? previous?.isoCountryCode ?? null,
     source: "gps",
     updatedAt: Date.now(),

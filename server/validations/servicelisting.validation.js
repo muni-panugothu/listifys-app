@@ -112,7 +112,7 @@ const updateServiceListingSchema = createServiceListingSchema.fork(
 const queryServiceListingSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
-  sort: Joi.string().valid('createdAt', '-createdAt', 'pricing.basePrice', '-pricing.basePrice').default('-createdAt'),
+  sort: Joi.string().valid('createdAt', '-createdAt', 'pricing.basePrice', '-pricing.basePrice', 'serviceAvailability', '-serviceAvailability').default('-createdAt'),
   search: Joi.string().trim().max(200).allow(''),
   category: Joi.string().trim().max(200).allow(''),
   subcategory: Joi.string().trim().max(100).allow(''),

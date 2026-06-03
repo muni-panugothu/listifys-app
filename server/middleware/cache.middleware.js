@@ -23,6 +23,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   'type', 'status', 'featured', 'slug', 'id', 'year', 'brand', 'model',
   'propertyType', 'bedrooms', 'bathrooms', 'furnished', 'listingType',
   'serviceType', 'availability', 'rating', 'priceRange', 'skill',
+  'countryCode', 'activeOnly', 'city',
 ]);
 
 const buildListKey = (entity, query = {}) => {

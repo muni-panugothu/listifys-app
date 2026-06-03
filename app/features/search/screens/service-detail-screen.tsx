@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -11,17 +12,53 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { fetchListingById } from "@/features/listing/services/listing-api";
+import type { ListingItem } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { formatPrice } from "@/lib/currency";
 import { Image } from "@/lib/nativewind-interop";
 
-type ReviewItem = {
-  id: string;
-  avatar: string;
-  name: string;
-  date: string;
+type ApiReviewItem = {
+  _id: string;
   rating: number;
-  review: string;
+  title?: string;
+  comment: string;
+  createdAt: string;
+  userId?: {
+    name?: string;
+    profileImage?: string;
+    avatar?: string;
+    googleProfileImage?: string;
+  };
 };
+
+function relativeDate(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  const wks = Math.floor(days / 7);
+  if (wks < 5) return `${wks}w ago`;
+  const mons = Math.floor(days / 30);
+  if (mons < 12) return `${mons}mo ago`;
+  return `${Math.floor(mons / 12)}y ago`;
+}
+
+async function fetchReviewsForListing(listingId: string): Promise<ApiReviewItem[]> {
+  try {
+    const { requestJson } = await import("@/features/auth/services/auth-api");
+    const res = await requestJson<{ success: boolean; data: ApiReviewItem[] }>(
+      `/api/services/reviews/listing/${listingId}?limit=10&sort=-createdAt`,
+    );
+    return res.data ?? [];
+  } catch {
+    return [];
+  }
+}
 
 type PortfolioItem = {
   id: string;
@@ -36,13 +73,13 @@ type PricePlan = {
   popular?: boolean;
 };
 
-const coverImage =
+const STATIC_COVER =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuBGs23VktszuEagNylsPgf-9GFSu_s7uCb-J6Qi7ZCGqtm6O_KuWB_Y211FM3R8s4vQ9Tqs5YGlZ-C0v8gy8KMLTMzjLKoRrBkYepTFmKvmGpe_hWjjFe-xc3r1xuF-7JuUn-rwb4oqOoJrkNJOmG0wgxodueczJg2KwV6eEWKRyQzOMcWUqEjcex5_N_X3vo12YYaGEyFbq7_UXCyV2Z4KzsGH7wQVLUsRieRu8MkUOBXmvHwNx2Oy95ElfT9LiF_a4z5IgO8CNOM";
 
-const profileImage =
+const STATIC_PROFILE =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuBED343g7NNJLDUCiIrrFmoy5-EuJ-1-7wUNbwPZB6UWNvZdRTc4oCsjzevF1m4W4nBGpyZhTP142vJfSrr-pEyK9M5vBqCg_xhx21wxvxbWX0_ZbyvpNlv7IqgNzb6Dsx6pGCypesc_jOGb4-Le_eNcsvv-HYTlLcNnaIFv7LPeaednPFP8pCcIT4BcgDh2LelQ5eV_wuYr2HGFrpQxziOTQILaAO7JE-ywYSWMvBmok9FQzxpUczRw-YymnXUMuip2TJZJ4Eh1uY";
 
-const portfolioItems: PortfolioItem[] = [
+const staticPortfolioItems: PortfolioItem[] = [
   {
     id: "living-room",
     image:
@@ -60,7 +97,7 @@ const portfolioItems: PortfolioItem[] = [
   },
 ];
 
-const pricingPlans: PricePlan[] = [
+const staticPricingPlans: PricePlan[] = [
   {
     id: "consult",
     title: "Consultation Call",
@@ -76,28 +113,7 @@ const pricingPlans: PricePlan[] = [
   },
 ];
 
-const reviews: ReviewItem[] = [
-  {
-    id: "rahul",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDSctB2QhHptLZ-gpplqfqBrAI423MtkNpBWjWUL5WiI1RAiPllwt2z8GGaI7h96_Y5WJj6sUjE3IuiXibLrv_hUjfiOs8T4lAo8RKWDhq1GKzv0pHfZu7oz6_f_TsG6ObY_C_7jp9O-tJGdqzNB9P4lFOHBKOjhLDU7fPRYWLZ5Zh0JBJ3nqZcGGhV8pE-kLBPiJZ3GjpCUNj1t10IFyEJevDyWOlpU9npFtF2HvJhJpXbSuPZpzbVu89mplqdSVn53nE6dDCsKvE",
-    name: "Rahul Mehta",
-    date: "2 days ago",
-    rating: 5,
-    review:
-      "Priya completely transformed my studio apartment. Her eye for detail and space utilization is unmatched. Highly recommend!",
-  },
-  {
-    id: "ananya",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDLZCD0j-0uBAJfH30FVDbB8ao7Md9m319IyEZKLhvlUPxrsL4fxGmwPpjw9f0nQt9cppQ14xvNlqx_b1TF-BdIN-xm4E8OMtF96Diy_I6jDh22X6K_vi4YHLTjAZq5PAqCElJIDfnf7haWTE6g7y80Ko7b2C1fJnnYkWmJ7jco29f4sQXudgWc3oP9SYEhvDaOWx_nz6yr5ZMfe2LOuu-ul_p0d7N1yPvV-K7Y1ctd9p1VreAdkmJOjveYII16MCTyjMDvB5XhN1I",
-    name: "Ananya Iyer",
-    date: "1 week ago",
-    rating: 4,
-    review:
-      "Great consultation session. She gave me practical tips that I could implement immediately on a budget.",
-  },
-];
+
 
 function parseParam(value: string | string[] | undefined, fallback: string) {
   if (Array.isArray(value)) {
@@ -106,29 +122,127 @@ function parseParam(value: string | string[] | undefined, fallback: string) {
   return value ?? fallback;
 }
 
+function buildPortfolioItems(images: string[]): PortfolioItem[] {
+  return images.map((img, i) => ({ id: `img-${i}`, image: img }));
+}
+
+function buildPricingPlans(listing: ListingItem): PricePlan[] {
+  const pricing = (listing as any).pricing;
+  const basePrice = pricing?.basePrice ?? listing.price;
+  const priceType = pricing?.priceType ?? (listing as any).priceType;
+  const currency = listing.currency ?? "₹";
+
+  if (basePrice == null) return staticPricingPlans;
+
+  const formattedPrice = formatPrice(Number(basePrice), currency, listing.countryCode ?? undefined);
+  const unitLabel =
+    priceType === "hourly" || priceType === "Hourly" || priceType === "Per Hour"
+      ? "/hr"
+      : priceType === "daily" || priceType === "Daily" || priceType === "Per Day"
+        ? "/day"
+        : priceType === "Per Visit"
+          ? "/visit"
+          : priceType === "project" || priceType === "Per Project"
+            ? "/project"
+            : priceType === "monthly" || priceType === "Monthly" || priceType === "Per Month"
+              ? "/mo"
+              : "";
+
+  return [
+    {
+      id: "main",
+      title: listing.title ?? "Service",
+      subtitle: `${(listing as any).subcategory ?? "Professional Service"}${(listing as any).serviceArea ? ` · ${(listing as any).serviceArea}` : ""}`,
+      price: `${formattedPrice}${unitLabel}`,
+      popular: true,
+    },
+  ];
+}
+
 export function ServiceDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
-    name?: string | string[];
-    badge?: string | string[];
-    startingPrice?: string | string[];
+    id?: string | string[];
+    category?: string | string[];
   }>();
   const insets = useSafeAreaInsets();
-  const { refreshing, onRefresh } = usePullToRefresh();
 
-  const professionalName = useMemo(
-    () => parseParam(params.name, "Priya Sharma"),
-    [params.name],
-  );
-  const professionalBadge = useMemo(
-    () =>
-      parseParam(params.badge, "Premium Interior Architect & Space Planner"),
-    [params.badge],
-  );
-  const startingPrice = useMemo(
-    () => parseParam(params.startingPrice, "₹1,499"),
-    [params.startingPrice],
-  );
+  const listingId = parseParam(params.id, "");
+
+  const [listing, setListing] = useState<ListingItem | null>(null);
+  const [loading, setLoading] = useState(!!listingId);
+  const [reviews, setReviews] = useState<ApiReviewItem[]>([]);
+  const [reviewTotal, setReviewTotal] = useState(0);
+
+  const loadListing = useCallback(async () => {
+    if (!listingId) return;
+    setLoading(true);
+    try {
+      const [listingRes, reviewsRes] = await Promise.all([
+        fetchListingById("services", listingId),
+        fetchReviewsForListing(listingId),
+      ]);
+      if (listingRes.listing) setListing(listingRes.listing);
+      setReviews(reviewsRes);
+      setReviewTotal(reviewsRes.length);
+    } catch {
+      // silently fallback to static display
+    } finally {
+      setLoading(false);
+    }
+  }, [listingId]);
+
+  useEffect(() => {
+    loadListing();
+  }, [loadListing]);
+
+  const { refreshing, onRefresh: baseRefresh } = usePullToRefresh();
+  const onRefresh = useCallback(() => {
+    baseRefresh();
+    loadListing();
+  }, [baseRefresh, loadListing]);
+
+  // ── Derived display values ────────────────────────────────────────────────
+  const coverImage = listing?.images?.[0] ?? STATIC_COVER;
+  const profileImage =
+    ((listing as any)?.userId as { profileImage?: string } | undefined)?.profileImage ??
+    STATIC_PROFILE;
+
+  const professionalName =
+    ((listing as any)?.userId as { name?: string } | undefined)?.name ??
+    listing?.sellerName ??
+    "Priya Sharma";
+
+  const professionalBadge = listing
+    ? ((listing as any).subcategory ?? listing.title ?? "Premium Interior Architect & Space Planner")
+    : "Premium Interior Architect & Space Planner";
+
+  const pricing = (listing as any)?.pricing;
+  const basePrice = pricing?.basePrice ?? listing?.price;
+  const currency = listing?.currency ?? "₹";
+  const startingPrice =
+    basePrice != null
+      ? formatPrice(Number(basePrice), currency, listing?.countryCode ?? undefined)
+      : "₹1,499";
+
+  const locationText =
+    (listing as any)?.location?.address ??
+    (listing as any)?.location?.city ??
+    "Location not specified";
+
+  const experienceText = (listing as any)?.experience
+    ? `${(listing as any).experience} Exp.`
+    : "8+ Years Exp.";
+
+  const aboutText =
+    listing?.description ??
+    "Transforming spaces into curated experiences. I specialize in contemporary Indian aesthetics blended with global minimalism. My focus is on sustainable materials and ergonomic efficiency for modern urban homes.";
+
+  const portfolioItems: PortfolioItem[] = listing?.images?.length
+    ? buildPortfolioItems(listing.images as string[])
+    : staticPortfolioItems;
+
+  const pricingPlans: PricePlan[] = listing ? buildPricingPlans(listing) : staticPricingPlans;
 
   const topBarHeight = useMemo(() => insets.top + 64, [insets.top]);
   const footerBottom = Math.max(insets.bottom, 12);
@@ -178,22 +292,27 @@ export function ServiceDetailScreen() {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#27BB97"]}
-            tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
-          />
-        }
-        contentContainerStyle={{
-          paddingTop: topBarHeight,
-          paddingBottom: 120 + footerBottom,
-        }}
-      >
+      {loading ? (
+        <View className="flex-1 items-center justify-center" style={{ paddingTop: topBarHeight }}>
+          <ActivityIndicator size="large" color="#27BB97" />
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#27BB97"]}
+              tintColor="#27BB97"
+              progressViewOffset={topBarHeight}
+            />
+          }
+          contentContainerStyle={{
+            paddingTop: topBarHeight,
+            paddingBottom: 120 + footerBottom,
+          }}
+        >
         <View className="relative h-64 w-full">
           <Image
             source={coverImage}
@@ -238,14 +357,14 @@ export function ServiceDetailScreen() {
             <View className="flex-row items-center gap-1">
               <MaterialIcons name="location-on" size={16} color="#6C7A74" />
               <Text className="text-[12px] font-medium text-[#6C7A74]">
-                Bandra, Mumbai
+                {locationText}
               </Text>
             </View>
 
             <View className="flex-row items-center gap-1">
               <MaterialIcons name="work" size={16} color="#6C7A74" />
               <Text className="text-[12px] font-medium text-[#6C7A74]">
-                8+ Years Exp.
+                {experienceText}
               </Text>
             </View>
           </View>
@@ -285,10 +404,7 @@ export function ServiceDetailScreen() {
             About me
           </Text>
           <Text className="text-[14px] leading-6 text-[#3C4A44]">
-            Transforming spaces into curated experiences. I specialize in
-            contemporary Indian aesthetics blended with global minimalism. My
-            focus is on sustainable materials and ergonomic efficiency for
-            modern urban homes.
+            {aboutText}
           </Text>
         </View>
 
@@ -340,7 +456,7 @@ export function ServiceDetailScreen() {
         <View className="mt-6 px-4">
           <View className="mb-2 flex-row items-center justify-between">
             <Text className="text-[20px] font-semibold text-[#161D1A]">
-              Reviews (128)
+              Reviews{reviewTotal > 0 ? ` (${reviewTotal})` : ""}
             </Text>
             <Pressable>
               <Text className="text-[12px] font-medium text-[#27BB97]">
@@ -349,49 +465,75 @@ export function ServiceDetailScreen() {
             </Pressable>
           </View>
 
-          <View className="gap-4">
-            {reviews.map((item) => (
-              <View key={item.id} className="border-b border-slate-100 pb-4">
-                <View className="mb-2 flex-row items-center gap-3">
-                  <Image
-                    source={item.avatar}
-                    contentFit="cover"
-                    transition={150}
-                    className="h-10 w-10 rounded-full"
-                  />
+          {reviews.length === 0 ? (
+            <Text className="text-[13px] text-[#9CA3AF] py-2">
+              No reviews yet. Be the first to review!
+            </Text>
+          ) : (
+            <View className="gap-4">
+              {reviews.map((item) => {
+                const reviewerName = item.userId?.name ?? "Anonymous";
+                const reviewerAvatar =
+                  item.userId?.profileImage ??
+                  item.userId?.googleProfileImage ??
+                  item.userId?.avatar ??
+                  null;
+                return (
+                  <View key={item._id} className="border-b border-slate-100 pb-4">
+                    <View className="mb-2 flex-row items-center gap-3">
+                      {reviewerAvatar ? (
+                        <Image
+                          source={reviewerAvatar}
+                          contentFit="cover"
+                          transition={150}
+                          className="h-10 w-10 rounded-full"
+                        />
+                      ) : (
+                        <View className="h-10 w-10 items-center justify-center rounded-full bg-[#E9EFEB]">
+                          <Text className="text-[14px] font-bold text-[#27BB97]">
+                            {reviewerName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
 
-                  <View>
-                    <Text className="text-[14px] font-semibold text-[#161D1A]">
-                      {item.name}
-                    </Text>
-                    <View className="-ml-1 flex-row">
-                      {Array.from({ length: 5 }).map((_, index) => {
-                        const filled = index < item.rating;
-                        return (
-                          <MaterialIcons
-                            key={`${item.id}-star-${index}`}
-                            name={filled ? "star" : "star-border"}
-                            size={16}
-                            color="#CBA100"
-                          />
-                        );
-                      })}
+                      <View>
+                        <Text className="text-[14px] font-semibold text-[#161D1A]">
+                          {reviewerName}
+                        </Text>
+                        <View className="-ml-1 flex-row">
+                          {Array.from({ length: 5 }).map((_, index) => (
+                            <MaterialIcons
+                              key={`${item._id}-star-${index}`}
+                              name={index < item.rating ? "star" : "star-border"}
+                              size={16}
+                              color="#CBA100"
+                            />
+                          ))}
+                        </View>
+                      </View>
+
+                      <Text className="ml-auto text-[12px] text-[#6C7A74]">
+                        {relativeDate(item.createdAt)}
+                      </Text>
                     </View>
+
+                    {item.title ? (
+                      <Text className="mb-1 text-[13px] font-semibold text-[#161D1A]">
+                        {item.title}
+                      </Text>
+                    ) : null}
+
+                    <Text className="text-[14px] leading-5 text-[#3C4A44]">
+                      {item.comment}
+                    </Text>
                   </View>
-
-                  <Text className="ml-auto text-[12px] text-[#6C7A74]">
-                    {item.date}
-                  </Text>
-                </View>
-
-                <Text className="text-[14px] leading-5 text-[#3C4A44]">
-                  {item.review}
-                </Text>
-              </View>
-            ))}
-          </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
+      )}
 
       <View
         className="absolute inset-x-0 bottom-0 z-50 border-t border-slate-100 bg-white/90 px-4"
@@ -409,7 +551,7 @@ export function ServiceDetailScreen() {
           </View>
 
           <Pressable
-            className="flex-[2] overflow-hidden rounded-lg"
+            className="flex-2 overflow-hidden rounded-lg"
             style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}
           >
             <LinearGradient
@@ -419,9 +561,9 @@ export function ServiceDetailScreen() {
               className="h-12 flex-row items-center justify-center gap-2"
             >
               <Text className="text-[18px] font-semibold text-white">
-                Book Now
+                Message
               </Text>
-              <MaterialIcons name="calendar-today" size={20} color="#FFFFFF" />
+              <MaterialIcons name="chat" size={20} color="#FFFFFF" />
             </LinearGradient>
           </Pressable>
         </View>
