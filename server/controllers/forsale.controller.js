@@ -24,6 +24,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   subcategory: 1, images: 1, sellerName: 1, seller: 1, views: 1,
   features: 1, phone: 1, status: 1, savedBy: 1, createdAt: 1,
   brand: 1, model: 1, coordinates: 1,
+  countryCode: 1,
 };
 
 // Normalise all image URLs in a listing to proxy format

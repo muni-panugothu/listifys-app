@@ -8,7 +8,7 @@ jest.mock('../services/s3.service', () => ({ toProxyUrl: jest.fn(url => url), de
 jest.mock('../services/viewcount.service', () => ({ recordView: jest.fn().mockResolvedValue(true) }));
 jest.mock('../services/search.service', () => ({ indexListing: jest.fn().mockResolvedValue(true), deleteListing: jest.fn().mockResolvedValue(true) }));
 jest.mock('../services/notifyfollowers.service', () => ({ notifyFollowersOfNewListing: jest.fn().mockResolvedValue(undefined) }));
-jest.mock('../utils/geoQuery', () => ({ applyGeoFilter: jest.fn(), buildSortOption: jest.fn(() => ({ createdAt: -1 })) }));
+jest.mock('../utils/geoQuery', () => ({ applyGeoFilter: jest.fn(), applyCountryFilter: jest.fn(), buildLocationRegex: jest.fn(() => ({ $regex: 'mock', $options: 'i' })), buildSortOption: jest.fn(() => ({ createdAt: -1 })) }));
 jest.mock('../queues/producers/listing.producer', () => ({ publishListingCreated: jest.fn().mockResolvedValue(true), publishListingUpdated: jest.fn().mockResolvedValue(true), publishListingDeleted: jest.fn().mockResolvedValue(true), publishImageCleanup: jest.fn().mockResolvedValue(true) }));
 
 const mockPaginatedFind = jest.fn();

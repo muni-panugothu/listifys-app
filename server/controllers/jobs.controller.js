@@ -64,6 +64,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   savedBy: 1,
   createdAt: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const VALID_SUBCATEGORIES = ["IT Jobs", "Non IT Jobs", "Part Time", "Contract Type"];

@@ -38,6 +38,7 @@ const LIST_PROJECTION = { currency: 1, slug: 1,
   numberOfPieces: 1,
   color: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {
@@ -53,7 +54,8 @@ const normaliseImages = (listing) => {
 
 exports.createFurniture = async (req, res) => {
   try {
-    const { lat, lng, imageUrls, ...rest } = req.body;
+    const { lat, lng, ...rest } = req.body;
+
     const payload = {
       ...rest,
       category: "Furniture",
@@ -61,7 +63,7 @@ exports.createFurniture = async (req, res) => {
       sellerName: req.user.firstName
         ? `${req.user.firstName} ${req.user.lastName || ""}`.trim()
         : req.user.email.split("@")[0],
-      ...(lat && lng && {
+      ...(lat && lng && isFinite(Number(lat)) && isFinite(Number(lng)) && {
         coordinates: { type: "Point", coordinates: [Number(lng), Number(lat)] },
       }),
     };

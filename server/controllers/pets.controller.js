@@ -41,6 +41,7 @@ const LIST_PROJECTION = {
   color: 1,
   weight: 1,
   coordinates: 1,
+  countryCode: 1,
 };
 
 const normaliseImages = (listing) => {
