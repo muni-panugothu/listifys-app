@@ -39,6 +39,7 @@
       "favicon": "./assets/splashscreenImg/splashImg.png"
     },
     "plugins": [
+      "./plugins/with-notifee-maven.js",
       "expo-router",
       [
         "expo-splash-screen",

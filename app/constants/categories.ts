@@ -2,16 +2,16 @@ import type { MaterialIcons } from "@expo/vector-icons";
 
 export type CategorySlug =
   | "electronics"
-  | "jobs"
   | "vehicles"
+  | "mobiles"
+  | "furniture"
+  | "fashion"
   | "takecare"
   | "events"
   | "services"
   | "properties"
   | "forsale"
-  | "mobiles"
-  | "furniture"
-  | "fashion"
+  | "jobs"
   | "sports"
   | "collectibles"
   | "pets"
@@ -47,18 +47,80 @@ export const CATEGORIES: CategoryConfig[] = [
     ],
   },
   {
-    slug: "jobs",
-    name: "Jobs",
-    icon: "work",
-    apiPath: "/api/jobs",
-    subcategories: ["IT Jobs", "Non IT Jobs", "Part Time", "Contract Type"],
-  },
-  {
     slug: "vehicles",
     name: "Vehicles",
     icon: "directions-car",
     apiPath: "/api/vehicles",
     subcategories: ["Cars", "Bikes", "Cycle", "Spare Parts"],
+  },
+  {
+    slug: "mobiles",
+    name: "Mobiles",
+    icon: "smartphone",
+    apiPath: "/api/mobiles",
+    subcategories: [
+      "Mobile Phones",
+      "Tablets",
+      "Cases & Covers",
+      "Chargers & Cables",
+      "Earphones & Headphones",
+      "Power Banks",
+      "Smart Watches & Bands",
+      "Memory Cards & Storage",
+      "Screen Guards & Protectors",
+      "Bluetooth Speakers",
+      "Selfie Sticks & Tripods",
+      "Other Accessories",
+    ],
+  },
+  {
+    slug: "furniture",
+    name: "Furniture",
+    icon: "chair",
+    apiPath: "/api/furniture",
+    subcategories: [
+      "Sofas & Dining",
+      "Beds & Wardrobes",
+      "Tables & Chairs",
+      "Home Decor",
+      "Office Furniture",
+      "Wardrobes & Storage",
+      "Kitchen Furniture",
+      "Outdoor & Garden Furniture",
+      "Kids Furniture",
+      "Lighting & Lamps",
+      "Curtains & Blinds",
+      "Rugs & Carpets",
+      "Other Furniture",
+    ],
+  },
+  {
+    slug: "fashion",
+    name: "Fashion",
+    icon: "checkroom",
+    apiPath: "/api/fashion",
+    subcategories: [
+      "Men's Clothing",
+      "Women's Clothing",
+      "Kids Clothing",
+      "Footwear",
+      "Watches",
+      "Bags & Wallets",
+      "Jewellery",
+      "Sunglasses & Eyewear",
+      "Belts & Caps",
+      "Ethnic Wear",
+      "Sportswear",
+      "Winter Wear",
+      "Accessories",
+    ],
+  },
+  {
+    slug: "jobs",
+    name: "Jobs",
+    icon: "work",
+    apiPath: "/api/jobs",
+    subcategories: ["IT Jobs", "Non IT Jobs", "Part Time", "Contract Type"],
   },
   {
     slug: "takecare",
@@ -227,68 +289,6 @@ export const CATEGORIES: CategoryConfig[] = [
       "Deodorants",
       "Other Beauty",
       "Other Items",
-    ],
-  },
-  {
-    slug: "mobiles",
-    name: "Mobiles",
-    icon: "smartphone",
-    apiPath: "/api/mobiles",
-    subcategories: [
-      "Mobile Phones",
-      "Tablets",
-      "Cases & Covers",
-      "Chargers & Cables",
-      "Earphones & Headphones",
-      "Power Banks",
-      "Smart Watches & Bands",
-      "Memory Cards & Storage",
-      "Screen Guards & Protectors",
-      "Bluetooth Speakers",
-      "Selfie Sticks & Tripods",
-      "Other Accessories",
-    ],
-  },
-  {
-    slug: "furniture",
-    name: "Furniture",
-    icon: "chair",
-    apiPath: "/api/furniture",
-    subcategories: [
-      "Sofas & Dining",
-      "Beds & Wardrobes",
-      "Tables & Chairs",
-      "Home Decor",
-      "Office Furniture",
-      "Wardrobes & Storage",
-      "Kitchen Furniture",
-      "Outdoor & Garden Furniture",
-      "Kids Furniture",
-      "Lighting & Lamps",
-      "Curtains & Blinds",
-      "Rugs & Carpets",
-      "Other Furniture",
-    ],
-  },
-  {
-    slug: "fashion",
-    name: "Fashion",
-    icon: "checkroom",
-    apiPath: "/api/fashion",
-    subcategories: [
-      "Men's Clothing",
-      "Women's Clothing",
-      "Kids Clothing",
-      "Footwear",
-      "Watches",
-      "Bags & Wallets",
-      "Jewellery",
-      "Sunglasses & Eyewear",
-      "Belts & Caps",
-      "Ethnic Wear",
-      "Sportswear",
-      "Winter Wear",
-      "Accessories",
     ],
   },
   {
