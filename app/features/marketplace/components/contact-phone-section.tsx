@@ -35,6 +35,7 @@ import {
 
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { useLocale } from "@/providers/locale-provider";
 import {
   sendContactOtp,
   verifyContactOtp,
@@ -64,14 +65,15 @@ export function ContactPhoneSection({
   onChange,
   disabled = false,
 }: ContactPhoneSectionProps) {
+  const { phoneCode: localePhoneCode, isoCountryCode: localeIso } = useLocale();
   const [option, setOption] = useState<Option>(
     // Pre-select "custom" if the incoming value differs from account phone
     value && accountPhone && value !== accountPhone ? "custom" : "account",
   );
 
   // Phone input state (custom number)
-  const [phoneCode, setPhoneCode] = useState("+91");
-  const [isoCode, setIsoCode] = useState("IN");
+  const [phoneCode, setPhoneCode] = useState(localePhoneCode);
+  const [isoCode, setIsoCode] = useState(localeIso);
   const [phoneDigits, setPhoneDigits] = useState("");
 
   // OTP verification state
@@ -98,6 +100,14 @@ export function ContactPhoneSection({
     const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
+
+  useEffect(() => {
+    // Sync defaults with locale/location until user starts typing.
+    if (option === "custom" && !phoneDigits) {
+      setPhoneCode(localePhoneCode);
+      setIsoCode(localeIso);
+    }
+  }, [localeIso, localePhoneCode, option, phoneDigits]);
 
   // Check if the custom phone is already verified on mount / when it changes
   useEffect(() => {

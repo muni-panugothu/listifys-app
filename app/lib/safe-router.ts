@@ -39,6 +39,19 @@ function hrefToPath(href: Href): string | null {
   return typeof pathname === "string" ? pathname : null;
 }
 
+function isValidHref(href: unknown): href is Href {
+  if (typeof href === "string") {
+    return href.trim().length > 0;
+  }
+
+  if (!href || typeof href !== "object") {
+    return false;
+  }
+
+  const pathname = (href as { pathname?: unknown }).pathname;
+  return typeof pathname === "string" && pathname.trim().length > 0;
+}
+
 function notifyRouteTransition(action: RouteTransitionAction, nextPath: string | null) {
   for (const listener of routeTransitionListeners) {
     listener({ action, nextPath });
@@ -72,6 +85,13 @@ export function useRouter() {
 
   const push = useCallback(
     (href: Href) => {
+      if (!isValidHref(href)) {
+        // Guard against malformed navigation payloads from dynamic route builders.
+        // This avoids Expo Router crashes like "path.split is not a function".
+        // eslint-disable-next-line no-console
+        console.warn("[safe-router] Ignored invalid push href", href);
+        return;
+      }
       const key = `push:${hrefToKey(href)}`;
       if (shouldBlockNavigation(key)) return;
       notifyRouteTransition("push", hrefToPath(href));
@@ -82,6 +102,11 @@ export function useRouter() {
 
   const replace = useCallback(
     (href: Href) => {
+      if (!isValidHref(href)) {
+        // eslint-disable-next-line no-console
+        console.warn("[safe-router] Ignored invalid replace href", href);
+        return;
+      }
       const key = `replace:${hrefToKey(href)}`;
       if (shouldBlockNavigation(key)) return;
       notifyRouteTransition("replace", hrefToPath(href));
