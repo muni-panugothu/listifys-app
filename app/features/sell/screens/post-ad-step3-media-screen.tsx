@@ -53,6 +53,14 @@ type ImageScanStatus = "scanning" | "allowed" | "blocked" | "review";
 type ImageScanResult = { status: ImageScanStatus; category?: string };
 
 /** Short label shown inside the thumbnail overlay. */
+const JOB_TYPE_VALUES = new Set([
+  "Full Time",
+  "Part Time",
+  "Contract",
+  "Freelance",
+  "Internship",
+]);
+
 const MODERATION_CATEGORY_SHORT: Record<string, string> = {
   explicit_sexual: "Explicit",
   sexual: "Adult content",
@@ -432,10 +440,14 @@ export function PostAdStep3MediaScreen() {
         if (companyName) listingBody.companyName = companyName;
         if (companyEmail) listingBody.companyEmail = companyEmail;
         if (applyLink) listingBody.applyLink = applyLink;
-        if (jobType) listingBody.jobType = jobType;
         if (experience) listingBody.experience = experience;
         if (education) listingBody.education = education;
-        if (employmentType) listingBody.employmentType = employmentType;
+        const resolvedJobType =
+          employmentType || (jobType && JOB_TYPE_VALUES.has(jobType) ? jobType : "");
+        if (resolvedJobType) {
+          listingBody.jobType = resolvedJobType;
+          listingBody.employmentType = resolvedJobType;
+        }
         if (workMode) listingBody.workMode = workMode;
         if (salaryMin || salaryMax) {
           listingBody.salary = {

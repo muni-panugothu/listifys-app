@@ -28,7 +28,7 @@ import {
   setVariant, setYear, setKmDriven, setMileageUnit, setFuelType, setTransmission, setOwnership, setColor,
   setEngineCC, setCycleType, setGearCount, setFrameSize, setCompatibleVehicle, setPartCategory,
   // Jobs
-  setCompanyName, setCompanyEmail, setApplyLink, setJobType, setExperience, setEducation,
+  setCompanyName, setCompanyEmail, setApplyLink, setExperience, setEducation,
   setEmploymentType, setWorkMode, setSalaryMin, setSalaryMax, setSalaryType,
   setIndustry, setPositions,
   // TakeCare
@@ -448,7 +448,7 @@ export function PostAdStep2DetailsScreen() {
     processor, ram, storage, capacity, energyRating, megapixels, lensType,
     variant, year, kmDriven, mileageUnit, fuelType, transmission, ownership, color, engineCC,
     cycleType, gearCount, frameSize, compatibleVehicle, partCategory,
-    companyName, companyEmail, applyLink, jobType, experience, education,
+    companyName, companyEmail, applyLink, experience, education,
     employmentType, workMode, salaryMin, salaryMax, salaryType, industry, positions,
     availability, age, languages, certifications,
     eventDate, eventTime, organizer, venue, ticketsAvailable, ageRestriction, dressCode,
@@ -998,10 +998,6 @@ export function PostAdStep2DetailsScreen() {
                 <Label text="Apply Link" />
                 <IconField icon="link" value={applyLink} onChangeText={(v) => dispatch(setApplyLink(v))} placeholder="https://careers.company.com" />
               </View>
-              <View className="mb-6">
-                <Label text="Job Type" />
-                <IconField icon="work-outline" value={jobType} onChangeText={(v) => dispatch(setJobType(v))} placeholder="e.g. Software Engineer" />
-              </View>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
                   <Label text="Experience" />
@@ -1013,7 +1009,7 @@ export function PostAdStep2DetailsScreen() {
                 </View>
               </View>
               <View className="mb-6">
-                <LabelPill text="Employment Type" />
+                <LabelPill text="Job Type" />
                 <PillRow options={EMPLOYMENT_TYPE_OPTIONS} value={employmentType} onSelect={(v) => dispatch(setEmploymentType(v))} />
               </View>
               <View className="mb-6">
