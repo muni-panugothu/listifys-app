@@ -90,18 +90,18 @@ function resolveApiBaseUrl() {
   const devHost = getExpoDevHost();
   const explicitBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
 
-  // In DEV mode, prefer the runtime Metro host over the .env value.
+  // If explicitly configured, always honor it (including dev).
+  // This prevents accidental use of a stale/incorrect Expo host IP.
+  if (explicitBaseUrl) {
+    return explicitBaseUrl.replace(/\/$/, "");
+  }
+
+  // In DEV mode, prefer the runtime Metro host when no explicit base URL is set.
   // Constants.expoConfig.hostUri is set at runtime by the Expo packager to
   // the CURRENT LAN IP — it is always accurate even when the machine's IP
   // changes between sessions, so we never hit a stale baked-in URL.
   if (typeof __DEV__ !== "undefined" && __DEV__ && devHost) {
     return `http://${devHost}:5000`;
-  }
-
-  // Outside dev (production build) or when Metro host is unavailable,
-  // fall back to the explicit .env override.
-  if (explicitBaseUrl) {
-    return explicitBaseUrl.replace(/\/$/, "");
   }
 
   if (Platform.OS === "android") {
@@ -112,6 +112,49 @@ function resolveApiBaseUrl() {
 }
 
 export const AUTH_API_BASE_URL = resolveApiBaseUrl();
+
+function getCandidateApiBaseUrls() {
+  const candidates: string[] = [];
+  const add = (value?: string | null) => {
+    if (!value) return;
+    const normalized = value.trim().replace(/\/$/, "");
+    if (!normalized) return;
+    if (!candidates.includes(normalized)) {
+      candidates.push(normalized);
+    }
+  };
+
+  add(AUTH_API_BASE_URL);
+
+  const devHost = getExpoDevHost();
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    add(process.env.EXPO_PUBLIC_API_BASE_URL);
+    if (devHost) {
+      add(`http://${devHost}:5000`);
+    }
+    // Manual LAN fallback for local physical-device testing.
+    add("http://10.22.25.71:5000");
+
+    if (Platform.OS === "android") {
+      add("http://10.0.2.2:5000");
+    }
+  }
+
+  return candidates;
+}
+
+function isNetworkLikeError(error: unknown) {
+  if (error instanceof AuthApiError) {
+    return error.status === 0 || /network|timed out/i.test(error.message);
+  }
+  if (error instanceof TypeError) {
+    return true;
+  }
+  if (error instanceof Error) {
+    return /network|timed out|fetch/i.test(error.message);
+  }
+  return false;
+}
 
 async function fetchWithTimeout(
   url: string,
@@ -339,7 +382,7 @@ async function parseJsonSafe(response: Response) {
 
 export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = `${AUTH_API_BASE_URL}${normalizedPath}`;
+  const baseUrls = getCandidateApiBaseUrls();
 
   // Ensure in-memory tokens are loaded from storage before first request
   if (!_accessToken && !_refreshToken) {
@@ -354,22 +397,45 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     ...(init?.headers ?? {}),
   });
 
-  let response = await fetchWithTimeout(url, {
-    ...init,
-    credentials: "include",
-    headers: buildHeaders(),
-  });
+  let response: Response | null = null;
+  let lastNetworkError: unknown = null;
 
-  // Auto-refresh on 401 and retry once
-  if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
+  for (const baseUrl of baseUrls) {
+    const url = `${baseUrl}${normalizedPath}`;
+    try {
       response = await fetchWithTimeout(url, {
         ...init,
         credentials: "include",
         headers: buildHeaders(),
       });
+
+      // Auto-refresh on 401 and retry once
+      if (response.status === 401) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          response = await fetchWithTimeout(url, {
+            ...init,
+            credentials: "include",
+            headers: buildHeaders(),
+          });
+        }
+      }
+
+      break;
+    } catch (error) {
+      if (!isNetworkLikeError(error)) {
+        throw error;
+      }
+      lastNetworkError = error;
+      continue;
     }
+  }
+
+  if (!response) {
+    if (lastNetworkError) {
+      throw lastNetworkError;
+    }
+    throw new AuthApiError("Unable to connect to the server.", 0);
   }
 
   const data = await parseJsonSafe(response);
