@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { Image } from "@/lib/nativewind-interop";
+import { useLocale } from "@/providers/locale-provider";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 import { useAppSelector } from "@/store/hooks";
@@ -74,11 +75,13 @@ export function NearbyMapViewBottomSheetScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ q?: string | string[] }>();
   const insets = useSafeAreaInsets();
+  const { isoCountryCode: localeCountryCode } = useLocale();
   const [query, setQuery] = useState(() => parseQueryParam(params.q));
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
 
   const locationCoords = useAppSelector(selectLocationCoords);
-  const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const rawCountryCode = useAppSelector(selectIsoCountryCode);
+  const isoCountryCode = (rawCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
 
   type NearbyListing = NearbyListingsResponse["listings"][number];
   const [listings, setListings] = useState<NearbyListing[]>([]);

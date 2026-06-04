@@ -25,11 +25,13 @@ import {
   type ListingItem,
 } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useLocale } from "@/providers/locale-provider";
 import { useAppSelector } from "@/store/hooks";
 import {
   selectIsoCountryCode,
   selectLocationCoords,
   selectLocationLabel,
+  selectLocationSource,
 } from "@/store/slices/location-slice";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
@@ -56,12 +58,17 @@ const SERVICE_SUBCATEGORIES = [
 export function ServicesCategoryHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isoCountryCode: localeCountryCode } = useLocale();
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
   const rawCountryCode = useAppSelector(selectIsoCountryCode);
-  const hasLocation = userCoords.lat != null && userCoords.lng != null;
-  const isoCountryCode = hasLocation ? rawCountryCode : null;
+  const locationSource = useAppSelector(selectLocationSource);
+  const hasManualLocation =
+    locationSource === "manual" &&
+    userCoords.lat != null &&
+    userCoords.lng != null;
+  const isoCountryCode = (rawCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
   const handleBottomTabPress = useTabNavigation();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,9 +104,9 @@ export function ServicesCategoryHubScreen() {
       const res = await fetchServiceListings({
         subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
         search: appliedSearch.trim() || undefined,
-        lat: hasLocation ? userCoords.lat! : undefined,
-        lng: hasLocation ? userCoords.lng! : undefined,
-        radius: hasLocation ? 100 : undefined,
+        lat: hasManualLocation ? userCoords.lat! : undefined,
+        lng: hasManualLocation ? userCoords.lng! : undefined,
+        radius: hasManualLocation ? 100 : undefined,
         countryCode: isoCountryCode,
         sort: sortMap[activeFilter] ?? "-createdAt",
       });
@@ -119,7 +126,16 @@ export function ServicesCategoryHubScreen() {
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch, isoCountryCode, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng, hasLocation, activeFilter]);
+  }, [
+    activeFilter,
+    appliedSearch,
+    hasManualLocation,
+    isoCountryCode,
+    selectedSubcategory,
+    user?.id,
+    userCoords.lat,
+    userCoords.lng,
+  ]);
 
   useEffect(() => {
     void loadListings();

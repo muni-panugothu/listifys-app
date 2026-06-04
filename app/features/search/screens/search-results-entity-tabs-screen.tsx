@@ -35,7 +35,13 @@ import {
 } from "@/features/search/services/search-api";
 import type { Href } from "@/lib/safe-router";
 import { useAppSelector } from "@/store/hooks";
-import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import {
+  selectIsoCountryCode,
+  selectLocationCoords,
+  selectLocationLabel,
+  selectLocationSource,
+} from "@/store/slices/location-slice";
+import { useLocale } from "@/providers/locale-provider";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GUTTER = 14;
@@ -208,15 +214,25 @@ export function SearchResultsEntityTabsScreen() {
     countryCode?: string | string[];
   }>();
   const insets = useSafeAreaInsets();
+  const { isoCountryCode: localeCountryCode } = useLocale();
   const locationCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
+  const locationSource = useAppSelector(selectLocationSource);
   // Prefer Redux (always up-to-date), fall back to URL param passed by caller.
   const reduxCountryCode = useAppSelector(selectIsoCountryCode);
   const paramCountryCode = parseQueryParam(params.countryCode) || null;
-  // Show all countries when no location is selected (both guest and authenticated users).
-  // Once a location is picked (coords exist), scope results to that country.
-  const hasLocation = locationCoords.lat != null && locationCoords.lng != null;
-  const isoCountryCode = hasLocation ? (reduxCountryCode ?? paramCountryCode) : null;
+  // Keep geo-radius filtering only for explicit manual location selection.
+  const shouldApplyLocationFilter = locationSource === "manual";
+  const hasManualCoords =
+    shouldApplyLocationFilter &&
+    locationCoords.lat != null &&
+    locationCoords.lng != null;
+  const isoCountryCode = (
+    reduxCountryCode ??
+    paramCountryCode ??
+    localeCountryCode ??
+    null
+  )?.toUpperCase() ?? null;
   const initialEntity = useMemo(
     () => parseEntityParam(params.entity),
     [params.entity],
@@ -276,7 +292,12 @@ export function SearchResultsEntityTabsScreen() {
           let mapped: SearchResultItem[] = [];
 
           try {
-            const feed = await fetchHomeFeedWithTimeout(60, locationCoords.lat, locationCoords.lng, isoCountryCode);
+            const feed = await fetchHomeFeedWithTimeout(
+              60,
+              hasManualCoords ? locationCoords.lat : undefined,
+              hasManualCoords ? locationCoords.lng : undefined,
+              isoCountryCode,
+            );
             const feedListings = feed?.categories
               ? Object.values(feed.categories).flatMap((cat) => cat.listings ?? [])
               : [];
@@ -301,8 +322,9 @@ export function SearchResultsEntityTabsScreen() {
           return;
         }
 
-        const hasCoords = locationCoords.lat != null && locationCoords.lng != null;
+        const hasCoords = hasManualCoords;
         const isRealLabel =
+          shouldApplyLocationFilter &&
           Boolean(locationCoords.label) &&
           locationCoords.label !== "Set location" &&
           !locationCoords.label.startsWith("Detecting");
@@ -320,7 +342,7 @@ export function SearchResultsEntityTabsScreen() {
           limit: 50,
           lat: hasCoords ? locationCoords.lat! : undefined,
           lng: hasCoords ? locationCoords.lng! : undefined,
-          location: (hasCoords || isRealLabel) ? locationCoords.label : undefined,
+          location: !hasCoords && isRealLabel ? locationCoords.label : undefined,
           countryCode: isoCountryCode,
         });
 
@@ -355,7 +377,17 @@ export function SearchResultsEntityTabsScreen() {
         setRefreshing(false);
       }
     },
-    [appliedQuery, activeEntity, activeSort, locationCoords.lat, locationCoords.lng, locationCoords.label, isoCountryCode],
+    [
+      appliedQuery,
+      activeEntity,
+      activeSort,
+      hasManualCoords,
+      locationCoords.label,
+      locationCoords.lat,
+      locationCoords.lng,
+      isoCountryCode,
+      shouldApplyLocationFilter,
+    ],
   );
 
   useEffect(() => {

@@ -29,8 +29,14 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useDynamicSubcategories } from "@/hooks/use-dynamic-subcategories";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
+import { useLocale } from "@/providers/locale-provider";
 import { useAppSelector } from "@/store/hooks";
-import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import {
+  selectIsoCountryCode,
+  selectLocationCoords,
+  selectLocationLabel,
+  selectLocationSource,
+} from "@/store/slices/location-slice";
 import { formatPrice, getCurrencyCodeFromCountry, getCurrencySymbol } from "@/lib/currency";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -121,14 +127,17 @@ type CategoryBrowseScreenProps = {
 export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isoCountryCode: localeCountryCode } = useLocale();
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
   const rawCountryCode = useAppSelector(selectIsoCountryCode);
-  // Show all countries when no location is selected (both guest and authenticated users).
-  // Once a location is picked (coords exist), scope results to that country.
-  const hasLocation = userCoords.lat != null && userCoords.lng != null;
-  const isoCountryCode = hasLocation ? rawCountryCode : null;
+  const locationSource = useAppSelector(selectLocationSource);
+  const hasManualLocation =
+    locationSource === "manual" &&
+    userCoords.lat != null &&
+    userCoords.lng != null;
+  const isoCountryCode = (rawCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
 
   // Subcategories fetched live from the DB so any new subcategory added to
   // the model (or posted by a seller) appears immediately — static list from
@@ -165,7 +174,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
 
   const loadListings = useCallback(async () => {
     try {
-      const hasCoords = userCoords.lat != null && userCoords.lng != null;
+      const hasCoords = hasManualLocation;
 
       // Only filter by location when the user has actually set one.
       // "Set location" / "Detecting location…" are UI placeholders \u2014 passing
@@ -204,7 +213,17 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     } catch {
       setListings((prev) => (prev.length > 0 ? prev : []));
     }
-  }, [appliedSearch, categorySlug, isoCountryCode, locationLabel, selectedSubcategory, user?.id, userCoords.lat, userCoords.lng]);
+  }, [
+    appliedSearch,
+    categorySlug,
+    hasManualLocation,
+    isoCountryCode,
+    locationLabel,
+    selectedSubcategory,
+    user?.id,
+    userCoords.lat,
+    userCoords.lng,
+  ]);
 
   // Fire on subcategory / search changes (screen already mounted)
   useEffect(() => {
@@ -248,10 +267,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
     (item: ListingItem) => {
       const special = SPECIAL_DETAIL[categorySlug];
       if (special) {
-        router.push({
-          pathname: special as Href,
-          params: { category: categorySlug, id: item._id },
-        });
+        router.push(`${special}?category=${categorySlug}&id=${item._id}` as Href);
         return;
       }
       router.push(
@@ -627,7 +643,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}
-                    distanceLabel={hasLocation ? getListingDistanceLabel(
+                    distanceLabel={userCoords.lat != null && userCoords.lng != null ? getListingDistanceLabel(
                       {
                         _id: item._id,
                         category: categorySlug,

@@ -35,6 +35,7 @@ import {
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { ProfileAvatarImage } from "@/components/profile-avatar-image";
 import { Image } from "@/lib/nativewind-interop";
+import { useLocale } from "@/providers/locale-provider";
 import { filterOutOwnListings } from "@/lib/is-own-listing";
 import { resolveListingDistanceKm, getListingDistanceLabel } from "@/lib/listing-distance";
 import { extractCityFromLocationLabel } from "@/lib/location-service";
@@ -48,6 +49,7 @@ import {
   selectLocationCoords,
   selectLocationLabel,
   selectIsoCountryCode,
+  selectLocationSource,
   setProfileFallbackLocation,
 } from "@/store/slices/location-slice";
 import { clearSlowRequestSignal, reportSlowRequest } from "@/store/slices/network-slice";
@@ -95,12 +97,14 @@ export function HomeFeedRootScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
+  const { isoCountryCode: localeCountryCode } = useLocale();
   const user = useAppSelector((s) => s.auth.user);
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const network = useAppSelector((s) => s.network);
   const displayLocation = useAppSelector(selectLocationLabel);
   const locationCoords = useAppSelector(selectLocationCoords);
   const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const locationSource = useAppSelector(selectLocationSource);
   const locationHydrated = useAppSelector((s) => s.location.hydrated);
   const [feedData, setFeedData] = useState<FeedResponse | null>(null);
   const [isUsingCachedFeed, setIsUsingCachedFeed] = useState(false);
@@ -110,6 +114,8 @@ export function HomeFeedRootScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [showLoginSheet, setShowLoginSheet] = useState(false);
   const isOffline = !network.isConnected || network.isInternetReachable === false;
+  const shouldApplyLocationFilter = locationSource === "manual";
+  const effectiveCountryCode = (isoCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -157,28 +163,30 @@ export function HomeFeedRootScreen() {
       const startedAt = Date.now();
       try {
         let feedParams: any = { limit: 12 };
-        if (isAuthenticated) {
-          // Authenticated: filter by user location as before
+        if (shouldApplyLocationFilter) {
+          // Apply location filter only after explicit user selection.
           const hasCoords = locationCoords.lat != null && locationCoords.lng != null;
           const isRealLabel =
             Boolean(locationCoords.label) &&
             locationCoords.label !== "Set location" &&
             !locationCoords.label.startsWith("Detecting");
-          const cityForFeed = extractCityFromLocationLabel(locationCoords.label);
-          const locationText = hasCoords
-            ? cityForFeed ?? (isRealLabel ? locationCoords.label : undefined)
-            : isRealLabel ? locationCoords.label : undefined;
+          const locationText = !hasCoords && isRealLabel
+            ? extractCityFromLocationLabel(locationCoords.label) ?? locationCoords.label
+            : undefined;
           feedParams = {
             ...feedParams,
             lat: hasCoords ? locationCoords.lat : undefined,
             lng: hasCoords ? locationCoords.lng : undefined,
             radius: hasCoords ? 100 : undefined,
             location: locationText,
-            countryCode: isoCountryCode ?? undefined,
+            countryCode: effectiveCountryCode ?? undefined,
           };
         } else {
-          // Guest: fetch all countries, no location filter
-          feedParams = { ...feedParams };
+          // Default scope is user's current country (GPS/locale), not global.
+          feedParams = {
+            ...feedParams,
+            countryCode: effectiveCountryCode ?? undefined,
+          };
         }
         const res = await fetchHomeFeed(feedParams);
         const duration = Date.now() - startedAt;
@@ -204,7 +212,15 @@ export function HomeFeedRootScreen() {
         }
       }
     },
-    [applyFeedSnapshot, dispatch, isoCountryCode, locationCoords.label, locationCoords.lat, locationCoords.lng, isAuthenticated]
+    [
+      applyFeedSnapshot,
+      dispatch,
+      effectiveCountryCode,
+      locationCoords.label,
+      locationCoords.lat,
+      locationCoords.lng,
+      shouldApplyLocationFilter,
+    ]
   );
 
   useEffect(() => {
@@ -232,14 +248,14 @@ export function HomeFeedRootScreen() {
       await loadFeed({ allowCacheFallback: !cached });
     })().catch(() => {});
 
-    getRecentlyViewed(isoCountryCode).then(setRecentlyViewed).catch(() => {});
+    getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {});
     getNotificationUnreadCount()
       .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
       .catch(() => {});
     getChatUnreadCount()
       .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
       .catch(() => {});
-  }, [applyFeedSnapshot, loadFeed, isoCountryCode]);
+  }, [applyFeedSnapshot, effectiveCountryCode, loadFeed]);
 
   useEffect(() => {
     if (!locationHydrated) return;
@@ -256,21 +272,21 @@ export function HomeFeedRootScreen() {
   useFocusEffect(
     useCallback(() => {
       loadFeed({ allowCacheFallback: false }).catch(() => {});
-      getRecentlyViewed(isoCountryCode).then(setRecentlyViewed).catch(() => {});
+      getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {});
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
       getChatUnreadCount()
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
-    }, [loadFeed, isoCountryCode]),
+    }, [effectiveCountryCode, loadFeed]),
   );
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       dispatch(fetchProfile()).unwrap().catch(() => {}),
       loadFeed(),
-      getRecentlyViewed(isoCountryCode).then(setRecentlyViewed).catch(() => {}),
+      getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {}),
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
         .catch(() => {}),
@@ -278,7 +294,7 @@ export function HomeFeedRootScreen() {
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {}),
     ]);
-  }, [dispatch, loadFeed, isoCountryCode]);
+  }, [dispatch, effectiveCountryCode, loadFeed]);
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
@@ -322,7 +338,7 @@ export function HomeFeedRootScreen() {
             coordinates: item.coordinates,
           },
           userLatLng,
-        );
+        ) ?? undefined;
         distanceLabel = getListingDistanceLabel(
           {
             _id: item._id,
@@ -660,7 +676,7 @@ export function HomeFeedRootScreen() {
                   params: {
                     q: "",
                     title: "Fresh recommendations",
-                    countryCode: isoCountryCode ?? "",
+                    countryCode: effectiveCountryCode ?? "",
                   },
                 } as Href)
               }

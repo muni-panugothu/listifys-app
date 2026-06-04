@@ -298,4 +298,7 @@ export const selectLocationCoords = createSelector(
 export const selectIsoCountryCode = (state: RootState) =>
   state.location.isoCountryCode;
 
+export const selectLocationSource = (state: RootState) =>
+  state.location.source;
+
 export default locationSlice.reducer;

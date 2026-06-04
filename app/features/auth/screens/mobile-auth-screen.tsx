@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
+import { useLocale } from "@/providers/locale-provider";
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, sendPhoneOtp, verifyPhoneOtp } from "@/store/slices/auth-slice";
@@ -25,10 +26,11 @@ export function MobileAuthScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
+  const { phoneCode: localePhoneCode, isoCountryCode: localeIso } = useLocale();
   const { status, error, isAuthenticated } = useAppSelector((s) => s.auth);
   // Global phone input state
-  const [phoneCode, setPhoneCode] = useState("+91");
-  const [isoCode, setIsoCode] = useState("IN");
+  const [phoneCode, setPhoneCode] = useState(localePhoneCode);
+  const [isoCode, setIsoCode] = useState(localeIso);
   const [phoneDigits, setPhoneDigits] = useState("");
   // Full E.164 derived from code + digits
   const e164Phone = `${phoneCode}${phoneDigits.replace(/\D/g, "")}`;
@@ -75,6 +77,14 @@ export function MobileAuthScreen() {
       clearTimeout(timer);
     };
   }, [isOtpStep, secondsRemaining]);
+
+  useEffect(() => {
+    // Keep country defaults in sync with selected locale/location until OTP flow starts.
+    if (!requestedPhone && !phoneDigits) {
+      setPhoneCode(localePhoneCode);
+      setIsoCode(localeIso);
+    }
+  }, [localeIso, localePhoneCode, phoneDigits, requestedPhone]);
 
   const handleSendOtp = async () => {
     if (!/^\+[1-9]\d{6,14}$/.test(e164Phone)) {
@@ -228,7 +238,15 @@ export function MobileAuthScreen() {
                         maxLength={1}
                         placeholder="-"
                         placeholderTextColor="#9CA3AF"
-                        className="h-12 w-12 rounded-xl border border-gray-300 text-center text-gray-800"
+                        style={{
+                          height: 48,
+                          width: 48,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: "#D1D5DB",
+                          textAlign: "center",
+                          color: "#1F2937",
+                        }}
                       />
                     ))}
                   </View>
