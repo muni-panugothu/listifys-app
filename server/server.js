@@ -169,32 +169,18 @@ const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow same-origin requests (origin is undefined for non-browser clients
-    // such as React Native, Expo, and native mobile apps)
-    if (origin === undefined) {
-      return callback(null, true);
-    }
-    // Allow all localhost/LAN origins during development (mobile dev builds)
-    if (process.env.NODE_ENV !== 'production') {
-      try {
-        const parsed = new URL(origin);
-        const host = parsed.hostname;
-        if (host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host)) {
-          return callback(null, true);
-        }
-      } catch (_) {}
-    }
-    if (isOriginAllowed(origin, allowedOrigins)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
+    console.log("=================================");
+    console.log("CORS Origin Received:", origin);
+    console.log("Allowed Origins:", allowedOrigins);
+    console.log("=================================");
+
+    // TEMPORARY: allow all origins for debugging
+    callback(null, true);
   },
   credentials: true,
   maxAge: 86400,
   optionsSuccessStatus: 200,
 };
-
 app.use(cors(corsOptions));
 
 // ============== REQUEST ID FOR TRACING ==============

@@ -129,7 +129,7 @@ const App = () => {
           disabled={isGoogleLoading}
         >
           <Image
-             source={require('../../../assets/google.webp')}
+             source={require('../../../assets/google.jpg')}
             className="w-8 h-8 bg-white rounded-full"
           />
           <Text className="font-semibold text-black">{isGoogleLoading ? 'Connecting...' : 'Continue with Google'}</Text>
@@ -147,7 +147,7 @@ const App = () => {
           }}
         >
           <Image
-            source={require('../../../assets/mobile.png')}
+            source={require('../../../assets/mobile.jpg')}
             className="w-10 h-8 bg-white rounded-full"
             style={{ resizeMode: 'contain' }}
           />

@@ -216,7 +216,7 @@ export function SignUpScreen() {
                 className="bg-gray-200 text-black px-6 py-3 rounded-full flex-row items-center justify-center gap-4"
               >
                 <Image
-                  source={require("../../../assets/google.webp")}
+                  source={require("../../../assets/google.jpg")}
                   className="h-8 w-8 rounded-full"
                 />
                 <Text className="font-semibold text-black">
@@ -231,7 +231,7 @@ export function SignUpScreen() {
                 className="bg-gray-200 text-black px-6 py-3 rounded-full flex-row items-center justify-center gap-4"
               >
                 <Image
-                  source={require("../../../assets/mobile.png")}
+                  source={require("../../../assets/mobile.jpg")}
                   className="h-8 w-10 rounded-lg"
                   resizeMode="contain"
                 />
