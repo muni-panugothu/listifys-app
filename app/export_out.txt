@@ -1,0 +1,1671 @@
+2026-06-04T14:02:27.035Z expo:telemetry Switching strategy from detached to instant
+2026-06-04T14:02:27.313Z expo:telemetry Recording 1 event(s)
+2026-06-04T14:02:27.960Z expo:env Loaded environment variables from: C:\Users\Satish\Desktop\listifys-app\app\.env
+2026-06-04T14:02:27.961Z expo:env C:\Users\Satish\Desktop\listifys-app\app\.env.production does not exist, skipping this env file
+2026-06-04T14:02:27.961Z expo:env C:\Users\Satish\Desktop\listifys-app\app\.env.local does not exist, skipping this env file
+2026-06-04T14:02:27.961Z expo:env C:\Users\Satish\Desktop\listifys-app\app\.env.production.local does not exist, skipping this env file
+env: load .env
+2026-06-04T14:02:28.119Z expo:prebuild-config:expo-splash-screen:ios config: {
+  image: './assets/splashscreenImg/splashImg.png',
+  imageWidth: 200,
+  resizeMode: 'contain',
+  backgroundColor: '#ffffff',
+  dark: { backgroundColor: '#000000' }
+}
+2026-06-04T14:02:28.706Z expo:prebuild-config:expo-splash-screen:ios config: {
+  image: './assets/splashscreenImg/splashImg.png',
+  imageWidth: 200,
+  resizeMode: 'contain',
+  backgroundColor: '#ffffff',
+  dark: { backgroundColor: '#000000' }
+}
+2026-06-04T14:02:28.817Z expo:prebuild-config:expo-splash-screen:ios config: {
+  image: './assets/splashscreenImg/splashImg.png',
+  imageWidth: 200,
+  resizeMode: 'contain',
+  backgroundColor: '#ffffff',
+  dark: { backgroundColor: '#000000' }
+}
+2026-06-04T14:02:28.897Z expo:start:server:devServer Stopping dev server (bundler: metro)
+2026-06-04T14:02:28.897Z expo:start:server:devServer Stopped dev server (bundler: metro)
+2026-06-04T14:02:28.910Z expo:prebuild-config:expo-splash-screen:ios config: {
+  image: './assets/splashscreenImg/splashImg.png',
+  imageWidth: 200,
+  resizeMode: 'contain',
+  backgroundColor: '#ffffff',
+  dark: { backgroundColor: '#000000' }
+}
+2026-06-04T14:02:28.986Z expo:start:server:metro:router Using app as the root directory for Expo Router.
+2026-06-04T14:02:30.087Z expo:metro:config react-native-reanimated package.json: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-reanimated\package.json
+2026-06-04T14:02:30.089Z expo:metro:config react-native-worklets package.json: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-worklets\package.json
+2026-06-04T14:02:30.529Z expo:metro:config react-native-reanimated package.json: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-reanimated\package.json
+2026-06-04T14:02:30.530Z expo:metro:config react-native-worklets package.json: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-worklets\package.json
+env: export EXPO_PUBLIC_API_BASE_URL EXPO_PUBLIC_GOOGLE_MAPS_KEY
+
+Expo Metro config:
+- Version: 54.0.16
+- Extensions: ts, tsx, mjs, js, jsx, json, cjs, scss, sass, css
+- React Native: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native
+- Watch Folders: 
+- Node Module Paths: 
+- Sass: null
+- Reanimated: 4.1.7
+- Worklets: 0.5.1
+- Babel Runtime: null
+
+
+Expo Metro config:
+- Version: 54.0.16
+- Extensions: ts, tsx, mjs, js, jsx, json, cjs, scss, sass, css
+- React Native: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native
+- Watch Folders: 
+- Node Module Paths: 
+- Sass: null
+- Reanimated: 4.1.7
+- Worklets: 0.5.1
+- Babel Runtime: null
+
+2026-06-04T14:02:30.580Z expo:metro:withMetroResolvers Appending 8 custom resolvers to Metro config. (has custom resolver: true)
+2026-06-04T14:02:30.581Z expo:metro:withMetroSupervisingTransformWorker Detected customized "transformerPath"
+2026-06-04T14:02:30.581Z expo:metro:withMetroSupervisingTransformWorker Applying transform worker supervisor to "transformerPath"
+2026-06-04T14:02:30.582Z expo:start:server:urlCreator URL: http://127.0.0.1:8081
+Starting Metro Bundler
+2026-06-04T14:02:31.013Z expo:metro:options Disabling lazy bundling for export build
+2026-06-04T14:02:34.538Z expo:start:server:metro:multi-platform Enabling alias: react-native-vector-icons -> @expo/vector-icons
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+2026-06-04T14:02:34.954Z expo:metro:tsconfig-paths @/features/profile/screens/dashboard-home-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\profile\screens\dashboard-home-screen
+2026-06-04T14:02:34.955Z expo:metro:tsconfig-paths @/components/main-tab-bar -> C:\Users\Satish\Desktop\listifys-app\app\components\main-tab-bar
+2026-06-04T14:02:34.957Z expo:metro:tsconfig-paths @/features/home/screens/home-feed-root-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\home\screens\home-feed-root-screen
+2026-06-04T14:02:34.959Z expo:metro:tsconfig-paths @/features/search/screens/sell-entry-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\sell-entry-screen
+2026-06-04T14:02:34.960Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:34.962Z expo:metro:tsconfig-paths @/features/search/screens/search-home-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\search-home-screen
+2026-06-04T14:02:34.962Z expo:metro:tsconfig-paths @/features/calling/screens/active-call-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\screens\active-call-screen
+2026-06-04T14:02:34.963Z expo:metro:tsconfig-paths @/features/category/screens/category-listing-template-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\category\screens\category-listing-template-screen
+2026-06-04T14:02:34.963Z expo:metro:tsconfig-paths @/features/profile/screens/change-email-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\profile\screens\change-email-screen
+2026-06-04T14:02:34.964Z expo:metro:tsconfig-paths @/features/profile/screens/change-phone-primary-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\profile\screens\change-phone-primary-screen
+2026-06-04T14:02:34.967Z expo:metro:tsconfig-paths @/features/auth/components/auth-gate-bottom-sheet -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\components\auth-gate-bottom-sheet
+2026-06-04T14:02:34.967Z expo:metro:tsconfig-paths @/components/top-save-toast -> C:\Users\Satish\Desktop\listifys-app\app\components\top-save-toast
+2026-06-04T14:02:34.967Z expo:metro:tsconfig-paths @/components/page-transition-loader -> C:\Users\Satish\Desktop\listifys-app\app\components\page-transition-loader
+2026-06-04T14:02:34.968Z expo:metro:tsconfig-paths @/lib/network-status-layer -> C:\Users\Satish\Desktop\listifys-app\app\lib\network-status-layer
+2026-06-04T14:02:34.968Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:34.968Z expo:metro:tsconfig-paths @/lib/offline-queue -> C:\Users\Satish\Desktop\listifys-app\app\lib\offline-queue
+2026-06-04T14:02:34.970Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/hooks/use-color-scheme -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-color-scheme
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/providers/typography-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\typography-provider
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/store/slices/auth-gate-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-gate-slice
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:34.971Z expo:metro:tsconfig-paths @/store -> C:\Users\Satish\Desktop\listifys-app\app\store
+2026-06-04T14:02:34.972Z expo:metro:tsconfig-paths @/lib/firebase-messaging -> C:\Users\Satish\Desktop\listifys-app\app\lib\firebase-messaging
+2026-06-04T14:02:34.972Z expo:metro:tsconfig-paths @/providers/notification-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\notification-provider
+2026-06-04T14:02:34.972Z expo:metro:tsconfig-paths @/features/messaging/services/socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\socket-service
+2026-06-04T14:02:34.972Z expo:metro:tsconfig-paths @/features/calling/services/call-socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\services\call-socket-service
+2026-06-04T14:02:34.977Z expo:metro:tsconfig-paths @/features/listing/screens/create-offer-modal-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\create-offer-modal-screen
+2026-06-04T14:02:34.978Z expo:metro:tsconfig-paths @/features/listing/screens/edit-listing-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\edit-listing-screen
+2026-06-04T14:02:34.978Z expo:metro:tsconfig-paths @/features/search/screens/event-detail-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\event-detail-screen
+2026-06-04T14:02:34.979Z expo:metro:tsconfig-paths @/features/auth/screens/forgot-password-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\forgot-password-screen
+2026-06-04T14:02:34.985Z expo:metro:tsconfig-paths @/features/search/screens/events-listing-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\events-listing-screen
+2026-06-04T14:02:34.986Z expo:metro:tsconfig-paths @/features/calling/screens/incoming-call-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\screens\incoming-call-screen
+2026-06-04T14:02:34.987Z expo:metro:tsconfig-paths @/features/splash/screens/splash-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\splash\screens\splash-screen
+2026-06-04T14:02:34.988Z expo:metro:tsconfig-paths @/features/search/screens/jobs-listing-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\jobs-listing-screen
+2026-06-04T14:02:34.988Z expo:metro:tsconfig-paths @/features/search/screens/job-detail-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\job-detail-screen
+2026-06-04T14:02:34.988Z expo:metro:tsconfig-paths @/features/listing/screens/listing-detail-template-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\listing-detail-template-screen
+2026-06-04T14:02:34.989Z expo:metro:tsconfig-paths @/features/listing/screens/listing-draft-saved-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\listing-draft-saved-screen
+2026-06-04T14:02:34.989Z expo:metro:tsconfig-paths @/features/listing/screens/listing-success-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\listing-success-screen
+2026-06-04T14:02:34.990Z expo:metro:tsconfig-paths @/features/location/screens/location-picker-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\location\screens\location-picker-screen
+2026-06-04T14:02:34.992Z expo:metro:tsconfig-paths @/features/auth/screens/mobile-auth-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\mobile-auth-screen
+2026-06-04T14:02:34.992Z expo:metro:tsconfig-paths @/features/search/screens/nearby-map-view-bottom-sheet-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\nearby-map-view-bottom-sheet-screen
+2026-06-04T14:02:34.993Z expo:metro:tsconfig-paths @/features/listing/screens/my-listings-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\my-listings-screen
+2026-06-04T14:02:34.994Z expo:metro:tsconfig-paths @/features/auth/screens/new-password-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\new-password-screen
+2026-06-04T14:02:34.994Z expo:metro:tsconfig-paths @/features/onboarding/screens/onboarding-slide-one-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\onboarding\screens\onboarding-slide-one-screen
+2026-06-04T14:02:34.995Z expo:metro:tsconfig-paths @/features/onboarding/screens/onboarding-slide-two-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\onboarding\screens\onboarding-slide-two-screen
+2026-06-04T14:02:34.995Z expo:metro:tsconfig-paths @/features/onboarding/screens/onboarding-slide-three-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\onboarding\screens\onboarding-slide-three-screen
+2026-06-04T14:02:34.995Z expo:metro:tsconfig-paths @/features/auth/screens/otp-verification-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\otp-verification-screen
+2026-06-04T14:02:34.996Z expo:metro:tsconfig-paths @/features/sell/screens/post-ad-step1-category-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\sell\screens\post-ad-step1-category-screen
+2026-06-04T14:02:34.996Z expo:metro:tsconfig-paths @/features/calling/screens/outgoing-call-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\screens\outgoing-call-screen
+2026-06-04T14:02:34.997Z expo:metro:tsconfig-paths @/features/sell/screens/post-ad-step2-details-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\sell\screens\post-ad-step2-details-screen
+2026-06-04T14:02:34.997Z expo:metro:tsconfig-paths @/features/sell/screens/post-ad-step3-media-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\sell\screens\post-ad-step3-media-screen
+2026-06-04T14:02:34.998Z expo:metro:tsconfig-paths @/features/search/screens/properties-listing-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\properties-listing-screen
+2026-06-04T14:02:34.998Z expo:metro:tsconfig-paths @/features/search/screens/property-detail-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\property-detail-screen
+2026-06-04T14:02:34.999Z expo:metro:tsconfig-paths @/features/listing/screens/report-listing-modal-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\screens\report-listing-modal-screen
+2026-06-04T14:02:35.000Z expo:metro:tsconfig-paths @/features/auth/screens/reset-otp-verification-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\reset-otp-verification-screen
+2026-06-04T14:02:35.001Z expo:metro:tsconfig-paths @/features/search/screens/saved-items-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\saved-items-screen
+2026-06-04T14:02:35.003Z expo:metro:tsconfig-paths @/features/search/screens/search-results-entity-tabs-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\search-results-entity-tabs-screen
+2026-06-04T14:02:35.004Z expo:metro:tsconfig-paths @/features/search/screens/seller-public-profile-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\seller-public-profile-screen
+2026-06-04T14:02:35.004Z expo:metro:tsconfig-paths @/features/search/screens/service-detail-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\service-detail-screen
+2026-06-04T14:02:35.004Z expo:metro:tsconfig-paths @/features/search/screens/services-category-hub-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\services-category-hub-screen
+2026-06-04T14:02:35.005Z expo:metro:tsconfig-paths @/features/search/screens/service-listing-grid-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\search\screens\service-listing-grid-screen
+2026-06-04T14:02:35.005Z expo:metro:tsconfig-paths @/features/auth/screens/sign-up-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\sign-up-screen
+2026-06-04T14:02:35.006Z expo:metro:tsconfig-paths @/features/auth/screens/sign-in-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\screens\sign-in-screen
+2026-06-04T14:02:35.489Z expo:metro:tsconfig-paths @/components/floating-bottom-nav -> C:\Users\Satish\Desktop\listifys-app\app\components\floating-bottom-nav
+2026-06-04T14:02:35.495Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/components/profile-avatar-image -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-avatar-image
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/components/profile-header-art -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-header-art
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/constants/dummy-profile -> C:\Users\Satish\Desktop\listifys-app\app\constants\dummy-profile
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/features/listing/services/listing-api -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\services\listing-api
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/features/messaging/services/chat-api -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\chat-api
+2026-06-04T14:02:35.497Z expo:metro:tsconfig-paths @/hooks/use-pull-to-refresh -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-pull-to-refresh
+2026-06-04T14:02:35.498Z expo:metro:tsconfig-paths @/lib/use-tab-navigation -> C:\Users\Satish\Desktop\listifys-app\app\lib\use-tab-navigation
+2026-06-04T14:02:35.498Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.498Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:35.498Z expo:metro:tsconfig-paths @/store/slices/auth-gate-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-gate-slice
+2026-06-04T14:02:35.510Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.512Z expo:metro:tsconfig-paths @/components/home-category-tile -> C:\Users\Satish\Desktop\listifys-app\app\components\home-category-tile
+2026-06-04T14:02:35.513Z expo:metro:tsconfig-paths @/components/sell-step-indicator -> C:\Users\Satish\Desktop\listifys-app\app\components\sell-step-indicator
+2026-06-04T14:02:35.513Z expo:metro:tsconfig-paths @/constants/bottom-nav-tabs -> C:\Users\Satish\Desktop\listifys-app\app\constants\bottom-nav-tabs
+2026-06-04T14:02:35.513Z expo:metro:tsconfig-paths @/lib/sell-categories -> C:\Users\Satish\Desktop\listifys-app\app\lib\sell-categories
+2026-06-04T14:02:35.514Z expo:metro:tsconfig-paths @/constants/theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\theme
+2026-06-04T14:02:35.514Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.514Z expo:metro:tsconfig-paths @/lib/use-tab-navigation -> C:\Users\Satish\Desktop\listifys-app\app\lib\use-tab-navigation
+2026-06-04T14:02:35.514Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.514Z expo:metro:tsconfig-paths @/store/slices/post-form-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\post-form-slice
+2026-06-04T14:02:35.521Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.522Z expo:metro:tsconfig-paths @/components/home-category-tile -> C:\Users\Satish\Desktop\listifys-app\app\components\home-category-tile
+2026-06-04T14:02:35.522Z expo:metro:tsconfig-paths @/components/listing-items-grid-card -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-items-grid-card
+2026-06-04T14:02:35.522Z expo:metro:tsconfig-paths @/components/trending-listing-card -> C:\Users\Satish\Desktop\listifys-app\app\components\trending-listing-card
+2026-06-04T14:02:35.522Z expo:metro:tsconfig-paths @/constants/categories -> C:\Users\Satish\Desktop\listifys-app\app\constants\categories
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/features/messaging/services/chat-api -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\chat-api
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/features/listing/services/listing-api -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\services\listing-api
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/hooks/use-pull-to-refresh -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-pull-to-refresh
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/components/profile-avatar-image -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-avatar-image
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:35.523Z expo:metro:tsconfig-paths @/lib/is-own-listing -> C:\Users\Satish\Desktop\listifys-app\app\lib\is-own-listing
+2026-06-04T14:02:35.524Z expo:metro:tsconfig-paths @/lib/listing-distance -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-distance
+2026-06-04T14:02:35.524Z expo:metro:tsconfig-paths @/lib/location-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\location-service
+2026-06-04T14:02:35.524Z expo:metro:tsconfig-paths @/lib/navigate-to-category -> C:\Users\Satish\Desktop\listifys-app\app\lib\navigate-to-category
+2026-06-04T14:02:35.525Z expo:metro:tsconfig-paths @/lib/use-tab-navigation -> C:\Users\Satish\Desktop\listifys-app\app\lib\use-tab-navigation
+2026-06-04T14:02:35.525Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.525Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:35.525Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.526Z expo:metro:tsconfig-paths @/store/slices/network-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\network-slice
+2026-06-04T14:02:35.531Z expo:metro:tsconfig-paths @/components/voice-search-modal -> C:\Users\Satish\Desktop\listifys-app\app\components\voice-search-modal
+2026-06-04T14:02:35.531Z expo:metro:tsconfig-paths @/constants/categories -> C:\Users\Satish\Desktop\listifys-app\app\constants\categories
+2026-06-04T14:02:35.532Z expo:metro:tsconfig-paths @/features/listing/services/listing-api -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\services\listing-api
+2026-06-04T14:02:35.533Z expo:metro:tsconfig-paths @/hooks/use-pull-to-refresh -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-pull-to-refresh
+2026-06-04T14:02:35.534Z expo:metro:tsconfig-paths @/lib/navigate-to-category -> C:\Users\Satish\Desktop\listifys-app\app\lib\navigate-to-category
+2026-06-04T14:02:35.534Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.538Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.539Z expo:metro:tsconfig-paths @/features/category/screens/category-browse-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\category\screens\category-browse-screen
+2026-06-04T14:02:35.560Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.561Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.562Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:35.562Z expo:metro:tsconfig-paths @/features/calling/hooks/useWebRTC -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\hooks\useWebRTC
+2026-06-04T14:02:35.562Z expo:metro:tsconfig-paths @/features/calling/services/call-socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\services\call-socket-service
+2026-06-04T14:02:35.563Z expo:metro:tsconfig-paths @/lib/audio-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\audio-router
+2026-06-04T14:02:35.567Z expo:metro:tsconfig-paths @/components/profile-sub-screen-layout -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-sub-screen-layout
+2026-06-04T14:02:35.568Z expo:metro:tsconfig-paths @/components/settings-menu-row -> C:\Users\Satish\Desktop\listifys-app\app\components\settings-menu-row
+2026-06-04T14:02:35.568Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.571Z expo:metro:tsconfig-paths @/constants/theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\theme
+2026-06-04T14:02:35.572Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.576Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.578Z expo:metro:tsconfig-paths @/lib/google-sign-in -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-sign-in
+2026-06-04T14:02:35.578Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.578Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.578Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:35.581Z expo:metro:tsconfig-paths @/components/phone-input-with-country -> C:\Users\Satish\Desktop\listifys-app\app\components\phone-input-with-country
+2026-06-04T14:02:35.581Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:35.595Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.621Z expo:metro:tsconfig-paths @/lib/connectivity-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\connectivity-service
+2026-06-04T14:02:35.621Z expo:metro:tsconfig-paths @/lib/offline-queue -> C:\Users\Satish\Desktop\listifys-app\app\lib\offline-queue
+2026-06-04T14:02:35.621Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.621Z expo:metro:tsconfig-paths @/store/slices/network-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\network-slice
+2026-06-04T14:02:35.627Z expo:metro:tsconfig-paths @/lib/currency -> C:\Users\Satish\Desktop\listifys-app\app\lib\currency
+2026-06-04T14:02:35.628Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.628Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.638Z expo:metro:tsconfig-paths @/store -> C:\Users\Satish\Desktop\listifys-app\app\store
+2026-06-04T14:02:35.639Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:35.639Z expo:metro:tsconfig-paths @/lib/notifications/channels -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\channels
+2026-06-04T14:02:35.639Z expo:metro:tsconfig-paths @/lib/notifications/notification-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\notification-service
+2026-06-04T14:02:35.640Z expo:metro:tsconfig-paths @/lib/notifications/deep-link-handler -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\deep-link-handler
+2026-06-04T14:02:35.640Z expo:metro:tsconfig-paths @/lib/notifications/analytics -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\analytics
+2026-06-04T14:02:35.640Z expo:metro:tsconfig-paths @/hooks/use-notifications -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-notifications
+2026-06-04T14:02:35.654Z expo:metro:tsconfig-paths @/store -> C:\Users\Satish\Desktop\listifys-app\app\store
+2026-06-04T14:02:35.655Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:35.655Z expo:metro:tsconfig-paths @/lib/notifications/notification-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\notification-service
+2026-06-04T14:02:35.655Z expo:metro:tsconfig-paths @/lib/notifications/deep-link-handler -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\deep-link-handler
+2026-06-04T14:02:35.665Z expo:metro:tsconfig-paths @/lib/notifications/analytics -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\analytics
+2026-06-04T14:02:35.666Z expo:metro:tsconfig-paths @/lib/notifications/token-manager -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\token-manager
+2026-06-04T14:02:35.669Z expo:metro:tsconfig-paths @/features/messaging/services/socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\socket-service
+2026-06-04T14:02:35.670Z expo:metro:tsconfig-paths @/store -> C:\Users\Satish\Desktop\listifys-app\app\store
+2026-06-04T14:02:35.670Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:35.671Z expo:metro:tsconfig-paths @/features/calling/hooks/useWebRTC -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\hooks\useWebRTC
+2026-06-04T14:02:35.676Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.676Z expo:metro:tsconfig-paths @/features/calling/services/call-socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\services\call-socket-service
+2026-06-04T14:02:35.680Z expo:metro:tsconfig-paths @/lib/location-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\location-service
+2026-06-04T14:02:35.680Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.680Z expo:metro:tsconfig-paths @/features/messaging/services/socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\socket-service
+2026-06-04T14:02:35.688Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.689Z expo:metro:tsconfig-paths @/constants/theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\theme
+2026-06-04T14:02:35.689Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.689Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.689Z expo:metro:tsconfig-paths @/features/messaging/services/chat-api -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\chat-api
+2026-06-04T14:02:35.689Z expo:metro:tsconfig-paths @/features/messaging/services/socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\socket-service
+2026-06-04T14:02:35.689Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.690Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.690Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:35.693Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.695Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.695Z expo:metro:tsconfig-paths @/lib/currency -> C:\Users\Satish\Desktop\listifys-app\app\lib\currency
+2026-06-04T14:02:35.696Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.696Z expo:metro:tsconfig-paths @/features/auth/components/auth-gate-bottom-sheet -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\components\auth-gate-bottom-sheet
+2026-06-04T14:02:35.697Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.697Z expo:metro:tsconfig-paths @/lib/currency -> C:\Users\Satish\Desktop\listifys-app\app\lib\currency
+2026-06-04T14:02:35.700Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.700Z expo:metro:tsconfig-paths @/components/floating-bottom-nav -> C:\Users\Satish\Desktop\listifys-app\app\components\floating-bottom-nav
+2026-06-04T14:02:35.704Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.705Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.705Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.706Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:35.710Z expo:metro:tsconfig-paths @/constants/categories -> C:\Users\Satish\Desktop\listifys-app\app\constants\categories
+2026-06-04T14:02:35.710Z expo:metro:tsconfig-paths @/features/listing/services/listing-api -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\services\listing-api
+2026-06-04T14:02:35.710Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.711Z expo:metro:tsconfig-paths @/features/category/screens/category-browse-screen -> C:\Users\Satish\Desktop\listifys-app\app\features\category\screens\category-browse-screen
+2026-06-04T14:02:35.712Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.713Z expo:metro:tsconfig-paths @/lib/google-sign-in -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-sign-in
+2026-06-04T14:02:35.713Z expo:metro:tsconfig-paths @/lib/firebase-messaging -> C:\Users\Satish\Desktop\listifys-app\app\lib\firebase-messaging
+2026-06-04T14:02:35.713Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.713Z expo:metro:tsconfig-paths @/store -> C:\Users\Satish\Desktop\listifys-app\app\store
+2026-06-04T14:02:35.713Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:35.713Z expo:metro:tsconfig-paths @/store/slices/onboarding-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\onboarding-slice
+2026-06-04T14:02:35.716Z expo:metro:tsconfig-paths @/lib/use-tab-navigation -> C:\Users\Satish\Desktop\listifys-app\app\lib\use-tab-navigation
+2026-06-04T14:02:35.717Z expo:metro:tsconfig-paths @/components/floating-bottom-nav -> C:\Users\Satish\Desktop\listifys-app\app\components\floating-bottom-nav
+2026-06-04T14:02:35.728Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.729Z expo:metro:tsconfig-paths @/features/auth/components/auth-gate-bottom-sheet -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\components\auth-gate-bottom-sheet
+2026-06-04T14:02:35.729Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.730Z expo:metro:tsconfig-paths @/hooks/use-pull-to-refresh -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-pull-to-refresh
+2026-06-04T14:02:35.730Z expo:metro:tsconfig-paths @/components/listing-location-section -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-location-section
+2026-06-04T14:02:35.730Z expo:metro:tsconfig-paths @/lib/listing-distance -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-distance
+2026-06-04T14:02:35.731Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.731Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.741Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.746Z expo:metro:tsconfig-paths @/components/location-suggestion-item -> C:\Users\Satish\Desktop\listifys-app\app\components\location-suggestion-item
+2026-06-04T14:02:35.747Z expo:metro:tsconfig-paths @/components/location-permission-sheet -> C:\Users\Satish\Desktop\listifys-app\app\components\location-permission-sheet
+2026-06-04T14:02:35.747Z expo:metro:tsconfig-paths @/constants/theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\theme
+2026-06-04T14:02:35.747Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.747Z expo:metro:tsconfig-paths @/lib/google-places.service -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-places.service
+2026-06-04T14:02:35.747Z expo:metro:tsconfig-paths @/lib/location-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\location-service
+2026-06-04T14:02:35.748Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.748Z expo:metro:tsconfig-paths @/hooks/usePlacesAutocomplete -> C:\Users\Satish\Desktop\listifys-app\app\hooks\usePlacesAutocomplete
+2026-06-04T14:02:35.748Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.748Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.767Z expo:metro:tsconfig-paths @/components/phone-input-with-country -> C:\Users\Satish\Desktop\listifys-app\app\components\phone-input-with-country
+2026-06-04T14:02:35.768Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:35.770Z expo:metro:tsconfig-paths @/hooks/use-pull-to-refresh -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-pull-to-refresh
+2026-06-04T14:02:35.770Z expo:metro:tsconfig-paths @/lib/use-tab-navigation -> C:\Users\Satish\Desktop\listifys-app\app\lib\use-tab-navigation
+2026-06-04T14:02:35.771Z expo:metro:tsconfig-paths @/components/my-listing-manage-card -> C:\Users\Satish\Desktop\listifys-app\app\components\my-listing-manage-card
+2026-06-04T14:02:35.771Z expo:metro:tsconfig-paths @/components/my-listings-tabs -> C:\Users\Satish\Desktop\listifys-app\app\components\my-listings-tabs
+2026-06-04T14:02:35.771Z expo:metro:tsconfig-paths @/components/profile-sub-screen-layout -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-sub-screen-layout
+2026-06-04T14:02:35.771Z expo:metro:tsconfig-paths @/lib/format-time-ago -> C:\Users\Satish\Desktop\listifys-app\app\lib\format-time-ago
+2026-06-04T14:02:35.772Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:35.773Z expo:metro:tsconfig-paths @/components/floating-bottom-nav -> C:\Users\Satish\Desktop\listifys-app\app\components\floating-bottom-nav
+2026-06-04T14:02:35.773Z expo:metro:tsconfig-paths @/lib/listing-distance -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-distance
+2026-06-04T14:02:35.776Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.777Z expo:metro:tsconfig-paths @/constants/listify-theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\listify-theme
+2026-06-04T14:02:35.778Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.780Z expo:metro:tsconfig-paths @/constants/listify-theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\listify-theme
+2026-06-04T14:02:35.780Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.783Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.784Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.784Z expo:metro:tsconfig-paths @/store/slices/auth-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-slice
+2026-06-04T14:02:35.784Z expo:metro:tsconfig-paths @/store/slices/onboarding-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\onboarding-slice
+2026-06-04T14:02:35.784Z expo:metro:tsconfig-paths @/lib/google-sign-in -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-sign-in
+2026-06-04T14:02:35.787Z expo:metro:tsconfig-paths @/constants/dummy-notifications -> C:\Users\Satish\Desktop\listifys-app\app\constants\dummy-notifications
+2026-06-04T14:02:35.787Z expo:metro:tsconfig-paths @/lib/notification-navigation -> C:\Users\Satish\Desktop\listifys-app\app\lib\notification-navigation
+2026-06-04T14:02:35.788Z expo:metro:tsconfig-paths @/features/messaging/services/socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\messaging\services\socket-service
+2026-06-04T14:02:35.791Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:35.793Z expo:metro:tsconfig-paths @/components/sell-flow-layout -> C:\Users\Satish\Desktop\listifys-app\app\components\sell-flow-layout
+2026-06-04T14:02:35.793Z expo:metro:tsconfig-paths @/constants/categories -> C:\Users\Satish\Desktop\listifys-app\app\constants\categories
+2026-06-04T14:02:35.793Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:35.793Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:35.793Z expo:metro:tsconfig-paths @/store/slices/post-form-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\post-form-slice
+2026-06-04T14:02:35.796Z expo:metro:tsconfig-paths @/constants/theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\theme
+2026-06-04T14:02:35.805Z expo:metro:tsconfig-paths @/features/listing/services/listing-api -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\services\listing-api
+2026-06-04T14:02:35.805Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:35.805Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:35.806Z expo:metro:tsconfig-paths @/components/post-location-map-preview -> C:\Users\Satish\Desktop\listifys-app\app\components\post-location-map-preview
+2026-06-04T14:02:35.806Z expo:metro:tsconfig-paths @/components/phone-input-with-country -> C:\Users\Satish\Desktop\listifys-app\app\components\phone-input-with-country
+2026-06-04T14:02:35.806Z expo:metro:tsconfig-paths @/components/google-places-input -> C:\Users\Satish\Desktop\listifys-app\app\components\google-places-input
+2026-06-04T14:02:35.806Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:35.806Z expo:metro:tsconfig-paths @/lib/listing-distance -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-distance
+2026-06-04T14:02:35.807Z expo:metro:tsconfig-paths @/lib/phone-validation -> C:\Users\Satish\Desktop\listifys-app\app\lib\phone-validation
+2026-06-04T14:02:35.807Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.813Z expo:metro:tsconfig-paths @/components/listing-location-section -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-location-section
+2026-06-04T14:02:35.819Z expo:metro:tsconfig-paths @/components/google-places-input -> C:\Users\Satish\Desktop\listifys-app\app\components\google-places-input
+2026-06-04T14:02:35.820Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:35.820Z expo:metro:tsconfig-paths @/lib/location-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\location-service
+2026-06-04T14:02:35.821Z expo:metro:tsconfig-paths @/components/listing-items-grid-card -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-items-grid-card
+2026-06-04T14:02:35.822Z expo:metro:tsconfig-paths @/components/profile-sub-screen-layout -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-sub-screen-layout
+2026-06-04T14:02:35.844Z expo:metro:tsconfig-paths @/constants/currencies -> C:\Users\Satish\Desktop\listifys-app\app\constants\currencies
+2026-06-04T14:02:35.855Z expo:metro:tsconfig-paths @/components/profile-header-art -> C:\Users\Satish\Desktop\listifys-app\app\components\profile-header-art
+2026-06-04T14:02:35.855Z expo:metro:tsconfig-paths @/store/slices/auth-gate-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-gate-slice
+2026-06-04T14:02:35.859Z expo:metro:tsconfig-paths @/components/top-save-toast -> C:\Users\Satish\Desktop\listifys-app\app\components\top-save-toast
+2026-06-04T14:02:35.860Z expo:metro:tsconfig-paths @/features/search/components/query-chips -> C:\Users\Satish\Desktop\listifys-app\app\features\search\components\query-chips
+2026-06-04T14:02:35.861Z expo:metro:tsconfig-paths @/features/search/services/search-api -> C:\Users\Satish\Desktop\listifys-app\app\features\search\services\search-api
+2026-06-04T14:02:35.867Z expo:metro:tsconfig-paths @/components/service-grid-card -> C:\Users\Satish\Desktop\listifys-app\app\components\service-grid-card
+2026-06-04T14:02:35.872Z expo:metro:tsconfig-paths @/features/auth/components/auth-skip-button -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\components\auth-skip-button
+2026-06-04T14:02:35.873Z expo:metro:tsconfig-paths @/lib/auth-validation -> C:\Users\Satish\Desktop\listifys-app\app\lib\auth-validation
+2026-06-04T14:02:35.874Z expo:metro:tsconfig-paths @/lib/google-sign-in -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-sign-in
+2026-06-04T14:02:35.879Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:35.880Z expo:metro:tsconfig-paths @/store/slices/auth-gate-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-gate-slice
+| 2026-06-04T14:02:36.292Z expo:metro-config:supervising-transform-worker Loading custom transformer at "C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-css\dist\commonjs\metro\metro-transformer.js"
+2026-06-04T14:02:36.458Z expo:metro:tsconfig-paths @/constants/bottom-nav-tabs -> C:\Users\Satish\Desktop\listifys-app\app\constants\bottom-nav-tabs
+2026-06-04T14:02:36.459Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:36.459Z expo:metro:tsconfig-paths @/lib/profile-avatar -> C:\Users\Satish\Desktop\listifys-app\app\lib\profile-avatar
+2026-06-04T14:02:36.464Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:36.465Z expo:metro:tsconfig-paths @/store/slices/auth-gate-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\auth-gate-slice
+2026-06-04T14:02:36.469Z expo:metro:tsconfig-paths @/lib/secure-auth-storage -> C:\Users\Satish\Desktop\listifys-app\app\lib\secure-auth-storage
+2026-06-04T14:02:36.487Z expo:metro:tsconfig-paths @/constants/categories -> C:\Users\Satish\Desktop\listifys-app\app\constants\categories
+2026-06-04T14:02:36.488Z expo:metro:tsconfig-paths @/constants/category-tile-styles -> C:\Users\Satish\Desktop\listifys-app\app\constants\category-tile-styles
+2026-06-04T14:02:36.491Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:36.492Z expo:metro:tsconfig-paths @/lib/cache -> C:\Users\Satish\Desktop\listifys-app\app\lib\cache
+2026-06-04T14:02:36.492Z expo:metro:tsconfig-paths @/lib/is-own-listing -> C:\Users\Satish\Desktop\listifys-app\app\lib\is-own-listing
+2026-06-04T14:02:36.497Z expo:metro:tsconfig-paths @/components/listing-time-badge -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-time-badge
+2026-06-04T14:02:36.497Z expo:metro:tsconfig-paths @/lib/currency -> C:\Users\Satish\Desktop\listifys-app\app\lib\currency
+2026-06-04T14:02:36.514Z expo:metro:tsconfig-paths @/lib/listing-coordinates -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-coordinates
+2026-06-04T14:02:36.523Z expo:metro:tsconfig-paths @/lib/safe-router -> C:\Users\Satish\Desktop\listifys-app\app\lib\safe-router
+2026-06-04T14:02:36.523Z expo:metro:tsconfig-paths @/constants/theme -> C:\Users\Satish\Desktop\listifys-app\app\constants\theme
+2026-06-04T14:02:36.526Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:36.526Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:36.526Z expo:metro:tsconfig-paths @/features/calling/services/call-socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\services\call-socket-service
+2026-06-04T14:02:36.529Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:36.564Z expo:metro:tsconfig-paths @/components/listing-items-grid-card -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-items-grid-card
+2026-06-04T14:02:36.564Z expo:metro:tsconfig-paths @/components/voice-search-modal -> C:\Users\Satish\Desktop\listifys-app\app\components\voice-search-modal
+2026-06-04T14:02:36.564Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:36.564Z expo:metro:tsconfig-paths @/features/category/components/event-listing-card -> C:\Users\Satish\Desktop\listifys-app\app\features\category\components\event-listing-card
+2026-06-04T14:02:36.565Z expo:metro:tsconfig-paths @/features/category/components/job-listing-card -> C:\Users\Satish\Desktop\listifys-app\app\features\category\components\job-listing-card
+2026-06-04T14:02:36.565Z expo:metro:tsconfig-paths @/features/listing/services/listing-api -> C:\Users\Satish\Desktop\listifys-app\app\features\listing\services\listing-api
+2026-06-04T14:02:36.566Z expo:metro:tsconfig-paths @/hooks/use-pull-to-refresh -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-pull-to-refresh
+2026-06-04T14:02:36.566Z expo:metro:tsconfig-paths @/hooks/use-dynamic-subcategories -> C:\Users\Satish\Desktop\listifys-app\app\hooks\use-dynamic-subcategories
+2026-06-04T14:02:36.567Z expo:metro:tsconfig-paths @/lib/listing-distance -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-distance
+2026-06-04T14:02:36.567Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:36.567Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:36.568Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:36.568Z expo:metro:tsconfig-paths @/lib/currency -> C:\Users\Satish\Desktop\listifys-app\app\lib\currency
+2026-06-04T14:02:36.646Z expo:metro:tsconfig-paths @/lib/secure-auth-storage -> C:\Users\Satish\Desktop\listifys-app\app\lib\secure-auth-storage
+2026-06-04T14:02:36.659Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:36.660Z expo:metro:tsconfig-paths @/store -> C:\Users\Satish\Desktop\listifys-app\app\store
+2026-06-04T14:02:36.661Z expo:metro:tsconfig-paths @/store/slices/call-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\call-slice
+2026-06-04T14:02:36.661Z expo:metro:tsconfig-paths @/lib/notifications/token-manager -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\token-manager
+2026-06-04T14:02:36.662Z expo:metro:tsconfig-paths @/features/calling/services/call-socket-service -> C:\Users\Satish\Desktop\listifys-app\app\features\calling\services\call-socket-service
+2026-06-04T14:02:36.662Z expo:metro:tsconfig-paths @/lib/notifications/notification-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\notification-service
+2026-06-04T14:02:36.663Z expo:metro:tsconfig-paths @/lib/notifications/deep-link-handler -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\deep-link-handler
+2026-06-04T14:02:36.663Z expo:metro:tsconfig-paths @/lib/notifications/analytics -> C:\Users\Satish\Desktop\listifys-app\app\lib\notifications\analytics
+2026-06-04T14:02:36.697Z expo:metro:tsconfig-paths @/lib/location-service -> C:\Users\Satish\Desktop\listifys-app\app\lib\location-service
+2026-06-04T14:02:36.697Z expo:metro:tsconfig-paths @/lib/listing-coordinates -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-coordinates
+2026-06-04T14:02:36.697Z expo:metro:tsconfig-paths @/lib/map-tiles -> C:\Users\Satish\Desktop\listifys-app\app\lib\map-tiles
+2026-06-04T14:02:36.697Z expo:metro:tsconfig-paths @/lib/listing-distance -> C:\Users\Satish\Desktop\listifys-app\app\lib\listing-distance
+2026-06-04T14:02:36.698Z expo:metro:tsconfig-paths @/store/hooks -> C:\Users\Satish\Desktop\listifys-app\app\store\hooks
+2026-06-04T14:02:36.698Z expo:metro:tsconfig-paths @/store/slices/location-slice -> C:\Users\Satish\Desktop\listifys-app\app\store\slices\location-slice
+2026-06-04T14:02:36.701Z expo:metro:tsconfig-paths @/components/highlighted-text -> C:\Users\Satish\Desktop\listifys-app\app\components\highlighted-text
+2026-06-04T14:02:36.706Z expo:metro:tsconfig-paths @/lib/google-places.service -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-places.service
+2026-06-04T14:02:36.712Z expo:metro:tsconfig-paths @/components/sell-step-indicator -> C:\Users\Satish\Desktop\listifys-app\app\components\sell-step-indicator
+2026-06-04T14:02:36.719Z expo:metro:tsconfig-paths @/providers/locale-provider -> C:\Users\Satish\Desktop\listifys-app\app\providers\locale-provider
+2026-06-04T14:02:36.722Z expo:metro:tsconfig-paths @/lib/google-places.service -> C:\Users\Satish\Desktop\listifys-app\app\lib\google-places.service
+2026-06-04T14:02:36.722Z expo:metro:tsconfig-paths @/hooks/usePlacesAutocomplete -> C:\Users\Satish\Desktop\listifys-app\app\hooks\usePlacesAutocomplete
+2026-06-04T14:02:36.723Z expo:metro:tsconfig-paths @/lib/toast -> C:\Users\Satish\Desktop\listifys-app\app\lib\toast
+2026-06-04T14:02:36.726Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:36.729Z expo:metro:tsconfig-paths @/features/auth/services/auth-api -> C:\Users\Satish\Desktop\listifys-app\app\features\auth\services\auth-api
+2026-06-04T14:02:36.730Z expo:metro:tsconfig-paths @/lib/cache -> C:\Users\Satish\Desktop\listifys-app\app\lib\cache
+| 2026-06-04T14:02:36.297Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "@expo/metro-config" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\expo\node_modules\@expo\metro-config\build\ExpoMetroConfig.js"
+| 2026-06-04T14:02:36.358Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro-cache/private/stores/FileStore" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro-cache\src\stores\FileStore.js"
+| 2026-06-04T14:02:36.400Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro/private/lib/isResolvedDependency" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro\src\lib\isResolvedDependency.js"
+| 2026-06-04T14:02:36.424Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro/private/DeltaBundler/Serializers/sourceMapString" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro\src\DeltaBundler\Serializers\sourceMapString.js"
+| 2026-06-04T14:02:36.428Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro-source-map" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro-source-map\src\source-map.js"
+| 2026-06-04T14:02:36.432Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro/private/lib/bundleToString" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro\src\lib\bundleToString.js"
+| 2026-06-04T14:02:36.440Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro/private/lib/CountingSet" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro\src\lib\CountingSet.js"
+| 2026-06-04T14:02:36.452Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "metro/private/lib/getAppendScripts" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\metro\src\lib\getAppendScripts.js"
+| 2026-06-04T14:02:36.586Z expo:metro:transformer:postcss load file: C:\Users\Satish\Desktop\listifys-app\app\postcss.config.js
+| 2026-06-04T14:02:36.613Z expo:metro:transformer:postcss load plugin: @tailwindcss/postcss
+| 2026-06-04T14:02:37.047Z expo:metro:transformer:postcss load plugin: autoprefixer
+2026-06-04T14:02:37.290Z expo:metro:tsconfig-paths @/lib/format-time-ago -> C:\Users\Satish\Desktop\listifys-app\app\lib\format-time-ago
+2026-06-04T14:02:37.346Z expo:metro:tsconfig-paths @/constants/typography -> C:\Users\Satish\Desktop\listifys-app\app\constants\typography
+2026-06-04T14:02:37.346Z expo:metro:tsconfig-paths @/lib/nativewind-interop -> C:\Users\Satish\Desktop\listifys-app\app\lib\nativewind-interop
+2026-06-04T14:02:37.347Z expo:metro:tsconfig-paths @/components/listing-time-badge -> C:\Users\Satish\Desktop\listifys-app\app\components\listing-time-badge
+2026-06-04T14:02:37.347Z expo:metro:tsconfig-paths @/constants/categories -> C:\Users\Satish\Desktop\listifys-app\app\constants\categories
+2026-06-04T14:02:37.347Z expo:metro:tsconfig-paths @/features/search/services/search-api -> C:\Users\Satish\Desktop\listifys-app\app\features\search\services\search-api
+ WARN  Attempted to import the module "C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-webrtc\node_modules\event-target-shim\index" which is not listed in the "exports" of "C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native-webrtc\node_modules\event-target-shim" under the requested subpath "./index". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+| 2026-06-04T14:02:37.550Z expo:metro:transformer:postcss options: { from: 'global.css', to: 'global.css', map: false }
+| 2026-06-04T14:02:37.551Z expo:metro:transformer:postcss plugins: [
+|   [Function: Qt] { postcss: true },
+|   [Function: plugin] {
+|     postcss: true,
+|     data: { browsers: [Object], prefixes: [Object] },
+|     defaults: [ '> 0.5%', 'last 2 versions', 'Firefox ESR', 'not dead' ],
+|     info: [Function (anonymous)]
+|   }
+| ]
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 81.1% (1467/1629)
+2026-06-04T14:02:38.695Z expo:metro:withMetroResolvers Custom resolver (requestPostRewrites) threw: FailedToResolveNameError. (module: @react-native-masked-view/masked-view, platform: android, env: undefined, origin: C:\Users\Satish\Desktop\listifys-app\app\node_modules\@react-navigation\elements\lib\module\MaskedViewNative.js)
+2026-06-04T14:02:38.697Z expo:metro:withMetroResolvers Custom resolver (requestPostRewrites) threw: FailedToResolveNameError. (module: @react-native-masked-view/masked-view, platform: android, env: undefined, origin: C:\Users\Satish\Desktop\listifys-app\app\node_modules\@react-navigation\elements\lib\module\MaskedViewNative.js)
+2026-06-04T14:02:38.730Z expo:metro:withMetroResolvers Number of explored stacks: 10
+2026-06-04T14:02:38.735Z expo:metro:withMetroResolvers Found inverse graph: {
+  "frames": [
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\MaskedViewNative.js",
+      "request": "@react-native-masked-view/masked-view"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\MaskedView.android.js",
+      "request": "./MaskedViewNative.js"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\Header\\HeaderBackButton.js",
+      "request": "../MaskedView"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\index.js",
+      "request": "./Header/HeaderBackButton.js"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\bottom-tabs\\lib\\module\\views\\BottomTabBar.js",
+      "request": "@react-navigation/elements"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\bottom-tabs\\lib\\module\\index.js",
+      "request": "./views/BottomTabBar.js"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\views\\Toast.js",
+      "request": "@react-navigation/bottom-tabs"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\views\\EmptyRoute.js",
+      "request": "./Toast"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\useScreens.js",
+      "request": "./views/EmptyRoute"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\global-state\\router-store.js",
+      "request": "../useScreens"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\global-state\\routing.js",
+      "request": "./router-store"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\imperative-api.js",
+      "request": "./global-state/routing"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\hooks.js",
+      "request": "./imperative-api"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\getRoutesRedirects.js",
+      "request": "./hooks"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\link\\linking.js",
+      "request": "../getRoutesRedirects"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\link\\preview\\HrefPreview.js",
+      "request": "../linking"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\link\\elements.js",
+      "request": "./preview/HrefPreview"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\link\\Link.js",
+      "request": "./elements"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\layouts\\TabsClient.js",
+      "request": "../link/Link"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\layouts\\Tabs.js",
+      "request": "./TabsClient"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\build\\index.js",
+      "request": "./layouts/Tabs"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\app\\(tabs)\\_layout.tsx",
+      "request": "expo-router"
+    },
+    {
+      "origin": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\app?ctx=e6a1aea4960de44c18a5ce9190ce6cab071b72da",
+      "request": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\app\\(tabs)\\_layout.tsx"
+    }
+  ],
+  "serverRoot": true
+}
+| 2026-06-04T14:02:38.870Z expo:metro:browserslist Browserslist targets: {
+|   and_chr: 9633792,
+|   and_ff: 9830400,
+|   android: 9633792,
+|   chrome: 7143424,
+|   edge: 9502720,
+|   firefox: 9175040,
+|   ios_saf: 1180928,
+|   op_mob: 5242880,
+|   opera: 8323072,
+|   safari: 1704704,
+|   samsung: 1835008
+| }
+| 2026-06-04T14:02:39.352Z expo:metro-config:supervising-transform-worker:module-mapper Redirected request "@expo/metro-config/package.json" -> "C:\Users\Satish\Desktop\listifys-app\app\node_modules\expo\node_modules\@expo\metro-config\package.json"
+2026-06-04T14:02:40.901Z expo:metro:cache Skipping caching for CSS file: undefined
+2026-06-04T14:02:40.991Z expo:metro-config:serializer:env-var Skipping environment variable inlining in production environment in favor of babel-preset-expo inlining with source maps.
+2026-06-04T14:02:41.293Z expo:metro:hermes Running hermesc: C:\Users\Satish\Desktop\listifys-app\app\node_modules\react-native/sdks/hermesc/win64-bin/hermesc.exe -emit-binary -out C:\Users\Satish\AppData\Local\Temp\expo-bundler-0.24448098574495525-1780581761246\index.hbc C:\Users\Satish\AppData\Local\Temp\expo-bundler-0.24448098574495525-1780581761246\index.js -O
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (2079/2079)
+Android Bundled 23937ms node_modules\expo-router\entry.js (2079 modules)
+2026-06-04T14:02:58.497Z expo:export:exportAssets Assets = [
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets",
+    "httpServerLocation": "/assets/node_modules/@react-navigation/elements/lib/module/assets",
+    "width": 24,
+    "height": 24,
+    "scales": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@1x.android.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@2x.android.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@3x.android.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@4x.android.png"
+    ],
+    "hash": "dbc3af23c3cbbe45d326afc1d31c2e92",
+    "name": "back-icon",
+    "type": "png",
+    "fileHashes": [
+      "778ffc9fe8773a878e9c30a6304784de",
+      "c79c3606a1cf168006ad3979763c7e0c",
+      "02bc1fa7c0313217bde2d65ccbff40c9",
+      "35ba0eaec5a4f5ed12ca16fabeae451d"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets",
+    "httpServerLocation": "/assets/node_modules/@react-navigation/elements/lib/module/assets",
+    "width": 50,
+    "height": 85,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon-mask.png"
+    ],
+    "hash": "0a328cd9c1afd0afe8e3b1ec5165b1b4",
+    "name": "back-icon-mask",
+    "type": "png",
+    "fileHashes": [
+      "0a328cd9c1afd0afe8e3b1ec5165b1b4"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets",
+    "httpServerLocation": "/assets/node_modules/@react-navigation/elements/lib/module/assets",
+    "width": 64,
+    "height": 64,
+    "scales": [
+      1,
+      1,
+      2,
+      3,
+      4
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@1x.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@2x.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@3x.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@4x.png"
+    ],
+    "hash": "61378328a719f21f093de82dd89ecfb0",
+    "name": "clear-icon",
+    "type": "png",
+    "fileHashes": [
+      "3cd68ccdb8938e3711da2e8831b85493",
+      "61ca7e64b7d605716c57706cef640b9a",
+      "aff2c65b39a296d4f7e96d0f58169170",
+      "d8e7601e3df962f83c62371ac14964d8",
+      "3cd68ccdb8938e3711da2e8831b85493"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets",
+    "httpServerLocation": "/assets/node_modules/@react-navigation/elements/lib/module/assets",
+    "width": 96,
+    "height": 96,
+    "scales": [
+      1,
+      1,
+      2,
+      3,
+      4
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@1x.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@2x.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@3x.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@4x.png"
+    ],
+    "hash": "3162e8a244d8f6fbd259e79043e23ce4",
+    "name": "close-icon",
+    "type": "png",
+    "fileHashes": [
+      "0747a1317bbe9c6fc340b889ef8ab3ae",
+      "d84e297c3b3e49a614248143d53e40ca",
+      "1190ab078c57159f4245a328118fcd9a",
+      "78c625386b4d0690b421eb0fc78f7b9c",
+      "0747a1317bbe9c6fc340b889ef8ab3ae"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets",
+    "httpServerLocation": "/assets/node_modules/@react-navigation/elements/lib/module/assets",
+    "width": 24,
+    "height": 24,
+    "scales": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@1x.android.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@2x.android.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@3x.android.png",
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@4x.android.png"
+    ],
+    "hash": "940453dc5cbfaa96cf907b3aa7791ece",
+    "name": "search-icon",
+    "type": "png",
+    "fileHashes": [
+      "4403c6117ec30c859bc95d70ce4a71d3",
+      "069d99eb1fa6712c0b9034a58c6b57dd",
+      "c3273c9e5321f20d1e42c2efae2578c4",
+      "286d67d3f74808a60a78d3ebf1a5fb57"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 48,
+    "height": 48,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\error.png"
+    ],
+    "hash": "d1ea1496f9057eb392d5bbf3732a61b7",
+    "name": "error",
+    "type": "png",
+    "fileHashes": [
+      "d1ea1496f9057eb392d5bbf3732a61b7"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 48,
+    "height": 48,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\file.png"
+    ],
+    "hash": "19eeb73b9593a38f8e9f418337fc7d10",
+    "name": "file",
+    "type": "png",
+    "fileHashes": [
+      "19eeb73b9593a38f8e9f418337fc7d10"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 48,
+    "height": 48,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\pkg.png"
+    ],
+    "hash": "ab19f4cbc543357183a20571f68380a3",
+    "name": "pkg",
+    "type": "png",
+    "fileHashes": [
+      "ab19f4cbc543357183a20571f68380a3"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 48,
+    "height": 48,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\forward.png"
+    ],
+    "hash": "d8b800c443b8972542883e0b9de2bdc6",
+    "name": "forward",
+    "type": "png",
+    "fileHashes": [
+      "d8b800c443b8972542883e0b9de2bdc6"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 48,
+    "height": 48,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\sitemap.png"
+    ],
+    "hash": "412dd9275b6b48ad28f5e3d81bb1f626",
+    "name": "sitemap",
+    "type": "png",
+    "fileHashes": [
+      "412dd9275b6b48ad28f5e3d81bb1f626"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 48,
+    "height": 48,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\arrow_down.png"
+    ],
+    "hash": "017bc6ba3fc25503e5eb5e53826d48a8",
+    "name": "arrow_down",
+    "type": "png",
+    "fileHashes": [
+      "017bc6ba3fc25503e5eb5e53826d48a8"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets",
+    "httpServerLocation": "/assets/node_modules/expo-router/assets",
+    "width": 436,
+    "height": 266,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\expo-router\\assets\\unmatched.png"
+    ],
+    "hash": "20e71bdf79e3a97bf55fd9e164041578",
+    "name": "unmatched",
+    "type": "png",
+    "fileHashes": [
+      "20e71bdf79e3a97bf55fd9e164041578"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\AntDesign.ttf"
+    ],
+    "hash": "3f78af31cca60105799838a1a7a59fbd",
+    "name": "AntDesign",
+    "type": "ttf",
+    "fileHashes": [
+      "3f78af31cca60105799838a1a7a59fbd"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Entypo.ttf"
+    ],
+    "hash": "31b5ffea3daddc69dd01a1f3d6cf63c5",
+    "name": "Entypo",
+    "type": "ttf",
+    "fileHashes": [
+      "31b5ffea3daddc69dd01a1f3d6cf63c5"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\EvilIcons.ttf"
+    ],
+    "hash": "140c53a7643ea949007aa9a282153849",
+    "name": "EvilIcons",
+    "type": "ttf",
+    "fileHashes": [
+      "140c53a7643ea949007aa9a282153849"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Feather.ttf"
+    ],
+    "hash": "ca4b48e04dc1ce10bfbddb262c8b835f",
+    "name": "Feather",
+    "type": "ttf",
+    "fileHashes": [
+      "ca4b48e04dc1ce10bfbddb262c8b835f"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Fontisto.ttf"
+    ],
+    "hash": "b49ae8ab2dbccb02c4d11caaacf09eab",
+    "name": "Fontisto",
+    "type": "ttf",
+    "fileHashes": [
+      "b49ae8ab2dbccb02c4d11caaacf09eab"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome.ttf"
+    ],
+    "hash": "b06871f281fee6b241d60582ae9369b9",
+    "name": "FontAwesome",
+    "type": "ttf",
+    "fileHashes": [
+      "b06871f281fee6b241d60582ae9369b9"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome5_Regular.ttf"
+    ],
+    "hash": "1f77739ca9ff2188b539c36f30ffa2be",
+    "name": "FontAwesome5_Regular",
+    "type": "ttf",
+    "fileHashes": [
+      "1f77739ca9ff2188b539c36f30ffa2be"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome5_Solid.ttf"
+    ],
+    "hash": "605ed7926cf39a2ad5ec2d1f9d391d3d",
+    "name": "FontAwesome5_Solid",
+    "type": "ttf",
+    "fileHashes": [
+      "605ed7926cf39a2ad5ec2d1f9d391d3d"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome5_Brands.ttf"
+    ],
+    "hash": "3b89dd103490708d19a95adcae52210e",
+    "name": "FontAwesome5_Brands",
+    "type": "ttf",
+    "fileHashes": [
+      "3b89dd103490708d19a95adcae52210e"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome6_Regular.ttf"
+    ],
+    "hash": "370dd5af19f8364907b6e2c41f45dbbf",
+    "name": "FontAwesome6_Regular",
+    "type": "ttf",
+    "fileHashes": [
+      "370dd5af19f8364907b6e2c41f45dbbf"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome6_Solid.ttf"
+    ],
+    "hash": "adec7d6f310bc577f05e8fe06a5daccf",
+    "name": "FontAwesome6_Solid",
+    "type": "ttf",
+    "fileHashes": [
+      "adec7d6f310bc577f05e8fe06a5daccf"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome6_Brands.ttf"
+    ],
+    "hash": "56c8d80832e37783f12c05db7c8849e2",
+    "name": "FontAwesome6_Brands",
+    "type": "ttf",
+    "fileHashes": [
+      "56c8d80832e37783f12c05db7c8849e2"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Foundation.ttf"
+    ],
+    "hash": "e20945d7c929279ef7a6f1db184a4470",
+    "name": "Foundation",
+    "type": "ttf",
+    "fileHashes": [
+      "e20945d7c929279ef7a6f1db184a4470"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Ionicons.ttf"
+    ],
+    "hash": "b4eb097d35f44ed943676fd56f6bdc51",
+    "name": "Ionicons",
+    "type": "ttf",
+    "fileHashes": [
+      "b4eb097d35f44ed943676fd56f6bdc51"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\MaterialCommunityIcons.ttf"
+    ],
+    "hash": "6e435534bd35da5fef04168860a9b8fa",
+    "name": "MaterialCommunityIcons",
+    "type": "ttf",
+    "fileHashes": [
+      "6e435534bd35da5fef04168860a9b8fa"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\MaterialIcons.ttf"
+    ],
+    "hash": "4e85bc9ebe07e0340c9c4fc2f6c38908",
+    "name": "MaterialIcons",
+    "type": "ttf",
+    "fileHashes": [
+      "4e85bc9ebe07e0340c9c4fc2f6c38908"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Octicons.ttf"
+    ],
+    "hash": "871378c6eab492a3e689a9385dc45a12",
+    "name": "Octicons",
+    "type": "ttf",
+    "fileHashes": [
+      "871378c6eab492a3e689a9385dc45a12"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\SimpleLineIcons.ttf"
+    ],
+    "hash": "d2285965fe34b05465047401b8595dd0",
+    "name": "SimpleLineIcons",
+    "type": "ttf",
+    "fileHashes": [
+      "d2285965fe34b05465047401b8595dd0"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts",
+    "httpServerLocation": "/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Zocial.ttf"
+    ],
+    "hash": "1681f34aaca71b8dfb70756bca331eb2",
+    "name": "Zocial",
+    "type": "ttf",
+    "fileHashes": [
+      "1681f34aaca71b8dfb70756bca331eb2"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\100Thin",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/100Thin",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\100Thin\\Poppins_100Thin.ttf"
+    ],
+    "hash": "9ec263601ee3fcd71763941207c9ad0d",
+    "name": "Poppins_100Thin",
+    "type": "ttf",
+    "fileHashes": [
+      "9ec263601ee3fcd71763941207c9ad0d"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\100Thin_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/100Thin_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\100Thin_Italic\\Poppins_100Thin_Italic.ttf"
+    ],
+    "hash": "01555d25092b213d2ea3a982123722c9",
+    "name": "Poppins_100Thin_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "01555d25092b213d2ea3a982123722c9"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\200ExtraLight",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/200ExtraLight",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\200ExtraLight\\Poppins_200ExtraLight.ttf"
+    ],
+    "hash": "6f8391bbdaeaa540388796c858dfd8ca",
+    "name": "Poppins_200ExtraLight",
+    "type": "ttf",
+    "fileHashes": [
+      "6f8391bbdaeaa540388796c858dfd8ca"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\200ExtraLight_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/200ExtraLight_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\200ExtraLight_Italic\\Poppins_200ExtraLight_Italic.ttf"
+    ],
+    "hash": "a9bed017984a258097841902b696a7a6",
+    "name": "Poppins_200ExtraLight_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "a9bed017984a258097841902b696a7a6"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\300Light",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/300Light",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\300Light\\Poppins_300Light.ttf"
+    ],
+    "hash": "fcc40ae9a542d001971e53eaed948410",
+    "name": "Poppins_300Light",
+    "type": "ttf",
+    "fileHashes": [
+      "fcc40ae9a542d001971e53eaed948410"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\300Light_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/300Light_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\300Light_Italic\\Poppins_300Light_Italic.ttf"
+    ],
+    "hash": "0613c488cf7911af70db821bdd05dfc4",
+    "name": "Poppins_300Light_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "0613c488cf7911af70db821bdd05dfc4"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\400Regular",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/400Regular",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\400Regular\\Poppins_400Regular.ttf"
+    ],
+    "hash": "093ee89be9ede30383f39a899c485a82",
+    "name": "Poppins_400Regular",
+    "type": "ttf",
+    "fileHashes": [
+      "093ee89be9ede30383f39a899c485a82"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\400Regular_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/400Regular_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\400Regular_Italic\\Poppins_400Regular_Italic.ttf"
+    ],
+    "hash": "c1034239929f4651cc17d09ed3a28c69",
+    "name": "Poppins_400Regular_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "c1034239929f4651cc17d09ed3a28c69"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\500Medium",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/500Medium",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\500Medium\\Poppins_500Medium.ttf"
+    ],
+    "hash": "bf59c687bc6d3a70204d3944082c5cc0",
+    "name": "Poppins_500Medium",
+    "type": "ttf",
+    "fileHashes": [
+      "bf59c687bc6d3a70204d3944082c5cc0"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\500Medium_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/500Medium_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\500Medium_Italic\\Poppins_500Medium_Italic.ttf"
+    ],
+    "hash": "cf5ba39d9ac24652e25df8c291121506",
+    "name": "Poppins_500Medium_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "cf5ba39d9ac24652e25df8c291121506"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\600SemiBold",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/600SemiBold",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\600SemiBold\\Poppins_600SemiBold.ttf"
+    ],
+    "hash": "6f1520d107205975713ba09df778f93f",
+    "name": "Poppins_600SemiBold",
+    "type": "ttf",
+    "fileHashes": [
+      "6f1520d107205975713ba09df778f93f"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\600SemiBold_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/600SemiBold_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\600SemiBold_Italic\\Poppins_600SemiBold_Italic.ttf"
+    ],
+    "hash": "9841f3d906521f7479a5ba70612aa8c8",
+    "name": "Poppins_600SemiBold_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "9841f3d906521f7479a5ba70612aa8c8"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\700Bold",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/700Bold",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\700Bold\\Poppins_700Bold.ttf"
+    ],
+    "hash": "08c20a487911694291bd8c5de41315ad",
+    "name": "Poppins_700Bold",
+    "type": "ttf",
+    "fileHashes": [
+      "08c20a487911694291bd8c5de41315ad"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\700Bold_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/700Bold_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\700Bold_Italic\\Poppins_700Bold_Italic.ttf"
+    ],
+    "hash": "19406f767addf00d2ea82cdc9ab104ce",
+    "name": "Poppins_700Bold_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "19406f767addf00d2ea82cdc9ab104ce"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\800ExtraBold",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/800ExtraBold",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\800ExtraBold\\Poppins_800ExtraBold.ttf"
+    ],
+    "hash": "d45bdbc2d4a98c1ecb17821a1dbbd3a4",
+    "name": "Poppins_800ExtraBold",
+    "type": "ttf",
+    "fileHashes": [
+      "d45bdbc2d4a98c1ecb17821a1dbbd3a4"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\800ExtraBold_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/800ExtraBold_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\800ExtraBold_Italic\\Poppins_800ExtraBold_Italic.ttf"
+    ],
+    "hash": "8afe4dc13b83b66fec0ea671419954cc",
+    "name": "Poppins_800ExtraBold_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "8afe4dc13b83b66fec0ea671419954cc"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\900Black",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/900Black",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\900Black\\Poppins_900Black.ttf"
+    ],
+    "hash": "14d00dab1f6802e787183ecab5cce85e",
+    "name": "Poppins_900Black",
+    "type": "ttf",
+    "fileHashes": [
+      "14d00dab1f6802e787183ecab5cce85e"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\900Black_Italic",
+    "httpServerLocation": "/assets/node_modules/@expo-google-fonts/poppins/900Black_Italic",
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\node_modules\\@expo-google-fonts\\poppins\\900Black_Italic\\Poppins_900Black_Italic.ttf"
+    ],
+    "hash": "e9c5c588e39d0765d30bcd6594734102",
+    "name": "Poppins_900Black_Italic",
+    "type": "ttf",
+    "fileHashes": [
+      "e9c5c588e39d0765d30bcd6594734102"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets\\splashscreenImg",
+    "httpServerLocation": "/assets/assets/splashscreenImg",
+    "width": 849,
+    "height": 694,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets\\splashscreenImg\\splashImg.png"
+    ],
+    "hash": "6166821f1c779863f5c0b0b08e14375b",
+    "name": "splashImg",
+    "type": "png",
+    "fileHashes": [
+      "6166821f1c779863f5c0b0b08e14375b"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets",
+    "httpServerLocation": "/assets/assets",
+    "width": 940,
+    "height": 1672,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets\\bg.png"
+    ],
+    "hash": "6357ba3814f3a13d1109400c41fd3069",
+    "name": "bg",
+    "type": "png",
+    "fileHashes": [
+      "6357ba3814f3a13d1109400c41fd3069"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets",
+    "httpServerLocation": "/assets/assets",
+    "width": 350,
+    "height": 350,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets\\google.webp"
+    ],
+    "hash": "733f997b5fbe433b629ea76038c37975",
+    "name": "google",
+    "type": "webp",
+    "fileHashes": [
+      "733f997b5fbe433b629ea76038c37975"
+    ]
+  },
+  {
+    "__packager_asset": true,
+    "fileSystemLocation": "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets",
+    "httpServerLocation": "/assets/assets",
+    "width": 512,
+    "height": 411,
+    "scales": [
+      1
+    ],
+    "files": [
+      "C:\\Users\\Satish\\Desktop\\listifys-app\\app\\assets\\mobile.png"
+    ],
+    "hash": "a3f0929f4c74302c9c36c5025736d9e6",
+    "name": "mobile",
+    "type": "png",
+    "fileHashes": [
+      "a3f0929f4c74302c9c36c5025736d9e6"
+    ]
+  }
+]
+2026-06-04T14:02:58.582Z expo:start:platforms:android:adbServer Stopping ADB server
+2026-06-04T14:02:58.583Z expo:start:platforms:android:adbServer ADB server is not running
+2026-06-04T14:02:58.583Z expo:start:server:devServer Stopping dev server (bundler: metro)
+2026-06-04T14:02:58.587Z expo:start:server:devServer Stopped dev server (bundler: metro)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (2079/2079)
+
+› Assets (65):
+assets\bg.png (1.7 MB)
+assets\google.webp (14.9 kB)
+assets\mobile.png (31.1 kB)
+assets\splashscreenImg\splashImg.png (180 kB)
+node_modules\@expo-google-fonts\poppins\100Thin_Italic\Poppins_100Thin_Italic.ttf (187 kB)
+node_modules\@expo-google-fonts\poppins\100Thin\Poppins_100Thin.ttf (162 kB)
+node_modules\@expo-google-fonts\poppins\200ExtraLight_Italic\Poppins_200ExtraLight_Italic.ttf (186 kB)
+node_modules\@expo-google-fonts\poppins\200ExtraLight\Poppins_200ExtraLight.ttf (161 kB)
+node_modules\@expo-google-fonts\poppins\300Light_Italic\Poppins_300Light_Italic.ttf (184 kB)
+node_modules\@expo-google-fonts\poppins\300Light\Poppins_300Light.ttf (160 kB)
+node_modules\@expo-google-fonts\poppins\400Regular_Italic\Poppins_400Regular_Italic.ttf (182 kB)
+node_modules\@expo-google-fonts\poppins\400Regular\Poppins_400Regular.ttf (158 kB)
+node_modules\@expo-google-fonts\poppins\500Medium_Italic\Poppins_500Medium_Italic.ttf (180 kB)
+node_modules\@expo-google-fonts\poppins\500Medium\Poppins_500Medium.ttf (157 kB)
+node_modules\@expo-google-fonts\poppins\600SemiBold_Italic\Poppins_600SemiBold_Italic.ttf (179 kB)
+node_modules\@expo-google-fonts\poppins\600SemiBold\Poppins_600SemiBold.ttf (155 kB)
+node_modules\@expo-google-fonts\poppins\700Bold_Italic\Poppins_700Bold_Italic.ttf (177 kB)
+node_modules\@expo-google-fonts\poppins\700Bold\Poppins_700Bold.ttf (154 kB)
+node_modules\@expo-google-fonts\poppins\800ExtraBold_Italic\Poppins_800ExtraBold_Italic.ttf (174 kB)
+node_modules\@expo-google-fonts\poppins\800ExtraBold\Poppins_800ExtraBold.ttf (153 kB)
+node_modules\@expo-google-fonts\poppins\900Black_Italic\Poppins_900Black_Italic.ttf (172 kB)
+node_modules\@expo-google-fonts\poppins\900Black\Poppins_900Black.ttf (151 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\AntDesign.ttf (130 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Entypo.ttf (66.2 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\EvilIcons.ttf (13.5 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Feather.ttf (55.6 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome.ttf (166 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome5_Brands.ttf (134 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome5_Regular.ttf (33.7 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome5_Solid.ttf (203 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome6_Brands.ttf (209 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome6_Regular.ttf (68 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome6_Solid.ttf (424 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Fontisto.ttf (314 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Foundation.ttf (57 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Ionicons.ttf (390 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\MaterialCommunityIcons.ttf (1.31 MB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\MaterialIcons.ttf (357 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Octicons.ttf (69.4 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\SimpleLineIcons.ttf (54.1 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Zocial.ttf (25.8 kB)
+node_modules\@react-navigation\elements\lib\module\assets\back-icon-mask.png (653 B)
+node_modules\@react-navigation\elements\lib\module\assets\back-icon.png (4 variations | 152 B)
+node_modules\@react-navigation\elements\lib\module\assets\clear-icon.png (4 variations | 425 B)
+node_modules\@react-navigation\elements\lib\module\assets\close-icon.png (4 variations | 235 B)
+node_modules\@react-navigation\elements\lib\module\assets\search-icon.png (4 variations | 599 B)
+node_modules\expo-router\assets\arrow_down.png (9.46 kB)
+node_modules\expo-router\assets\error.png (469 B)
+node_modules\expo-router\assets\file.png (138 B)
+node_modules\expo-router\assets\forward.png (188 B)
+node_modules\expo-router\assets\pkg.png (364 B)
+node_modules\expo-router\assets\sitemap.png (465 B)
+node_modules\expo-router\assets\unmatched.png (4.75 kB)
+
+› android bundles (1):
+_expo/static/js/android/entry-e51921030883507701db276029753ac3.hbc (6.56 MB)
+
+› web bundles (1):
+_expo/static/css/global-d41d8cd98f00b204e9800998ecf8427e.css (0 B)
+
+› Files (1):
+metadata.json (4.44 kB)
+
+2026-06-04T14:02:58.971Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [
+  'CloseReq',    'PipeWrap',    'ProcessWrap',
+  'PipeWrap',    'PipeWrap',    'PipeWrap',
+  'ProcessWrap', 'PipeWrap',    'PipeWrap',
+  'PipeWrap',    'ProcessWrap', 'PipeWrap',
+  'PipeWrap',    'PipeWrap',    'ProcessWrap',
+  'PipeWrap',    'PipeWrap',    'PipeWrap',
+  'ProcessWrap', 'PipeWrap',    'PipeWrap',
+  'PipeWrap',    'ProcessWrap', 'PipeWrap',
+  'PipeWrap',    'PipeWrap',    'ProcessWrap',
+  'Timeout',     'Timeout',     'Timeout',
+  'Timeout',     'Timeout',     'Timeout',
+  'Timeout',     'Timeout',     'Timeout'
+]
+Exported: dist
+2026-06-04T14:02:59.084Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [
+  'PipeWrap',    'ProcessWrap', 'PipeWrap',
+  'PipeWrap',    'PipeWrap',    'ProcessWrap',
+  'PipeWrap',    'PipeWrap',    'PipeWrap',
+  'ProcessWrap', 'PipeWrap',    'PipeWrap',
+  'PipeWrap',    'ProcessWrap', 'PipeWrap',
+  'PipeWrap',    'PipeWrap',    'ProcessWrap',
+  'PipeWrap',    'PipeWrap',    'PipeWrap',
+  'ProcessWrap', 'PipeWrap',    'PipeWrap',
+  'PipeWrap',    'ProcessWrap', 'Timeout',
+  'Timeout',     'Timeout',     'Timeout',
+  'Timeout',     'Timeout',     'Timeout',
+  'Timeout',     'Timeout',     'Timeout'
+]
+2026-06-04T14:02:59.195Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.308Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.411Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.525Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.639Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.744Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.858Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:02:59.966Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.068Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.173Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.284Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.392Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.498Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.602Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.707Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.815Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:00.930Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.032Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.141Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.250Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.358Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.466Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.582Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.690Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.799Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:01.908Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:02.016Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:02.116Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:02.224Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:02.332Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:02.448Z expo:utils:exit process is trying to exit, but is stuck on unexpected active resources: [ 'Timeout', 'Timeout' ]
+2026-06-04T14:03:02.557Z expo:utils:exit no active resources detected, process can safely exit
+2026-06-04T14:03:02.559Z expo:telemetry Switching strategy from instant to detached
+2026-06-04T14:03:02.559Z expo:telemetry:client:detached No records to flush, skipping...

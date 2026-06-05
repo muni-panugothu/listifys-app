@@ -77,16 +77,17 @@
         {
           "locationWhenInUsePermission": "Listify uses your location to show nearby listings and distances."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d33fc5c0-e5cb-4d2b-926f-9aafb8ac505c"
+        "projectId": "4e2125ad-c6d2-4319-a18e-f33b51660673"
       }
     }
   }
