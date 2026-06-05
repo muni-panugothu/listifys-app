@@ -29,3 +29,7 @@ server/config/*.json
 # Expo
 .expo/
 dist/
+
+
+#firebase
+config/firebase-service-account.json

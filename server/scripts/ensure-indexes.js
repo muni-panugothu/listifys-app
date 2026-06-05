@@ -33,6 +33,8 @@ const INDEX_DEFINITIONS = [
     indexes: [
       // Primary listing query: active listings, newest first
       { fields: { status: 1, createdAt: -1 }, options: { name: 'idx_status_created', background: true } },
+      // Home feed query: active listings scoped to the user's country
+      { fields: { status: 1, countryCode: 1, createdAt: -1 }, options: { name: 'idx_status_country_created', background: true } },
       // Seller's listings (my-listings page)
       { fields: { seller: 1, status: 1, createdAt: -1 }, options: { name: 'idx_seller_status_created', background: true } },
       // Slug lookup (detail page)

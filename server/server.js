@@ -237,7 +237,11 @@ const globalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/health',
+  // Public media is immutable and validated by image.routes. Avoid multiple
+  // remote Redis round trips before every S3 image stream.
+  skip: (req) =>
+    req.path === '/health' ||
+    req.path.startsWith('/api/images/'),
   // Under extreme load, fail open (allow request) rather than crashing
   handler: (req, res) => {
     res.status(429).json({
@@ -247,6 +251,15 @@ const globalLimiter = rateLimit({
     });
   },
 });
+// Media requests use an in-process limiter so image delivery never waits on
+// Upstash. The generous cap still protects the S3 proxy from obvious abuse.
+const imageLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5000,
+  standardHeaders: false,
+  legacyHeaders: false,
+});
+app.use('/api/images', imageLimiter);
 app.use(globalLimiter);
 
 // Auth rate limiter â€” per IP, tight for brute-force protection

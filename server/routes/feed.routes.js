@@ -4,12 +4,14 @@
  * reducing 13 parallel requests from the client to 1.
  */
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const { applyGeoFilter, buildLocationRegex, applyCountryFilter } = require("../utils/geoQuery");
 const { esHydratedSearch } = require("../utils/esSearch");
 const redis = require("../config/redis");
 const { logger } = require("../utils/logger");
 const { optionalAuth } = require("../middleware/auth.middleware");
+const { responseCache } = require("../services/memorycache.service");
 
 const CATEGORY_MODELS = {
   electronics: require("../models/electronics.model"),
@@ -32,8 +34,22 @@ const CATEGORY_MODELS = {
   takecare: require("../models/takecare.model"),
 };
 
-const LISTING_FIELDS =
-  "title slug price pricing currency location countryCode images condition category subcategory createdAt savedBy coordinates seller";
+const LISTING_PROJECTION = {
+  title: 1,
+  slug: 1,
+  price: 1,
+  pricing: 1,
+  currency: 1,
+  location: 1,
+  countryCode: 1,
+  images: { $slice: 1 },
+  condition: 1,
+  category: 1,
+  subcategory: 1,
+  createdAt: 1,
+  coordinates: 1,
+  seller: 1,
+};
 
 /**
  * GET /api/feed
@@ -63,14 +79,34 @@ router.get("/", optionalAuth, async (req, res) => {
     const skip = (page - 1) * limit;
     const useEsSearch = Boolean(search && !lat && !lng);
     const excludeSellerId = req.user?._id ? String(req.user._id) : null;
+    const feedCacheControl = excludeSellerId
+      ? 'private, max-age=30'
+      : 'public, max-age=30, stale-while-revalidate=120';
+    const feedProjection = excludeSellerId && mongoose.Types.ObjectId.isValid(excludeSellerId)
+      ? {
+          ...LISTING_PROJECTION,
+          savedBy: { $elemMatch: { $eq: new mongoose.Types.ObjectId(excludeSellerId) } },
+        }
+      : LISTING_PROJECTION;
 
     // ── Redis cache (60s TTL) ───────────────────────────────────
     const cacheKey = `feed:${page}:${limit}:${search || ''}:${location || ''}:${lat || ''}:${lng || ''}:${radius}:cc:${countryCode || ''}:ex:${excludeSellerId || "0"}`;
+    const memoryCached = responseCache.get(cacheKey);
+    if (memoryCached) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('X-Cache-Layer', 'memory');
+      res.setHeader('Cache-Control', feedCacheControl);
+      return res.status(200).json(memoryCached);
+    }
+
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
         const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+        responseCache.set(cacheKey, parsed, 30);
         res.setHeader('X-Cache', 'HIT');
+        res.setHeader('X-Cache-Layer', 'redis');
+        res.setHeader('Cache-Control', feedCacheControl);
         return res.status(200).json(parsed);
       }
     } catch { /* cache miss — continue to DB */ }
@@ -111,8 +147,7 @@ router.get("/", optionalAuth, async (req, res) => {
       }
       applyCountryFilter(filter, countryCode);
 
-      const listings = await Model.find(filter)
-        .select(LISTING_FIELDS)
+      const listings = await Model.find(filter, feedProjection)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit + 1)
@@ -150,7 +185,7 @@ router.get("/", optionalAuth, async (req, res) => {
               sort: "relevance",
             },
             Model,
-            projection: LISTING_FIELDS,
+            projection: feedProjection,
             populate: [],
           });
 
@@ -215,8 +250,10 @@ router.get("/", optionalAuth, async (req, res) => {
     };
 
     // Cache for 60s (non-blocking)
+    responseCache.set(cacheKey, responseBody, 30);
     redis.setex(cacheKey, 60, JSON.stringify(responseBody)).catch(() => {});
     res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', feedCacheControl);
 
     res.status(200).json(responseBody);
   } catch (err) {
@@ -243,7 +280,7 @@ router.get("/my-listings", require("../middleware/auth.middleware").protect, asy
           : { seller: userId };
 
         const listings = await Model.find(filter)
-          .select(LISTING_FIELDS + " status seller")
+          .select({ ...LISTING_PROJECTION, status: 1, seller: 1 })
           .populate("seller", "name profileImage")
           .sort({ createdAt: -1 })
           .lean();
@@ -284,7 +321,7 @@ router.get("/saved", require("../middleware/auth.middleware").protect, async (re
     const results = await Promise.allSettled(
       entries.map(async ([key, Model]) => {
         const listings = await Model.find({ savedBy: userId, status: "active" })
-          .select(LISTING_FIELDS + " seller")
+          .select({ ...LISTING_PROJECTION, seller: 1 })
           .populate("seller", "name profileImage")
           .sort({ createdAt: -1 })
           .lean();

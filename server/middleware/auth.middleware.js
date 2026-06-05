@@ -407,12 +407,11 @@ exports.optionalAuth = async (req, res, next) => {
       try {
         const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
         if (!decoded.type || decoded.type === "access") {
-          const user = await User.findById(decoded.id).select(
-            "-password -followers -following -loginHistory -securityLogs -passwordHistory -devices",
-          );
-          // Only attach active users
-          if (user && user.status === "active") {
-            req.user = user;
+          // Public read endpoints only need the verified user id for light
+          // personalization. Avoid a Mongo lookup on every feed/profile read.
+          const cachedUser = _getCachedUser(decoded.id);
+          if (!cachedUser || cachedUser.status === "active") {
+            req.user = { _id: decoded.id, id: decoded.id };
           }
         }
       } catch (error) {

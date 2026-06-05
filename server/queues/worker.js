@@ -21,6 +21,9 @@ const { logger }                     = require('../utils/logger');
 let _started = false;
 
 const startWorkers = async () => {
+  // _started guard prevents duplicate consumer registrations on the SAME connection.
+  // consume() in rabbitmq.js now handles reconnect re-registration automatically,
+  // so this guard only needs to block the very first double-call at server boot.
   if (_started) return;
 
   try {
@@ -30,7 +33,9 @@ const startWorkers = async () => {
       return;
     }
 
-    // Start all consumers in parallel for fast boot
+    // Start all consumers in parallel for fast boot.
+    // Each consumer saves its registration in rabbitmq._registeredConsumers so
+    // it is automatically re-applied after any reconnect.
     await Promise.all([
       startEmailConsumers(),
       startAuditLogConsumer(),

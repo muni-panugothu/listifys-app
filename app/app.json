@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Listifys",
-    "slug": "Listifys",
+    "slug": "Listify-App",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/splashscreenImg/logo.png",
@@ -27,11 +27,15 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.listifys.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
     },
     "web": {
@@ -86,8 +90,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d33fc5c0-e5cb-4d2b-926f-9aafb8ac505c"
+        "projectId": "8bcc195c-3a76-4343-af83-5260944eb4cc"
       }
-    }
+    },
+    "owner": "eagleiitech"
   }
 }

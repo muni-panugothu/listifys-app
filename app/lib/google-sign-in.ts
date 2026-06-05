@@ -72,11 +72,13 @@ async function resolveGoogleClientIds(): Promise<GoogleClientIds> {
   if (resolvedClientIds) return resolvedClientIds;
 
   const envWebId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
+  const envIosId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() ?? null;
+  const envAndroidId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() ?? null;
   if (envWebId) {
     resolvedClientIds = {
       web: envWebId,
-      ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() ?? null,
-      android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() ?? null,
+      ios: envIosId,
+      android: envAndroidId,
     };
     return resolvedClientIds;
   }
@@ -86,13 +88,12 @@ async function resolveGoogleClientIds(): Promise<GoogleClientIds> {
     resolvedClientIds = ids;
     return ids;
   } catch {
-    // Hardcoded fallback when server is unreachable (e.g. stale IP in .env).
-    // web  = server-side / web OAuth client ID
-    // android = Android OAuth client ID (registered with SHA-1 in Google Cloud)
+    // Env-based fallback when server is unreachable.
+    // This avoids embedding OAuth credentials in source.
     resolvedClientIds = {
-      web: "335766515911-5corrme09mfaplitd0r9ra9k7m2nr76i.apps.googleusercontent.com",
-      ios: null,
-      android: "335766515911-59brg6j33qda5bg3lbbabj08oqshnq3a.apps.googleusercontent.com",
+      web: envWebId ?? null,
+      ios: envIosId,
+      android: envAndroidId,
     };
     return resolvedClientIds;
   }

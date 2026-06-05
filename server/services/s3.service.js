@@ -65,6 +65,7 @@ class S3Service {
     this.cloudfrontUrl = (envCloudfrontUrl && !envCloudfrontUrl.includes('your-') && !envCloudfrontUrl.includes('optional'))
       ? envCloudfrontUrl
       : null;
+    this.forceImageProxy = process.env.AWS_S3_FORCE_PROXY === 'true';
 
     // Use PUBLIC_API_BASE_URL only. Do NOT infer from GOOGLE_CALLBACK_URL —
     // it's often "http://localhost" which bakes broken absolute URLs into MongoDB.
@@ -78,7 +79,7 @@ class S3Service {
       .map((origin) => toOrigin(origin))
       .filter(Boolean);
 
-    logger.info(`📦 S3 Image URL base: ${this.cloudfrontUrl || this.bucketUrl}`);
+    logger.info(`📦 S3 Image URL base: ${this.cloudfrontUrl || (this.forceImageProxy ? 'API proxy' : this.bucketUrl)}`);
   }
 
   buildAbsoluteApiUrl(pathname) {
@@ -346,6 +347,12 @@ class S3Service {
 
   getImageUrl(key) {
     const safeKey = String(key || '').replace(/^\/+/, '');
+    if (this.cloudfrontUrl) {
+      return `${this.cloudfrontUrl.replace(/\/$/, '')}/${safeKey}`;
+    }
+    if (!this.forceImageProxy && this.bucketUrl) {
+      return `${this.bucketUrl.replace(/\/$/, '')}/${safeKey}`;
+    }
     return this.buildAbsoluteApiUrl(`/api/images/${safeKey}`);
   }
 
@@ -381,11 +388,7 @@ class S3Service {
     // Already a proxy URL
     if (trimmed.startsWith('/api/images/')) {
       const key = normalizeProxyKey(trimmed);
-      // If CDN is configured, rewrite proxy URLs to CDN URLs for direct delivery
-      if (this.cloudfrontUrl) {
-        return `${this.cloudfrontUrl.replace(/\/$/, '')}/${key}`;
-      }
-      return this.buildAbsoluteApiUrl(`/api/images/${key}`);
+      return this.getImageUrl(key);
     }
 
     // Legacy relative/static paths should point to backend origin in production
@@ -412,10 +415,7 @@ class S3Service {
         if (parsed.pathname.startsWith('/api/images/')) {
           const proxiedKey = normalizeProxyKey(parsed.pathname);
           if (!proxiedKey) return this.buildAbsoluteApiUrl('/api/images/');
-          if (this.cloudfrontUrl) {
-            return `${this.cloudfrontUrl.replace(/\/$/, '')}/${proxiedKey}`;
-          }
-          return this.buildAbsoluteApiUrl(`/api/images/${proxiedKey}`);
+          return this.getImageUrl(proxiedKey);
         }
 
         const origin = `${parsed.protocol}//${parsed.host}`;
@@ -646,6 +646,9 @@ class S3Service {
     if (imageUrl.startsWith('/api/images/')) {
       return imageUrl.replace('/api/images/', '');
     }
+
+    const directKey = this.extractKeyFromUrl(imageUrl);
+    if (directKey) return directKey;
 
     // Convert full URLs to proxy URL first, then extract key
     const proxyUrl = this.toProxyUrl(imageUrl);

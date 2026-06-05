@@ -15,6 +15,18 @@ const getSearchService = () => require('../../services/search.service');
 const getListingCache  = () => require('../../services/listingcache.service');
 const getNotifyService = () => require('../../services/notifyfollowers.service.js');
 const getRedis         = () => require('../../config/redis');
+const getResponseCache = () => require('../../services/memorycache.service').responseCache;
+
+const invalidateSellerListingsCache = async (userId) => {
+  if (!userId) return;
+
+  const prefix = `seller_listings:${userId}:`;
+  getResponseCache().delByPrefix(prefix);
+
+  const redis = getRedis();
+  const keys = await redis.keys(`${prefix}*`);
+  if (keys.length > 0) await redis.del(...keys);
+};
 
 const handleListingEvent = async (payload) => {
   const { type, entity, listing, oldListing, listingId, changes, userId } = payload;
@@ -33,8 +45,7 @@ const handleListingEvent = async (payload) => {
         ListingCache.invalidateListCaches(entity),
         SearchService.indexListing(entity, listing),
         userId ? NotifyService.notifyFollowersOfNewListing(userId, listing, entity) : null,
-        // Bust the seller's profile cache so listingsCount reflects immediately
-        userId ? getRedis().del(`profile:${userId}`).catch(() => {}) : null,
+        userId ? invalidateSellerListingsCache(userId) : null,
       ]);
       logger.info(`[ListingConsumer] Listing created processed`, { entity, id: listing?._id });
       break;
@@ -48,6 +59,7 @@ const handleListingEvent = async (payload) => {
         ListingCache.invalidateListCaches(entity),
         ListingCache.logProductEdited(entity, oldListing, listing),
         SearchService.indexListing(entity, listing),
+        userId ? invalidateSellerListingsCache(userId) : null,
       ]);
       logger.info(`[ListingConsumer] Listing updated processed`, { entity, id: listing?._id });
       break;
@@ -60,8 +72,7 @@ const handleListingEvent = async (payload) => {
         ListingCache.logProductDeleted(entity, listing),
         ListingCache.invalidateListingCache(entity, listingId),
         SearchService.removeListing(entity, listingId),
-        // Bust the seller's profile cache so listingsCount reflects immediately
-        userId ? getRedis().del(`profile:${userId}`).catch(() => {}) : null,
+        userId ? invalidateSellerListingsCache(userId) : null,
       ]);
       logger.info(`[ListingConsumer] Listing deleted processed`, { entity, listingId });
       break;

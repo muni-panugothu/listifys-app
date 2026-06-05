@@ -34,11 +34,11 @@ const createRateLimiter = ({ keyPrefix, windowSec, maxHits, message, keyFn, fail
         await redis.expire(key, windowSec);
       }
 
-      // Attach rate-limit headers for client awareness
-      const ttl = await redis.ttl(key);
+      // Avoid a second remote Redis request for a best-effort response header.
+      // Expiry is still set on the first hit and enforces the fixed window.
       res.setHeader('X-RateLimit-Limit', maxHits);
       res.setHeader('X-RateLimit-Remaining', Math.max(0, maxHits - current));
-      res.setHeader('X-RateLimit-Reset', Math.ceil(Date.now() / 1000) + (ttl > 0 ? ttl : windowSec));
+      res.setHeader('X-RateLimit-Reset', Math.ceil(Date.now() / 1000) + windowSec);
 
       if (current > maxHits) {
         logger.securityLog('rate_limit_exceeded', {
@@ -51,7 +51,7 @@ const createRateLimiter = ({ keyPrefix, windowSec, maxHits, message, keyFn, fail
         return res.status(429).json({
           success: false,
           message,
-          retryAfter: ttl > 0 ? ttl : windowSec,
+          retryAfter: windowSec,
           code: 'RATE_LIMITED',
         });
       }

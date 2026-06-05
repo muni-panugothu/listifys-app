@@ -29,10 +29,9 @@ class RedisRateLimitStore {
         await redis.expire(redisKey, Math.ceil(this.windowMs / 1000));
       }
 
-      const ttl = await redis.ttl(redisKey);
-      const resetTime = new Date(Date.now() + (ttl > 0 ? ttl * 1000 : this.windowMs));
-
-      return { totalHits, resetTime };
+      // Avoid a second Upstash REST round trip just to calculate a response
+      // header. The Redis expiry still enforces the fixed window.
+      return { totalHits, resetTime: new Date(Date.now() + this.windowMs) };
     } catch (err) {
       if (this.failClosed) {
         logger.error('RedisRateLimitStore increment error — failing closed:', err.message);

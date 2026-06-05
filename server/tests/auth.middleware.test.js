@@ -244,6 +244,31 @@ describe('🛡️ AUTH MIDDLEWARE TESTS', () => {
   });
 
   // ========== 6. REFRESH TOKEN MIDDLEWARE ==========
+  describe('Optional Auth', () => {
+    test('attaches the verified user id without querying MongoDB', async () => {
+      const token = generateTestAccessToken(mockUser._id);
+      req.headers = { authorization: `Bearer ${token}` };
+      req.cookies = {};
+
+      await authMiddleware.optionalAuth(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(req.user).toEqual({ _id: mockUser._id, id: mockUser._id });
+      expect(User.findById).not.toHaveBeenCalled();
+    });
+
+    test('continues anonymously when no token is present', async () => {
+      req.headers = {};
+      req.cookies = {};
+
+      await authMiddleware.optionalAuth(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(req.user).toBeNull();
+      expect(User.findById).not.toHaveBeenCalled();
+    });
+  });
+
   describe('6. Refresh Token', () => {
     test('TC-M12: Should reject refresh with missing refresh token', async () => {
       req.cookies = {};

@@ -57,6 +57,10 @@ let _isConnecting    = false;
 let _reconnectAttempt = 0;
 const MAX_RECONNECT_DELAY = 30_000; // 30s max backoff
 
+// ── CONSUMER REGISTRY — auto-re-registered on every reconnect ─────────────────
+// Each entry: { queueName, handler, maxRetries }
+const _registeredConsumers = [];
+
 // ── CORE: CONNECT ──────────────────────────────────────────────────────────────
 const connect = async () => {
   if (_isConnecting) return null;
@@ -102,8 +106,9 @@ const connect = async () => {
       _scheduleReconnect();
     });
     _consumeChannel.on('close', () => {
-      logger.warn('[RabbitMQ] Consumer channel closed');
+      logger.warn('[RabbitMQ] Consumer channel closed — scheduling reconnect to restore consumers');
       _consumeChannel = null;
+      _scheduleReconnect(); // ← was missing: consumers must be re-registered after reconnect
     });
 
     // ── Declare the Dead-Letter Exchange first
@@ -151,6 +156,11 @@ const connect = async () => {
     _isConnecting = false;
     _reconnectAttempt = 0; // Reset backoff on success
     logger.info('✅ [RabbitMQ] Connected — confirm channel + consumer channel ready');
+
+    // Re-register any consumers that were active before a disconnect
+    if (_registeredConsumers.length > 0) {
+      setImmediate(() => _reapplyConsumers());
+    }
 
     // ── Connection-level error handling
     _connection.on('error', (err) => {
@@ -356,19 +366,21 @@ const publishBatch = async (queueName, payloads, opts = {}) => {
   }
 };
 
-// ── CORE: CONSUME ─────────────────────────────────────────────────────────────
-/**
- * Register a consumer on a queue.
- * Automatically ACK on success, NACK with retry on failure.
- * After MAX_RETRIES, messages are sent to DLQ automatically.
- *
- * @param {string}   queueName  - queue to consume from
- * @param {Function} handler    - async (payload, msg) => void
- * @param {object}   [opts]
- * @param {number}   [opts.maxRetries=3]
- */
-const consume = async (queueName, handler, { maxRetries = 3 } = {}) => {
-  // Ensure connection + channels exist, then use the consumer channel
+// ── RE-APPLY CONSUMERS after reconnect ──────────────────────────────────────
+const _reapplyConsumers = async () => {
+  if (_registeredConsumers.length === 0) return;
+  logger.info(`[RabbitMQ] Re-registering ${_registeredConsumers.length} consumer(s) after reconnect`);
+  for (const { queueName, handler, maxRetries } of _registeredConsumers) {
+    try {
+      await _attachConsumer(queueName, handler, maxRetries);
+    } catch (err) {
+      logger.error(`[RabbitMQ] Failed to re-register consumer on ${queueName}`, { error: err.message });
+    }
+  }
+};
+
+// ── CORE: ATTACH CONSUMER (internal, no registry write) ──────────────────────
+const _attachConsumer = async (queueName, handler, maxRetries) => {
   if (!_consumeChannel) await connect();
   const ch = _consumeChannel;
   if (!ch) {
@@ -425,6 +437,27 @@ const consume = async (queueName, handler, { maxRetries = 3 } = {}) => {
   });
 
   logger.info(`[RabbitMQ] 👂 Consumer registered on ${queueName}`);
+};
+
+// ── CORE: CONSUME (public API) ────────────────────────────────────────────────
+/**
+ * Register a consumer on a queue.
+ * Saves the registration so it is automatically re-applied after a reconnect.
+ * Automatically ACK on success, NACK with retry on failure.
+ * After MAX_RETRIES, messages are sent to DLQ automatically.
+ *
+ * @param {string}   queueName  - queue to consume from
+ * @param {Function} handler    - async (payload, msg) => void
+ * @param {object}   [opts]
+ * @param {number}   [opts.maxRetries=3]
+ */
+const consume = async (queueName, handler, { maxRetries = 3 } = {}) => {
+  // Save registration for auto-reconnect re-registration
+  const existing = _registeredConsumers.find(c => c.queueName === queueName);
+  if (!existing) {
+    _registeredConsumers.push({ queueName, handler, maxRetries });
+  }
+  return _attachConsumer(queueName, handler, maxRetries);
 };
 
 // ── GRACEFUL SHUTDOWN ──────────────────────────────────────────────────────────

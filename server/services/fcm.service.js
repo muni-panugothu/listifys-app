@@ -16,6 +16,7 @@
  * (or FIREBASE_SERVICE_ACCOUNT_PATH) in .env.
  */
 const { logger } = require('../utils/logger');
+const path = require('path');
 
 let admin = null;
 let messaging = null;
@@ -35,7 +36,11 @@ function getAdmin() {
     let credential;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       // Load from JSON file
-      const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH.trim();
+      const resolvedPath = path.isAbsolute(configuredPath)
+        ? configuredPath
+        : path.resolve(__dirname, '..', configuredPath);
+      const serviceAccount = require(resolvedPath);
       credential = admin.credential.cert(serviceAccount);
     } else if (process.env.FIREBASE_PRIVATE_KEY) {
       // Load from individual env vars
