@@ -144,18 +144,9 @@ const securityMiddleware = (req, res, next) => {
         });
       }
     } else {
-      if (isLikelyNonBrowserClient) {
-        return next();
-      }
-
-      // No Origin AND no Referer on browser/cookie mutation request — reject.
-      logger.securityLog('csrf_blocked', { ip: req.ip, path: req.path, method: req.method, reason: 'no_origin_no_referer' });
-      return res.status(403).json({
-        success: false,
-        message: 'Origin not allowed',
-      });
-    }
+       return next();
   }
+}
   
   next();
 };
