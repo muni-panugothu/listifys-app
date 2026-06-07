@@ -105,13 +105,17 @@ export function MessagesInboxScreen() {
     if (!socket) return;
 
     const refresh = () => void loadConversations();
-    socket.on("message:new", refresh);
-    socket.on("conversation:updated", refresh);
+    socket.on("chat:message",              refresh);
+    socket.on("chat:conversation_update",  refresh);
+    socket.on("message:new",               refresh);
+    socket.on("conversation:unread_update", refresh);
     requestUnreadCount();
 
     return () => {
-      socket.off("message:new", refresh);
-      socket.off("conversation:updated", refresh);
+      socket.off("chat:message",              refresh);
+      socket.off("chat:conversation_update",  refresh);
+      socket.off("message:new",               refresh);
+      socket.off("conversation:unread_update", refresh);
     };
   }, [loadConversations]);
 
@@ -156,7 +160,8 @@ export function MessagesInboxScreen() {
         const preview = c.lastMessage?.content ?? "";
         return (
           other?.name?.toLowerCase().includes(q) ||
-          preview.toLowerCase().includes(q)
+          preview.toLowerCase().includes(q) ||
+          c.listing?.listingTitle?.toLowerCase().includes(q)
         );
       });
     }
@@ -180,12 +185,8 @@ export function MessagesInboxScreen() {
         pathname: "/chat-conversation",
         params: {
           conversationId: conv._id,
-          recipientId: otherId,
-          name: otherName,
-          listingTitle: conv.listing?.listingTitle ?? "",
-          listingPrice: String(conv.listing?.listingPrice ?? ""),
-          listingImage: conv.listing?.listingImage ?? "",
-          currency: conv.listing?.currency ?? "",
+          recipientId:    otherId,
+          name:           otherName,
         },
       } as Href);
     },
@@ -352,7 +353,7 @@ export function MessagesInboxScreen() {
                       ) : null}
                       {myUnread > 0 ? (
                         <View
-                          className="mt-1 min-h-[20px] min-w-[20px] items-center justify-center rounded-full px-1.5"
+                          className="mt-1 min-h-5 min-w-5 items-center justify-center rounded-full px-1.5"
                           style={{ backgroundColor: BRAND }}
                         >
                           <Text

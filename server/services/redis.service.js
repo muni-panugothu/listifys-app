@@ -83,7 +83,7 @@ static async storeOTP(email, otp) {
   try {
     const key = `otp:${email}`;
     const otpHash = this._otpHmac(otp);
-    await redis.setex(key, 300, otpHash);
+    await redis.setex(key, 600, otpHash);
     return true;
   } catch (error) {
     logger.error('Error storing OTP', { error: error.message });

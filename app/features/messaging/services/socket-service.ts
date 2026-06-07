@@ -65,7 +65,25 @@ export function leaveConversation(conversationId: string) {
   socket?.emit("conversation:leave", conversationId);
 }
 
-// ── Typing indicators ──
+// ── Product thread room ──
+export function joinThread(threadId: string) {
+  socket?.emit("thread:join", threadId);
+}
+
+export function leaveThread(threadId: string) {
+  socket?.emit("thread:leave", threadId);
+}
+
+// ── Thread-scoped typing indicators ──
+export function emitThreadTypingStart(conversationId: string, threadId: string) {
+  socket?.emit("thread:typing:start", { conversationId, threadId });
+}
+
+export function emitThreadTypingStop(conversationId: string, threadId: string) {
+  socket?.emit("thread:typing:stop", { conversationId, threadId });
+}
+
+// ── Typing indicators (conversation-level, kept for compat) ──
 export function emitTypingStart(conversationId: string) {
   socket?.emit("typing:start", { conversationId });
 }
@@ -77,6 +95,15 @@ export function emitTypingStop(conversationId: string) {
 // ── Message delivery ──
 export function emitMessageDelivered(messageId: string, conversationId: string) {
   socket?.emit("message:delivered", { messageId, conversationId });
+}
+
+// ── Message reactions ──
+export function emitReact(messageId: string, conversationId: string, emoji: string) {
+  socket?.emit("message:react", { messageId, conversationId, emoji });
+}
+
+export function emitUnreact(messageId: string, conversationId: string) {
+  socket?.emit("message:unreact", { messageId, conversationId });
 }
 
 // ── Unread count ──

@@ -2095,12 +2095,21 @@ exports.initiateForgotPassword = async (req, res) => {
       const expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
 
       if (now < expiresAt) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Password reset already in progress. Please check your email for OTP.",
-          expiresIn: Math.ceil((expiresAt - now) / 1000),
-        });
+        // A previous attempt is still within its window.
+        // Check whether the OTP was actually stored (i.e. email was sent).
+        // If the OTP is missing — e.g. because the queue-worker never fired —
+        // delete the stale entry and allow the user to try again immediately.
+        const otpExists = await RedisService.checkOTPExists(email);
+        if (otpExists) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Password reset already in progress. Please check your email for OTP.",
+            expiresIn: Math.ceil((expiresAt - now) / 1000),
+          });
+        }
+        // OTP is gone (expired or was never delivered) — clear the stale lock.
+        await RedisService.deletePendingPasswordReset(email);
       } else {
         await RedisService.deletePendingPasswordReset(email);
       }
@@ -2147,14 +2156,14 @@ exports.initiateForgotPassword = async (req, res) => {
     await RedisService.incrementRegistrationAttempts(email);
 
     try {
-      logger.info(`📤 Queuing password reset OTP email for: ${email}`);
-      const otpQueued = await publishOTPEmail({ email, username: user.name, otp, type: 'forgot_password' });
+      // Always send directly first — this guarantees delivery even when the
+      // queue worker is not running.  Queue is best-effort only.
+      logger.info(`📤 Sending password reset OTP email directly to: ${email}`);
+      await EmailService.sendForgotPasswordOTPEmail(email, user.name, otp);
+      logger.info(`✅ Password reset OTP email sent to ${email}`);
 
-      // Fallback: if queue unavailable, send directly
-      if (!otpQueued) {
-        await EmailService.sendForgotPasswordOTPEmail(email, user.name, otp);
-        logger.info(`✅ Password reset OTP sent directly (queue fallback) to ${email}`);
-      }
+      // Also enqueue (fire-and-forget) for audit / retry pipelines — ignore result.
+      publishOTPEmail({ email, username: user.name, otp, type: 'forgot_password' }).catch(() => {});
 
       publishAuditLog({
         action: 'forgot_password_otp_requested',
@@ -2365,17 +2374,17 @@ exports.resendForgotPasswordOTP = async (req, res) => {
     await RedisService.clearOTPBlock(email);
 
     try {
-      logger.info(`📤 Queuing resend password reset OTP for: ${email}`);
-      const otpQueued = await publishOTPEmail({ email, username: pendingData.username || email, otp, type: 'forgot_password' });
+      // Always send directly first — guarantees delivery regardless of queue status.
+      logger.info(`📤 Resending password reset OTP email directly to: ${email}`);
+      await EmailService.sendForgotPasswordOTPEmail(
+        email,
+        pendingData.username || email,
+        otp,
+      );
+      logger.info(`✅ Resent password reset OTP email to ${email}`);
 
-      if (!otpQueued) {
-        await EmailService.sendForgotPasswordOTPEmail(
-          email,
-          pendingData.username || email,
-          otp,
-        );
-        logger.info(`✅ Resent password reset OTP directly (queue fallback) to ${email}`);
-      }
+      // Also enqueue fire-and-forget — ignore result.
+      publishOTPEmail({ email, username: pendingData.username || email, otp, type: 'forgot_password' }).catch(() => {});
     } catch (emailError) {
       logger.error(
         "❌ Failed to resend password reset email:",

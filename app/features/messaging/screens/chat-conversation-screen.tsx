@@ -1,18 +1,35 @@
+﻿/**
+ * ChatConversationScreen — user-centric marketplace chat.
+ *
+ * Params (from router):
+ *   conversationId   — existing conversation (open from inbox)
+ *   recipientId      — open conversation with a user (from profile / listing)
+ *   name             — display name of the other user
+ *   productId        — product the user tapped "Chat" on
+ *   productType      — listing category
+ *   productTitle
+ *   productPrice
+ *   productImage
+ *   currency
+ *   sellerId         — who owns the listing (may differ from recipientId)
+ *
+ * Layout:
+ *   ┌─ Header (back, avatar, name, call buttons) ──────────────────┐
+ *   │  Thread selector tabs (iPhone 15 | MacBook Pro | …)          │
+ *   │  ── ProductThreadSection (banner) ────────────────────────── │
+ *   │  ── Messages (FlatList) ───────────────────────────────────── │
+ *   │  ── Offer card (if offerStatus !== none) ──────────────────── │
+ *   └─ Input bar (disabled when thread is closed) ─────────────────┘
+ */
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
+  useCallback, useEffect, useMemo, useRef, useState,
+} from "react";
+import {
+  ActivityIndicator, Dimensions, FlatList, Keyboard,
+  KeyboardAvoidingView, Platform, Pressable, ScrollView,
+  Text, TextInput, View, Modal, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,699 +37,738 @@ import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
 import {
-  getMessages,
-  getOrCreateConversation,
-  markConversationRead,
-  sendMessageApi,
-  type ChatMessage,
-  type Conversation,
+  getOrCreateConversation, listThreads, getThreadMessages,
+  sendMessageApi, markThreadRead, markConversationRead,
+  makeOffer, acceptOffer, declineOffer, closeThread,
+  type ProductThread, type ChatMessage, type Conversation,
 } from "@/features/messaging/services/chat-api";
+import { ProductThreadSection } from "@/features/messaging/components/product-thread-section";
+import { OfferCard } from "@/features/messaging/components/offer-card";
 import {
-  connectSocket,
-  emitMessageDelivered,
-  emitTypingStart,
-  emitTypingStop,
-  getSocket,
-  joinConversation,
-  leaveConversation,
-  requestLastSeen,
+  connectSocket, joinConversation, leaveConversation,
+  emitTypingStart, emitTypingStop, emitMessageDelivered, getSocket,
 } from "@/features/messaging/services/socket-service";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  incomingMessage, threadClosed, offerUpdated,
+  setActiveConversation, setActiveThread,
+  optimisticMessage, confirmMessage,
+} from "@/store/slices/messaging-slice";
 import { outgoingCallStarted } from "@/store/slices/call-slice";
 
-const BRAND = "#27BB97";
-const CHAT_BG = APP_SCREEN_BG;
-const BAR_BG = APP_SCREEN_BG;
-const INCOMING_BUBBLE = "#E8E8E8";
-const DATE_PILL = "#E5E5E5";
-const TEXT_MUTED = "#9CA3AF";
-const TEXT_DARK = "#1A1A1A";
+const BRAND         = "#27BB97";
+const CHAT_BG       = APP_SCREEN_BG;
+const BAR_BG        = APP_SCREEN_BG;
+const INCOMING_BG   = "#E8E8E8";
+const OFFER_BG      = "#EFF6FF";
+const SYSTEM_BG     = "#F3F4F6";
+const TEXT_MUTED    = "#9CA3AF";
+const TEXT_DARK     = "#1A1A1A";
 
 function formatTime(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return new Date(dateStr).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
-
 function formatDateHeader(dateStr: string) {
-  const d = new Date(dateStr);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (d.toDateString() === today.toDateString()) return "Today";
-  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return d.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const d    = new Date(dateStr);
+  const now  = new Date();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString())  return "Today";
+  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
-
-function dedup(msgs: ChatMessage[]): ChatMessage[] {
-  const seen = new Map<string, ChatMessage>();
-  for (const m of msgs) seen.set(m._id, m);
-  return Array.from(seen.values());
+function dedup(msgs: ChatMessage[]) {
+  const m = new Map<string, ChatMessage>();
+  for (const msg of msgs) m.set(msg._id, msg);
+  return Array.from(m.values());
 }
-
-/** Oldest first — matches API order (server already returns chronological). */
-function sortMessagesChronological(msgs: ChatMessage[]): ChatMessage[] {
-  return dedup(msgs).sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  );
+function sortChron(msgs: ChatMessage[]) {
+  return dedup(msgs).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
-
-function isFromMe(
-  item: ChatMessage,
-  userId: string | undefined,
-): boolean {
-  const senderId =
-    typeof item.sender === "string"
-      ? item.sender
-      : (item.sender as { id?: string; _id?: string })?.id ||
-        (item.sender as { id?: string; _id?: string })?._id;
-  return senderId === userId;
+function senderId(m: ChatMessage) {
+  return typeof m.sender === "string" ? m.sender : (m.sender as any)?.id ?? (m.sender as any)?._id ?? "";
 }
+function isFromMe(m: ChatMessage, uid?: string) { return senderId(m) === uid; }
 
 export function ChatConversationScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
-    conversationId?: string;
-    recipientId?: string;
-    name?: string;
-    listingId?: string;
-    listingType?: string;
-    listingTitle?: string;
-    listingPrice?: string;
-    listingImage?: string;
-    currency?: string;
+  const router  = useRouter();
+  const params  = useLocalSearchParams<{
+    conversationId?: string; recipientId?: string; name?: string;
+    productId?: string; productType?: string; productTitle?: string;
+    productPrice?: string; productImage?: string; currency?: string;
+    sellerId?: string;
   }>();
-  const insets = useSafeAreaInsets();
-  const user = useAppSelector((s) => s.auth.user);
-
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [messageText, setMessageText] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [typingUser, setTypingUser] = useState<string | null>(null);
-  const [isOnline, setIsOnline] = useState(false);
-
+  const insets  = useSafeAreaInsets();
+  const user    = useAppSelector((s) => s.auth.user);
   const dispatch = useAppDispatch();
 
-  const flatListRef = useRef<FlatList>(null);
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Core state ─────────────────────────────────────────────────────────────
+  const [conversation, setConversation]  = useState<Conversation | null>(null);
+  const [threads,      setThreads]       = useState<ProductThread[]>([]);
+  const [activeThread, setActiveThreadSt] = useState<ProductThread | null>(null);
+  const [messages,     setMessages]      = useState<ChatMessage[]>([]);
+  const [loading,      setLoading]       = useState(true);
 
-  const contactName =
-    typeof params.name === "string"
-      ? params.name
-      : params.name?.[0] ?? "Alex Thompson";
+  const [messageText, setMessageText]    = useState("");
+  const [sending,     setSending]        = useState(false);
+  const [isTyping,    setIsTyping]       = useState(false);
+  const [typingUser,  setTypingUser]     = useState<string | null>(null);
 
-  const footerPadding = Math.max(insets.bottom, 10);
-  const canSend = messageText.trim().length > 0;
-  const [androidKeyboardPad, setAndroidKeyboardPad] = useState(0);
+  const [offerInput,  setOfferInput]     = useState("");
+  const [offerModal,  setOfferModal]     = useState(false);
 
+  const flatRef    = useRef<FlatList>(null);
+  const typingRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const footerPad  = Math.max(insets.bottom, 10);
+  const canSend    = messageText.trim().length > 0 && !!activeThread && activeThread.status === "active";
+  const isSeller   = activeThread ? String((activeThread.seller as any)?.id ?? activeThread.seller) === user?.id : false;
+
+  const [androidKbPad, setAndroidKbPad] = useState(0);
+
+  // ── Keyboard ───────────────────────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
   }, []);
 
   useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const showSub = Keyboard.addListener(showEvent, scrollToBottom);
-    return () => showSub.remove();
+    const sub = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", scrollToBottom);
+    return () => sub.remove();
   }, [scrollToBottom]);
 
-  /** Android: sit flush on keyboard without double-counting window resize. */
   useEffect(() => {
     if (Platform.OS !== "android") return;
-
-    const showSub = Keyboard.addListener("keyboardDidShow", (event) => {
-      const windowHeight = Dimensions.get("window").height;
-      const gap = Math.max(0, windowHeight - event.endCoordinates.screenY);
-      setAndroidKeyboardPad(gap);
+    const show = Keyboard.addListener("keyboardDidShow", (e) => {
+      setAndroidKbPad(Math.max(0, Dimensions.get("window").height - e.endCoordinates.screenY));
       scrollToBottom();
     });
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-      setAndroidKeyboardPad(0);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    const hide = Keyboard.addListener("keyboardDidHide", () => setAndroidKbPad(0));
+    return () => { show.remove(); hide.remove(); };
   }, [scrollToBottom]);
 
-  const inputBottomPadding =
-    Platform.OS === "android"
-      ? androidKeyboardPad > 0
-        ? androidKeyboardPad
-        : footerPadding
-      : footerPadding;
-
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        if (params.conversationId) {
-          const res = await getMessages(params.conversationId);
-          if (res.messages) {
-            setMessages(sortMessagesChronological(res.messages));
-          }
-          setConversation({ _id: params.conversationId } as Conversation);
-          markConversationRead(params.conversationId).catch(() => {});
-        } else if (params.recipientId) {
+        // 1. Get or create conversation
+        let convId = params.conversationId;
+        let bootstrapThread: ProductThread | null = null;
+
+        if (!convId && params.recipientId) {
           const res = await getOrCreateConversation({
-            recipientId: params.recipientId,
-            listingId: params.listingId,
-            listingType: params.listingType,
-            listingTitle: params.listingTitle,
-            listingPrice:
-              typeof params.listingPrice === "string" && params.listingPrice
-                ? Number(params.listingPrice)
-                : undefined,
-            listingImage:
-              typeof params.listingImage === "string"
-                ? params.listingImage
-                : undefined,
-            currency:
-              typeof params.currency === "string" ? params.currency : undefined,
+            recipientId:   params.recipientId,
+            productId:     params.productId,
+            productType:   params.productType,
+            productTitle:  params.productTitle,
+            productPrice:  params.productPrice ? Number(params.productPrice) : undefined,
+            productImage:  params.productImage,
+            currency:      params.currency,
           });
-          if (res.conversation) {
-            setConversation(res.conversation);
-            const msgRes = await getMessages(res.conversation._id);
-            if (msgRes.messages) {
-              setMessages(sortMessagesChronological(msgRes.messages));
-            }
-            markConversationRead(res.conversation._id).catch(() => {});
-          }
+          if (cancelled) return;
+          convId           = res.conversation._id;
+          bootstrapThread  = res.thread;
+          setConversation(res.conversation);
         }
-      } catch {
-        // keep empty
+
+        if (!convId) return;
+
+        // 2. Load all threads
+        const threadsRes = await listThreads(convId, "all");
+        if (cancelled) return;
+        const allThreads = threadsRes.threads;
+        setThreads(allThreads);
+        dispatch(setActiveConversation(convId));
+
+        // 3. Determine which thread to open
+        let initialThread: ProductThread | null = null;
+        if (bootstrapThread) {
+          initialThread = bootstrapThread;
+        } else if (params.productId) {
+          initialThread = allThreads.find((t) => String(t.product.productId) === params.productId) ?? allThreads[0] ?? null;
+        } else {
+          // Open most-recently-active thread
+          initialThread = allThreads.sort(
+            (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+          )[0] ?? null;
+        }
+
+        if (initialThread) {
+          await openThread(initialThread, convId, false);
+        }
+
+        // 4. Socket
+        connectSocket();
+        joinConversation(convId);
+      } catch (e) {
+        console.warn("[Chat] Bootstrap error", e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [
-    params.conversationId,
-    params.recipientId,
-    params.listingId,
-    params.listingType,
-    params.listingTitle,
-    params.listingPrice,
-    params.listingImage,
-    params.currency,
-  ]);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const displayMessages = useMemo(
-    () => sortMessagesChronological(messages),
-    [messages],
-  );
-
-  useEffect(() => {
-    const convId = conversation?._id;
-    if (!convId) return;
-
+  // ── Open a thread (load its messages) ─────────────────────────────────────
+  const openThread = useCallback(async (thread: ProductThread, convId?: string, animate = true) => {
+    setActiveThreadSt(thread);
+    dispatch(setActiveThread(thread._id));
     try {
-      connectSocket();
-    } catch {
-      return;
-    }
+      const res = await getThreadMessages(thread._id, 1, 50);
+      setMessages(sortChron(res.messages));
+      if (animate) scrollToBottom();
+      markThreadRead(thread._id).catch(() => {});
+    } catch {}
+  }, [dispatch, scrollToBottom]);
+
+  // ── Socket events ──────────────────────────────────────────────────────────
+  useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
 
-    joinConversation(convId);
-
-    if (params.recipientId) {
-      requestLastSeen(params.recipientId);
-    }
-
-    const handleNewMessage = (data: {
-      conversationId?: string;
-      conversation?: string;
-      _id?: string;
-      messageId?: string;
-      sender?: string;
-      content?: string;
-      attachments?: ChatMessage["attachments"];
-      createdAt?: string;
-    }) => {
-      if (data.conversationId === convId || data.conversation === convId) {
-        const newMsg: ChatMessage = {
-          _id: data._id || data.messageId || `msg-${Date.now()}`,
-          conversation: convId,
-          sender: data.sender ?? "",
-          content: data.content || "",
-          attachments: data.attachments,
-          status: "delivered",
-          createdAt: data.createdAt || new Date().toISOString(),
-        };
-
-        setMessages((prev) => sortMessagesChronological([...prev, newMsg]));
-
-        if (typeof data.sender === "string" && data.sender !== user?.id) {
-          emitMessageDelivered(newMsg._id, convId);
-          markConversationRead(convId).catch(() => {});
-        }
+    const onMsg = (data: ChatMessage & { threadId?: string }) => {
+      if (!conversation) return;
+      if (data.productThread === activeThread?._id || data.threadId === activeThread?._id) {
+        setMessages((prev) => {
+          const all = dedup([...prev, data]);
+          return sortChron(all);
+        });
+        scrollToBottom();
+        emitMessageDelivered(data._id, conversation._id);
       }
+      dispatch(incomingMessage({ threadId: data.threadId ?? data.productThread ?? "", message: data, conversationId: conversation._id }));
     };
 
-    const handleTypingStart = (data: { conversationId?: string; userId?: string; userName?: string }) => {
-      if (data.conversationId === convId && data.userId !== user?.id) {
-        setTypingUser(data.userName || "");
+    const onTypingStart = (d: { threadId?: string; userId: string; userName: string }) => {
+      if (d.threadId === activeThread?._id || !d.threadId) {
+        setTypingUser(d.userName);
+        setIsTyping(true);
       }
     };
-
-    const handleTypingStop = (data: { conversationId?: string; userId?: string }) => {
-      if (data.conversationId === convId && data.userId !== user?.id) {
+    const onTypingStop = (d: { threadId?: string }) => {
+      if (d.threadId === activeThread?._id || !d.threadId) {
+        setIsTyping(false);
         setTypingUser(null);
       }
     };
-
-    const handleUserOnline = (data: { userId?: string }) => {
-      if (data.userId === params.recipientId) setIsOnline(true);
-    };
-
-    const handleUserOffline = (data: { userId?: string }) => {
-      if (data.userId === params.recipientId) setIsOnline(false);
-    };
-
-    const handleLastSeen = (data: { userId?: string; isOnline?: boolean }) => {
-      if (data.userId === params.recipientId) {
-        setIsOnline(Boolean(data.isOnline));
+    const onThreadClosed = (d: { threadId: string; status: string; closedReason: string }) => {
+      setThreads((prev) => prev.map((t) => t._id === d.threadId ? { ...t, status: d.status as any, closedReason: d.closedReason } : t));
+      if (activeThread?._id === d.threadId) {
+        setActiveThreadSt((prev) => prev ? { ...prev, status: d.status as any, closedReason: d.closedReason } : prev);
       }
+      dispatch(threadClosed({ threadId: d.threadId, conversationId: conversation?._id ?? "", status: d.status, closedReason: d.closedReason }));
     };
-
-    const handleMessageStatus = (data: {
-      conversationId?: string;
-      messageId?: string;
-      status?: ChatMessage["status"];
-    }) => {
-      if (data.conversationId === convId && data.messageId) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m._id === data.messageId ? { ...m, status: data.status ?? m.status } : m,
-          ),
-        );
+    const onOfferUpdate = (d: { threadId: string; message: ChatMessage; offerStatus: string; accepted: boolean }) => {
+      if (d.threadId === activeThread?._id) {
+        setMessages((prev) => {
+          const all = dedup([...prev, d.message]);
+          return sortChron(all);
+        });
+        setActiveThreadSt((prev) => prev ? { ...prev, offerStatus: d.offerStatus as any } : prev);
+        scrollToBottom();
       }
+      dispatch(offerUpdated({ threadId: d.threadId, conversationId: conversation?._id ?? "", offerStatus: d.offerStatus, accepted: d.accepted, message: d.message }));
     };
 
-    const handleMessagesRead = (data: { conversationId?: string }) => {
-      if (data.conversationId === convId) {
-        setMessages((prev) => prev.map((m) => ({ ...m, status: "read" })));
-      }
-    };
-
-    socket.on("message:new", handleNewMessage);
-    socket.on("typing:start", handleTypingStart);
-    socket.on("typing:stop", handleTypingStop);
-    socket.on("user:online", handleUserOnline);
-    socket.on("user:offline", handleUserOffline);
-    socket.on("user:lastSeen", handleLastSeen);
-    socket.on("message:status", handleMessageStatus);
-    socket.on("messages:read", handleMessagesRead);
+    socket.on("chat:message",      onMsg);
+    socket.on("chat:offer",        (d) => { onOfferUpdate({ ...d, accepted: false }); });
+    socket.on("chat:offer_update", onOfferUpdate);
+    socket.on("thread:closed",     onThreadClosed);
+    socket.on("thread:typing:start", onTypingStart);
+    socket.on("thread:typing:stop",  onTypingStop);
+    socket.on("typing:start",      onTypingStart);
+    socket.on("typing:stop",       onTypingStop);
 
     return () => {
-      leaveConversation(convId);
-      socket.off("message:new", handleNewMessage);
-      socket.off("typing:start", handleTypingStart);
-      socket.off("typing:stop", handleTypingStop);
-      socket.off("user:online", handleUserOnline);
-      socket.off("user:offline", handleUserOffline);
-      socket.off("user:lastSeen", handleLastSeen);
-      socket.off("message:status", handleMessageStatus);
-      socket.off("messages:read", handleMessagesRead);
+      socket.off("chat:message",      onMsg);
+      socket.off("chat:offer",        onOfferUpdate as any);
+      socket.off("chat:offer_update", onOfferUpdate);
+      socket.off("thread:closed",     onThreadClosed);
+      socket.off("thread:typing:start", onTypingStart);
+      socket.off("thread:typing:stop",  onTypingStop);
+      socket.off("typing:start",      onTypingStart);
+      socket.off("typing:stop",       onTypingStop);
     };
-  }, [conversation?._id, user?.id, params.recipientId]);
+  }, [conversation, activeThread, dispatch, scrollToBottom]);
 
-  const handleTextChange = useCallback(
-    (text: string) => {
-      setMessageText(text);
-      const convId = conversation?._id;
-      if (!convId) return;
-
-      if (!isTyping) {
-        setIsTyping(true);
-        emitTypingStart(convId);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (conversation) {
+        leaveConversation(conversation._id);
+        markConversationRead(conversation._id).catch(() => {});
       }
-
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        setIsTyping(false);
-        emitTypingStop(convId);
-      }, 2000);
-    },
-    [conversation?._id, isTyping],
-  );
-
-  const handleSend = useCallback(async () => {
-    const text = messageText.trim();
-    if (!text || sending) return;
-
-    setSending(true);
-    setMessageText("");
-
-    if (isTyping && conversation?._id) {
-      setIsTyping(false);
-      emitTypingStop(conversation._id);
-    }
-
-    if (!conversation?._id) {
-      setSending(false);
-      return;
-    }
-
-    const tempId = `temp_${Date.now()}`;
-    const optimisticMsg: ChatMessage = {
-      _id: tempId,
-      conversation: conversation._id,
-      sender: user?.id ?? "",
-      content: text,
-      status: "sent",
-      createdAt: new Date().toISOString(),
+      dispatch(setActiveConversation(null));
+      dispatch(setActiveThread(null));
     };
-    setMessages((prev) => [...prev, optimisticMsg]);
+  }, [conversation, dispatch]);
+
+  // ── Send message ───────────────────────────────────────────────────────────
+  const handleSend = useCallback(async () => {
+    if (!canSend || !activeThread || !conversation) return;
+    const text = messageText.trim();
+    setMessageText("");
+    setSending(true);
+
+    const tempId  = `temp-${Date.now()}`;
+    const tempMsg: ChatMessage = {
+      _id: tempId, conversation: conversation._id, productThread: activeThread._id,
+      sender: user?.id ?? "", content: text, messageType: "text",
+      status: "sent", createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => sortChron([...prev, tempMsg]));
+    scrollToBottom();
 
     try {
-      const res = await sendMessageApi(conversation._id, text);
-      if (res.message) {
-        setMessages((prev) =>
-          prev.map((m) => (m._id === tempId ? { ...res.message, status: "sent" } : m)),
-        );
-      }
+      const res = await sendMessageApi(conversation._id, { content: text, threadId: activeThread._id });
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m._id !== tempId);
+        return sortChron([...filtered, res.message]);
+      });
     } catch {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      setMessageText(text);
     } finally {
       setSending(false);
     }
-  }, [conversation?._id, isTyping, messageText, sending, user?.id]);
+  }, [canSend, activeThread, conversation, messageText, user, scrollToBottom]);
 
-  useEffect(() => {
-    if (displayMessages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+  // ── Typing ─────────────────────────────────────────────────────────────────
+  const handleTextChange = useCallback((t: string) => {
+    setMessageText(t);
+    if (!conversation || !activeThread) return;
+    emitTypingStart(conversation._id);
+    if (typingRef.current) clearTimeout(typingRef.current);
+    typingRef.current = setTimeout(() => {
+      emitTypingStop(conversation._id);
+    }, 2000);
+  }, [conversation, activeThread]);
+
+  // ── Offer actions ──────────────────────────────────────────────────────────
+  const handleMakeOffer = useCallback(async () => {
+    if (!activeThread || !conversation) return;
+    const amount = parseFloat(offerInput.replace(/[^\d.]/g, ""));
+    if (!amount || amount <= 0) { Alert.alert("Invalid Amount", "Enter a valid offer amount."); return; }
+    setOfferModal(false);
+    try {
+      const res = await makeOffer(activeThread._id, amount);
+      setMessages((prev) => sortChron([...prev, res.message]));
+      setActiveThreadSt(res.thread);
+      scrollToBottom();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to make offer");
     }
-  }, [displayMessages.length]);
+  }, [activeThread, conversation, offerInput, scrollToBottom]);
 
-  const otherAvatar = useMemo(() => {
-    if (!conversation?.participants) return null;
-    const other = conversation.participants.find((p) => {
-      const pid = p.id || p._id;
-      return pid !== user?.id;
-    });
-    return resolveAbsoluteMediaUrl(other?.profileImageUrl);
-  }, [conversation?.participants, user?.id]);
-
-  const handlePhoneCall = useCallback(() => {
-    // Open native phone dialer with the other participant's phone number
-    const other = conversation?.participants?.find((p) => {
-      const pid = p.id || p._id;
-      return pid !== user?.id;
-    });
-    const phone = (other as { phone?: string } | undefined)?.phone;
-    if (phone) {
-      Linking.openURL(`tel:${phone}`);
+  const handleAcceptOffer = useCallback(async (threadId: string) => {
+    try {
+      const res = await acceptOffer(threadId);
+      setMessages((prev) => sortChron([...prev, res.message]));
+      setActiveThreadSt(res.thread);
+      setThreads((prev) => prev.map((t) => t._id === threadId ? res.thread : t));
+      scrollToBottom();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to accept offer");
     }
-  }, [conversation?.participants, user?.id]);
+  }, [scrollToBottom]);
 
-  const handleAudioCall = useCallback(() => {
-    const recipientId = typeof params.recipientId === 'string' ? params.recipientId : params.recipientId?.[0];
-    if (!recipientId || !user?.id) return;
-    const callId = `${user.id}-${recipientId}-${Date.now()}`;
-    dispatch(outgoingCallStarted({
-      callId,
-      remoteUserId: recipientId,
-      remoteUserName: contactName,
-      remoteUserPhoto: otherAvatar ?? '',
-      callType: 'audio',
-    }));
-    router.push('/outgoing-call' as never);
-  }, [params.recipientId, user?.id, contactName, otherAvatar, dispatch, router]);
+  const handleDeclineOffer = useCallback(async (threadId: string) => {
+    try {
+      const res = await declineOffer(threadId);
+      setMessages((prev) => sortChron([...prev, res.message]));
+      setActiveThreadSt(res.thread);
+      setThreads((prev) => prev.map((t) => t._id === threadId ? res.thread : t));
+      scrollToBottom();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to decline offer");
+    }
+  }, [scrollToBottom]);
 
-  const handleVideoCall = useCallback(() => {
-    const recipientId = typeof params.recipientId === 'string' ? params.recipientId : params.recipientId?.[0];
-    if (!recipientId || !user?.id) return;
-    const callId = `${user.id}-${recipientId}-${Date.now()}`;
-    dispatch(outgoingCallStarted({
-      callId,
-      remoteUserId: recipientId,
-      remoteUserName: contactName,
-      remoteUserPhoto: otherAvatar ?? '',
-      callType: 'video',
-    }));
-    router.push('/outgoing-call' as never);
-  }, [params.recipientId, user?.id, contactName, otherAvatar, dispatch, router]);
+  // ── Render message item ────────────────────────────────────────────────────
+  const renderMessage = useCallback(({ item: msg, index }: { item: ChatMessage; index: number }) => {
+    const fromMe = isFromMe(msg, user?.id);
+    const showDate =
+      index === 0 ||
+      formatDateHeader(messages[index - 1]?.createdAt ?? "") !== formatDateHeader(msg.createdAt);
 
-  const statusLabel = typingUser
-    ? "typing..."
-    : isOnline
-      ? "Online"
-      : "Offline";
-
-  const renderItem = useCallback(
-    ({ item, index }: { item: ChatMessage; index: number }) => {
-      const fromMe = isFromMe(item, user?.id);
-      const prevMsg = index > 0 ? displayMessages[index - 1] : null;
-      const showDateHeader =
-        !prevMsg ||
-        formatDateHeader(item.createdAt) !== formatDateHeader(prevMsg.createdAt);
-
+    if (msg.messageType === "system") {
       return (
-        <View>
-          {showDateHeader ? (
-            <View className="my-5 items-center">
-              <View
-                className="rounded-full px-4 py-1.5"
-                style={{ backgroundColor: DATE_PILL }}
-              >
-                <Text
-                  className="text-[13px] text-[#6B7280]"
-                  style={{ fontFamily: ListifyFonts.medium }}
-                >
-                  {formatDateHeader(item.createdAt)}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          <View
-            style={{
-              alignSelf: fromMe ? "flex-end" : "flex-start",
-              maxWidth: "78%",
-              marginBottom: 6,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: fromMe ? BRAND : INCOMING_BUBBLE,
-                borderRadius: 20,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: ListifyFonts.regular,
-                  fontSize: 15,
-                  lineHeight: 21,
-                  color: fromMe ? "#FFFFFF" : TEXT_DARK,
-                }}
-              >
-                {item.content}
+        <>
+          {showDate && (
+            <View style={{ alignItems: "center", marginVertical: 8 }}>
+              <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: TEXT_MUTED, backgroundColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 }}>
+                {formatDateHeader(msg.createdAt)}
               </Text>
             </View>
-            <Text
-              style={{
-                marginTop: 4,
-                marginLeft: fromMe ? 0 : 4,
-                marginRight: fromMe ? 4 : 0,
-                alignSelf: fromMe ? "flex-end" : "flex-start",
-                fontFamily: ListifyFonts.regular,
-                fontSize: 12,
-                color: TEXT_MUTED,
-              }}
-            >
-              {formatTime(item.createdAt)}
+          )}
+          <View style={{ alignItems: "center", marginVertical: 6 }}>
+            <View style={{ backgroundColor: SYSTEM_BG, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6 }}>
+              <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 12, color: "#6B7280", textAlign: "center" }}>
+                {msg.content}
+              </Text>
+            </View>
+          </View>
+        </>
+      );
+    }
+
+    if (msg.messageType === "offer" && activeThread) {
+      return (
+        <>
+          {showDate && (
+            <View style={{ alignItems: "center", marginVertical: 8 }}>
+              <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: TEXT_MUTED, backgroundColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 }}>
+                {formatDateHeader(msg.createdAt)}
+              </Text>
+            </View>
+          )}
+          <View style={{ alignItems: fromMe ? "flex-end" : "flex-start", marginHorizontal: 12, marginVertical: 4 }}>
+            <OfferCard
+              message={msg}
+              thread={activeThread}
+              isSeller={isSeller}
+              onAccept={() => handleAcceptOffer(activeThread._id)}
+              onDecline={() => handleDeclineOffer(activeThread._id)}
+            />
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 10, color: TEXT_MUTED, marginTop: 2 }}>
+              {formatTime(msg.createdAt)}
             </Text>
           </View>
-        </View>
+        </>
       );
-    },
-    [displayMessages, user?.id],
-  );
+    }
+
+    return (
+      <>
+        {showDate && (
+          <View style={{ alignItems: "center", marginVertical: 8 }}>
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: TEXT_MUTED, backgroundColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 }}>
+              {formatDateHeader(msg.createdAt)}
+            </Text>
+          </View>
+        )}
+        <View
+          style={{
+            alignItems: fromMe ? "flex-end" : "flex-start",
+            marginHorizontal: 12,
+            marginVertical: 2,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: fromMe ? BRAND : INCOMING_BG,
+              borderRadius: 16,
+              borderBottomRightRadius: fromMe ? 4 : 16,
+              borderBottomLeftRadius:  fromMe ? 16 : 4,
+              paddingHorizontal: 12,
+              paddingVertical:    8,
+              maxWidth: "78%",
+            }}
+          >
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: fromMe ? "#fff" : TEXT_DARK, lineHeight: 20 }}>
+              {msg.deletedForEveryone ? (
+                <Text style={{ fontStyle: "italic", color: fromMe ? "rgba(255,255,255,0.7)" : TEXT_MUTED }}>This message was deleted</Text>
+              ) : msg.content}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 4 }}>
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 10, color: TEXT_MUTED }}>
+              {formatTime(msg.createdAt)}
+            </Text>
+            {fromMe && (
+              <Text style={{ fontSize: 10, color: msg.status === "read" ? BRAND : TEXT_MUTED }}>
+                {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : "✓"}
+              </Text>
+            )}
+          </View>
+        </View>
+      </>
+    );
+  }, [messages, user, activeThread, isSeller, handleAcceptOffer, handleDeclineOffer]);
+
+  const isClosed = activeThread?.status !== "active";
+
+  // ── Contact name ───────────────────────────────────────────────────────────
+  const contactName = useMemo(() => {
+    if (typeof params.name === "string") return params.name;
+    if (!conversation) return "Chat";
+    const other = conversation.participants.find((p) => p.id !== user?.id);
+    return other?.name ?? "Chat";
+  }, [params.name, conversation, user]);
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center" style={{ backgroundColor: CHAT_BG }}>
-        <ActivityIndicator size="large" color={BRAND} />
+      <View style={{ flex: 1, backgroundColor: CHAT_BG, alignItems: "center", justifyContent: "center", paddingTop: insets.top }}>
+        <ActivityIndicator color={BRAND} />
       </View>
     );
   }
 
+  const inputBottomPad = Platform.OS === "android"
+    ? androidKbPad > 0 ? androidKbPad : footerPad
+    : footerPad;
+
   return (
-    <View className="flex-1" style={{ backgroundColor: CHAT_BG }}>
-      {/* Header — reference style */}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: CHAT_BG }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 0}
+    >
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View
         style={{
-          paddingTop: insets.top,
+          paddingTop: insets.top + 8,
+          paddingBottom: 10,
+          paddingHorizontal: 16,
           backgroundColor: BAR_BG,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
           borderBottomWidth: 1,
-          borderBottomColor: "#EBEBEB",
+          borderBottomColor: "#E5E7EB",
         }}
       >
-        <View className="h-[60px] flex-row items-center px-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            className="h-10 w-10 items-center justify-center"
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <MaterialIcons name="arrow-back-ios" size={20} color={TEXT_DARK} />
-          </Pressable>
-
-          {otherAvatar ? (
-            <Image
-              source={otherAvatar}
-              contentFit="cover"
-              className="ml-1 h-11 w-11 rounded-full"
-            />
-          ) : (
-            <View className="ml-1 h-11 w-11 items-center justify-center rounded-full bg-[#D1D5DB]">
-              <MaterialIcons name="person" size={22} color="#6B7280" />
-            </View>
-          )}
-
-          <View className="ml-3 flex-1">
-            <Text
-              className="text-[17px] text-[#1A1A1A]"
-              style={{ fontFamily: ListifyFonts.semiBold }}
-              numberOfLines={1}
-            >
-              {contactName}
-            </Text>
-            <Text
-              className="text-[13px]"
-              style={{
-                fontFamily: ListifyFonts.regular,
-                color: typingUser ? BRAND : isOnline ? "#22C55E" : TEXT_MUTED,
-              }}
-            >
-              {statusLabel}
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={handlePhoneCall}
-            hitSlop={12}
-            className="h-10 w-10 items-center justify-center"
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <MaterialIcons name="call" size={24} color={TEXT_DARK} />
-          </Pressable>
-          <Pressable
-            onPress={handleVideoCall}
-            hitSlop={12}
-            className="h-10 w-10 items-center justify-center"
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <MaterialIcons name="videocam" size={24} color={TEXT_DARK} />
-          </Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <MaterialIcons name="arrow-back" size={24} color={TEXT_DARK} />
+        </Pressable>
+        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: BRAND + "22", alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 16, color: BRAND }}>
+            {contactName.charAt(0).toUpperCase()}
+          </Text>
         </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 15, color: TEXT_DARK }} numberOfLines={1}>{contactName}</Text>
+          {isTyping && typingUser && (
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: BRAND }}>typing…</Text>
+          )}
+        </View>
+        <Pressable
+          onPress={() => {
+            if (!conversation) return;
+            const other = conversation.participants.find((p) => p.id !== user?.id);
+            if (other) dispatch(outgoingCallStarted({ remoteUserId: other.id, remoteUserName: other.name, callType: "audio" }));
+          }}
+          hitSlop={10}
+          style={{ padding: 6 }}
+        >
+          <MaterialIcons name="call" size={22} color={BRAND} />
+        </Pressable>
       </View>
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        enabled={Platform.OS === "ios"}
-        keyboardVerticalOffset={0}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={displayMessages}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingTop: 8,
-            paddingBottom: 12,
-            flexGrow: 1,
-          }}
-          style={{ flex: 1, backgroundColor: CHAT_BG }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: false })
-          }
-        />
+      {/* ── Thread tabs ────────────────────────────────────────────────────── */}
+      {threads.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ maxHeight: 44, backgroundColor: BAR_BG, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" }}
+          contentContainerStyle={{ paddingHorizontal: 12, alignItems: "center", gap: 8 }}
+        >
+          {threads.map((t) => {
+            const isActive = t._id === activeThread?._id;
+            const isSold   = t.status !== "active";
+            return (
+              <Pressable
+                key={t._id}
+                onPress={() => openThread(t, conversation?._id)}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical:   6,
+                  borderRadius:      20,
+                  backgroundColor:   isActive ? BRAND : "#F3F4F6",
+                  borderWidth:       1,
+                  borderColor:       isActive ? BRAND : "#E5E7EB",
+                  flexDirection:     "row",
+                  alignItems:        "center",
+                  gap:               4,
+                }}
+              >
+                {isSold && <Text style={{ fontSize: 10 }}>🔒</Text>}
+                <Text
+                  style={{
+                    fontFamily: ListifyFonts.semibold,
+                    fontSize:   12,
+                    color:      isActive ? "#fff" : isSold ? "#9CA3AF" : TEXT_DARK,
+                  }}
+                  numberOfLines={1}
+                >
+                  {t.product?.title?.slice(0, 18) ?? "Product"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
+      {/* ── Thread section banner ───────────────────────────────────────────── */}
+      {activeThread && (
+        <ProductThreadSection
+          thread={activeThread}
+          isExpanded={true}
+          onToggle={() => {}}
+        />
+      )}
+
+      {/* ── Messages ────────────────────────────────────────────────────────── */}
+      <FlatList
+        ref={flatRef}
+        data={messages}
+        keyExtractor={(m) => m._id}
+        renderItem={renderMessage}
+        contentContainerStyle={{ paddingVertical: 12, paddingBottom: 4 }}
+        onContentSizeChange={scrollToBottom}
+        ListEmptyComponent={
+          <View style={{ alignItems: "center", paddingTop: 40 }}>
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: TEXT_MUTED }}>
+              {activeThread ? "Send the first message!" : "Select a product thread above"}
+            </Text>
+          </View>
+        }
+        ListFooterComponent={
+          isTyping ? (
+            <View style={{ alignItems: "flex-start", marginHorizontal: 12, marginBottom: 6 }}>
+              <View style={{ backgroundColor: INCOMING_BG, borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 8 }}>
+                <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: TEXT_MUTED, letterSpacing: 4 }}>•••</Text>
+              </View>
+            </View>
+          ) : null
+        }
+      />
+
+      {/* ── Closed banner ───────────────────────────────────────────────────── */}
+      {isClosed && (
+        <View style={{ backgroundColor: "#FEF2F2", paddingVertical: 10, paddingHorizontal: 16, alignItems: "center" }}>
+          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 13, color: "#EF4444" }}>
+            🔒 Conversation Closed{activeThread?.closedReason === "sold" ? " — Product Sold" : ""}
+          </Text>
+          <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+            Message history is preserved
+          </Text>
+        </View>
+      )}
+
+      {/* ── Input bar ────────────────────────────────────────────────────────── */}
+      {!isClosed && (
         <View
           style={{
-            backgroundColor: BAR_BG,
-            paddingTop: 10,
+            flexDirection:    "row",
+            alignItems:       "flex-end",
             paddingHorizontal: 12,
-            borderTopWidth: 1,
-            borderTopColor: "#EBEBEB",
+            paddingTop:        8,
+            paddingBottom:     inputBottomPad,
+            backgroundColor:  BAR_BG,
+            borderTopWidth:   1,
+            borderTopColor:   "#E5E7EB",
+            gap:              8,
           }}
         >
-          <View className="flex-row items-center" style={{ gap: 10 }}>
+          {/* Offer button (buyer only) */}
+          {!isSeller && activeThread?.status === "active" && activeThread.offerStatus === "none" && (
             <Pressable
-              className="h-11 w-11 items-center justify-center"
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              onPress={() => setOfferModal(true)}
+              style={{ padding: 8, borderRadius: 8, backgroundColor: BRAND + "15" }}
             >
-              <MaterialIcons name="add" size={28} color={TEXT_DARK} />
+              <Text style={{ fontSize: 18 }}>💰</Text>
             </Pressable>
+          )}
 
-            <View
-              className="min-h-[44px] flex-1 flex-row items-center rounded-full bg-white px-4"
-              style={{
-                borderWidth: 1,
-                borderColor: "#E5E7EB",
-              }}
-            >
-              <TextInput
-                value={messageText}
-                onChangeText={handleTextChange}
-                placeholder="Message"
-                placeholderTextColor={TEXT_MUTED}
-                multiline
-                returnKeyType="send"
-                blurOnSubmit={false}
-                onSubmitEditing={handleSend}
-                onFocus={scrollToBottom}
-                className="max-h-24 flex-1 py-2.5 text-[16px] text-[#1A1A1A]"
-                style={{ fontFamily: ListifyFonts.regular }}
-              />
-              <Pressable
-                onPress={canSend ? handleSend : undefined}
-                disabled={sending}
-                className="ml-1 h-8 w-8 items-center justify-center"
-                style={({ pressed }) => ({
-                  opacity: pressed ? 0.6 : canSend ? 1 : 0.85,
-                })}
-              >
-                <MaterialIcons
-                  name={canSend ? "send" : "mic"}
-                  size={canSend ? 20 : 22}
-                  color={canSend ? BRAND : TEXT_DARK}
-                />
-              </Pressable>
-            </View>
+          {/* Text input */}
+          <TextInput
+            style={{
+              flex:              1,
+              minHeight:         40,
+              maxHeight:         120,
+              backgroundColor:   "#F3F4F6",
+              borderRadius:      20,
+              paddingHorizontal: 16,
+              paddingVertical:   10,
+              fontFamily:        ListifyFonts.regular,
+              fontSize:          14,
+              color:             TEXT_DARK,
+            }}
+            placeholder="Type a message…"
+            placeholderTextColor={TEXT_MUTED}
+            value={messageText}
+            onChangeText={handleTextChange}
+            multiline
+            returnKeyType="default"
+          />
 
-            <Pressable
-              className="h-11 w-11 items-center justify-center"
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-            >
-              <MaterialIcons name="photo-camera" size={26} color={TEXT_DARK} />
-            </Pressable>
-          </View>
+          {/* Send */}
+          <Pressable
+            onPress={handleSend}
+            disabled={!canSend || sending}
+            style={{
+              width:           40,
+              height:          40,
+              borderRadius:    20,
+              backgroundColor: canSend ? BRAND : "#E5E7EB",
+              alignItems:      "center",
+              justifyContent:  "center",
+            }}
+          >
+            {sending
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <MaterialIcons name="send" size={20} color={canSend ? "#fff" : "#9CA3AF"} />
+            }
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      )}
+
+      {/* ── Offer modal ──────────────────────────────────────────────────────── */}
+      <Modal visible={offerModal} transparent animationType="slide" onRequestClose={() => setOfferModal(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setOfferModal(false)} />
+        <View
+          style={{
+            backgroundColor: "#fff",
+            borderTopLeftRadius:  20,
+            borderTopRightRadius: 20,
+            padding:              24,
+            paddingBottom:        insets.bottom + 24,
+          }}
+        >
+          <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 18, color: TEXT_DARK, marginBottom: 4 }}>Make an Offer</Text>
+          {activeThread?.product?.title && (
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 13, color: TEXT_MUTED, marginBottom: 16 }}>
+              for {activeThread.product.title}
+              {activeThread.product.price != null
+                ? ` (Listed: ${activeThread.product.currency}${activeThread.product.price.toLocaleString("en-IN")})`
+                : ""}
+            </Text>
+          )}
+          <TextInput
+            style={{
+              borderWidth:       1,
+              borderColor:       "#D1D5DB",
+              borderRadius:      12,
+              paddingHorizontal: 16,
+              paddingVertical:   12,
+              fontFamily:        ListifyFonts.semibold,
+              fontSize:          18,
+              color:             TEXT_DARK,
+              marginBottom:      16,
+            }}
+            placeholder={`₹ Your offer amount`}
+            placeholderTextColor={TEXT_MUTED}
+            keyboardType="numeric"
+            value={offerInput}
+            onChangeText={setOfferInput}
+            autoFocus
+          />
+          <Pressable
+            onPress={handleMakeOffer}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? "#059669" : BRAND,
+              borderRadius:    12,
+              paddingVertical: 14,
+              alignItems:      "center",
+            })}
+          >
+            <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 16, color: "#fff" }}>Send Offer</Text>
+          </Pressable>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 }

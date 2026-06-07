@@ -35,10 +35,12 @@ const QUEUE = QUEUES.CHAT_MESSAGES.name;
 const publishMessagePersisted = async ({
   messageId,
   conversationId,
+  threadId,
   senderId,
   recipientId,
   senderName,
   preview,
+  productTitle,
   attachmentUrl,
   timestamp,
 }) => {
@@ -47,10 +49,12 @@ const publishMessagePersisted = async ({
       type:           'message_persisted',
       messageId,
       conversationId,
+      threadId:       threadId || null,
       senderId,
       recipientId,
       senderName,
       preview:        (preview || '').slice(0, 80),
+      productTitle:   (productTitle || '').slice(0, 120),
       attachmentUrl:  attachmentUrl || null,
       timestamp:      timestamp || Date.now(),
     });

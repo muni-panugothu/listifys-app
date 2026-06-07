@@ -186,6 +186,7 @@ export function SellerPublicProfileScreen() {
   const [listings, setListings] = useState<SellerListing[]>([]);
   const [reviews, setReviews] = useState<SellerReview[]>([]);
   const [loading, setLoading] = useState(Boolean(sellerId));
+  const [listingsLoading, setListingsLoading] = useState(Boolean(sellerId));
   const [activeTab, setActiveTab] = useState<ProfileTab>("listings");
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -204,19 +205,24 @@ export function SellerPublicProfileScreen() {
     const timeout = setTimeout(() => setLoading(false), 8000);
 
     try {
-      const [profileRes, listingsRes] = await Promise.all([
-        fetchSellerProfile(sellerId),
-        fetchSellerListings(sellerId),
-      ]);
+      // Fetch profile first — listings failure must not block the profile view
+      const profileRes = await fetchSellerProfile(sellerId);
       setSeller(profileRes);
-      setListings(listingsRes);
       setReviews([]);
       setFollowing(profileRes.isFollowedByCurrentUser);
       setFollowersCount(profileRes.followersCount);
+
+      // Listings load independently so a failure here doesn't hide the profile
+      setListingsLoading(true);
+      fetchSellerListings(sellerId)
+        .then(setListings)
+        .catch(() => setListings([]))
+        .finally(() => setListingsLoading(false));
     } catch {
       setSeller(null);
       setListings([]);
       setReviews([]);
+      setListingsLoading(false);
     } finally {
       clearTimeout(timeout);
       setLoading(false);
@@ -592,6 +598,11 @@ export function SellerPublicProfileScreen() {
             <View className="px-4 pt-4" style={{ paddingHorizontal: GRID_SIDE_PADDING }}>
               {activeTab === "listings" ? (
                 listings.length === 0 ? (
+                  listingsLoading ? (
+                    <View className="items-center py-16">
+                      <ActivityIndicator size="large" color={BRAND_GREEN} />
+                    </View>
+                  ) : (
                   <View className="items-center py-16">
                     <MaterialIcons name="inventory-2" size={48} color="#D1D5DB" />
                     <Text
@@ -601,6 +612,7 @@ export function SellerPublicProfileScreen() {
                       No active listings yet.
                     </Text>
                   </View>
+                  )
                 ) : (
                   <View style={{ gap: GRID_GUTTER }}>
                     {listingRows.map((row) => (

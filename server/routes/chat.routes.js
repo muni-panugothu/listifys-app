@@ -1,115 +1,89 @@
-const express = require("express");
-const multer = require("multer");
-const router = express.Router();
+﻿const express = require("express");
+const multer  = require("multer");
+const router  = express.Router();
 const { protect } = require("../middleware/auth.middleware.js");
 const { uploadLimiter, createRateLimiter } = require("../middleware/ratelimiter.middleware.js");
-const {
-  getOrCreateConversation,
-  getConversations,
-  getMessages,
-  sendMessage,
-  uploadAttachment,
-  deleteMessageForMe,
-  deleteMessageForEveryone,
-  markAsRead,
-  getUnreadCount,
-  makeOffer,
-} = require("../controllers/chat.controller.js");
+const ctrl = require("../controllers/chat.controller.js");
 
-const CHAT_ALLOWED_MIME_TYPES = [
-  "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/avif",
-  "video/mp4", "video/quicktime", "video/webm",
-  "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4",
-  "application/pdf",
-  "application/msword",
+const CHAT_MIME_TYPES = [
+  "image/jpeg","image/jpg","image/png","image/gif","image/webp","image/avif",
+  "video/mp4","video/quicktime","video/webm",
+  "audio/mpeg","audio/mp3","audio/wav","audio/ogg","audio/mp4",
+  "application/pdf","application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "text/plain", "text/csv",
-  "application/zip", "application/x-zip-compressed", "application/x-7z-compressed",
+  "text/plain","text/csv",
+  "application/zip","application/x-zip-compressed",
 ];
+const CHAT_MAGIC = { 'ffd8ff':true,'89504e47':true,'47494638':true,'52494646':true,'25504446':true,'504b0304':true,'504b0506':true,'504b0708':true,'d0cf11e0':true,'377abcaf':true };
 
 const chatUpload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 25 * 1024 * 1024,
-    files: 1,
-  },
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
-    if (CHAT_ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      cb(null, true);
-      return;
-    }
-    cb(new Error("Unsupported attachment type"), false);
+    CHAT_MIME_TYPES.includes(file.mimetype) ? cb(null, true) : cb(new Error("Unsupported type"), false);
   },
 });
 
-// Magic-byte validation for chat attachments (covers images + documents)
-const CHAT_MAGIC_BYTES = {
-  'ffd8ff':   true, // JPEG
-  '89504e47': true, // PNG
-  '47494638': true, // GIF
-  '52494646': true, // RIFF (WebP)
-  '25504446': true, // PDF (%PDF)
-  '504b0304': true, // ZIP/DOCX/XLSX/PPTX (PK archive)
-  '504b0506': true, // ZIP (empty archive)
-  '504b0708': true, // ZIP (spanned)
-  'd0cf11e0': true, // MS Office legacy (.doc/.xls/.ppt)
-  '377abcaf': true, // 7z
-};
-const validateChatAttachment = (req, res, next) => {
-  if (!req.file || !req.file.buffer) return next();
+const validateMagicBytes = (req, res, next) => {
+  if (!req.file?.buffer) return next();
+  const isText = ['text/plain','text/csv'].includes(req.file.mimetype);
+  if (isText) return next();
   const hex = req.file.buffer.slice(0, 8).toString('hex').toLowerCase();
-  // Plain text/CSV have no magic bytes — verify they are valid UTF-8 text
-  const isTextType = ['text/plain', 'text/csv'].includes(req.file.mimetype);
-  if (isTextType) return next();
-  for (const magic of Object.keys(CHAT_MAGIC_BYTES)) {
+  for (const magic of Object.keys(CHAT_MAGIC)) {
     if (hex.startsWith(magic)) return next();
   }
-  return res.status(400).json({
-    success: false,
-    message: 'File content does not match its declared type. Upload rejected.',
-  });
+  return res.status(400).json({ success: false, message: 'File content does not match declared type.' });
 };
 
-// All routes are protected
+const msgLimiter = createRateLimiter({ windowMs: 60_000, max: 120, keyPrefix: 'chat:send' });
+
 router.use(protect);
 
-// Per-user chat send limiter (applies only to POST message sends)
-const chatMessageLimiter = createRateLimiter({
-  keyPrefix: "rl:chat_msg",
-  windowSec: 60,
-  maxHits: 120,
-  message: "Too many messages. Please slow down.",
-  keyFn: (req) => req.user?._id?.toString() || req.ip,
-});
+// ── Conversations ──────────────────────────────────────────────────────────────
+router.post("/conversations",                          ctrl.getOrCreateConversation);
+router.get("/conversations",                           ctrl.getConversations);
 
-// Conversations
-router.post("/conversations", getOrCreateConversation);
-router.get("/conversations", getConversations);
+// ── Product Threads ───────────────────────────────────────────────────────────
+router.post("/conversations/:conversationId/threads",  ctrl.getOrCreateThread);
+router.get("/conversations/:conversationId/threads",   ctrl.listThreads);
+router.put("/threads/:threadId/close",                 ctrl.closeThread);
 
-// Messages within a conversation
-router.get("/conversations/:conversationId/messages", getMessages);
-router.post("/conversations/:conversationId/messages", chatMessageLimiter, sendMessage);
+// ── Messages ──────────────────────────────────────────────────────────────────
+router.get("/conversations/:conversationId/messages",  ctrl.getMessages);
+router.post("/conversations/:conversationId/messages", msgLimiter, ctrl.sendMessage);
+router.get("/threads/:threadId/messages",              ctrl.getThreadMessages);
+
+// ── Attachments ───────────────────────────────────────────────────────────────
 router.post(
   "/conversations/:conversationId/attachments",
   uploadLimiter,
   chatUpload.single("file"),
-  validateChatAttachment,
-  uploadAttachment,
+  validateMagicBytes,
+  ctrl.uploadAttachment,
 );
-router.put("/conversations/:conversationId/read", markAsRead);
 
-// Delete messages
-router.delete("/conversations/:conversationId/messages/:messageId", deleteMessageForMe);
-router.delete("/conversations/:conversationId/messages/:messageId/everyone", deleteMessageForEveryone);
+// ── Read receipts ─────────────────────────────────────────────────────────────
+router.put("/conversations/:conversationId/read",      ctrl.markAsRead);
+router.put("/threads/:threadId/read",                  ctrl.markThreadRead);
 
-// Make offer (chat message + email notification)
-router.post("/make-offer", makeOffer);
+// ── Delete ────────────────────────────────────────────────────────────────────
+router.delete("/conversations/:conversationId/messages/:messageId",          ctrl.deleteMessageForMe);
+router.delete("/conversations/:conversationId/messages/:messageId/everyone", ctrl.deleteMessageForEveryone);
 
-// Unread count across all conversations
-router.get("/unread-count", getUnreadCount);
+// ── Search ────────────────────────────────────────────────────────────────────
+router.get("/conversations/:conversationId/search",    ctrl.searchMessages);
+
+// ── Offers ────────────────────────────────────────────────────────────────────
+router.post("/threads/:threadId/offer",                ctrl.makeOffer);
+router.put("/threads/:threadId/offer/accept",          ctrl.acceptOffer);
+router.put("/threads/:threadId/offer/decline",         ctrl.declineOffer);
+
+// ── Unread ────────────────────────────────────────────────────────────────────
+router.get("/unread-count",                            ctrl.getUnreadCount);
+
+// Legacy
+router.post("/make-offer",                             ctrl.makeOfferLegacy);
 
 module.exports = router;

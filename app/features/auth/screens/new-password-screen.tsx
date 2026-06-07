@@ -86,7 +86,7 @@ export function NewPasswordScreen() {
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (password.trim() !== confirmPassword.trim()) {
       showErrorToast("Mismatch", "Password and confirm password do not match.");
       return;
     }
@@ -187,6 +187,8 @@ export function NewPasswordScreen() {
                     placeholder="••••••••"
                     placeholderTextColor="#CBD5E1"
                     secureTextEntry={!isPasswordVisible}
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     className="h-12 rounded-lg border border-[#F3F4F6] bg-white px-4 pr-12 text-[14px] text-[#161D1A]"
                   />
                   <Pressable
@@ -216,6 +218,8 @@ export function NewPasswordScreen() {
                     placeholder="••••••••"
                     placeholderTextColor="#CBD5E1"
                     secureTextEntry={!isConfirmPasswordVisible}
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     className="h-12 rounded-lg border border-[#F3F4F6] bg-white px-4 pr-12 text-[14px] text-[#161D1A]"
                   />
                   <Pressable

@@ -16,23 +16,24 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { clearError, forgotPassword } from "@/store/slices/auth-slice";
+import { clearError, clearResetFlow, forgotPassword } from "@/store/slices/auth-slice";
 
 export function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const { status, error, resetEmail } = useAppSelector((s) => s.auth);
+  const { status, error } = useAppSelector((s) => s.auth);
   const [identity, setIdentity] = useState("");
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
   const isLoading = status === "loading";
 
+  // Clear any stale reset flow state left over from a previous session.
+  // Without this, restoreSession would rehydrate resetEmail and the old
+  // useEffect would skip this screen entirely on mount.
   useEffect(() => {
-    if (resetEmail) {
-      router.push("/reset-otp-verification" as Href);
-    }
-  }, [resetEmail]);
+    dispatch(clearResetFlow());
+  }, []);
 
   useEffect(() => {
     if (error) {
@@ -41,13 +42,16 @@ export function ForgotPasswordScreen() {
     }
   }, [dispatch, error]);
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     const trimmed = identity.trim();
     if (!trimmed) {
       showErrorToast("Required", "Please enter your email.");
       return;
     }
-    dispatch(forgotPassword({ email: trimmed.toLowerCase() }));
+    const result = await dispatch(forgotPassword({ email: trimmed.toLowerCase() }));
+    if (forgotPassword.fulfilled.match(result)) {
+      router.push("/reset-otp-verification" as Href);
+    }
   };
 
   return (

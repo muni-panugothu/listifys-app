@@ -7,16 +7,18 @@ import onboardingReducer from "./slices/onboarding-slice";
 import locationReducer from "./slices/location-slice";
 import postFormReducer from "./slices/post-form-slice";
 import callReducer from "./slices/call-slice";
+import messagingReducer from "./slices/messaging-slice";
 
 export const store = configureStore({
   reducer: {
-    auth: authReducer,
-    authGate: authGateReducer,
-    location: locationReducer,
-    network: networkReducer,
+    auth:      authReducer,
+    authGate:  authGateReducer,
+    location:  locationReducer,
+    network:   networkReducer,
     onboarding: onboardingReducer,
-    postForm: postFormReducer,
-    call: callReducer,
+    postForm:  postFormReducer,
+    call:      callReducer,
+    messaging: messagingReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ serializableCheck: false }),

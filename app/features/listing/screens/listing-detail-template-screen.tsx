@@ -189,14 +189,14 @@ export function ListingDetailTemplateScreen() {
       router.push({
         pathname: "/chat-conversation",
         params: {
-          recipientId: sellerId,
-          name: sellerName,
-          listingId: listing._id,
-          listingType: categorySlug,
-          listingTitle: listing.title ?? "",
-          listingPrice: String(listing.price ?? ""),
-          listingImage: listing.images?.[0] ?? "",
-          currency: listing.currency ?? "₹",
+          recipientId:  sellerId,
+          name:         sellerName,
+          productId:    listing._id,
+          productType:  categorySlug,
+          productTitle: listing.title ?? "",
+          productPrice: String(listing.price ?? ""),
+          productImage: listing.images?.[0] ?? "",
+          currency:     listing.currency ?? "₹",
         },
       } as Href);
     });
@@ -244,17 +244,29 @@ export function ListingDetailTemplateScreen() {
     if (!sellerId) return;
     setSendingOffer(true);
     try {
-      await requestJson("/api/chat/make-offer", {
+      // 1. Get/create conversation + product thread
+      const convRes = await requestJson<{ success: boolean; conversation: { _id: string }; thread: { _id: string } | null }>(
+        "/api/chat/conversations",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientId:  sellerId,
+            productId:    listing._id,
+            productType:  categorySlug,
+            productTitle: listing.title,
+            productPrice: listing.price,
+            productImage: listing.images?.[0] ?? null,
+            currency:     listing.currency ?? "₹",
+          }),
+        },
+      );
+      const threadId = convRes.thread?._id;
+      if (!threadId) throw new Error("Thread not created");
+
+      // 2. Post the offer on that thread
+      await requestJson(`/api/chat/threads/${threadId}/offer`, {
         method: "POST",
-        body: JSON.stringify({
-          recipientId: sellerId,
-          listingId: listing._id,
-          listingType: categorySlug,
-          listingTitle: listing.title,
-          offerAmount: Number(offerAmount),
-          listingPrice: listing.price,
-          productImage: listing.images?.[0] ?? null,
-        }),
+        body: JSON.stringify({ amount: Number(offerAmount), currency: listing.currency ?? "₹" }),
       });
       setOfferSent(true);
       setTimeout(() => closeOfferSheet(), 1800);

@@ -85,6 +85,25 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // ── Product-thread context ──────────────────────────────────────────────
+    productThread: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProductThread",
+      default: null,
+      index: true,
+    },
+    // ── Message type ───────────────────────────────────────────────────────
+    messageType: {
+      type: String,
+      enum: ["text", "image", "video", "audio", "document", "offer", "system"],
+      default: "text",
+    },
+    // ── Offer payload (only when messageType === "offer") ─────────────────
+    offerData: {
+      amount:   { type: Number, default: null },
+      currency: { type: String, default: "₹" },
+      status:   { type: String, enum: ["pending", "accepted", "declined", "countered", null], default: null },
+    },
   },
   {
     timestamps: true,
@@ -93,5 +112,7 @@ const messageSchema = new mongoose.Schema(
 
 // Index for fetching messages in a conversation chronologically
 messageSchema.index({ conversation: 1, createdAt: 1 });
+// Index for fetching messages within a product thread
+messageSchema.index({ productThread: 1, createdAt: 1 });
 
 module.exports = mongoose.model("Message", messageSchema);

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const conversationSchema = new mongoose.Schema(
   {
+    // Exactly 2 participants — buyer & seller (ordered by ObjectId for uniqueness)
     participants: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -14,7 +15,11 @@ const conversationSchema = new mongoose.Schema(
       ref: "Message",
       default: null,
     },
-    // Optional: link conversation to a specific listing
+    // ── Thread counters (denormalised for fast inbox query) ─────────────────
+    threadCount:       { type: Number, default: 0 },
+    activeThreadCount: { type: Number, default: 0 },
+    // ── Last-active product context (set to the most-recently-touched thread) ─
+    // Kept for backward-compat with existing inbox cards. New code uses ProductThread.
     listing: {
       listingId: { type: mongoose.Schema.Types.ObjectId, default: null },
       listingType: {

@@ -272,7 +272,75 @@ async function initSocket(httpServer, corsOptions) {
       socket.leave(`conversation:${conversationId}`);
     });
 
-    // ── Typing indicators ──
+    // ── Product Thread events ─────────────────────────────────────────────────
+    // thread:join  — join a thread room for fine-grained typing/read indicators
+    SOCKET_RATE_LIMITS['thread:join']   = { max: 30, windowMs: 60_000 };
+    SOCKET_RATE_LIMITS['thread:leave']  = { max: 30, windowMs: 60_000 };
+    SOCKET_RATE_LIMITS['thread:typing'] = { max: 10, windowMs: 5_000 };
+
+    socket.on('thread:join', async (threadId) => {
+      if (typeof threadId !== 'string' || threadId.length > 50) return;
+      try {
+        const ProductThread = require('../models/product-thread.model');
+        const thread = await ProductThread.findById(threadId).select('conversation seller buyer').lean();
+        if (!thread) return;
+        const isParticipant = [String(thread.seller), String(thread.buyer)].includes(userId);
+        if (!isParticipant) return;
+        socket.join(`thread:${threadId}`);
+      } catch {}
+    });
+
+    socket.on('thread:leave', (threadId) => {
+      if (typeof threadId !== 'string' || threadId.length > 50) return;
+      socket.leave(`thread:${threadId}`);
+    });
+
+    // Client emits thread-scoped typing indicator
+    socket.on('thread:typing:start', (data) => {
+      const threadId = data?.threadId;
+      const conversationId = data?.conversationId;
+      if (typeof threadId !== 'string') return;
+      socket.to(`conversation:${conversationId}`).emit('thread:typing:start', { threadId, userId, userName: socket.userName });
+    });
+
+    socket.on('thread:typing:stop', (data) => {
+      const threadId = data?.threadId;
+      const conversationId = data?.conversationId;
+      if (typeof threadId !== 'string') return;
+      socket.to(`conversation:${conversationId}`).emit('thread:typing:stop', { threadId, userId });
+    });
+
+    // Reaction on a message
+    socket.on('message:react', async (data) => {
+      const { messageId, emoji, conversationId } = data || {};
+      if (!messageId || !emoji || typeof messageId !== 'string') return;
+      try {
+        const Message = require('../models/message.model');
+        const msg = await Message.findOneAndUpdate(
+          { _id: messageId, conversation: conversationId, 'reactions.user': { $ne: userId } },
+          { $push: { reactions: { user: userId, emoji } } },
+          { new: true },
+        );
+        if (msg) {
+          io.to(`conversation:${conversationId}`).emit('message:reacted', {
+            messageId, userId, emoji, conversationId,
+            reactions: msg.reactions,
+          });
+        }
+      } catch {}
+    });
+
+    socket.on('message:unreact', async (data) => {
+      const { messageId, conversationId } = data || {};
+      if (!messageId || typeof messageId !== 'string') return;
+      try {
+        const Message = require('../models/message.model');
+        await Message.updateOne({ _id: messageId, conversation: conversationId }, { $pull: { reactions: { user: userId } } });
+        io.to(`conversation:${conversationId}`).emit('message:unreacted', { messageId, userId, conversationId });
+      } catch {}
+    });
+
+
     socket.on("typing:start", (data) => {
       if (isRateLimited('typing:start')) return;
       const conversationId = data?.conversationId;

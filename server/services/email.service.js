@@ -17,12 +17,22 @@ function createTransporter() {
     service: "gmail",
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
+      // Trim spaces — Gmail App Passwords are displayed with spaces but
+      // must be supplied without them in the auth credential.
+      pass: process.env.EMAIL_PASSWORD.replace(/\s/g, ""),
     },
     tls: {
       rejectUnauthorized: process.env.NODE_ENV === 'production',
     },
   });
+}
+
+// Returns a "from" address that is always the authenticated Gmail account.
+// Gmail SMTP rewrites a mismatched "from" domain which can trigger spam filters;
+// using the real sender address avoids this.
+function getSenderAddress() {
+  const user = process.env.EMAIL_USER;
+  return `"Listifys" <${user}>`;
 }
 
 // OTP Email Template
@@ -165,7 +175,7 @@ async function sendOTPEmail(email, username, otp) {
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: email,
       subject: "Your Listifys Verification Code",
       html: getOTPEmailTemplate(username, otp),
@@ -354,7 +364,7 @@ async function sendForgotPasswordOTPEmail(email, username, otp) {
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: email,
       subject: "Password Reset OTP - Listifys",
       html: getForgotPasswordOTPTemplate(username, otp),
@@ -391,7 +401,7 @@ async function sendPasswordResetSuccessEmail(email, username) {
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: email,
       subject: "Password Reset Successful - Listifys",
       html: `
@@ -532,7 +542,7 @@ async function sendLoginNotificationEmail(email, username, loginDetails = {}) {
       : "Unknown location";
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: email,
       subject: "New Login to Your Listifys Account",
       html: `
@@ -913,7 +923,7 @@ async function sendOfferNotificationEmail({ sellerEmail, sellerName, buyerName, 
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: sellerEmail,
       subject: `💰 New Offer on "${productTitle}" - Listifys`,
       html: getOfferEmailTemplate({ sellerName, buyerName, productTitle, listingPrice, offerPrice, productImage, chatUrl }),
@@ -938,7 +948,7 @@ async function sendWelcomeEmail(email, username) {
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: email,
       subject: '🎉 Welcome to Listifys — You\'re In!',
       html: `
@@ -1197,7 +1207,7 @@ function getEmailChangeAlertTemplate(username, oldEmail, newEmail, ipAddress, ti
 async function sendEmailChangeOTP(newEmail, username, otp) {
   const transporter = createTransporter();
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+    from: getSenderAddress(),
     to: newEmail,
     subject: 'Listifys — Verify your new email address',
     html: getEmailChangeOTPTemplate(username, otp, newEmail),
@@ -1209,7 +1219,7 @@ async function sendEmailChangeAlert(oldEmail, username, newEmail, ipAddress, tim
   try {
     const transporter = createTransporter();
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || `"Listifys" <${process.env.EMAIL_USER}>`,
+      from: getSenderAddress(),
       to: oldEmail,
       subject: 'Listifys — Email change requested on your account',
       html: getEmailChangeAlertTemplate(username, oldEmail, newEmail, ipAddress, timestamp),

@@ -224,16 +224,19 @@ export function ResetOtpVerificationScreen() {
             </View>
 
             <View className="mt-6 items-center gap-4">
-              <Text className="text-center text-[14px] text-[#3C4A44]">
-                Didn&apos;t receive the code?
-                <Text
-                  className="font-semibold text-[#006B55]"
-                  onPress={handleResend}
-                >
-                  {" "}
-                  Resend
+              {secondsRemaining === 0 ? (
+                <Pressable onPress={handleResend} hitSlop={8} disabled={isLoading}>
+                  <Text className="text-center text-[14px] text-[#3C4A44]">
+                    Didn&apos;t receive the code?{" "}
+                    <Text className="font-semibold text-[#006B55]">Resend</Text>
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text className="text-center text-[14px] text-[#3C4A44]">
+                  Resend code in{" "}
+                  <Text className="font-semibold text-[#161D1A]">{timerLabel}</Text>
                 </Text>
-              </Text>
+              )}
 
               <View className="flex-row items-center justify-center gap-2 opacity-60">
                 <MaterialIcons name="verified-user" size={16} color="#3C4A44" />
