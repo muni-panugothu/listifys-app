@@ -237,6 +237,23 @@ function buildUserAgent(): string {
 }
 
 const APP_USER_AGENT = buildUserAgent();
+const IS_WEB_CLIENT = Platform.OS === "web";
+
+/** Headers that identify Listify native clients to the API (CSRF/CORS bypass). */
+export function getApiClientHeaders(extra?: Record<string, string>) {
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "User-Agent": APP_USER_AGENT,
+    ...(!IS_WEB_CLIENT ? { "X-Listify-Client": "mobile" } : {}),
+    ...(extra ?? {}),
+  };
+}
+
+function getRequestCredentials(): RequestCredentials {
+  // Native apps use Bearer JWT in SecureStore — cookies cause stale-session bugs.
+  return IS_WEB_CLIENT ? "include" : "omit";
+}
 
 // ── Token management (SecureStore + in-memory cache) ───────────────────────────
 let _accessToken: string | null = null;
@@ -299,8 +316,8 @@ export async function refreshAccessToken(): Promise<boolean> {
     try {
       const res = await fetchWithTimeout(`${AUTH_API_BASE_URL}/api/auth/refresh`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": APP_USER_AGENT },
+        credentials: getRequestCredentials(),
+        headers: getApiClientHeaders(),
         body: JSON.stringify({ refreshToken: _refreshToken }),
       });
       const data = await parseJsonSafe(res);
@@ -390,9 +407,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   }
 
   const buildHeaders = () => ({
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    "User-Agent": APP_USER_AGENT,
+    ...getApiClientHeaders(),
     ...(_accessToken ? { Authorization: `Bearer ${_accessToken}` } : {}),
     ...(init?.headers ?? {}),
   });
@@ -405,7 +420,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     try {
       response = await fetchWithTimeout(url, {
         ...init,
-        credentials: "include",
+        credentials: getRequestCredentials(),
         headers: buildHeaders(),
       });
 
@@ -415,7 +430,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
         if (refreshed) {
           response = await fetchWithTimeout(url, {
             ...init,
-            credentials: "include",
+            credentials: getRequestCredentials(),
             headers: buildHeaders(),
           });
         }
@@ -458,6 +473,12 @@ export function getAuthErrorMessage(error: unknown) {
   if (error instanceof AuthApiError) {
     if (error.status === 0 || error.message.toLowerCase().includes("network")) {
       return "Unable to connect to the server. Please check your internet connection and try again.";
+    }
+    if (error.status === 409) {
+      return "User already exists. Please sign in instead.";
+    }
+    if (error.status === 403 && /origin not allowed/i.test(error.message)) {
+      return "Request blocked by server security policy. Please update the app or try again.";
     }
     return error.message;
   }
@@ -563,12 +584,21 @@ export function resendForgotPasswordOtp(email: string) {
   );
 }
 
-export function resetPasswordWithToken(resetToken: string, password: string, email: string) {
+export function resetPasswordWithToken(
+  resetToken: string,
+  password: string,
+  email: string,
+  confirmPassword?: string,
+) {
   return requestJson<{ success: boolean; message?: string }>(
     `/api/auth/reset-password/${encodeURIComponent(resetToken)}`,
     {
       method: "PUT",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        confirmPassword: confirmPassword ?? password,
+      }),
     },
   );
 }
@@ -576,10 +606,7 @@ export function resetPasswordWithToken(resetToken: string, password: string, ema
 export async function getGoogleClientIds() {
   const response = await fetch(`${AUTH_API_BASE_URL}/api/auth/google/client-ids`, {
     method: "GET",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": APP_USER_AGENT,
-    },
+    headers: getApiClientHeaders(),
   });
   const data = (await parseJsonSafe(response)) as {
     success?: boolean;
@@ -659,10 +686,11 @@ export function uploadProfileImage(formData: FormData) {
       uploadUrl,
       {
         method: "POST",
-        credentials: "include",
+        credentials: getRequestCredentials(),
         headers: {
           Accept: "application/json",
           "User-Agent": APP_USER_AGENT,
+          ...(!IS_WEB_CLIENT ? { "X-Listify-Client": "mobile" } : {}),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: formData,
@@ -1001,9 +1029,16 @@ export function markNotificationRead(notificationId: string) {
 
 // ── Logout (server-side) ────────────────────────────────────────────────────────
 
-export function logoutFromServer() {
+export async function logoutFromServer() {
+  if (!_refreshToken) {
+    await restoreTokens();
+  }
+  const refreshToken = getRefreshToken();
   return requestJson<{ success: boolean; message?: string }>(
     "/api/auth/logout",
-    { method: "POST" },
+    {
+      method: "POST",
+      ...(refreshToken ? { body: JSON.stringify({ refreshToken }) } : {}),
+    },
   );
 }

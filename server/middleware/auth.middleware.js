@@ -86,14 +86,16 @@ const extractStableFgp = (ua) => {
 // Priority: HttpOnly cookie "accessToken"  →  Authorization: Bearer header
 // ─────────────────────────────────────────────────────────────────────────────
 const extractAccessToken = (req) => {
-  if (req.cookies && req.cookies.accessToken) {
-    return req.cookies.accessToken;
-  }
+  // Prefer explicit Bearer JWT (mobile / API clients) over HttpOnly cookies.
+  // Cookie-first caused stale-cookie 401s after mobile token refresh.
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer ")
   ) {
     return req.headers.authorization.split(" ")[1];
+  }
+  if (req.cookies && req.cookies.accessToken) {
+    return req.cookies.accessToken;
   }
   return null;
 };

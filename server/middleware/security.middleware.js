@@ -97,6 +97,12 @@ const securityMiddleware = (req, res, next) => {
       return next();
     }
 
+    // Native Listify app identifies itself — not subject to browser CSRF rules.
+    const listifyClient = String(req.headers['x-listify-client'] || '').toLowerCase();
+    if (listifyClient === 'mobile' || listifyClient === 'native') {
+      return next();
+    }
+
     const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
 
     const origin = req.headers.origin;
@@ -106,7 +112,7 @@ const securityMiddleware = (req, res, next) => {
 
     // Additional non-browser client detection (API tools, mobile without Bearer header)
     const apiClientPatterns = ['thunder client', 'postman', 'insomnia', 'curl/', 'httpie', 'paw/', 'dart/', 'go-http-client', 'python-requests'];
-    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp', 'cfnetwork', 'dalvik', 'listify'];
+    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp', 'cfnetwork', 'dalvik', 'listify', 'listifys'];
     const isLikelyApiClient = !hasFetchMetadata && apiClientPatterns.some((p) => userAgent.includes(p));
     const isLikelyMobileApp = !hasFetchMetadata && mobileAppPatterns.some((p) => userAgent.includes(p));
     const isLikelyNonBrowserClient = isLikelyApiClient || isLikelyMobileApp;

@@ -238,11 +238,21 @@ export const resendResetOtp = createAsyncThunk(
 export const resetPassword = createAsyncThunk(
   "auth/resetPassword",
   async (
-    { resetToken, password, email }: { resetToken: string; password: string; email: string },
+    {
+      resetToken,
+      password,
+      email,
+      confirmPassword,
+    }: { resetToken: string; password: string; email: string; confirmPassword?: string },
     { rejectWithValue },
   ) => {
     try {
-      return await resetPasswordWithToken(resetToken, password, email);
+      return await resetPasswordWithToken(
+        resetToken,
+        password,
+        email,
+        confirmPassword ?? password,
+      );
     } catch (error) {
       return rejectWithValue(getAuthErrorMessage(error));
     }
@@ -305,16 +315,11 @@ export const restoreSession = createAsyncThunk(
       }
     }
 
+    // Tokens invalid/expired — clear local session and require fresh login.
+    await clearTokens();
     if (cachedUser) {
-      // Both access and refresh tokens are expired. Clear them so future API
-      // calls don't send stale auth headers, and the socket won't try to
-      // connect with an expired token.
-      console.warn('[Auth] Session restore: tokens expired, using cached user. Re-login required for full access.');
-      await clearTokens();
-      return { user: cachedUser, flow, isAuthenticated: true };
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
     }
-
-    // No valid session and no cached user — force re-login.
     return { user: null, flow, isAuthenticated: false };
   },
 );

@@ -1169,7 +1169,8 @@ exports.initiateRegister = async (req, res) => {
     if (userExists) {
       return res.status(409).json({
         success: false,
-        message: "An account with this email already exists. Please sign in.",
+        message: "User already exists. Please sign in instead.",
+        code: "USER_ALREADY_EXISTS",
       });
     }
 
@@ -1381,9 +1382,10 @@ exports.verifyOTPAndRegister = async (req, res) => {
     const userExists = await User.findOne({ email });
     if (userExists) {
       await RedisService.deletePendingRegistration(email);
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        message: "User already registered. Please login.",
+        message: "User already exists. Please sign in instead.",
+        code: "USER_ALREADY_EXISTS",
       });
     }
 

@@ -135,9 +135,16 @@ const validateForgotPasswordInput = (data) => {
 // Reset password validation
 const validateResetPasswordInput = (data) => {
   const errors = {};
-  
+  const confirmPassword = data.confirmPassword ?? data.confirmNewPassword;
+
   if (!data.password || !validatePassword(data.password)) {
     errors.password = 'Password must be at least 8 characters with uppercase, lowercase, number, and special character';
+  }
+
+  if (!confirmPassword) {
+    errors.confirmPassword = 'Please confirm your new password';
+  } else if (data.password && confirmPassword !== data.password) {
+    errors.confirmPassword = 'Passwords do not match';
   }
   
   return {

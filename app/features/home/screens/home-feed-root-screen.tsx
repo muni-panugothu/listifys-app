@@ -100,6 +100,7 @@ export function HomeFeedRootScreen() {
   const { isoCountryCode: localeCountryCode } = useLocale();
   const user = useAppSelector((s) => s.auth.user);
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const sessionHydrated = useAppSelector((s) => s.auth.sessionHydrated);
   const network = useAppSelector((s) => s.network);
   const displayLocation = useAppSelector(selectLocationLabel);
   const locationCoords = useAppSelector(selectLocationCoords);
@@ -239,6 +240,8 @@ export function HomeFeedRootScreen() {
   }, [dispatch, locationHydrated]);
 
   useEffect(() => {
+    if (!sessionHydrated) return;
+
     (async () => {
       const cached = await getCachedHomeFeed().catch(() => null);
       if (cached) {
@@ -249,13 +252,21 @@ export function HomeFeedRootScreen() {
     })().catch(() => {});
 
     getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {});
-    getNotificationUnreadCount()
-      .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
-      .catch(() => {});
-    getChatUnreadCount()
-      .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
-      .catch(() => {});
-  }, [applyFeedSnapshot, effectiveCountryCode, loadFeed]);
+    if (isAuthenticated) {
+      getNotificationUnreadCount()
+        .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
+        .catch(() => {});
+      getChatUnreadCount()
+        .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
+        .catch(() => {});
+    }
+  }, [
+    applyFeedSnapshot,
+    effectiveCountryCode,
+    isAuthenticated,
+    loadFeed,
+    sessionHydrated,
+  ]);
 
   useEffect(() => {
     if (!locationHydrated) return;

@@ -8,6 +8,7 @@ import { Platform } from "react-native";
 import {
   AUTH_API_BASE_URL,
   getAccessToken,
+  getApiClientHeaders,
   refreshAccessToken,
   requestJson,
   resolveAbsoluteMediaUrl,
@@ -540,13 +541,15 @@ export async function checkImageModeration(
   }
 
   const token = getAccessToken();
+  const mobileHeaders = getApiClientHeaders(
+    token ? { Authorization: `Bearer ${token}` } : {},
+  );
+  delete (mobileHeaders as Record<string, string>)["Content-Type"];
+
   const response = await fetch(`${AUTH_API_BASE_URL}/api/moderation/check-images`, {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": APP_USER_AGENT,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    credentials: Platform.OS === "web" ? "include" : "omit",
+    headers: mobileHeaders,
     body: formData,
   });
 
@@ -554,13 +557,14 @@ export async function checkImageModeration(
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       const retryToken = getAccessToken();
+      const retryHeaders = getApiClientHeaders(
+        retryToken ? { Authorization: `Bearer ${retryToken}` } : {},
+      );
+      delete (retryHeaders as Record<string, string>)["Content-Type"];
       const retryResponse = await fetch(`${AUTH_API_BASE_URL}/api/moderation/check-images`, {
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": APP_USER_AGENT,
-          ...(retryToken ? { Authorization: `Bearer ${retryToken}` } : {}),
-        },
+        credentials: Platform.OS === "web" ? "include" : "omit",
+        headers: retryHeaders,
         body: formData,
       });
       const data = await retryResponse.json();
@@ -599,13 +603,14 @@ export async function uploadListingImages(
 
   const doUpload = async () => {
     const token = getAccessToken();
+    const uploadHeaders = getApiClientHeaders(
+      token ? { Authorization: `Bearer ${token}` } : {},
+    );
+    delete (uploadHeaders as Record<string, string>)["Content-Type"];
     return fetch(url, {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": APP_USER_AGENT,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: Platform.OS === "web" ? "include" : "omit",
+      headers: uploadHeaders,
       body: buildFormData(),
     });
   };

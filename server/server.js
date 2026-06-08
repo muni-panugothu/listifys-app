@@ -190,9 +190,28 @@ const corsOptions = {
       } catch (_) {}
     }
 
+    // Allow Expo web dev server ports when testing in browser
+    try {
+      const { hostname, port } = new URL(origin);
+      if (
+        (hostname === 'localhost' || hostname === '127.0.0.1') &&
+        ['8081', '19006', '19000'].includes(port)
+      ) {
+        return callback(null, true);
+      }
+    } catch (_) {}
+
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'User-Agent',
+    'X-Listify-Client',
+    'X-Requested-With',
+  ],
   maxAge: 86400,
   optionsSuccessStatus: 200,
 };

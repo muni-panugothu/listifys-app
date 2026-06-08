@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListifyOnboardingAssets } from "@/constants/listify-theme";
+import { validatePassword } from "@/lib/auth-validation";
 import { Image } from "@/lib/nativewind-interop";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -28,14 +29,24 @@ function getPasswordRequirements(password: string) {
       met: password.length >= 8,
     },
     {
+      id: "upper",
+      label: "At least 1 uppercase letter",
+      met: /[A-Z]/.test(password),
+    },
+    {
+      id: "lower",
+      label: "At least 1 lowercase letter",
+      met: /[a-z]/.test(password),
+    },
+    {
       id: "number",
       label: "At least 1 number",
       met: /\d/.test(password),
     },
     {
       id: "special",
-      label: "At least 1 special character (@, #, $)",
-      met: /[^A-Za-z0-9]/.test(password),
+      label: "At least 1 special character (!@#$...)",
+      met: /[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(password),
     },
   ];
 }
@@ -53,10 +64,12 @@ export function NewPasswordScreen() {
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
   const requirements = getPasswordRequirements(password);
-  const canReset =
-    requirements.every((requirement) => requirement.met) &&
+  const passwordsMatch =
     password.length > 0 &&
+    confirmPassword.length > 0 &&
     password === confirmPassword;
+  const canReset =
+    requirements.every((requirement) => requirement.met) && passwordsMatch;
   const isLoading = status === "loading";
 
   useEffect(() => {
@@ -78,20 +91,25 @@ export function NewPasswordScreen() {
       return;
     }
 
-    if (!requirements.every((requirement) => requirement.met)) {
-      showErrorToast(
-        "Weak Password",
-        "Use 8+ chars with at least one number and one special character.",
-      );
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      showErrorToast("Weak Password", passwordError);
       return;
     }
 
-    if (password.trim() !== confirmPassword.trim()) {
-      showErrorToast("Mismatch", "Password and confirm password do not match.");
+    if (password !== confirmPassword) {
+      showErrorToast("Mismatch", "New password and confirm password do not match.");
       return;
     }
 
-    const action = await dispatch(resetPassword({ resetToken, password, email: resetEmail }));
+    const action = await dispatch(
+      resetPassword({
+        resetToken,
+        password,
+        email: resetEmail,
+        confirmPassword,
+      }),
+    );
     if (action.meta.requestStatus === "fulfilled") {
       dispatch(clearResetFlow());
       showSuccessToast("Success", "Password reset successfully. Please sign in.");
@@ -240,6 +258,16 @@ export function NewPasswordScreen() {
                     />
                   </Pressable>
                 </View>
+                {confirmPassword.length > 0 ? (
+                  <Text
+                    className="text-[12px]"
+                    style={{ color: passwordsMatch ? "#006B55" : "#DC2626" }}
+                  >
+                    {passwordsMatch
+                      ? "Passwords match"
+                      : "Passwords do not match"}
+                  </Text>
+                ) : null}
               </View>
 
               <View className="mt-2 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
@@ -285,10 +313,10 @@ export function NewPasswordScreen() {
             <View className="mt-6 pb-4">
               <Pressable
                 onPress={handleResetPassword}
-                disabled={isLoading}
+                disabled={isLoading || !canReset}
                 style={({ pressed }) => [
-                  { transform: [{ scale: pressed && !isLoading ? 0.95 : 1 }] },
-                  { opacity: !isLoading ? 1 : 0.55 },
+                  { transform: [{ scale: pressed && !isLoading && canReset ? 0.95 : 1 }] },
+                  { opacity: !isLoading && canReset ? 1 : 0.55 },
                 ]}
                 className="overflow-hidden rounded-lg"
               >

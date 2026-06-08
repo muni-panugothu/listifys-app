@@ -16,6 +16,7 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import {
   AUTH_API_BASE_URL,
   getAccessToken,
+  getApiClientHeaders,
   refreshAccessToken,
   resolveAbsoluteMediaUrl,
 } from "@/features/auth/services/auth-api";
@@ -151,11 +152,10 @@ async function searchFetch<T>(path: string): Promise<T> {
     const token = getAccessToken();
     return fetch(url, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": APP_USER_AGENT,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: Platform.OS === "web" ? "include" : "omit",
+      headers: getApiClientHeaders(
+        token ? { Authorization: `Bearer ${token}` } : {},
+      ),
     });
   };
 
@@ -183,12 +183,10 @@ async function searchPost<T>(path: string, body: Record<string, unknown>): Promi
     const token = getAccessToken();
     return fetch(url, {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": APP_USER_AGENT,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: Platform.OS === "web" ? "include" : "omit",
+      headers: getApiClientHeaders(
+        token ? { Authorization: `Bearer ${token}` } : {},
+      ),
       body: JSON.stringify(body),
     });
   };

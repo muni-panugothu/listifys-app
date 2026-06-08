@@ -47,7 +47,7 @@ const generateAccessToken = (userId, req = null) => {
     const hasFetchMetadata = !!req.headers['sec-fetch-site'];
     const isMobileOrApiClient =
       !hasFetchMetadata &&
-      /okhttp|expo\/|react-native|cfnetwork|dalvik|dart\/|go-http-client|python-requests/i.test(ua);
+      /okhttp|expo\/|react-native|cfnetwork|dalvik|dart\/|go-http-client|python-requests|listify/i.test(ua);
 
     // Only fingerprint browser sessions (not mobile apps or API clients)
     if (hasFetchMetadata && !isMobileOrApiClient) {
