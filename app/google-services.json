@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "600725854773",
-    "project_id": "listifys-db3ea",
-    "storage_bucket": "listifys-db3ea.firebasestorage.app"
+    "project_number": "157035185864",
+    "project_id": "listifysapp",
+    "storage_bucket": "listifysapp.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:600725854773:android:0394d19212f0aa4d29af7c",
+        "mobilesdk_app_id": "1:157035185864:android:82ff338669049714e6c7fd",
         "android_client_info": {
           "package_name": "com.listifys.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDjKTO3uDogVa8i0B6wI_8eqHunFlhj8vQ"
+          "current_key": "AIzaSyCDh_KCrGlOjOBWl0xK61GJxVtz07-Y4kw"
         }
       ],
       "services": {

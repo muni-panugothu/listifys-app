@@ -17,6 +17,7 @@ import "react-native-reanimated";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
+import * as Location from "expo-location";
 
 import { ListifyFonts } from "@/constants/typography";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -159,6 +160,18 @@ function AppLayout() {
   useEffect(() => {
     void initOfflineQueue();
   }, []);
+
+  // Request location permission once as soon as the session is hydrated.
+  // On Android/iOS the system dialog only shows if the user hasn't decided yet;
+  // on repeat opens it's a fast no-op that returns the existing status.
+  // We wait for sessionHydrated so the dialog appears after the splash/onboarding,
+  // not during cold-start loading (which feels jarring).
+  useEffect(() => {
+    if (!sessionHydrated) return;
+    void Location.requestForegroundPermissionsAsync().catch(() => {
+      // Silently ignore — user may have denied; the location-picker handles re-request.
+    });
+  }, [sessionHydrated]);
 
   // ── Attach call socket listeners after session hydration ─────────────────
   // We wait for sessionHydrated + isAuthenticated so the socket connects with

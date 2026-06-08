@@ -37,25 +37,36 @@ const generateAccessToken = (userId, req = null) => {
   };
 
   // Token fingerprint: bind the token to the client's browser family + platform.
-  // Uses a stable hash (browser + OS only, not version) so minor browser
-  // updates don't invalidate existing sessions.
+  // Only applied to browser clients (identified by sec-fetch-site metadata).
+  // Mobile apps (React Native / Expo) are NOT fingerprinted because:
+  //   1. Their User-Agent varies between network libraries (okhttp, fetch, etc.)
+  //   2. They authenticate via Bearer JWT — fingerprint offers no extra CSRF protection
+  //   3. A mismatch would cause FINGERPRINT_MISMATCH 401 errors on mobile
   if (req) {
     const ua = req.get('user-agent') || '';
-    // Extract browser family
-    let browser = 'unknown';
-    if (/Edg\//i.test(ua))          browser = 'Edge';
-    else if (/OPR\//i.test(ua))     browser = 'Opera';
-    else if (/Chrome\//i.test(ua))  browser = 'Chrome';
-    else if (/Firefox\//i.test(ua)) browser = 'Firefox';
-    else if (/Safari\//i.test(ua))  browser = 'Safari';
-    // Extract platform family
-    let platform = 'unknown';
-    if (/Windows/i.test(ua))        platform = 'Windows';
-    else if (/Macintosh/i.test(ua)) platform = 'Mac';
-    else if (/Linux/i.test(ua))     platform = 'Linux';
-    else if (/Android/i.test(ua))   platform = 'Android';
-    else if (/iPhone|iPad/i.test(ua)) platform = 'iOS';
-    payload.fgp = crypto.createHash('sha256').update(`${browser}|${platform}`).digest('hex').substring(0, 16);
+    const hasFetchMetadata = !!req.headers['sec-fetch-site'];
+    const isMobileOrApiClient =
+      !hasFetchMetadata &&
+      /okhttp|expo\/|react-native|cfnetwork|dalvik|dart\/|go-http-client|python-requests/i.test(ua);
+
+    // Only fingerprint browser sessions (not mobile apps or API clients)
+    if (hasFetchMetadata && !isMobileOrApiClient) {
+      // Extract browser family
+      let browser = 'unknown';
+      if (/Edg\//i.test(ua))          browser = 'Edge';
+      else if (/OPR\//i.test(ua))     browser = 'Opera';
+      else if (/Chrome\//i.test(ua))  browser = 'Chrome';
+      else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+      else if (/Safari\//i.test(ua))  browser = 'Safari';
+      // Extract platform family
+      let platform = 'unknown';
+      if (/Windows/i.test(ua))        platform = 'Windows';
+      else if (/Macintosh/i.test(ua)) platform = 'Mac';
+      else if (/Linux/i.test(ua))     platform = 'Linux';
+      else if (/Android/i.test(ua))   platform = 'Android';
+      else if (/iPhone|iPad/i.test(ua)) platform = 'iOS';
+      payload.fgp = crypto.createHash('sha256').update(`${browser}|${platform}`).digest('hex').substring(0, 16);
+    }
   }
 
   return jwt.sign(

@@ -169,13 +169,28 @@ const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
 
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log("=================================");
-    console.log("CORS Origin Received:", origin);
-    console.log("Allowed Origins:", allowedOrigins);
-    console.log("=================================");
+    // No Origin header — server-to-server, API tools, or React Native without origin → allow.
+    if (!origin) return callback(null, true);
 
-    // TEMPORARY: allow all origins for debugging
-    callback(null, true);
+    // React Native sandboxed native fetch sends Origin: null — allow it.
+    // Mobile apps are authenticated via JWT Bearer, not cookies, so CORS is moot.
+    if (origin === 'null') return callback(null, true);
+
+    // Allow explicitly configured browser origins (website)
+    if (isOriginAllowed(origin, allowedOrigins)) return callback(null, true);
+
+    // In development, allow all LAN origins (mobile dev builds hitting local server)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname === 'localhost' || hostname === '127.0.0.1' ||
+            /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)) {
+          return callback(null, true);
+        }
+      } catch (_) {}
+    }
+
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   maxAge: 86400,

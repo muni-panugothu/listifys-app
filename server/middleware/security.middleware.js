@@ -78,40 +78,61 @@ const securityMiddleware = (req, res, next) => {
     });
   }
   
-  // 14. CSRF origin validation for state-changing requests
+  // 14. CSRF origin validation for state-changing requests from browsers.
+  //
+  // Security model:
+  //   • CSRF attacks exploit automatic cookie sending by browsers.
+  //   • A request that carries an explicit "Authorization: Bearer ..." header
+  //     cannot be forged by a CSRF attack — browsers block cross-origin reads
+  //     and cannot inject custom auth headers for third-party requests.
+  //   • Mobile apps (React Native / Expo) ALWAYS use Bearer JWT, never cookies.
+  //   • Therefore: Bearer-authenticated requests skip CSRF origin checks entirely.
+  //   • Only cookie-based browser sessions are subject to origin/referer validation.
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    // ── Fast-path: explicitly authenticated API / mobile client ──────────────
+    // Any request with Authorization: Bearer is using JWT, not cookies.
+    // CSRF is irrelevant — skip origin validation completely.
+    const authHeader = req.headers.authorization || '';
+    if (authHeader.toLowerCase().startsWith('bearer ')) {
+      return next();
+    }
+
     const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
 
     const origin = req.headers.origin;
     const referer = req.headers.referer;
     const userAgent = String(req.headers['user-agent'] || '').toLowerCase();
-    const hasCookieHeader = typeof req.headers.cookie === 'string' && req.headers.cookie.length > 0;
     const hasFetchMetadata = typeof req.headers['sec-fetch-site'] === 'string';
-    const apiClientPatterns = ['thunder client', 'postman', 'insomnia', 'curl/', 'httpie', 'paw/'];
-    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp/', 'dart', 'android', 'cfnetwork', 'listify/'];
-    const isLikelyApiClient = !hasFetchMetadata && apiClientPatterns.some((pattern) => userAgent.includes(pattern));
-    const isLikelyMobileApp = !hasFetchMetadata && mobileAppPatterns.some((pattern) => userAgent.includes(pattern));
-    const isLikelyNonBrowserClient = isLikelyApiClient || isLikelyMobileApp || (!hasCookieHeader && !hasFetchMetadata);
 
-    if (origin) {
-      if (!isOriginAllowed(origin, allowedOrigins)) {
-        // Allow LAN/localhost origins in development (mobile dev builds)
-        let devBypass = false;
+    // Additional non-browser client detection (API tools, mobile without Bearer header)
+    const apiClientPatterns = ['thunder client', 'postman', 'insomnia', 'curl/', 'httpie', 'paw/', 'dart/', 'go-http-client', 'python-requests'];
+    const mobileAppPatterns = ['react-native', 'expo/', 'okhttp', 'cfnetwork', 'dalvik', 'listify'];
+    const isLikelyApiClient = !hasFetchMetadata && apiClientPatterns.some((p) => userAgent.includes(p));
+    const isLikelyMobileApp = !hasFetchMetadata && mobileAppPatterns.some((p) => userAgent.includes(p));
+    const isLikelyNonBrowserClient = isLikelyApiClient || isLikelyMobileApp;
+
+    // React Native native fetch sends Origin: null (sandboxed context)
+    // Treat it the same as no-origin (mobile client, not a browser CSRF risk).
+    const normalizedOrigin = (origin === 'null' || origin === 'null ') ? null : origin;
+
+    if (normalizedOrigin) {
+      if (!isOriginAllowed(normalizedOrigin, allowedOrigins)) {
+        // Allow LAN/localhost origins in development (mobile dev builds hitting local server)
         if (process.env.NODE_ENV !== 'production') {
           try {
-            const parsed = new URL(origin);
-            const host = parsed.hostname;
-            if (host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host)) {
-              devBypass = true;
+            const { hostname } = new URL(normalizedOrigin);
+            if (hostname === 'localhost' || hostname === '127.0.0.1' ||
+                /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)) {
+              return next();
             }
           } catch (_) {}
         }
 
-        if (isLikelyNonBrowserClient || devBypass) {
+        if (isLikelyNonBrowserClient) {
           return next();
         }
 
-        logger.securityLog('csrf_blocked', { ip: req.ip, path: req.path, method: req.method, reason: `unexpected_origin: ${origin}` });
+        logger.securityLog('csrf_blocked', { ip: req.ip, path: req.path, method: req.method, reason: `unexpected_origin: ${normalizedOrigin}` });
         return res.status(403).json({
           success: false,
           message: 'Origin not allowed',
@@ -136,17 +157,16 @@ const securityMiddleware = (req, res, next) => {
           return next();
         }
 
-        // Malformed referer — block on mutation routes (potential CSRF bypass)
+        // Malformed referer — block on mutation routes (potential CSRF bypass attempt)
         logger.securityLog('csrf_blocked', { ip: req.ip, path: req.path, method: req.method, reason: 'malformed_referer' });
         return res.status(403).json({
           success: false,
           message: 'Origin not allowed',
         });
       }
-    } else {
-       return next();
+    }
+    // No origin, no referer, no Bearer → server-to-server or direct API call → allow.
   }
-}
   
   next();
 };
