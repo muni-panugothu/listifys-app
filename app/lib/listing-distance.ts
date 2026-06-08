@@ -109,14 +109,6 @@ function resolveDistanceCountryCode(
   return fallbackCountryCode?.trim().toUpperCase() || null;
 }
 
-function stableKmFromId(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) % 10007;
-  }
-  return Math.round(((hash % 48) + 2) / 10 * 10) / 10;
-}
-
 export function resolveListingDistanceKm(
   item: {
     _id?: string;
@@ -151,10 +143,7 @@ export function resolveListingDistanceKm(
     );
   }
 
-  // No real distance available — fall back to a stable estimate from the listing ID
-  const id = item._id ?? item.id;
-  if (!id) return null;
-  return stableKmFromId(id);
+  return null;
 }
 
 export function getListingDistanceLabel(
@@ -174,13 +163,9 @@ export function getListingDistanceLabel(
   const km = resolveListingDistanceKm(item, userLocation);
   if (km == null) return undefined;
 
-  // Distance unit is determined by the USER's country first (user preference),
-  // falling back to the listing's country/currency only when the user's country
-  // is unknown.  This ensures a US user always sees miles, an IN user always
-  // sees km, regardless of where the listing was posted.
+  // Use the listing's country/currency for the unit (US listings → mi, IN → km).
   const unitCountryCode =
-    isoCountryCode?.trim().toUpperCase() ||
-    resolveDistanceCountryCode(item.countryCode, item.currency, null);
+    resolveDistanceCountryCode(item.countryCode, item.currency, isoCountryCode);
 
   return formatDistance(km, unitCountryCode) ?? undefined;
 }

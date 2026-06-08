@@ -59,8 +59,10 @@ export async function ensureListingThread(input: ListingChatInput): Promise<{
   conversationId: string;
   thread: ProductThread;
 }> {
+  const sellerId = input.sellerId ?? input.recipientId;
   const res = await getOrCreateConversation({
     recipientId: input.recipientId,
+    sellerId,
     productId: input.productId,
     productType: input.productType,
     productTitle: input.productTitle,

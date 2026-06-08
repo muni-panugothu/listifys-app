@@ -52,7 +52,7 @@ const pushNotifyRecipient = async ({ recipientId, senderId, senderName, conversa
 exports.getOrCreateConversation = async (req, res) => {
   try {
     const senderId = req.user.id;
-    const { recipientId, productId, productType, productTitle, productPrice, productImage, currency } = req.body;
+    const { recipientId, productId, productType, productTitle, productPrice, productImage, currency, sellerId } = req.body;
     if (!recipientId || !isValidId(recipientId)) return res.status(400).json({ success: false, message: 'Valid recipientId is required' });
     if (recipientId === senderId) return res.status(400).json({ success: false, message: 'Cannot message yourself' });
     if (productId && !isValidId(productId)) return res.status(400).json({ success: false, message: 'Invalid productId' });
@@ -62,9 +62,14 @@ exports.getOrCreateConversation = async (req, res) => {
     const conversation = await chatService.getOrCreateConversation(senderId, recipientId);
     let thread = null;
     if (productId && productType) {
+      const listingSellerId = sellerId && isValidId(sellerId) ? sellerId : recipientId;
+      if (String(senderId) === String(listingSellerId)) {
+        return res.status(400).json({ success: false, message: 'You cannot make an offer on your own listing' });
+      }
+      const buyerId = String(senderId) === String(listingSellerId) ? recipientId : senderId;
       thread = await chatService.getOrCreateProductThread({
         conversationId: conversation._id, productId, productType, productTitle, productPrice, productImage, currency,
-        sellerId: recipientId, buyerId: senderId,
+        sellerId: listingSellerId, buyerId,
       });
     }
     setNoCacheHeaders(res);

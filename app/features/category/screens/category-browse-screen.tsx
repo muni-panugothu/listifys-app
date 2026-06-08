@@ -643,7 +643,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}
-                    distanceLabel={userCoords.lat != null && userCoords.lng != null ? getListingDistanceLabel(
+                    distanceLabel={hasManualLocation ? getListingDistanceLabel(
                       {
                         _id: item._id,
                         category: categorySlug,

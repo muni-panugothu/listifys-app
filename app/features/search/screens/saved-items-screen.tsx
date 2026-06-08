@@ -20,7 +20,11 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { ListifyFonts } from "@/constants/typography";
 import { useAppSelector } from "@/store/hooks";
-import { selectIsoCountryCode, selectLocationCoords } from "@/store/slices/location-slice";
+import {
+  selectCanShowDistanceOnCards,
+  selectIsoCountryCode,
+  selectLocationCoords,
+} from "@/store/slices/location-slice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GUTTER = 14;
@@ -37,6 +41,7 @@ export function SavedItemsScreen() {
   const router = useRouter();
   const locationCoords = useAppSelector(selectLocationCoords);
   const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
   const [items, setItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -138,18 +143,18 @@ export function SavedItemsScreen() {
           {items.map((item) => {
             const category =
               (item as ListingItem & { _source?: string })._source ?? item.category;
-            const distanceLabel = getListingDistanceLabel(
-              {
-                _id: item._id,
-                category,
-                countryCode: item.countryCode,
-                currency: item.currency,
-              },
-              locationCoords.lat != null && locationCoords.lng != null
-                ? { lat: locationCoords.lat, lng: locationCoords.lng }
-                : null,
-              isoCountryCode,
-            );
+            const distanceLabel = canShowDistanceOnCards
+              ? getListingDistanceLabel(
+                  {
+                    _id: item._id,
+                    category,
+                    countryCode: item.countryCode,
+                    currency: item.currency,
+                  },
+                  { lat: locationCoords.lat!, lng: locationCoords.lng! },
+                  isoCountryCode,
+                )
+              : undefined;
 
             return (
               <ListingItemsGridCard

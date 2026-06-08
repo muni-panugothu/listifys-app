@@ -17,7 +17,11 @@ import {
 } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectIsoCountryCode, selectLocationCoords } from "@/store/slices/location-slice";
+import {
+  selectCanShowDistanceOnCards,
+  selectIsoCountryCode,
+  selectLocationCoords,
+} from "@/store/slices/location-slice";
 
 type ListingLocationSectionProps = {
   listing: ListingItem;
@@ -30,8 +34,10 @@ export function ListingLocationSection({
 }: ListingLocationSectionProps) {
   const userCoords = useAppSelector(selectLocationCoords);
   const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const canShowDistance = useAppSelector(selectCanShowDistanceOnCards);
   const categorySlug = category ?? listing.category;
-  const showDistance = shouldShowListingDistance(categorySlug);
+  const showDistance =
+    canShowDistance && shouldShowListingDistance(categorySlug);
 
   const [resolvedCoords, setResolvedCoords] = useState<LatLng | null>(null);
   const [geocoding, setGeocoding] = useState(false);

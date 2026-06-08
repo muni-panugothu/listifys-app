@@ -115,6 +115,7 @@ export type MessagesPagination = {
 /** Get or create the conversation for a user pair. Optionally bootstraps a product thread. */
 export function getOrCreateConversation(data: {
   recipientId: string;
+  sellerId?: string;
   productId?: string;
   productType?: string;
   productTitle?: string;

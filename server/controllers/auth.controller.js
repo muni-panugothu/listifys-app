@@ -1202,16 +1202,18 @@ exports.initiateRegister = async (req, res) => {
         pendingRegistration.resendCount = (pendingRegistration.resendCount || 0) + 1;
         await RedisService.storePendingRegistration(normalizedEmail, pendingRegistration);
 
-        logger.info(`📤 Re-queuing OTP email for pending registration: ${normalizedEmail}`);
-        const otpQueued = await publishOTPEmail({ email: normalizedEmail, username: pendingRegistration.name, otp: newOtp, type: 'registration' });
-        if (!otpQueued) {
-          try {
-            await EmailService.sendOTPEmail(normalizedEmail, pendingRegistration.name, newOtp);
-            logger.info(`✅ OTP re-sent directly (queue fallback) to ${normalizedEmail}`);
-          } catch (emailError) {
-            logger.error("❌ Failed to resend OTP email:", emailError.message);
-          }
+        logger.info(`📤 Re-sending registration OTP email to: ${normalizedEmail}`);
+        try {
+          await EmailService.sendOTPEmail(normalizedEmail, pendingRegistration.name, newOtp);
+          logger.info(`✅ Registration OTP re-sent to ${normalizedEmail}`);
+        } catch (emailError) {
+          logger.error("❌ Failed to resend OTP email:", emailError.message);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to send OTP email. Please try again later.",
+          });
         }
+        publishOTPEmail({ email: normalizedEmail, username: pendingRegistration.name, otp: newOtp, type: 'registration' }).catch(() => {});
 
         return res.status(200).json({
           success: true,
@@ -1270,25 +1272,23 @@ exports.initiateRegister = async (req, res) => {
 
     await RedisService.incrementRegistrationAttempts(normalizedEmail);
 
-    // ✅ NON-BLOCKING: publish OTP to RabbitMQ queue — API responds immediately
-    logger.info(`📤 Queuing OTP email for: ${normalizedEmail}`);
-    const otpQueued = await publishOTPEmail({ email: normalizedEmail, username: name, otp, type: 'registration' });
-    
-    // Fallback: if queue unavailable, send directly (blocking) to avoid silent failure
-    if (!otpQueued) {
-      try {
-        await EmailService.sendOTPEmail(normalizedEmail, name, otp);
-        logger.info(`✅ OTP sent directly (queue fallback) to ${normalizedEmail}`);
-      } catch (emailError) {
-        logger.error("❌ Failed to send OTP email (direct fallback):", emailError.message);
-        await RedisService.deletePendingRegistration(normalizedEmail);
-        await RedisService.deleteOTP(normalizedEmail);
-        return res.status(500).json({
-          success: false,
-          message: "Failed to send OTP email. Please try again later.",
-        });
-      }
+    // Send OTP email directly — registration must not depend on RabbitMQ workers.
+    logger.info(`📤 Sending registration OTP email to: ${normalizedEmail}`);
+    try {
+      await EmailService.sendOTPEmail(normalizedEmail, name, otp);
+      logger.info(`✅ Registration OTP email sent to ${normalizedEmail}`);
+    } catch (emailError) {
+      logger.error("❌ Failed to send registration OTP email:", emailError.message);
+      await RedisService.deletePendingRegistration(normalizedEmail);
+      await RedisService.deleteOTP(normalizedEmail);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP email. Please check your email address and try again.",
+      });
     }
+
+    // Optional async duplicate via queue (non-blocking).
+    publishOTPEmail({ email: normalizedEmail, username: name, otp, type: 'registration' }).catch(() => {});
 
     // Audit log (fire-and-forget via queue)
     publishAuditLog({
@@ -2697,13 +2697,10 @@ exports.resendOTP = async (req, res) => {
     await RedisService.clearOTPBlock(email);
 
     try {
-      logger.info(`📤 Queuing resend OTP for: ${email}`);
-      const otpQueued = await publishOTPEmail({ email, username: pendingData.name, otp, type: 'registration' });
-
-      if (!otpQueued) {
-        await EmailService.sendOTPEmail(email, pendingData.name, otp);
-        logger.info(`✅ Resent OTP directly (queue fallback) to ${email}`);
-      }
+      logger.info(`📤 Resending registration OTP email to: ${email}`);
+      await EmailService.sendOTPEmail(email, pendingData.name, otp);
+      logger.info(`✅ Registration OTP resent to ${email}`);
+      publishOTPEmail({ email, username: pendingData.name, otp, type: 'registration' }).catch(() => {});
     } catch (emailError) {
       logger.error("❌ Failed to resend email:", emailError.message);
       return res.status(500).json({

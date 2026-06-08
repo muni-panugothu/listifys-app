@@ -182,10 +182,11 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
         message.toLowerCase().includes("developer error")
       ) {
         throw new GoogleSignInError(
-          "Google Sign-In configuration error (code 10).\n" +
-          "In Google Cloud Console → APIs & Services → Credentials, " +
-          "open the Android OAuth client for com.listifys.app and add this SHA-1:\n" +
-          "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
+          "Google Sign-In configuration error (code 10).\n\n" +
+          "In Google Cloud Console → APIs & Services → Credentials, open the Android OAuth client for com.listifys.app and register your app signing SHA-1.\n\n" +
+          "Debug builds (Expo dev client): 5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25\n" +
+          "Release/APK (EAS): run `eas credentials -p android` and add the upload-key SHA-1 to the same OAuth client.\n\n" +
+          "Also confirm EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID matches the Web client ID in that project.",
         );
       }
 

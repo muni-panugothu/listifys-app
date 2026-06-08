@@ -27,6 +27,7 @@ import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationLabel } from "@/store/slices/location-slice";
 import { formatPrice } from "@/lib/currency";
+import { getListingSellerId } from "@/lib/is-own-listing";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -120,7 +121,7 @@ export function EventDetailScreen() {
       ? listing.seller.profileImage
       : `${AUTH_API_BASE_URL}${listing.seller.profileImage}`
     : null;
-  const sellerId = listing?.seller?._id;
+  const sellerId = listing ? getListingSellerId(listing) : null;
   const sellerJoined = listing?.seller?.createdAt
     ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
     : "";

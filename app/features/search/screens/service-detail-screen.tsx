@@ -17,6 +17,7 @@ import type { ListingItem } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { formatPrice } from "@/lib/currency";
 import { buildListingChatHref } from "@/lib/listing-chat";
+import { getListingSellerId } from "@/lib/is-own-listing";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 
@@ -241,12 +242,7 @@ export function ServiceDetailScreen() {
     listing?.description ??
     "Transforming spaces into curated experiences. I specialize in contemporary Indian aesthetics blended with global minimalism. My focus is on sustainable materials and ergonomic efficiency for modern urban homes.";
 
-  const sellerId =
-    listing?.seller?._id ??
-    (listing as { userId?: string | { _id?: string } })?.userId?._id ??
-    (typeof (listing as { userId?: string })?.userId === "string"
-      ? (listing as { userId?: string }).userId
-      : undefined);
+  const sellerId = listing ? getListingSellerId(listing) : null;
 
   const handleMessageSeller = useCallback(() => {
     if (!listing || !sellerId) return;

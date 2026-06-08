@@ -50,6 +50,7 @@ import {
   selectLocationCoords,
   selectLocationLabel,
   selectIsoCountryCode,
+  selectCanShowDistanceOnCards,
   selectLocationSource,
   setProfileFallbackLocation,
 } from "@/store/slices/location-slice";
@@ -116,8 +117,10 @@ export function HomeFeedRootScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [showLoginSheet, setShowLoginSheet] = useState(false);
   const isOffline = !network.isConnected || network.isInternetReachable === false;
-  const shouldApplyLocationFilter = locationSource === "manual";
+  const hasUserSelectedLocation = locationSource === "manual";
+  const shouldApplyLocationFilter = hasUserSelectedLocation;
   const effectiveCountryCode = (isoCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
+  const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -184,11 +187,8 @@ export function HomeFeedRootScreen() {
             countryCode: effectiveCountryCode ?? undefined,
           };
         } else {
-          // Default scope is user's current country (GPS/locale), not global.
-          feedParams = {
-            ...feedParams,
-            countryCode: effectiveCountryCode ?? undefined,
-          };
+          // No location picked — show listings from all countries (price tags only).
+          feedParams = { limit: 12 };
         }
         const res = await fetchHomeFeed(feedParams);
         const duration = Date.now() - startedAt;
@@ -342,19 +342,16 @@ export function HomeFeedRootScreen() {
   };
 
   const freshRecommendations = useMemo((): FreshRecommendationItem[] => {
-    // For guest: show all listings, distance is from listing's own location (or just city/country)
-    // For authenticated: show as before (distance from user)
-    const userLatLng =
-      isAuthenticated && locationCoords.lat != null && locationCoords.lng != null
-        ? { lat: locationCoords.lat, lng: locationCoords.lng }
-        : null;
+    const userLatLng = canShowDistanceOnCards
+      ? { lat: locationCoords.lat as number, lng: locationCoords.lng as number }
+      : null;
 
     const withDistance = allListings.map((item) => {
       const category = (item as ListingItem & { _source?: string })._source ?? item.category ?? "electronics";
-      let distanceKm: number | undefined = undefined;
-      let distanceLabel: string | undefined = undefined;
-      if (isAuthenticated && userLatLng) {
-        distanceKm = resolveListingDistanceKm(
+      let distanceLabel: string | undefined;
+
+      if (userLatLng) {
+        const distanceKm = resolveListingDistanceKm(
           {
             _id: item._id,
             category,
@@ -363,32 +360,22 @@ export function HomeFeedRootScreen() {
           },
           userLatLng,
         ) ?? undefined;
+
         distanceLabel = getListingDistanceLabel(
           {
             _id: item._id,
             category,
-            distance: distanceKm ?? undefined,
+            distance: distanceKm,
             coordinates: item.coordinates,
+            countryCode: item.countryCode,
+            currency: item.currency,
           },
           userLatLng,
-          isoCountryCode,
-        );
-      } else {
-        // Guest: show location/city/country, or km if available from listing
-        distanceKm = (item as { distance?: number }).distance;
-        distanceLabel = getListingDistanceLabel(
-          {
-            _id: item._id,
-            category,
-            distance: distanceKm ?? undefined,
-            coordinates: item.coordinates,
-            location: item.location,
-          },
-          null,
-          item.countryCode || undefined,
+          item.countryCode ?? undefined,
         );
       }
-      return { item, category, distanceKm, distanceLabel };
+
+      return { item, category, distanceLabel };
     });
 
     withDistance.sort((a, b) => {
@@ -407,7 +394,7 @@ export function HomeFeedRootScreen() {
       category,
       distanceLabel,
     }));
-  }, [allListings, locationCoords.lat, locationCoords.lng, isoCountryCode, isAuthenticated]);
+  }, [allListings, canShowDistanceOnCards, locationCoords.lat, locationCoords.lng]);
 
   const navigateToCategory = useCallback(
     (catId: CategorySlug) => {
@@ -784,22 +771,18 @@ export function HomeFeedRootScreen() {
               {filterOutOwnListings(recentlyViewed, user?.id)
                 .slice(0, 12)
                 .map((item) => {
-                const distanceLabel = getListingDistanceLabel(
-                  {
-                    _id: item._id,
-                    category: item.category,
-                    // Pass the listing's own country code so that when the user
-                    // has no country selected (isoCountryCode is null) the unit
-                    // is still determined from the listing's origin, not a
-                    // hardcoded default of "km".
-                    countryCode: item.countryCode ?? item.isoCountryCode,
-                    currency: item.currency,
-                  },
-                  locationCoords.lat != null && locationCoords.lng != null
-                    ? { lat: locationCoords.lat, lng: locationCoords.lng }
-                    : null,
-                  isoCountryCode || item.countryCode || item.isoCountryCode,
-                );
+                const distanceLabel = canShowDistanceOnCards
+                  ? getListingDistanceLabel(
+                      {
+                        _id: item._id,
+                        category: item.category,
+                        countryCode: item.countryCode ?? item.isoCountryCode,
+                        currency: item.currency,
+                      },
+                      { lat: locationCoords.lat!, lng: locationCoords.lng! },
+                      isoCountryCode || item.countryCode || item.isoCountryCode,
+                    )
+                  : undefined;
 
                 return (
                   <ListingItemsGridCard

@@ -141,6 +141,18 @@ exports.getOrCreateProductThread = async ({
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 
+  // Repair legacy threads that were created with the wrong buyer role.
+  if (
+    thread &&
+    String(thread.seller) === String(sellerId) &&
+    String(thread.buyer) !== String(buyerId)
+  ) {
+    thread.buyer = buyerId;
+    thread.unreadCounts = thread.unreadCounts || new Map();
+    thread.unreadCounts.set(String(buyerId), thread.unreadCounts.get(String(buyerId)) || 0);
+    await thread.save();
+  }
+
   // Update conversation thread counters when a new thread was created
   // ($inc is idempotent — if thread already existed, findOneAndUpdate won't $setOnInsert)
   const wasNew = thread.messageCount === 0 && !thread.closedAt;
@@ -464,7 +476,14 @@ exports.makeOffer = async ({ threadId, buyerId, amount, currency = '₹' }) => {
   const thread = await ProductThread.findById(threadId);
   if (!thread) throw Object.assign(new Error('Thread not found'), { statusCode: 404 });
   if (String(thread.buyer) !== String(buyerId)) {
-    throw Object.assign(new Error('Only the buyer can make an offer'), { statusCode: 403 });
+    if (String(thread.seller) === String(buyerId)) {
+      throw Object.assign(new Error('Only the buyer can make an offer'), { statusCode: 403 });
+    }
+    // Repair legacy threads created with seller/buyer reversed.
+    thread.buyer = buyerId;
+    thread.unreadCounts = thread.unreadCounts || new Map();
+    thread.unreadCounts.set(String(buyerId), thread.unreadCounts.get(String(buyerId)) || 0);
+    await thread.save();
   }
   if (thread.status !== 'active') {
     throw Object.assign(new Error('Thread is closed'), { statusCode: 409 });

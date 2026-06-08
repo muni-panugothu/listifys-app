@@ -34,8 +34,14 @@ import { ListingLocationSection } from "@/components/listing-location-section";
 import { formatVehicleOdometer, getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
-import { formatPrice } from "@/lib/currency";
+import {
+  selectCanShowDistanceOnCards,
+  selectIsoCountryCode,
+  selectLocationCoords,
+  selectLocationLabel,
+} from "@/store/slices/location-slice";
+import { formatPrice, getCurrencySymbol } from "@/lib/currency";
+import { getListingSellerId, isOwnListing } from "@/lib/is-own-listing";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HORIZONTAL_PAD = 16;
@@ -99,6 +105,7 @@ export function ListingDetailTemplateScreen() {
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
   const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
 
   const categorySlug = (params.category ?? "electronics") as CategorySlug;
   const listingId = params.id;
@@ -182,8 +189,11 @@ export function ListingDetailTemplateScreen() {
   const handleMessageSeller = useCallback(() => {
     if (!listing) return;
 
-    const sellerId = listing.seller?._id;
-    if (!sellerId) return;
+    const sellerId = getListingSellerId(listing);
+    if (!sellerId) {
+      showErrorToast("Unavailable", "Seller information is missing for this listing.");
+      return;
+    }
     const sellerName =
       listing.seller?.name ?? listing.sellerName ?? "Seller";
 
@@ -219,6 +229,9 @@ export function ListingDetailTemplateScreen() {
       const defaultOffer = Math.round((Number(listing.price) * 0.9) / 100) * 100;
       setOfferAmount(String(defaultOffer));
       setSelectedChip(String(defaultOffer));
+    } else {
+      setOfferAmount("");
+      setSelectedChip("");
     }
     setOfferSent(false);
     setOfferVisible(true);
@@ -242,8 +255,11 @@ export function ListingDetailTemplateScreen() {
   const handleSendOffer = useCallback(async () => {
     if (!listing || !offerAmount || sendingOffer) return;
 
-    const sellerId = listing.seller?._id;
-    if (!sellerId) return;
+    const sellerId = getListingSellerId(listing);
+    if (!sellerId) {
+      showErrorToast("Unavailable", "Seller information is missing for this listing.");
+      return;
+    }
     setSendingOffer(true);
     try {
       const { sendListingOffer } = await import("@/lib/listing-chat");
@@ -289,8 +305,18 @@ export function ListingDetailTemplateScreen() {
   }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet]);
 
   const handleMakeOffer = useCallback(() => {
+    if (!listing) return;
+    if (isOwnListing(listing, user?.id)) {
+      showErrorToast("Not Available", "You cannot make an offer on your own listing.");
+      return;
+    }
+    const sellerId = getListingSellerId(listing);
+    if (!sellerId) {
+      showErrorToast("Unavailable", "Seller information is missing for this listing.");
+      return;
+    }
     requireAuth("offer", openOfferSheet);
-  }, [openOfferSheet, requireAuth]);
+  }, [listing, openOfferSheet, requireAuth, user?.id]);
 
   const images = useMemo(() => {
     const raw = listing?.images?.length ? listing.images : [];
@@ -310,22 +336,23 @@ export function ListingDetailTemplateScreen() {
   const priceLabel = listing?.price
     ? formatPrice(listing.price, listing.currency, listing.countryCode ?? isoCountryCode)
     : "Price on request";
-  const distanceLabel = listing
-    ? getListingDistanceLabel(
-        {
-          _id: listing._id,
-          category: categorySlug,
-          distance: listing.distance as number | undefined,
-          coordinates: listing.coordinates,
-          countryCode: listing.countryCode,
-          currency: listing.currency,
-        },
-        userCoords.lat != null && userCoords.lng != null
-          ? { lat: userCoords.lat, lng: userCoords.lng }
-          : null,
-        isoCountryCode,
-      )
-    : undefined;
+  const distanceLabel =
+    listing && canShowDistanceOnCards
+      ? getListingDistanceLabel(
+          {
+            _id: listing._id,
+            category: categorySlug,
+            distance: listing.distance as number | undefined,
+            coordinates: listing.coordinates,
+            countryCode: listing.countryCode,
+            currency: listing.currency,
+          },
+          userCoords.lat != null && userCoords.lng != null
+            ? { lat: userCoords.lat, lng: userCoords.lng }
+            : null,
+          isoCountryCode,
+        )
+      : undefined;
   const condition = listing?.condition?.trim() ?? "";
   const description =
     listing?.description ??
@@ -650,7 +677,7 @@ export function ListingDetailTemplateScreen() {
                 </Text>
                 <Pressable
                   onPress={() => {
-                    const sid = listing?.seller?._id;
+                    const sid = listing ? getListingSellerId(listing) : null;
                     if (!sid) return;
                     router.push({
                       pathname: "/seller-public-profile",
@@ -960,7 +987,7 @@ export function ListingDetailTemplateScreen() {
                         className="text-[20px] text-slate-400"
                         style={{ fontFamily: ListifyFonts.bold }}
                       >
-                        ₹
+                        {getCurrencySymbol(listing?.currency)}
                       </Text>
                       <TextInput
                         value={offerAmount}

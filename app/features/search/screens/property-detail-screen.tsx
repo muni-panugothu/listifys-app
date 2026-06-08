@@ -31,9 +31,16 @@ import { ListingLocationSection } from "@/components/listing-location-section";
 import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
-import { selectIsoCountryCode, selectLocationCoords, selectLocationLabel } from "@/store/slices/location-slice";
+import {
+  selectCanShowDistanceOnCards,
+  selectIsoCountryCode,
+  selectLocationCoords,
+  selectLocationLabel,
+} from "@/store/slices/location-slice";
 import type { CategorySlug } from "@/constants/categories";
-import { formatPrice } from "@/lib/currency";
+import { formatPrice, getCurrencySymbol } from "@/lib/currency";
+import { getListingSellerId, isOwnListing } from "@/lib/is-own-listing";
+import { showErrorToast } from "@/lib/toast";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -45,6 +52,7 @@ export function PropertyDetailScreen() {
   const userCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
   const isoCountryCode = useAppSelector(selectIsoCountryCode);
+  const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,22 +101,23 @@ export function PropertyDetailScreen() {
     ? formatPrice(listing.price, listing.currency, listing.countryCode ?? isoCountryCode)
     : "";
   const description = listing?.description ?? "";
-  const distanceLabel = listing
-    ? getListingDistanceLabel(
-        {
-          _id: listing._id,
-          category: categorySlug,
-          distance: listing.distance as number | undefined,
-          coordinates: listing.coordinates,
-          countryCode: listing.countryCode,
-          currency: listing.currency,
-        },
-        userCoords.lat != null && userCoords.lng != null
-          ? { lat: userCoords.lat, lng: userCoords.lng }
-          : null,
-        isoCountryCode,
-      )
-    : undefined;
+  const distanceLabel =
+    listing && canShowDistanceOnCards
+      ? getListingDistanceLabel(
+          {
+            _id: listing._id,
+            category: categorySlug,
+            distance: listing.distance as number | undefined,
+            coordinates: listing.coordinates,
+            countryCode: listing.countryCode,
+            currency: listing.currency,
+          },
+          userCoords.lat != null && userCoords.lng != null
+            ? { lat: userCoords.lat, lng: userCoords.lng }
+            : null,
+          isoCountryCode,
+        )
+      : undefined;
   const bedrooms = listing?.bedrooms ?? 0;
   const bathrooms = listing?.bathrooms ?? 0;
   const squareFeet = (listing as any)?.squareFeet ?? 0;
@@ -132,7 +141,7 @@ export function PropertyDetailScreen() {
   const sellerJoined = listing?.seller?.createdAt
     ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
     : "";
-  const sellerId = listing?.seller?._id;
+  const sellerId = listing ? getListingSellerId(listing) : null;
 
   const topBarHeight = insets.top + 64;
   const footerBottomPadding = Math.max(insets.bottom, 10);
@@ -184,6 +193,9 @@ export function PropertyDetailScreen() {
       const defaultOffer = Math.round((Number(listing.price) * 0.90) / 100) * 100;
       setOfferAmount(String(defaultOffer));
       setSelectedChip(String(defaultOffer));
+    } else {
+      setOfferAmount("");
+      setSelectedChip("");
     }
     setOfferSent(false);
     setOfferVisible(true);
@@ -206,8 +218,11 @@ export function PropertyDetailScreen() {
 
   const handleSendOffer = useCallback(async () => {
     if (!listing || !offerAmount || sendingOffer) return;
-    const sid = listing.seller?._id;
-    if (!sid) return;
+    const sid = getListingSellerId(listing);
+    if (!sid) {
+      showErrorToast("Unavailable", "Seller information is missing for this listing.");
+      return;
+    }
     setSendingOffer(true);
     try {
       const { sendListingOffer } = await import("@/lib/listing-chat");
@@ -543,7 +558,17 @@ export function PropertyDetailScreen() {
             <Text className="text-[16px] font-semibold text-[#161D1A]">Contact Seller</Text>
           </Pressable>
           <Pressable
-            onPress={() => requireAuth("offer", openOfferSheet)}
+            onPress={() => {
+              if (isOwnListing(listing, user?.id)) {
+                showErrorToast("Not Available", "You cannot make an offer on your own listing.");
+                return;
+              }
+              if (!sellerId) {
+                showErrorToast("Unavailable", "Seller information is missing for this listing.");
+                return;
+              }
+              requireAuth("offer", openOfferSheet);
+            }}
             className="h-12 flex-[1.5] items-center justify-center rounded-xl bg-[#27BB97]"
             style={({ pressed }) => ({
               opacity: pressed ? 0.9 : 1,
@@ -680,7 +705,9 @@ export function PropertyDetailScreen() {
                   <View className="mb-6">
                     <Text className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[#161D1A]">Your Offer</Text>
                     <View className="h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
-                      <Text className="text-[20px] font-bold text-slate-400">\u20B9</Text>
+                      <Text className="text-[20px] font-bold text-slate-400">
+                        {getCurrencySymbol(listing?.currency)}
+                      </Text>
                       <TextInput
                         value={offerAmount}
                         onChangeText={(val) => {

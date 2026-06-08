@@ -39,6 +39,7 @@ import {
   selectIsoCountryCode,
   selectLocationCoords,
   selectLocationLabel,
+  selectCanShowDistanceOnCards,
   selectLocationSource,
 } from "@/store/slices/location-slice";
 import { useLocale } from "@/providers/locale-provider";
@@ -218,6 +219,7 @@ export function SearchResultsEntityTabsScreen() {
   const locationCoords = useAppSelector(selectLocationCoords);
   const locationLabel = useAppSelector(selectLocationLabel);
   const locationSource = useAppSelector(selectLocationSource);
+  const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
   // Prefer Redux (always up-to-date), fall back to URL param passed by caller.
   const reduxCountryCode = useAppSelector(selectIsoCountryCode);
   const paramCountryCode = parseQueryParam(params.countryCode) || null;
@@ -520,8 +522,7 @@ export function SearchResultsEntityTabsScreen() {
 
   const renderResultCard = useCallback(
     ({ item }: { item: SearchResultItem }) => {
-      const hasLoc = locationCoords.lat != null && locationCoords.lng != null;
-      const distanceLabel = hasLoc ? getListingDistanceLabel(
+      const distanceLabel = canShowDistanceOnCards ? getListingDistanceLabel(
         {
           _id: item._id,
           category: item._entity ?? item.category,
@@ -559,7 +560,7 @@ export function SearchResultsEntityTabsScreen() {
         </View>
       );
     },
-    [handleToggleSave, openDetail, savedIds, locationCoords.lat, locationCoords.lng, isoCountryCode],
+    [handleToggleSave, openDetail, savedIds, canShowDistanceOnCards, locationCoords.lat, locationCoords.lng, isoCountryCode],
   );
 
   const renderEmptyState = useCallback(() => {
