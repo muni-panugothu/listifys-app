@@ -210,7 +210,7 @@ export function SignInScreen() {
                 style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
                 className="flex-row items-center justify-center gap-4 rounded-full bg-gray-200 px-6 py-3"
               >
-                <Image source={require("../../../assets/google.jpg")} className="h-8 w-8" />
+                <Image source={require("../../../assets/google.jpg")} className="h-8 w-8 rounded-full" />
                 <Text className="font-semibold text-black">
                   {isGoogleLoading ? "Connecting..." : "Continue with Google"}
                 </Text>
