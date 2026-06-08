@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useFocusEffect, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    AppState,
     Dimensions,
     Modal,
     Pressable,
@@ -272,6 +273,18 @@ export function HomeFeedRootScreen() {
     if (!locationHydrated) return;
     loadFeed({ allowCacheFallback: false }).catch(() => {});
   }, [locationHydrated, locationCoords.lat, locationCoords.lng, loadFeed]);
+
+  useEffect(() => {
+    if (!sessionHydrated) return;
+
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        loadFeed({ allowCacheFallback: false }).catch(() => {});
+      }
+    });
+
+    return () => sub.remove();
+  }, [loadFeed, sessionHydrated]);
 
   useEffect(() => {
     if (!isOffline && isUsingCachedFeed) {

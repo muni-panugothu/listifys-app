@@ -20,7 +20,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { CategorySlug } from "@/constants/categories";
 import { ListifyFonts } from "@/constants/typography";
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
-import { AUTH_API_BASE_URL, requestJson } from "@/features/auth/services/auth-api";
+import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
+import { buildListingChatHref } from "@/lib/listing-chat";
+import { showErrorToast } from "@/lib/toast";
 import {
   addToRecentlyViewed,
   fetchListingById,
@@ -186,19 +188,19 @@ export function ListingDetailTemplateScreen() {
       listing.seller?.name ?? listing.sellerName ?? "Seller";
 
     requireAuth("message", () => {
-      router.push({
-        pathname: "/chat-conversation",
-        params: {
-          recipientId:  sellerId,
-          name:         sellerName,
-          productId:    listing._id,
-          productType:  categorySlug,
+      router.push(
+        buildListingChatHref({
+          recipientId: sellerId,
+          sellerId,
+          name: sellerName,
+          productId: listing._id,
+          productType: categorySlug,
           productTitle: listing.title ?? "",
-          productPrice: String(listing.price ?? ""),
-          productImage: listing.images?.[0] ?? "",
-          currency:     listing.currency ?? "₹",
-        },
-      } as Href);
+          productPrice: listing.price,
+          productImage: listing.images?.[0] ?? null,
+          currency: listing.currency ?? "₹",
+        }),
+      );
     });
   }, [categorySlug, listing, requireAuth, router]);
 
@@ -244,34 +246,43 @@ export function ListingDetailTemplateScreen() {
     if (!sellerId) return;
     setSendingOffer(true);
     try {
-      // 1. Get/create conversation + product thread
-      const convRes = await requestJson<{ success: boolean; conversation: { _id: string }; thread: { _id: string } | null }>(
-        "/api/chat/conversations",
+      const { sendListingOffer } = await import("@/lib/listing-chat");
+      const offerRes = await sendListingOffer(
         {
-          method: "POST",
-          body: JSON.stringify({
-            recipientId:  sellerId,
-            productId:    listing._id,
-            productType:  categorySlug,
-            productTitle: listing.title,
+          recipientId: sellerId,
+          sellerId,
+          productId: listing._id,
+          productType: categorySlug,
+          productTitle: listing.title,
+          productPrice: listing.price,
+          productImage: listing.images?.[0] ?? null,
+          currency: listing.currency ?? "₹",
+        },
+        Number(offerAmount),
+        listing.currency ?? "₹",
+      );
+      setOfferSent(true);
+      setTimeout(() => {
+        closeOfferSheet();
+        router.push(
+          buildListingChatHref({
+            recipientId: sellerId,
+            sellerId,
+            name: sellerName,
+            productId: listing._id,
+            productType: categorySlug,
+            productTitle: listing.title ?? "",
             productPrice: listing.price,
             productImage: listing.images?.[0] ?? null,
-            currency:     listing.currency ?? "₹",
+            currency: listing.currency ?? "₹",
           }),
-        },
+        );
+      }, 1200);
+    } catch (e) {
+      showErrorToast(
+        "Offer Failed",
+        e instanceof Error ? e.message : "Could not send your offer.",
       );
-      const threadId = convRes.thread?._id;
-      if (!threadId) throw new Error("Thread not created");
-
-      // 2. Post the offer on that thread
-      await requestJson(`/api/chat/threads/${threadId}/offer`, {
-        method: "POST",
-        body: JSON.stringify({ amount: Number(offerAmount), currency: listing.currency ?? "₹" }),
-      });
-      setOfferSent(true);
-      setTimeout(() => closeOfferSheet(), 1800);
-    } catch {
-      // silently fail
     } finally {
       setSendingOffer(false);
     }

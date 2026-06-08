@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -21,7 +21,11 @@ type TopSaveToastProps = {
   onHidden?: () => void;
 };
 
-const SHOW_DURATION_MS = 1800;
+const SHOW_DURATION_MS: Record<AppToastType, number> = {
+  success: 2200,
+  info: 2800,
+  error: 9000,
+};
 
 export function TopSaveToast({
   visible,
@@ -41,6 +45,7 @@ export function TopSaveToast({
   };
 
   const accent = toastAccentByType[type];
+  const isError = type === "error";
 
   useEffect(() => {
     if (!visible) return;
@@ -55,10 +60,10 @@ export function TopSaveToast({
         }
       });
       opacity.value = withTiming(0, { duration: 280 });
-    }, SHOW_DURATION_MS);
+    }, SHOW_DURATION_MS[type]);
 
     return () => clearTimeout(hideTimer);
-  }, [visible, message, onHidden, opacity, translateY]);
+  }, [visible, message, onHidden, opacity, translateY, type]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -69,13 +74,14 @@ export function TopSaveToast({
 
   return (
     <Animated.View
-      pointerEvents="none"
-      className="absolute inset-x-4 z-[100]"
+      pointerEvents="box-none"
+      className="absolute inset-x-3 z-[100]"
       style={[{ top: insets.top + 8 }, animatedStyle]}
     >
       <View
-        className="flex-row items-center gap-2.5 rounded-2xl bg-[#1A1A1A] px-4 py-3"
+        className="flex-row items-start gap-2.5 rounded-2xl bg-[#1A1A1A] px-4 py-3"
         style={{
+          maxHeight: isError ? 320 : 120,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.2,
@@ -83,27 +89,33 @@ export function TopSaveToast({
           elevation: 8,
         }}
       >
-        <View className="h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: accent.color }}>
+        <View
+          className="mt-0.5 h-7 w-7 items-center justify-center rounded-full"
+          style={{ backgroundColor: accent.color }}
+        >
           <MaterialIcons name={accent.icon} size={18} color="#FFFFFF" />
         </View>
-        <View className="flex-1">
+        <ScrollView
+          className="flex-1"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={isError}
+        >
           {title ? (
             <Text
               className="text-[14px] text-white"
               style={{ fontFamily: ListifyFonts.semiBold }}
-              numberOfLines={1}
             >
               {title}
             </Text>
           ) : null}
           <Text
-            className="text-[15px] text-white"
+            className="text-[14px] leading-5 text-white"
             style={{ fontFamily: ListifyFonts.medium }}
-            numberOfLines={2}
+            selectable={isError}
           >
             {message}
           </Text>
-        </View>
+        </ScrollView>
       </View>
     </Animated.View>
   );

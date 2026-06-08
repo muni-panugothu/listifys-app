@@ -29,7 +29,8 @@ import { logout } from "@/store/slices/auth-slice";
 import { store } from "@/store";
 import { registerBackgroundCallHandler } from "@/lib/firebase-messaging";
 import { NotificationProvider } from "@/providers/notification-provider";
-import { getSocket, disconnectSocket } from "@/features/messaging/services/socket-service";
+import { connectSocket, getSocket, disconnectSocket } from "@/features/messaging/services/socket-service";
+import { hydrateAppLocation, refreshDeviceLocation } from "@/store/slices/location-slice";
 
 // Register FCM background handler before any component renders (module-level)
 // Wrapped in try/catch — fails gracefully if google-services.json is missing.
@@ -168,16 +169,29 @@ function AppLayout() {
   // not during cold-start loading (which feels jarring).
   useEffect(() => {
     if (!sessionHydrated) return;
-    void Location.requestForegroundPermissionsAsync().catch(() => {
-      // Silently ignore — user may have denied; the location-picker handles re-request.
-    });
-  }, [sessionHydrated]);
+
+    const bootstrapLocation = async () => {
+      const current = await Location.getForegroundPermissionsAsync();
+      const permission =
+        current.status === "granted"
+          ? current
+          : await Location.requestForegroundPermissionsAsync();
+
+      if (permission.status !== "granted") return;
+
+      await dispatch(hydrateAppLocation());
+      await dispatch(refreshDeviceLocation({ force: true }));
+    };
+
+    void bootstrapLocation().catch(() => {});
+  }, [dispatch, sessionHydrated]);
 
   // ── Attach call socket listeners after session hydration ─────────────────
   // We wait for sessionHydrated + isAuthenticated so the socket connects with
   // a valid (or freshly-refreshed) access token instead of an expired one.
   useEffect(() => {
     if (!sessionHydrated || !isAuthenticated) return;
+    void connectSocket().catch(() => {});
     // eslint-disable-next-line no-console
     console.log('[Layout] Session hydrated + authenticated — attaching call listeners');
     import('@/features/calling/services/call-socket-service').then(

@@ -1,20 +1,43 @@
 import { io, type Socket } from "socket.io-client";
 
-import { AUTH_API_BASE_URL, getAccessToken } from "@/features/auth/services/auth-api";
+import {
+  AUTH_API_BASE_URL,
+  getAccessToken,
+  refreshAccessToken,
+  restoreTokens,
+} from "@/features/auth/services/auth-api";
 
 let socket: Socket | null = null;
+let connectPromise: Promise<Socket> | null = null;
 
 export function getSocket(): Socket | null {
   return socket;
 }
 
-export function connectSocket(): Socket {
+export async function connectSocket(): Promise<Socket> {
   if (socket?.connected) return socket;
+  if (connectPromise) return connectPromise;
 
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error("No access token available for Socket.IO");
-  }
+  connectPromise = (async () => {
+    if (!getAccessToken()) {
+      await restoreTokens();
+    }
+    let token = getAccessToken();
+    if (!token) {
+      await refreshAccessToken();
+      token = getAccessToken();
+    }
+    if (!token) {
+      throw new Error("No access token available for Socket.IO");
+    }
+
+    if (socket) {
+      socket.auth = { token };
+      if (!socket.connected) {
+        socket.connect();
+      }
+      return socket;
+    }
 
   socket = io(AUTH_API_BASE_URL, {
     auth: { token },
@@ -41,7 +64,12 @@ export function connectSocket(): Socket {
     console.log("[Socket] Disconnected:", reason);
   });
 
-  return socket;
+    return socket;
+  })().finally(() => {
+    connectPromise = null;
+  });
+
+  return connectPromise;
 }
 
 export function disconnectSocket() {

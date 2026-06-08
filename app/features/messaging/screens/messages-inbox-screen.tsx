@@ -96,26 +96,34 @@ export function MessagesInboxScreen() {
   );
 
   useEffect(() => {
-    try {
-      connectSocket();
-    } catch {
-      return;
-    }
-    const socket = getSocket();
-    if (!socket) return;
+    let cancelled = false;
+    let socketRef: ReturnType<typeof getSocket> = null;
 
     const refresh = () => void loadConversations();
-    socket.on("chat:message",              refresh);
-    socket.on("chat:conversation_update",  refresh);
-    socket.on("message:new",               refresh);
-    socket.on("conversation:unread_update", refresh);
-    requestUnreadCount();
+
+    void connectSocket()
+      .then((socket) => {
+        if (cancelled) return;
+        socketRef = socket;
+        socket.on("chat:message", refresh);
+        socket.on("chat:conversation_update", refresh);
+        socket.on("chat:offer", refresh);
+        socket.on("chat:offer_update", refresh);
+        socket.on("message:new", refresh);
+        socket.on("conversation:unread_update", refresh);
+        requestUnreadCount();
+      })
+      .catch(() => {});
 
     return () => {
-      socket.off("chat:message",              refresh);
-      socket.off("chat:conversation_update",  refresh);
-      socket.off("message:new",               refresh);
-      socket.off("conversation:unread_update", refresh);
+      cancelled = true;
+      if (!socketRef) return;
+      socketRef.off("chat:message", refresh);
+      socketRef.off("chat:conversation_update", refresh);
+      socketRef.off("chat:offer", refresh);
+      socketRef.off("chat:offer_update", refresh);
+      socketRef.off("message:new", refresh);
+      socketRef.off("conversation:unread_update", refresh);
     };
   }, [loadConversations]);
 
@@ -181,12 +189,24 @@ export function MessagesInboxScreen() {
 
       if (!otherId) return;
 
+      const listing = conv.listing;
       router.push({
         pathname: "/chat-conversation",
         params: {
           conversationId: conv._id,
-          recipientId:    otherId,
-          name:           otherName,
+          recipientId: otherId,
+          name: otherName,
+          ...(listing?.listingId
+            ? {
+                productId: listing.listingId,
+                productType: listing.listingType ?? "",
+                productTitle: listing.listingTitle ?? "",
+                productPrice:
+                  listing.listingPrice != null ? String(listing.listingPrice) : "",
+                productImage: listing.listingImage ?? "",
+                currency: listing.currency ?? "₹",
+              }
+            : {}),
         },
       } as Href);
     },
@@ -306,9 +326,13 @@ export function MessagesInboxScreen() {
             const otherName = other?.name ?? "User";
             const avatar = resolveAbsoluteMediaUrl(other?.profileImageUrl);
             const lastMsg = conv.lastMessage;
+            const productTitle = conv.listing?.listingTitle?.trim();
+            const productImage = resolveAbsoluteMediaUrl(conv.listing?.listingImage);
             const lastMsgText =
-              lastMsg?.content ??
-              (lastMsg?.attachments?.length ? "Attachment" : "");
+              lastMsg?.messageType === "offer"
+                ? "Offer update"
+                : lastMsg?.content ??
+                  (lastMsg?.attachments?.length ? "Attachment" : productTitle ?? "");
             const lastMsgTime = lastMsg?.createdAt
               ? formatChatTime(lastMsg.createdAt)
               : "";
@@ -321,7 +345,13 @@ export function MessagesInboxScreen() {
                 className="flex-row items-center px-5 py-3.5"
                 style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
               >
-                {avatar ? (
+                {productImage ? (
+                  <Image
+                    source={productImage}
+                    contentFit="cover"
+                    className="h-14 w-14 rounded-xl border border-slate-100"
+                  />
+                ) : avatar ? (
                   <Image
                     source={avatar}
                     contentFit="cover"
@@ -340,7 +370,7 @@ export function MessagesInboxScreen() {
                       style={{ fontFamily: ListifyFonts.semiBold }}
                       numberOfLines={1}
                     >
-                      {otherName}
+                      {productTitle || otherName}
                     </Text>
                     <View className="items-end">
                       {lastMsgTime ? (
@@ -366,10 +396,19 @@ export function MessagesInboxScreen() {
                       ) : null}
                     </View>
                   </View>
+                  {productTitle ? (
+                    <Text
+                      className="mt-0.5 text-[12px] text-[#6B7280]"
+                      style={{ fontFamily: ListifyFonts.regular }}
+                      numberOfLines={1}
+                    >
+                      {otherName}
+                    </Text>
+                  ) : null}
                   <Text
                     className="mt-0.5 text-[15px] text-[#9CA3AF]"
                     style={{ fontFamily: ListifyFonts.regular }}
-                    numberOfLines={1}
+                    numberOfLines={2}
                   >
                     {lastMsgText}
                   </Text>

@@ -24,6 +24,7 @@ import {
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from "@/lib/google-sign-in";
+import { formatAuthFailureMessage } from "@/lib/auth-error-display";
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
@@ -73,7 +74,7 @@ export function SignInScreen() {
 
   useEffect(() => {
     if (error) {
-      showErrorToast("Sign In Failed", error);
+      showErrorToast("Sign In Failed", formatAuthFailureMessage(error, "Sign in"));
       dispatch(clearError());
     }
   }, [dispatch, error]);
@@ -96,8 +97,8 @@ export function SignInScreen() {
       } else {
         router.replace("/(tabs)/home-feed-root" as Href);
       }
-    } catch {
-      // Error is surfaced via the auth slice error state → showErrorToast useEffect below
+    } catch (err) {
+      showErrorToast("Sign In Failed", formatAuthFailureMessage(err, "Sign in"));
     }
   };
 
@@ -108,15 +109,7 @@ export function SignInScreen() {
       await dispatch(googleLogin({ idToken })).unwrap();
     } catch (err) {
       if (err instanceof GoogleSignInError && err.cancelled) return;
-      const message =
-        err instanceof GoogleSignInError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : typeof err === "string"
-              ? err
-              : "Google sign-in failed.";
-      showErrorToast("Google Sign In", message);
+      showErrorToast("Google Sign In", formatAuthFailureMessage(err, "Google sign in"));
     } finally {
       setIsGoogleLoading(false);
     }

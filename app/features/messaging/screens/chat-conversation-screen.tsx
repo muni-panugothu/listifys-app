@@ -36,6 +36,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
+import { normalizeListingChatParams } from "@/lib/listing-chat";
+import { showErrorToast } from "@/lib/toast";
 import {
   getOrCreateConversation, listThreads, getThreadMessages,
   sendMessageApi, markThreadRead, markConversationRead,
@@ -45,7 +47,7 @@ import {
 import { ProductThreadSection } from "@/features/messaging/components/product-thread-section";
 import { OfferCard } from "@/features/messaging/components/offer-card";
 import {
-  connectSocket, joinConversation, leaveConversation,
+  connectSocket, joinConversation, leaveConversation, joinThread, leaveThread,
   emitTypingStart, emitTypingStop, emitMessageDelivered, getSocket,
 } from "@/features/messaging/services/socket-service";
 import { Image } from "@/lib/nativewind-interop";
@@ -92,12 +94,9 @@ function isFromMe(m: ChatMessage, uid?: string) { return senderId(m) === uid; }
 
 export function ChatConversationScreen() {
   const router  = useRouter();
-  const params  = useLocalSearchParams<{
-    conversationId?: string; recipientId?: string; name?: string;
-    productId?: string; productType?: string; productTitle?: string;
-    productPrice?: string; productImage?: string; currency?: string;
-    sellerId?: string;
-  }>();
+  const rawParams = useLocalSearchParams<Record<string, string | string[] | undefined>>();
+  const chatParams = useMemo(() => normalizeListingChatParams(rawParams), [rawParams]);
+  const params = chatParams;
   const insets  = useSafeAreaInsets();
   const user    = useAppSelector((s) => s.auth.user);
   const dispatch = useAppDispatch();
@@ -199,10 +198,14 @@ export function ChatConversationScreen() {
         }
 
         // 4. Socket
-        connectSocket();
+        await connectSocket();
         joinConversation(convId);
       } catch (e) {
         console.warn("[Chat] Bootstrap error", e);
+        showErrorToast(
+          "Chat Error",
+          e instanceof Error ? e.message : "Could not open this conversation.",
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -216,11 +219,18 @@ export function ChatConversationScreen() {
     setActiveThreadSt(thread);
     dispatch(setActiveThread(thread._id));
     try {
+      await connectSocket().catch(() => {});
+      joinThread(thread._id);
       const res = await getThreadMessages(thread._id, 1, 50);
       setMessages(sortChron(res.messages));
       if (animate) scrollToBottom();
       markThreadRead(thread._id).catch(() => {});
-    } catch {}
+    } catch (e) {
+      showErrorToast(
+        "Chat Error",
+        e instanceof Error ? e.message : "Could not load messages for this product.",
+      );
+    }
   }, [dispatch, scrollToBottom]);
 
   // ── Socket events ──────────────────────────────────────────────────────────
@@ -298,12 +308,13 @@ export function ChatConversationScreen() {
     return () => {
       if (conversation) {
         leaveConversation(conversation._id);
+        if (activeThread) leaveThread(activeThread._id);
         markConversationRead(conversation._id).catch(() => {});
       }
       dispatch(setActiveConversation(null));
       dispatch(setActiveThread(null));
     };
-  }, [conversation, dispatch]);
+  }, [activeThread, conversation, dispatch]);
 
   // ── Send message ───────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
@@ -327,9 +338,13 @@ export function ChatConversationScreen() {
         const filtered = prev.filter((m) => m._id !== tempId);
         return sortChron([...filtered, res.message]);
       });
-    } catch {
+    } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
       setMessageText(text);
+      showErrorToast(
+        "Message Failed",
+        e instanceof Error ? e.message : "Could not send your message.",
+      );
     } finally {
       setSending(false);
     }

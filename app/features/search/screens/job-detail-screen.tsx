@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CategorySlug } from "@/constants/categories";
 import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
+import { buildListingChatHref } from "@/lib/listing-chat";
 import {
   addToRecentlyViewed,
   fetchListingById,
@@ -469,7 +470,17 @@ export function JobDetailScreen() {
               requireAuth("message", () => {
                 if (!sellerId) return;
                 router.push(
-                  `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                  buildListingChatHref({
+                    recipientId: sellerId,
+                    sellerId,
+                    name: sellerName,
+                    productId: listing._id,
+                    productType: categorySlug,
+                    productTitle: title,
+                    productPrice: listing.price,
+                    productImage: listing.images?.[0] ?? null,
+                    currency: listing.currency ?? "₹",
+                  }),
                 );
               });
             }}
@@ -485,7 +496,17 @@ export function JobDetailScreen() {
               else if (sellerId) {
                 requireAuth("message", () => {
                   router.push(
-                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                    buildListingChatHref({
+                      recipientId: sellerId,
+                      sellerId,
+                      name: sellerName,
+                      productId: listing._id,
+                      productType: categorySlug,
+                      productTitle: title,
+                      productPrice: listing.price,
+                      productImage: listing.images?.[0] ?? null,
+                      currency: listing.currency ?? "₹",
+                    }),
                   );
                 });
               }

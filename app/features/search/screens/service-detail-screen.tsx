@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -16,7 +16,9 @@ import { fetchListingById } from "@/features/listing/services/listing-api";
 import type { ListingItem } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { formatPrice } from "@/lib/currency";
+import { buildListingChatHref } from "@/lib/listing-chat";
 import { Image } from "@/lib/nativewind-interop";
+import { useAppSelector } from "@/store/hooks";
 
 type ApiReviewItem = {
   _id: string;
@@ -161,6 +163,7 @@ function buildPricingPlans(listing: ListingItem): PricePlan[] {
 
 export function ServiceDetailScreen() {
   const router = useRouter();
+  const user = useAppSelector((s) => s.auth.user);
   const params = useLocalSearchParams<{
     id?: string | string[];
     category?: string | string[];
@@ -237,6 +240,34 @@ export function ServiceDetailScreen() {
   const aboutText =
     listing?.description ??
     "Transforming spaces into curated experiences. I specialize in contemporary Indian aesthetics blended with global minimalism. My focus is on sustainable materials and ergonomic efficiency for modern urban homes.";
+
+  const sellerId =
+    listing?.seller?._id ??
+    (listing as { userId?: string | { _id?: string } })?.userId?._id ??
+    (typeof (listing as { userId?: string })?.userId === "string"
+      ? (listing as { userId?: string }).userId
+      : undefined);
+
+  const handleMessageSeller = useCallback(() => {
+    if (!listing || !sellerId) return;
+    if (!user) {
+      router.push("/sign-in" as Href);
+      return;
+    }
+    router.push(
+      buildListingChatHref({
+        recipientId: sellerId,
+        sellerId,
+        name: professionalName,
+        productId: listing._id,
+        productType: "services",
+        productTitle: listing.title ?? professionalBadge,
+        productPrice: basePrice,
+        productImage: listing.images?.[0] ?? null,
+        currency,
+      }),
+    );
+  }, [basePrice, currency, listing, professionalBadge, professionalName, router, sellerId, user]);
 
   const portfolioItems: PortfolioItem[] = listing?.images?.length
     ? buildPortfolioItems(listing.images as string[])
@@ -551,6 +582,7 @@ export function ServiceDetailScreen() {
           </View>
 
           <Pressable
+            onPress={handleMessageSeller}
             className="flex-2 overflow-hidden rounded-lg"
             style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}
           >

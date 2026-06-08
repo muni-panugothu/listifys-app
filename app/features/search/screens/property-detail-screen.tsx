@@ -17,7 +17,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AUTH_API_BASE_URL, requestJson } from "@/features/auth/services/auth-api";
+import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
+import { buildListingChatHref } from "@/lib/listing-chat";
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import {
   addToRecentlyViewed,
@@ -209,22 +210,44 @@ export function PropertyDetailScreen() {
     if (!sid) return;
     setSendingOffer(true);
     try {
-      await requestJson("/api/chat/make-offer", {
-        method: "POST",
-        body: JSON.stringify({
+      const { sendListingOffer } = await import("@/lib/listing-chat");
+      await sendListingOffer(
+        {
           recipientId: sid,
-          listingId: listing._id,
-          listingType: categorySlug,
-          listingTitle: listing.title,
-          offerAmount: Number(offerAmount),
-          listingPrice: listing.price,
+          sellerId: sid,
+          productId: listing._id,
+          productType: categorySlug,
+          productTitle: listing.title,
+          productPrice: listing.price,
           productImage: listing.images?.[0] ?? null,
-        }),
-      });
+          currency: listing.currency ?? "₹",
+        },
+        Number(offerAmount),
+        listing.currency ?? "₹",
+      );
       setOfferSent(true);
-      setTimeout(() => closeOfferSheet(), 1800);
-    } catch {
-      // silently fail
+      setTimeout(() => {
+        closeOfferSheet();
+        router.push(
+          buildListingChatHref({
+            recipientId: sid,
+            sellerId: sid,
+            name: sellerName,
+            productId: listing._id,
+            productType: categorySlug,
+            productTitle: title,
+            productPrice: listing.price,
+            productImage: listing.images?.[0] ?? null,
+            currency: listing.currency ?? "₹",
+          }),
+        );
+      }, 1200);
+    } catch (e) {
+      const { showErrorToast } = await import("@/lib/toast");
+      showErrorToast(
+        "Offer Failed",
+        e instanceof Error ? e.message : "Could not send your offer.",
+      );
     } finally {
       setSendingOffer(false);
     }
@@ -499,7 +522,17 @@ export function PropertyDetailScreen() {
               if (sellerId) {
                 requireAuth("message", () => {
                   router.push(
-                    `/chat-conversation?recipientId=${sellerId}&listingId=${listing._id}&listingType=${categorySlug}&listingTitle=${encodeURIComponent(title)}&listingPrice=${listing.price ?? ""}&listingImage=${encodeURIComponent(listing.images?.[0] ?? "")}&currency=${encodeURIComponent(listing.currency ?? "\u20B9")}` as Href,
+                    buildListingChatHref({
+                      recipientId: sellerId,
+                      sellerId,
+                      name: sellerName,
+                      productId: listing._id,
+                      productType: categorySlug,
+                      productTitle: title,
+                      productPrice: listing.price,
+                      productImage: listing.images?.[0] ?? null,
+                      currency: listing.currency ?? "₹",
+                    }),
                   );
                 });
               }
