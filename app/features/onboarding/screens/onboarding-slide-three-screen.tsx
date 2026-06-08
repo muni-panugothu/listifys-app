@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, Image, TouchableOpacity } from 'react-native'
+import { View, Text, Image, TouchableOpacity, Platform } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { type Href, useRouter } from '@/lib/safe-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -15,14 +15,17 @@ import {
   signInWithGoogleNative,
 } from '@/lib/google-sign-in'
 
+// Import images directly
+const bgImage = require('../../../assets/bg.png')
+const googleIcon = require('../../../assets/google.jpg')
+const mobileIcon = require('../../../assets/mobile.jpg')
+
 const App = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const dispatch = useAppDispatch()
   const { isAuthenticated, sessionHydrated, error } = useAppSelector((s) => s.auth)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
-  // Guard: skip redirect on initial mount — only redirect after the screen is
-  // already visible and isAuthenticated transitions to true (e.g. after sign-in).
   const hasMountedRef = React.useRef(false)
 
   const markOnboardingComplete = async () => {
@@ -46,12 +49,6 @@ const App = () => {
     if (isAuthenticated && sessionHydrated) {
       router.replace('/(tabs)/home-feed-root' as Href)
     }
-    // `router` intentionally omitted from deps – its reference changes on every
-    // navigation (safe-router rebuilds on pathname), which would cause this
-    // effect to re-fire after the user navigates away from home-feed-root and
-    // bounce them back. The replace call is always safe with the current nav
-    // state regardless of which router reference is captured in the closure.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, sessionHydrated])
 
   useEffect(() => {
@@ -102,11 +99,15 @@ const App = () => {
         <Text className="font-semibold text-white">Skip</Text>
       </TouchableOpacity>
 
-      {/* Background Image */}
+      {/* Background Image - Fixed with explicit width/height */}
       <Image
-        source={require('../../../assets/bg.png')}
-        className="absolute w-full h-full"
-        style={{ resizeMode: 'cover' }}
+        source={bgImage}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          position: 'absolute',
+          resizeMode: 'cover'
+        }}
       />
 
       {/* Gradient Overlay */}
@@ -129,8 +130,13 @@ const App = () => {
           disabled={isGoogleLoading}
         >
           <Image
-             source={require('../../../assets/google.jpg')}
-            className="w-8 h-8 bg-white rounded-full"
+            source={googleIcon}
+            style={{ 
+              width: 32, 
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: 'white'
+            }}
           />
           <Text className="font-semibold text-black">{isGoogleLoading ? 'Connecting...' : 'Continue with Google'}</Text>
         </TouchableOpacity>
@@ -147,9 +153,12 @@ const App = () => {
           }}
         >
           <Image
-            source={require('../../../assets/mobile.jpg')}
-            className="w-10 h-8 bg-white rounded-full"
-            style={{ resizeMode: 'contain' }}
+            source={mobileIcon}
+            style={{ 
+              width: 40, 
+              height: 32,
+              resizeMode: 'contain'
+            }}
           />
           <Text className="font-semibold text-black">Continue with Mobile</Text>
         </TouchableOpacity>

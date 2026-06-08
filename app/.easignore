@@ -12,6 +12,8 @@ node_modules
 # Ignore Android build outputs and caches
 android/.gradle
 android/app/build
+android/app/.cxx
+android/.cxx
 android/build
 android/gradle
 android/gradle-wrapper.jar
