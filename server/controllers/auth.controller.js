@@ -2103,11 +2103,14 @@ exports.initiateForgotPassword = async (req, res) => {
         // delete the stale entry and allow the user to try again immediately.
         const otpExists = await RedisService.checkOTPExists(email);
         if (otpExists) {
-          return res.status(400).json({
-            success: false,
+          // Return success so the app routes to the OTP screen instead of showing an error.
+          return res.status(200).json({
+            success: true,
             message:
-              "Password reset already in progress. Please check your email for OTP.",
+              "Password reset OTP already sent. Please check your email for the code.",
+            email,
             expiresIn: Math.ceil((expiresAt - now) / 1000),
+            alreadyInProgress: true,
           });
         }
         // OTP is gone (expired or was never delivered) — clear the stale lock.

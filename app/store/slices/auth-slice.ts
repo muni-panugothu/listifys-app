@@ -3,6 +3,7 @@ import { type PayloadAction, createAsyncThunk, createSlice } from "@reduxjs/tool
 
 import { LOCATION_STORAGE_KEY } from "@/lib/location-service";
 import {
+  AuthApiError,
   type AuthUser,
   clearTokens,
   getAuthErrorMessage,
@@ -203,8 +204,20 @@ export const forgotPassword = createAsyncThunk(
   async ({ email }: { email: string }, { rejectWithValue }) => {
     try {
       const response = await initiateForgotPassword(email);
-      return { ...response, email };
+      return { ...response, email: response.email ?? email };
     } catch (error) {
+      // Legacy servers returned 400 for an in-progress reset — still route to OTP.
+      if (
+        error instanceof AuthApiError &&
+        /already in progress/i.test(error.message)
+      ) {
+        return {
+          success: true,
+          email,
+          message: error.message,
+          alreadyInProgress: true,
+        };
+      }
       return rejectWithValue(getAuthErrorMessage(error));
     }
   },

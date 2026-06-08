@@ -64,6 +64,25 @@ export class AuthApiError extends Error {
 }
 
 const API_REQUEST_TIMEOUT_MS = 15_000;
+/** Render free-tier cold starts can take 45–60s; auth must wait long enough. */
+const AUTH_REQUEST_TIMEOUT_MS = 65_000;
+
+const AUTH_REQUEST_PATH_PREFIXES = [
+  "/api/auth/register",
+  "/api/auth/forgot-password",
+  "/api/auth/login",
+  "/api/auth/google",
+  "/api/auth/phone",
+  "/api/auth/refresh",
+];
+
+function getRequestTimeoutMs(path: string) {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (AUTH_REQUEST_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+    return AUTH_REQUEST_TIMEOUT_MS;
+  }
+  return API_REQUEST_TIMEOUT_MS;
+}
 
 function getExpoDevHost() {
   // expo-dev-client / Expo Go sets hostUri at runtime so the LAN IP is always current.
@@ -397,9 +416,14 @@ async function parseJsonSafe(response: Response) {
   }
 }
 
-export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function executeRequestJson<T>(
+  path: string,
+  init?: RequestInit,
+  options?: { timeoutMs?: number },
+): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const baseUrls = getCandidateApiBaseUrls();
+  const timeoutMs = options?.timeoutMs ?? getRequestTimeoutMs(normalizedPath);
 
   // Ensure in-memory tokens are loaded from storage before first request
   if (!_accessToken && !_refreshToken) {
@@ -418,21 +442,29 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   for (const baseUrl of baseUrls) {
     const url = `${baseUrl}${normalizedPath}`;
     try {
-      response = await fetchWithTimeout(url, {
-        ...init,
-        credentials: getRequestCredentials(),
-        headers: buildHeaders(),
-      });
+      response = await fetchWithTimeout(
+        url,
+        {
+          ...init,
+          credentials: getRequestCredentials(),
+          headers: buildHeaders(),
+        },
+        timeoutMs,
+      );
 
       // Auto-refresh on 401 and retry once
       if (response.status === 401) {
         const refreshed = await refreshAccessToken();
         if (refreshed) {
-          response = await fetchWithTimeout(url, {
-            ...init,
-            credentials: getRequestCredentials(),
-            headers: buildHeaders(),
-          });
+          response = await fetchWithTimeout(
+            url,
+            {
+              ...init,
+              credentials: getRequestCredentials(),
+              headers: buildHeaders(),
+            },
+            timeoutMs,
+          );
         }
       }
 
@@ -469,8 +501,32 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   return (data ?? {}) as T;
 }
 
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const timeoutMs = getRequestTimeoutMs(path.startsWith("/") ? path : `/${path}`);
+  const isAuthPost = (init?.method ?? "GET").toUpperCase() === "POST" && timeoutMs > API_REQUEST_TIMEOUT_MS;
+
+  try {
+    return await executeRequestJson<T>(path, init, { timeoutMs });
+  } catch (error) {
+    // One retry after cold-start timeout on auth POST (e.g. Render waking up).
+    if (
+      isAuthPost &&
+      error instanceof AuthApiError &&
+      error.status === 0 &&
+      /timed out/i.test(error.message)
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      return executeRequestJson<T>(path, init, { timeoutMs });
+    }
+    throw error;
+  }
+}
+
 export function getAuthErrorMessage(error: unknown) {
   if (error instanceof AuthApiError) {
+    if (/timed out/i.test(error.message)) {
+      return "The server is taking longer than usual to respond (it may be waking up). Please wait a moment and try again.";
+    }
     if (error.status === 0 || error.message.toLowerCase().includes("network")) {
       return "Unable to connect to the server. Please check your internet connection and try again.";
     }

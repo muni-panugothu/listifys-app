@@ -22,7 +22,7 @@ export function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const { status, error } = useAppSelector((s) => s.auth);
+  const { status, error, resetEmail } = useAppSelector((s) => s.auth);
   const [identity, setIdentity] = useState("");
 
   const headerHeight = useMemo(() => insets.top + 64, [insets.top]);
@@ -41,6 +41,12 @@ export function ForgotPasswordScreen() {
       dispatch(clearError());
     }
   }, [dispatch, error]);
+
+  useEffect(() => {
+    if (resetEmail) {
+      router.push("/reset-otp-verification" as Href);
+    }
+  }, [resetEmail, router]);
 
   const handleSendCode = async () => {
     const trimmed = identity.trim();
