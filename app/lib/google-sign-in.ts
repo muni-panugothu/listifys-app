@@ -1,10 +1,11 @@
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 import {
-  AUTH_API_BASE_URL,
   getGoogleClientIds,
   type GoogleClientIds,
 } from "@/features/auth/services/auth-api";
+import { GOOGLE_OAUTH_CONFIG } from "@/lib/google-oauth-config";
 
 export class GoogleSignInError extends Error {
   cancelled: boolean;
@@ -68,35 +69,60 @@ function getGoogleModule(): GoogleModule | null {
   return googleModule;
 }
 
+function readEmbeddedGoogleClientIds(): GoogleClientIds | null {
+  const extra = Constants.expoConfig?.extra?.googleOAuth as
+    | {
+        webClientId?: string;
+        androidClientId?: string;
+        iosClientId?: string | null;
+      }
+    | undefined;
+
+  const web =
+    extra?.webClientId?.trim() ||
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() ||
+    GOOGLE_OAUTH_CONFIG.webClientId;
+
+  if (!web) return null;
+
+  return {
+    web,
+    android:
+      extra?.androidClientId?.trim() ||
+      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() ||
+      GOOGLE_OAUTH_CONFIG.androidClientId,
+    ios:
+      extra?.iosClientId?.trim() ||
+      process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() ||
+      null,
+  };
+}
+
 async function resolveGoogleClientIds(): Promise<GoogleClientIds> {
   if (resolvedClientIds) return resolvedClientIds;
 
-  const envWebId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
-  const envIosId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() ?? null;
-  const envAndroidId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() ?? null;
-  if (envWebId) {
-    resolvedClientIds = {
-      web: envWebId,
-      ios: envIosId,
-      android: envAndroidId,
-    };
-    return resolvedClientIds;
+  const embedded = readEmbeddedGoogleClientIds();
+  if (embedded?.web) {
+    resolvedClientIds = embedded;
+    return embedded;
   }
 
   try {
     const ids = await getGoogleClientIds();
-    resolvedClientIds = ids;
-    return ids;
+    if (ids.web) {
+      resolvedClientIds = ids;
+      return ids;
+    }
   } catch {
-    // Env-based fallback when server is unreachable.
-    // This avoids embedding OAuth credentials in source.
-    resolvedClientIds = {
-      web: envWebId ?? null,
-      ios: envIosId,
-      android: envAndroidId,
-    };
-    return resolvedClientIds;
+    // Server unreachable — use baked-in public client IDs.
   }
+
+  resolvedClientIds = {
+    web: GOOGLE_OAUTH_CONFIG.webClientId,
+    ios: null,
+    android: GOOGLE_OAUTH_CONFIG.androidClientId,
+  };
+  return resolvedClientIds;
 }
 
 export async function configureGoogleSignIn() {
@@ -183,9 +209,16 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
       ) {
         throw new GoogleSignInError(
           "Google Sign-In configuration error (code 10).\n\n" +
-          "In Google Cloud Console → APIs & Services → Credentials, open the Android OAuth client for com.listifys.app and add this SHA-1:\n" +
-          "AD:7F:2F:92:47:C9:0B:BF:DB:CF:76:01:6B:AC:B8:FF:BE:B6:76:14\n\n" +
-          "Also confirm EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID matches the Web client ID in that project.",
+          "The app signing key must match Google Cloud Console.\n\n" +
+          "1. Open Google Cloud Console → project 582870381419 → Credentials\n" +
+          "2. Open the Android OAuth client for com.listifys.app\n" +
+          "3. Add BOTH SHA-1 fingerprints:\n" +
+          `   Release/EAS: ${GOOGLE_OAUTH_CONFIG.releaseSha1}\n` +
+          `   Debug/dev:   ${GOOGLE_OAUTH_CONFIG.debugSha1}\n\n` +
+          "4. Confirm Web client ID matches:\n" +
+          `   ${GOOGLE_OAUTH_CONFIG.webClientId}\n\n` +
+          "Note: Adding SHA-1 only in Firebase (listifysapp) is not enough — use GCP project 582870381419.\n" +
+          "After updating Console, rebuild and reinstall the APK.",
         );
       }
 
