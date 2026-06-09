@@ -277,11 +277,21 @@ function isActivityNullError(err: unknown): boolean {
  * unavailable (common right after an HMR reload in development, or during
  * Activity recreation on a low-memory device).
  */
+function isRunningInExpoGo(): boolean {
+  return Constants.appOwnership === "expo";
+}
+
 export async function signInWithGoogleNative(): Promise<string> {
+  if (isRunningInExpoGo()) {
+    throw new GoogleSignInError(
+      "Google Sign-In is not available in Expo Go. Install the Listifys preview APK or run a development build (eas build --profile preview).",
+    );
+  }
+
   const module = getGoogleModule();
   if (!module) {
     throw new GoogleSignInError(
-      "Google Sign-In requires a development build with @react-native-google-signin/google-signin. It is not available in Expo Go.",
+      "Google Sign-In is not available in this build. Reinstall the Listifys APK built with EAS (preview or production profile) — the native Google module is missing.",
     );
   }
 

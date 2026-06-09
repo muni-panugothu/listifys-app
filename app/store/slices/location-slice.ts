@@ -90,10 +90,7 @@ export const refreshDeviceLocation = createAsyncThunk(
         return stored;
       }
 
-      let permitted = await hasLocationPermission();
-      if (!permitted && (force || !stored)) {
-        permitted = await requestLocationPermission();
-      }
+      const permitted = await hasLocationPermission();
       if (!permitted) {
         return rejectWithValue("PERMISSION_DENIED");
       }

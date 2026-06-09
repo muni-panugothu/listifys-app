@@ -73,7 +73,7 @@ const networkSlice = createSlice({
       state.isConnected = next.isConnected;
       state.isInternetReachable = next.isInternetReachable;
       state.transportIsSlow = next.transportIsSlow;
-      state.isSlowConnection = next.transportIsSlow || state.requestIsSlow;
+      state.isSlowConnection = next.transportIsSlow;
       state.connectionType = next.connectionType;
       state.cellularGeneration = next.cellularGeneration;
       state.isConnectionExpensive = next.isConnectionExpensive;
@@ -84,7 +84,6 @@ const networkSlice = createSlice({
     },
     reportSlowRequest(state, action: PayloadAction<number>) {
       state.requestIsSlow = true;
-      state.isSlowConnection = true;
       state.lastSlowRequestAt = new Date().toISOString();
       state.lastSlowRequestDurationMs = action.payload;
       state.lastStatusChangeAt = new Date().toISOString();

@@ -17,7 +17,6 @@ import "react-native-reanimated";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
-import { requestLocationPermission } from "@/lib/location-service";
 
 import { ListifyFonts } from "@/constants/typography";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -30,7 +29,6 @@ import { store } from "@/store";
 import { registerBackgroundCallHandler } from "@/lib/firebase-messaging";
 import { NotificationProvider } from "@/providers/notification-provider";
 import { connectSocket, getSocket, disconnectSocket } from "@/features/messaging/services/socket-service";
-import { hydrateAppLocation, refreshDeviceLocation } from "@/store/slices/location-slice";
 
 // Register FCM background handler before any component renders (module-level)
 // Wrapped in try/catch — fails gracefully if google-services.json is missing.
@@ -161,25 +159,6 @@ function AppLayout() {
   useEffect(() => {
     void initOfflineQueue();
   }, []);
-
-  // Request location permission once as soon as the session is hydrated.
-  // On Android/iOS the system dialog only shows if the user hasn't decided yet;
-  // on repeat opens it's a fast no-op that returns the existing status.
-  // We wait for sessionHydrated so the dialog appears after the splash/onboarding,
-  // not during cold-start loading (which feels jarring).
-  useEffect(() => {
-    if (!sessionHydrated) return;
-
-    const bootstrapLocation = async () => {
-      const granted = await requestLocationPermission();
-      if (!granted) return;
-
-      await dispatch(hydrateAppLocation());
-      await dispatch(refreshDeviceLocation({ force: true }));
-    };
-
-    void bootstrapLocation().catch(() => {});
-  }, [dispatch, sessionHydrated]);
 
   // ── Attach call socket listeners after session hydration ─────────────────
   // We wait for sessionHydrated + isAuthenticated so the socket connects with

@@ -1963,7 +1963,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
+    // Verify current password first (before any new-password checks).
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
       return res.status(401).json({
@@ -1972,24 +1972,31 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    // Validate password strength
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from your current password",
+      });
+    }
+
+    // Strength + breach only — history is checked below after current password is verified.
     const passwordValidation = await passwordSecurity.validatePassword(
       newPassword,
-      user._id.toString(),
-      true, // Check breach
+      null,
+      true,
     );
 
     if (!passwordValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: "Password does not meet security requirements",
+        message: passwordValidation.errors?.[0] || "Password does not meet security requirements",
         errors: passwordValidation.errors,
         strength: passwordValidation.strength,
       });
     }
 
-    // Check password history
-    const historyCheck = await user.isPasswordInHistory(newPassword);
+    // Check password history (skip re-checking current hash — already verified above).
+    const historyCheck = await user.isPasswordInHistory(newPassword, { skipCurrent: true });
     if (historyCheck.inHistory) {
       return res.status(400).json({
         success: false,
@@ -2029,14 +2036,11 @@ exports.changePassword = async (req, res) => {
       logger.warn("Could not log password change activity:", logErr.message);
     }
 
-    // Revoke all sessions except current one
-    await revokeAllUserTokens(user._id.toString());
-
     logger.info("Password changed successfully", { userId: user._id });
 
     res.status(200).json({
       success: true,
-      message: "Password changed successfully. Please login again with your new password.",
+      message: "Password changed successfully.",
     });
   } catch (error) {
     logger.error("Change password error:", error);

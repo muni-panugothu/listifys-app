@@ -1,7 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useFocusEffect, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import * as Location from "expo-location";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AppState,
     Dimensions,
@@ -39,7 +40,10 @@ import { Image } from "@/lib/nativewind-interop";
 import { useLocale } from "@/providers/locale-provider";
 import { filterOutOwnListings } from "@/lib/is-own-listing";
 import { resolveListingDistanceKm, getListingDistanceLabel } from "@/lib/listing-distance";
-import { extractCityFromLocationLabel } from "@/lib/location-service";
+import {
+  extractCityFromLocationLabel,
+  requestLocationPermission,
+} from "@/lib/location-service";
 import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -116,6 +120,7 @@ export function HomeFeedRootScreen() {
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [showLoginSheet, setShowLoginSheet] = useState(false);
+  const locationPromptAttempted = useRef(false);
   const isOffline = !network.isConnected || network.isInternetReachable === false;
   const hasUserSelectedLocation = locationSource === "manual";
   const shouldApplyLocationFilter = hasUserSelectedLocation;
@@ -226,8 +231,9 @@ export function HomeFeedRootScreen() {
   );
 
   useEffect(() => {
+    if (!sessionHydrated) return;
     void dispatch(hydrateAppLocation());
-  }, [dispatch]);
+  }, [dispatch, sessionHydrated]);
 
   useEffect(() => {
     if (user?.address?.trim()) {
@@ -235,10 +241,27 @@ export function HomeFeedRootScreen() {
     }
   }, [dispatch, user?.address]);
 
+  // Ask for location only after the user reaches the home feed (login or skip) — not on install.
   useEffect(() => {
-    if (!locationHydrated) return;
-    void dispatch(refreshDeviceLocation());
-  }, [dispatch, locationHydrated]);
+    if (!sessionHydrated || !locationHydrated || locationPromptAttempted.current) return;
+
+    locationPromptAttempted.current = true;
+
+    const askAndRefreshLocation = async () => {
+      const existing = await Location.getForegroundPermissionsAsync();
+      if (existing.status === Location.PermissionStatus.GRANTED) {
+        void dispatch(refreshDeviceLocation({ force: true }));
+        return;
+      }
+
+      const granted = await requestLocationPermission();
+      if (granted) {
+        void dispatch(refreshDeviceLocation({ force: true }));
+      }
+    };
+
+    void askAndRefreshLocation().catch(() => {});
+  }, [dispatch, locationHydrated, sessionHydrated]);
 
   useEffect(() => {
     if (!sessionHydrated) return;

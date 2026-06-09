@@ -53,21 +53,36 @@ const buildPreview = (plainContent, attachments = []) => {
  */
 exports.getOrCreateConversation = async (userId, recipientId) => {
   const [p1, p2] = orderedIds(userId, recipientId);
+  const participantFilter = { participants: { $all: [p1, p2], $size: 2 } };
+  const populateOpts = [
+    { path: 'participants', select: 'name profileImage googleProfileImage avatar provider' },
+    { path: 'lastMessage', select: 'content attachments sender createdAt productThread' },
+  ];
 
-  // Try atomic upsert first (handles race conditions)
-  let conversation = await Conversation.findOneAndUpdate(
-    { participants: { $all: [p1, p2], $size: 2 } },
-    { $setOnInsert: {
+  const loadConversation = (query) =>
+    Conversation.findOne(query).populate(populateOpts);
+
+  // Cannot upsert with `participants` in both query and $setOnInsert — MongoDB error:
+  // "cannot interpret query fields to set, path 'participants' is matched twice"
+  let conversation = await loadConversation(participantFilter);
+
+  if (!conversation) {
+    try {
+      conversation = await Conversation.create({
         participants: [p1, p2],
         unreadCounts: new Map([[p1, 0], [p2, 0]]),
         threadCount: 0,
         activeThreadCount: 0,
-      },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  )
-    .populate('participants', 'name profileImage googleProfileImage avatar provider')
-    .populate({ path: 'lastMessage', select: 'content attachments sender createdAt productThread' });
+      });
+      conversation = await loadConversation({ _id: conversation._id });
+    } catch (err) {
+      if (err?.code === 11000) {
+        conversation = await loadConversation(participantFilter);
+      } else {
+        throw err;
+      }
+    }
+  }
 
   return conversation;
 };

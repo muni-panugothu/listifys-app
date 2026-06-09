@@ -415,11 +415,19 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 // ==================== METHOD: Check if password is in history ====================
-userSchema.methods.isPasswordInHistory = async function(candidatePassword) {
+userSchema.methods.isPasswordInHistory = async function(candidatePassword, options = {}) {
   try {
-    const isCurrentMatch = await this.comparePassword(candidatePassword);
-    if (isCurrentMatch) {
-      return { inHistory: true, message: "Cannot use current password" };
+    // Direct hash compare — avoid comparePassword() side effects (bcrypt migration saves).
+    if (this.password && !options.skipCurrent) {
+      let isCurrentMatch = false;
+      if (this.password.startsWith('$argon2')) {
+        isCurrentMatch = await argon2.verify(this.password, candidatePassword);
+      } else {
+        isCurrentMatch = await bcrypt.compare(candidatePassword, this.password);
+      }
+      if (isCurrentMatch) {
+        return { inHistory: true, message: "New password must be different from your current password" };
+      }
     }
     
     for (let i = 0; i < this.passwordHistory.length; i++) {

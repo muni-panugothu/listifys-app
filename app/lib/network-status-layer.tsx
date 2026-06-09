@@ -31,6 +31,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   type CellularGeneration,
   type ConnectionType,
+  clearSlowRequestSignal,
   setActualInternetReachable,
   setPendingQueueCount,
   updateNetworkSnapshot,
@@ -158,6 +159,7 @@ export function NetworkStatusLayer() {
   const hasMountedRef = useRef(false);
   const previousIsOfflineRef = useRef(false);
   const previousIsSlowRef = useRef(false);
+  const appStartedAtRef = useRef(Date.now());
 
   // Keep banner ref in sync with state (used in callbacks to avoid stale closure).
   useEffect(() => {
@@ -199,16 +201,19 @@ export function NetworkStatusLayer() {
     [clearHideTimeout, hideBanner, opacity, translateY],
   );
 
+  useEffect(() => {
+    dispatch(clearSlowRequestSignal());
+  }, [dispatch]);
+
   // â”€â”€ NetInfo listener â†’ dispatch to Redux + connectivityService â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     const handleNetInfo = (state: NetInfoState) => {
       const cellularGeneration = resolveCellularGeneration(state);
       const isConnectionExpensive = resolveIsConnectionExpensive(state);
+      // `isConnectionExpensive` is often true on Android WiFi — not a reliable slow signal.
       const transportIsSlow =
-        cellularGeneration === "2g" ||
-        cellularGeneration === "3g" ||
-        isConnectionExpensive;
+        cellularGeneration === "2g" || cellularGeneration === "3g";
 
       dispatch(
         updateNetworkSnapshot({
@@ -264,22 +269,32 @@ export function NetworkStatusLayer() {
   // â”€â”€ Slow connection banner (transport-layer slow, not internet offline) â”€â”€â”€â”€â”€
 
   useEffect(() => {
+    const isOffline = !isConnected || isInternetReachable === false;
+    const withinStartupGrace = Date.now() - appStartedAtRef.current < 8_000;
+
     if (!hasMountedRef.current) {
       hasMountedRef.current = true;
-      const isOffline = !isConnected || isInternetReachable === false;
       previousIsOfflineRef.current = isOffline;
       previousIsSlowRef.current = isSlowConnection;
+      // Never flash "slow connection" on cold start — wait for a real transition.
       if (isOffline) showBanner(buildBanner("offline"));
-      else if (isSlowConnection) showBanner(buildBanner("slow"), TRANSIENT_BANNER_MS);
       return;
     }
 
-    const isOffline = !isConnected || isInternetReachable === false;
-
-    // Slow-connection transitions (only when actually online).
-    if (!isOffline && isSlowConnection && !previousIsSlowRef.current) {
+    // Slow-connection transitions (only when actually online, after startup grace).
+    if (
+      !isOffline &&
+      !withinStartupGrace &&
+      isSlowConnection &&
+      !previousIsSlowRef.current
+    ) {
       showBanner(buildBanner("slow"), TRANSIENT_BANNER_MS);
-    } else if (!isOffline && !isSlowConnection && previousIsSlowRef.current && bannerRef.current?.kind === "slow") {
+    } else if (
+      !isOffline &&
+      !isSlowConnection &&
+      previousIsSlowRef.current &&
+      bannerRef.current?.kind === "slow"
+    ) {
       hideBanner();
     }
 

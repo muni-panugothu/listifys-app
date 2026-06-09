@@ -188,7 +188,6 @@ router.post(
   "/change-password",
   protect,
   validateChangePassword,
-  validatePasswordSecurity,
   authController.changePassword,
 );
 

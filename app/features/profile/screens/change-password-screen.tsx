@@ -70,13 +70,18 @@ export function ChangePasswordScreen() {
         showSuccessToast("Success", "Password created successfully! You can now sign in with email and password too.");
         handleBack();
       } else {
-        await changePassword(currentPassword, newPassword);
-        dispatch(fetchProfile());
-        showSuccessToast("Success", "Password changed successfully.");
+        const result = await changePassword(currentPassword, newPassword);
+        showSuccessToast("Success", result.message || "Password changed successfully.");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        void dispatch(fetchProfile());
         handleBack();
       }
-    } catch (e: any) {
-      showErrorToast("Error", e.message || "Failed to update password");
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to update password";
+      showErrorToast("Error", message);
     } finally {
       setLoading(false);
     }
