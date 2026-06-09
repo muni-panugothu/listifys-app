@@ -510,7 +510,7 @@ export function SellerPublicProfileScreen() {
                   )}
                 </Pressable>
 
-                <Pressable
+                {/* <Pressable
                   onPress={handleMessage}
                   style={({ pressed }) => ({
                     flex: 1,
@@ -533,7 +533,7 @@ export function SellerPublicProfileScreen() {
                   >
                     Message
                   </Text>
-                </Pressable>
+                </Pressable> */}
               </View>
 
               <View className="mt-5 flex-row items-center self-start">
