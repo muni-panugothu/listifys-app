@@ -17,7 +17,7 @@ import "react-native-reanimated";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
-import * as Location from "expo-location";
+import { requestLocationPermission } from "@/lib/location-service";
 
 import { ListifyFonts } from "@/constants/typography";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -171,13 +171,8 @@ function AppLayout() {
     if (!sessionHydrated) return;
 
     const bootstrapLocation = async () => {
-      const current = await Location.getForegroundPermissionsAsync();
-      const permission =
-        current.status === "granted"
-          ? current
-          : await Location.requestForegroundPermissionsAsync();
-
-      if (permission.status !== "granted") return;
+      const granted = await requestLocationPermission();
+      if (!granted) return;
 
       await dispatch(hydrateAppLocation());
       await dispatch(refreshDeviceLocation({ force: true }));

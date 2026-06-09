@@ -3,8 +3,10 @@ import { createAsyncThunk, createSelector, createSlice } from "@reduxjs/toolkit"
 import {
   detectDeviceLocation,
   geocodeSearchQuery,
+  hasLocationPermission,
   loadStoredLocation,
   LOCATION_AUTO_REFRESH_MS,
+  requestLocationPermission,
   saveStoredLocation,
   type StoredAppLocation,
 } from "@/lib/location-service";
@@ -88,6 +90,14 @@ export const refreshDeviceLocation = createAsyncThunk(
         return stored;
       }
 
+      let permitted = await hasLocationPermission();
+      if (!permitted && (force || !stored)) {
+        permitted = await requestLocationPermission();
+      }
+      if (!permitted) {
+        return rejectWithValue("PERMISSION_DENIED");
+      }
+
       const loc = (getState() as RootState).location;
       const previous: StoredAppLocation | null =
         stored ??
@@ -138,6 +148,14 @@ export const useCurrentDeviceLocation = createAsyncThunk(
   "location/useCurrent",
   async (_, { getState, rejectWithValue }) => {
     try {
+      let permitted = await hasLocationPermission();
+      if (!permitted) {
+        permitted = await requestLocationPermission();
+      }
+      if (!permitted) {
+        return rejectWithValue("PERMISSION_DENIED");
+      }
+
       const stored = await loadStoredLocation();
       const loc = (getState() as RootState).location;
       const previous: StoredAppLocation | null =

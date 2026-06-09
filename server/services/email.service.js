@@ -3,6 +3,12 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const nodemailer = require("nodemailer");
 const { logger } = require("../utils/logger");
 
+const SMTP_TIMEOUTS = {
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 15_000,
+};
+
 // Create transporter
 function createTransporter() {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
@@ -11,18 +17,41 @@ function createTransporter() {
     );
   }
 
-  // Transporter credentials intentionally NOT logged
+  const pass = process.env.EMAIL_PASSWORD.replace(/\s/g, "");
+  const auth = {
+    user: process.env.EMAIL_USER,
+    pass,
+  };
 
+  // Custom relay (Brevo, SendGrid, Resend, etc.) — required on cloud hosts that block Gmail SMTP.
+  if (process.env.SMTP_HOST) {
+    const port = Number.parseInt(process.env.SMTP_PORT || "587", 10);
+    const secure =
+      process.env.SMTP_SECURE === "true" || port === 465;
+
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port,
+      secure,
+      auth,
+      requireTLS: !secure,
+      ...SMTP_TIMEOUTS,
+      tls: {
+        rejectUnauthorized: process.env.NODE_ENV === "production",
+      },
+    });
+  }
+
+  // Gmail via STARTTLS on 587 — more reliable than implicit SSL when outbound 465 is blocked.
   return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      // Trim spaces — Gmail App Passwords are displayed with spaces but
-      // must be supplied without them in the auth credential.
-      pass: process.env.EMAIL_PASSWORD.replace(/\s/g, ""),
-    },
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    auth,
+    ...SMTP_TIMEOUTS,
     tls: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production',
+      rejectUnauthorized: process.env.NODE_ENV === "production",
     },
   });
 }

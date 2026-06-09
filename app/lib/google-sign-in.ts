@@ -17,20 +17,45 @@ export class GoogleSignInError extends Error {
   }
 }
 
+type GoogleSigninApi = {
+  configure: (config: Record<string, unknown>) => void;
+  hasPlayServices: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<boolean>;
+  signOut: () => Promise<void>;
+  signIn: () => Promise<unknown>;
+};
+
+type GoogleStatusCodes = {
+  IN_PROGRESS: string;
+  SIGN_IN_CANCELLED: string;
+  PLAY_SERVICES_NOT_AVAILABLE: string;
+};
+
 type GoogleModule = {
-  GoogleSignin: {
-    configure: (config: Record<string, unknown>) => void;
-    hasPlayServices: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<boolean>;
-    signOut: () => Promise<void>;
-    signIn: () => Promise<unknown>;
-  };
-  isSuccessResponse: (response: unknown) => boolean;
-  isErrorWithCode: (error: unknown) => boolean;
-  statusCodes: {
-    IN_PROGRESS: string;
-    SIGN_IN_CANCELLED: string;
-    PLAY_SERVICES_NOT_AVAILABLE: string;
-  };
+  GoogleSignin: GoogleSigninApi;
+  isSuccessResponse?: (response: unknown) => boolean;
+  isErrorWithCode?: (error: unknown) => boolean;
+  statusCodes?: GoogleStatusCodes;
+};
+
+/** v16+ returns `{ type: 'success', data: { idToken } }` — helpers may be missing from require(). */
+function isGoogleSignInSuccess(response: unknown): boolean {
+  if (!response || typeof response !== "object") return false;
+
+  const typed = response as { type?: string; data?: { idToken?: string | null } };
+  if (typed.type === "success") return true;
+  return Boolean(typed.data?.idToken);
+}
+
+function isGoogleSignInErrorWithCode(
+  error: unknown,
+): error is { code?: number | string; message?: string } {
+  return error != null && typeof error === "object" && "code" in error;
+}
+
+const FALLBACK_STATUS_CODES: GoogleStatusCodes = {
+  IN_PROGRESS: "ASYNC_OP_IN_PROGRESS",
+  SIGN_IN_CANCELLED: "SIGN_IN_CANCELLED",
+  PLAY_SERVICES_NOT_AVAILABLE: "PLAY_SERVICES_NOT_AVAILABLE",
 };
 
 function isGoogleNativeModuleAvailable(): boolean {
@@ -161,7 +186,16 @@ export function isGoogleSignInAvailable() {
 
 /** One attempt of the native sign-in flow.  Exported for testability. */
 async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
-  const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = module;
+  const { GoogleSignin } = module;
+  const statusCodes = module.statusCodes ?? FALLBACK_STATUS_CODES;
+  const checkSuccess =
+    typeof module.isSuccessResponse === "function"
+      ? module.isSuccessResponse
+      : isGoogleSignInSuccess;
+  const checkErrorWithCode =
+    typeof module.isErrorWithCode === "function"
+      ? module.isErrorWithCode
+      : isGoogleSignInErrorWithCode;
 
   try {
     if (Platform.OS === "android") {
@@ -176,7 +210,7 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
 
     const response = await GoogleSignin.signIn();
 
-    if (!isSuccessResponse(response)) {
+    if (!checkSuccess(response)) {
       throw new GoogleSignInError("Google sign-in did not complete.", true);
     }
 
@@ -187,7 +221,7 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
 
     return idToken;
   } catch (error: unknown) {
-    if (isErrorWithCode(error)) {
+    if (checkErrorWithCode(error)) {
       const err = error as { code?: number | string; message?: string };
       const message = typeof err.message === "string" ? err.message : "";
 

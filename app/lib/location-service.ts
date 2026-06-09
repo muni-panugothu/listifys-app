@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 
 export const LOCATION_STORAGE_KEY = "@listify/app_location";
 
@@ -275,8 +276,39 @@ export async function saveStoredLocation(location: StoredAppLocation) {
   await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location));
 }
 
+/** On Android, prompt to turn on device location (network/GPS) when services are off. */
+export async function prepareLocationServices(): Promise<boolean> {
+  const servicesEnabled = await Location.hasServicesEnabledAsync();
+  if (servicesEnabled) return true;
+
+  if (Platform.OS === "android") {
+    try {
+      await Location.enableNetworkProviderAsync();
+    } catch {
+      // User dismissed the system dialog.
+    }
+    return Location.hasServicesEnabledAsync();
+  }
+
+  return false;
+}
+
 export async function requestLocationPermission(): Promise<boolean> {
-  const { status } = await Location.requestForegroundPermissionsAsync();
+  const current = await Location.getForegroundPermissionsAsync();
+  const permission =
+    current.status === Location.PermissionStatus.GRANTED
+      ? current
+      : await Location.requestForegroundPermissionsAsync();
+
+  if (permission.status !== Location.PermissionStatus.GRANTED) {
+    return false;
+  }
+
+  return prepareLocationServices();
+}
+
+export async function hasLocationPermission(): Promise<boolean> {
+  const { status } = await Location.getForegroundPermissionsAsync();
   return status === Location.PermissionStatus.GRANTED;
 }
 
@@ -407,10 +439,13 @@ export async function detectDeviceLocation(options?: {
   previous?: StoredAppLocation | null;
   force?: boolean;
 }) {
-  // Permission is assumed already granted when this is called from the thunk.
-  // The picker screen handles the permission flow before dispatching.
-  const servicesEnabled = await Location.hasServicesEnabledAsync();
-  if (!servicesEnabled) {
+  const granted = await hasLocationPermission();
+  if (!granted) {
+    throw new Error("PERMISSION_DENIED");
+  }
+
+  const servicesReady = await prepareLocationServices();
+  if (!servicesReady) {
     throw new Error("SERVICES_DISABLED");
   }
 

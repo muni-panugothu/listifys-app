@@ -266,9 +266,8 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
       expect(publishOTPEmail).toHaveBeenCalled();
     });
 
-    test('TC-R09: Should handle queue+email failure gracefully', async () => {
+    test('TC-R09: Should still accept registration when email delivery fails in background', async () => {
       mockUserFindOne.mockResolvedValue(null);
-      // Queue fails → falls back to direct email → which also fails
       const { publishOTPEmail } = require('../queues/producers/auth.producer');
       publishOTPEmail.mockResolvedValueOnce(false);
       mockSendOTPEmail.mockRejectedValueOnce(new Error('SMTP error'));
@@ -281,9 +280,12 @@ describe('📝 REGISTRATION & OTP FLOW TESTS', () => {
 
       await authController.initiateRegister(req, res);
 
-      expect(res.statusCode).toBe(500);
-      expect(mockRedisService.deletePendingRegistration).toHaveBeenCalled();
-      expect(mockRedisService.deleteOTP).toHaveBeenCalled();
+      expect(res.statusCode).toBe(200);
+      expect(res._json.success).toBe(true);
+      expect(mockRedisService.storePendingRegistration).toHaveBeenCalled();
+      expect(mockRedisService.storeOTP).toHaveBeenCalled();
+      expect(mockRedisService.deletePendingRegistration).not.toHaveBeenCalled();
+      expect(mockRedisService.deleteOTP).not.toHaveBeenCalled();
     });
   });
 

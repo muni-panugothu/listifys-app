@@ -28,6 +28,7 @@ const {
   publishSecurityAlert,
   publishAuditLog,
 } = require('../queues/producers/auth.producer');
+const { dispatchOtpEmail } = require('../utils/otpEmailDispatch');
 
 // ==================== TOKEN UTILITIES (single source of truth) ====================
 const {
@@ -1203,17 +1204,12 @@ exports.initiateRegister = async (req, res) => {
         await RedisService.storePendingRegistration(normalizedEmail, pendingRegistration);
 
         logger.info(`📤 Re-sending registration OTP email to: ${normalizedEmail}`);
-        try {
-          await EmailService.sendOTPEmail(normalizedEmail, pendingRegistration.name, newOtp);
-          logger.info(`✅ Registration OTP re-sent to ${normalizedEmail}`);
-        } catch (emailError) {
-          logger.error("❌ Failed to resend OTP email:", emailError.message);
-          return res.status(500).json({
-            success: false,
-            message: "Failed to send OTP email. Please try again later.",
-          });
-        }
-        publishOTPEmail({ email: normalizedEmail, username: pendingRegistration.name, otp: newOtp, type: 'registration' }).catch(() => {});
+        void dispatchOtpEmail({
+          email: normalizedEmail,
+          username: pendingRegistration.name,
+          otp: newOtp,
+          type: "registration",
+        });
 
         return res.status(200).json({
           success: true,
@@ -1272,23 +1268,14 @@ exports.initiateRegister = async (req, res) => {
 
     await RedisService.incrementRegistrationAttempts(normalizedEmail);
 
-    // Send OTP email directly — registration must not depend on RabbitMQ workers.
+    // Non-blocking — API responds immediately; email sends via queue or SMTP fallback.
     logger.info(`📤 Sending registration OTP email to: ${normalizedEmail}`);
-    try {
-      await EmailService.sendOTPEmail(normalizedEmail, name, otp);
-      logger.info(`✅ Registration OTP email sent to ${normalizedEmail}`);
-    } catch (emailError) {
-      logger.error("❌ Failed to send registration OTP email:", emailError.message);
-      await RedisService.deletePendingRegistration(normalizedEmail);
-      await RedisService.deleteOTP(normalizedEmail);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to send OTP email. Please check your email address and try again.",
-      });
-    }
-
-    // Optional async duplicate via queue (non-blocking).
-    publishOTPEmail({ email: normalizedEmail, username: name, otp, type: 'registration' }).catch(() => {});
+    void dispatchOtpEmail({
+      email: normalizedEmail,
+      username: name,
+      otp,
+      type: "registration",
+    });
 
     // Audit log (fire-and-forget via queue)
     publishAuditLog({
@@ -2160,37 +2147,21 @@ exports.initiateForgotPassword = async (req, res) => {
 
     await RedisService.incrementRegistrationAttempts(email);
 
-    try {
-      // Always send directly first — this guarantees delivery even when the
-      // queue worker is not running.  Queue is best-effort only.
-      logger.info(`📤 Sending password reset OTP email directly to: ${email}`);
-      await EmailService.sendForgotPasswordOTPEmail(email, user.name, otp);
-      logger.info(`✅ Password reset OTP email sent to ${email}`);
+    logger.info(`📤 Sending password reset OTP email to: ${email}`);
+    void dispatchOtpEmail({
+      email,
+      username: user.name,
+      otp,
+      type: "forgot_password",
+    });
 
-      // Also enqueue (fire-and-forget) for audit / retry pipelines — ignore result.
-      publishOTPEmail({ email, username: user.name, otp, type: 'forgot_password' }).catch(() => {});
-
-      publishAuditLog({
-        action: 'forgot_password_otp_requested',
-        userId: user._id?.toString(),
-        email,
-        ip: req.ip,
-        userAgent: req.get('user-agent'),
-      }).catch(() => {});
-    } catch (emailError) {
-      logger.error(
-        "❌ Failed to send password reset email:",
-        emailError.message,
-      );
-
-      await RedisService.deletePendingPasswordReset(email);
-      await RedisService.deleteOTP(email);
-
-      return res.status(500).json({
-        success: false,
-        message: "Failed to send password reset OTP. Please try again later.",
-      });
-    }
+    publishAuditLog({
+      action: 'forgot_password_otp_requested',
+      userId: user._id?.toString(),
+      email,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    }).catch(() => {});
 
     res.status(200).json({
       success: true,
@@ -2378,28 +2349,13 @@ exports.resendForgotPasswordOTP = async (req, res) => {
     await RedisService.clearOTPAttempts(email);
     await RedisService.clearOTPBlock(email);
 
-    try {
-      // Always send directly first — guarantees delivery regardless of queue status.
-      logger.info(`📤 Resending password reset OTP email directly to: ${email}`);
-      await EmailService.sendForgotPasswordOTPEmail(
-        email,
-        pendingData.username || email,
-        otp,
-      );
-      logger.info(`✅ Resent password reset OTP email to ${email}`);
-
-      // Also enqueue fire-and-forget — ignore result.
-      publishOTPEmail({ email, username: pendingData.username || email, otp, type: 'forgot_password' }).catch(() => {});
-    } catch (emailError) {
-      logger.error(
-        "❌ Failed to resend password reset email:",
-        emailError.message,
-      );
-      return res.status(500).json({
-        success: false,
-        message: "Failed to resend OTP. Please try again later.",
-      });
-    }
+    logger.info(`📤 Resending password reset OTP email to: ${email}`);
+    void dispatchOtpEmail({
+      email,
+      username: pendingData.username || email,
+      otp,
+      type: "forgot_password",
+    });
 
     return res.status(200).json({
       success: true,
@@ -2699,18 +2655,13 @@ exports.resendOTP = async (req, res) => {
     await RedisService.clearOTPAttempts(email);
     await RedisService.clearOTPBlock(email);
 
-    try {
-      logger.info(`📤 Resending registration OTP email to: ${email}`);
-      await EmailService.sendOTPEmail(email, pendingData.name, otp);
-      logger.info(`✅ Registration OTP resent to ${email}`);
-      publishOTPEmail({ email, username: pendingData.name, otp, type: 'registration' }).catch(() => {});
-    } catch (emailError) {
-      logger.error("❌ Failed to resend email:", emailError.message);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to resend OTP. Please try again later.",
-      });
-    }
+    logger.info(`📤 Resending registration OTP email to: ${email}`);
+    void dispatchOtpEmail({
+      email,
+      username: pendingData.name,
+      otp,
+      type: "registration",
+    });
 
     res.status(200).json({
       success: true,
