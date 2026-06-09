@@ -36,15 +36,16 @@ module.exports = {
   },
   plugins: (appJson.expo.plugins || []).map((plugin) => {
     if (plugin === "@react-native-google-signin/google-signin") {
-      const iosClientNumeric = iosClientId?.replace(
-        ".apps.googleusercontent.com",
+      const clientIdForScheme = iosClientId || webClientId;
+      const clientNumeric = clientIdForScheme?.replace(
+        /\.apps\.googleusercontent\.com$/,
         "",
       );
       return [
         "@react-native-google-signin/google-signin",
-        iosClientNumeric
-          ? { iosUrlScheme: `com.googleusercontent.apps.${iosClientNumeric}` }
-          : {},
+        {
+          iosUrlScheme: `com.googleusercontent.apps.${clientNumeric}`,
+        },
       ];
     }
     return plugin;
