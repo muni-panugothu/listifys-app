@@ -198,6 +198,10 @@ export function ListingDetailTemplateScreen() {
       listing.seller?.name ?? listing.sellerName ?? "Seller";
 
     requireAuth("message", () => {
+       if (isOwnListing(listing, user?.id)) {
+         showErrorToast("Not Allowed", "You can't message yourself on your own listing.");
+         return;
+       }
       router.push(
         buildListingChatHref({
           recipientId: sellerId,
@@ -786,12 +790,13 @@ export function ListingDetailTemplateScreen() {
 
           <Pressable
             onPress={handleMessageSeller}
+            disabled={isOwnListing(listing, user)}
             className="h-12 flex-1 items-center justify-center rounded-2xl border border-[#E5E7EB] bg-white"
-            style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            style={({ pressed }) => ({ opacity: isOwnListing(listing, user) ? 0.5 : (pressed ? 0.85 : 1) })}
           >
             <Text
               className="text-[14px] text-[#1A1A1A]"
-              style={{ fontFamily: ListifyFonts.semiBold }}
+              style={{ fontFamily: ListifyFonts.semiBold, opacity: isOwnListing(listing, user) ? 0.5 : 1 }}
             >
               Message
             </Text>

@@ -26,10 +26,10 @@ export function getListingSellerId(listing: ListingOwnerFields): string | null {
 }
 
 export function isOwnListing(
-  listing: ListingOwnerFields,
+  listing: ListingOwnerFields | null | undefined,
   userId?: string | null,
 ): boolean {
-  if (!userId) return false;
+  if (!userId || !listing) return false;
   const sellerId = getListingSellerId(listing);
   return sellerId != null && sellerId === String(userId);
 }

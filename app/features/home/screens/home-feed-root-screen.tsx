@@ -122,8 +122,9 @@ export function HomeFeedRootScreen() {
   const [showLoginSheet, setShowLoginSheet] = useState(false);
   const locationPromptAttempted = useRef(false);
   const isOffline = !network.isConnected || network.isInternetReachable === false;
-  const hasUserSelectedLocation = locationSource === "manual";
-  const shouldApplyLocationFilter = hasUserSelectedLocation;
+   // Apply location filter when user has a valid location (manual, GPS, or profile-based)
+   const hasValidLocation = locationCoords.lat != null && locationCoords.lng != null;
+   const shouldApplyLocationFilter = hasValidLocation;
   const effectiveCountryCode = (isoCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
   const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
 

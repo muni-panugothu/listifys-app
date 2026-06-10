@@ -27,7 +27,8 @@ import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationLabel } from "@/store/slices/location-slice";
 import { formatPrice } from "@/lib/currency";
-import { getListingSellerId } from "@/lib/is-own-listing";
+import { getListingSellerId, isOwnListing } from "@/lib/is-own-listing";
+import { showErrorToast } from "@/lib/toast";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -370,6 +371,10 @@ export function EventDetailScreen() {
               onPress={() => {
                 if (!sellerId) return;
                 requireAuth("message", () => {
+                   if (isOwnListing(listing, user?.id)) {
+                     showErrorToast("Not Allowed", "You can't message yourself on your own event.");
+                     return;
+                   }
                   router.push(
                     buildListingChatHref({
                       recipientId: sellerId,
@@ -385,10 +390,11 @@ export function EventDetailScreen() {
                   );
                 });
               }}
+              disabled={isOwnListing(listing, user?.id)}
               className="h-12 w-12 items-center justify-center rounded-xl border-2 border-[#BBCAC3]/50 bg-white"
-              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              style={({ pressed }) => ({ opacity: isOwnListing(listing, user?.id) ? 0.5 : (pressed ? 0.7 : 1) })}
             >
-              <MaterialIcons name="chat" size={20} color="#161D1A" />
+              <MaterialIcons name="chat" size={20} color={isOwnListing(listing, user?.id) ? "#9CA3AF" : "#161D1A"} />
             </Pressable>
             <Pressable
               onPress={() => {
@@ -409,8 +415,9 @@ export function EventDetailScreen() {
                   );
                 });
               }}
-              className="h-12 items-center justify-center rounded-xl bg-[#27BB97] px-6"
-              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+              disabled={isOwnListing(listing, user?.id)}
+              className="h-12 items-center justify-center rounded-xl px-6"
+              style={({ pressed }) => ({ backgroundColor: isOwnListing(listing, user?.id) ? "#D1D5DB" : "#27BB97", opacity: isOwnListing(listing, user?.id) ? 0.6 : (pressed ? 0.85 : 1) })}
             >
               <Text className="text-[16px] font-semibold text-white">Book Now</Text>
             </Pressable>

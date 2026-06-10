@@ -63,10 +63,23 @@ exports.getOrCreateConversation = async (req, res) => {
     let thread = null;
     if (productId && productType) {
       const listingSellerId = sellerId && isValidId(sellerId) ? sellerId : recipientId;
-      if (String(senderId) === String(listingSellerId)) {
-        return res.status(400).json({ success: false, message: 'You cannot make an offer on your own listing' });
+      
+      // Check if a thread already exists for this product
+      const existingThread = await ProductThread.findOne({
+        conversation: conversation._id,
+        'product.productId': productId,
+      }).select('_id seller buyer').lean();
+      
+      // Only prevent NEW threads where sender is the seller (non-buyer initiating)
+      // Allow existing threads to continue (seller can reply to buyer messages)
+      if (!existingThread && String(senderId) === String(listingSellerId)) {
+        return res.status(400).json({ success: false, message: 'You cannot message on your own listing' });
       }
+      
+      // Determine buyer: if senderId is not the seller, then senderId is the buyer
+      // Otherwise, the recipient is the buyer
       const buyerId = String(senderId) === String(listingSellerId) ? recipientId : senderId;
+      
       thread = await chatService.getOrCreateProductThread({
         conversationId: conversation._id, productId, productType, productTitle, productPrice, productImage, currency,
         sellerId: listingSellerId, buyerId,

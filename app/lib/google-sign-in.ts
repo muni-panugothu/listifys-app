@@ -175,34 +175,52 @@ async function resolveIdToken(
   );
 }
 
-function readEmbeddedGoogleClientIds(): GoogleClientIds | null {
-  const extra = Constants.expoConfig?.extra?.googleOAuth as
-    | {
-        webClientId?: string;
-        androidClientId?: string;
-        iosClientId?: string | null;
-      }
-    | undefined;
+function safeTrim(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const v = value.trim();
+  return v || undefined;
+}
 
-  const web =
-    extra?.webClientId?.trim() ||
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() ||
+function readEmbeddedGoogleClientIds(): GoogleClientIds | null {
+  const extra: unknown = Constants.expoConfig?.extra?.googleOAuth;
+
+  // Defensive: some builds may store this under a different shape
+  // (e.g. `extra.googleOAuth.iosClient` instead of `iosClientId`).
+  const webClientId =
+    safeTrim(
+      (extra as { webClientId?: unknown } | null | undefined)?.webClientId,
+    ) ||
+    safeTrim(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) ||
     GOOGLE_OAUTH_CONFIG.webClientId;
 
-  if (!web) return null;
+  if (!webClientId) return null;
+
+  const androidClientId =
+    safeTrim(
+      (extra as { androidClientId?: unknown } | null | undefined)?.androidClientId,
+    ) ||
+    safeTrim(process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) ||
+    GOOGLE_OAUTH_CONFIG.androidClientId;
+
+  // Fix crash source: avoid `.trim()` on non-string values.
+  // Support both keys: iosClientId (preferred) and iosClient (legacy/alt).
+  const iosClientId =
+    safeTrim(
+      (extra as { iosClientId?: unknown } | null | undefined)?.iosClientId,
+    ) ||
+    safeTrim(
+      (extra as { iosClient?: unknown } | null | undefined)?.iosClient,
+    ) ||
+    safeTrim(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) ||
+    null;
 
   return {
-    web,
-    android:
-      extra?.androidClientId?.trim() ||
-      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() ||
-      GOOGLE_OAUTH_CONFIG.androidClientId,
-    ios:
-      extra?.iosClientId?.trim() ||
-      process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() ||
-      null,
+    web: webClientId,
+    android: androidClientId,
+    ios: iosClientId,
   };
 }
+
 
 async function resolveGoogleClientIds(): Promise<GoogleClientIds> {
   if (resolvedClientIds) return resolvedClientIds;

@@ -9,9 +9,49 @@ import {
 
 let socket: Socket | null = null;
 let connectPromise: Promise<Socket> | null = null;
+const joinedConversationIds = new Set<string>();
+const joinedThreadIds = new Set<string>();
 
 export function getSocket(): Socket | null {
   return socket;
+}
+
+function rejoinActiveRooms() {
+  if (!socket?.connected) return;
+  for (const conversationId of joinedConversationIds) {
+    socket.emit("conversation:join", conversationId);
+  }
+  for (const threadId of joinedThreadIds) {
+    socket.emit("thread:join", threadId);
+  }
+}
+
+async function waitForSocketConnection(instance: Socket) {
+  if (instance.connected) return instance;
+
+  return new Promise<Socket>((resolve, reject) => {
+    const onConnect = () => {
+      cleanup();
+      resolve(instance);
+    };
+
+    const onError = (err: Error) => {
+      cleanup();
+      reject(err);
+    };
+
+    const cleanup = () => {
+      instance.off("connect", onConnect);
+      instance.off("connect_error", onError);
+    };
+
+    instance.once("connect", onConnect);
+    instance.once("connect_error", onError);
+    setTimeout(() => {
+      cleanup();
+      reject(new Error("Socket connection timed out"));
+    }, 20000);
+  });
 }
 
 export async function connectSocket(): Promise<Socket> {
@@ -36,35 +76,36 @@ export async function connectSocket(): Promise<Socket> {
       if (!socket.connected) {
         socket.connect();
       }
-      return socket;
+      return await waitForSocketConnection(socket);
     }
 
-  socket = io(AUTH_API_BASE_URL, {
-    auth: { token },
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 10000,
-    timeout: 20000,
-  });
+    socket = io(AUTH_API_BASE_URL, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 20000,
+    });
 
-  socket.on("connect", () => {
-    // eslint-disable-next-line no-console
-    console.log("[Socket] Connected:", socket?.id);
-  });
+    socket.on("connect", () => {
+      // eslint-disable-next-line no-console
+      console.log("[Socket] Connected:", socket?.id);
+      rejoinActiveRooms();
+    });
 
-  socket.on("connect_error", (err) => {
-    // eslint-disable-next-line no-console
-    console.warn("[Socket] Connect error:", err.message);
-  });
+    socket.on("connect_error", (err) => {
+      // eslint-disable-next-line no-console
+      console.warn("[Socket] Connect error:", err.message);
+    });
 
-  socket.on("disconnect", (reason) => {
-    // eslint-disable-next-line no-console
-    console.log("[Socket] Disconnected:", reason);
-  });
+    socket.on("disconnect", (reason) => {
+      // eslint-disable-next-line no-console
+      console.log("[Socket] Disconnected:", reason);
+    });
 
-    return socket;
+    return await waitForSocketConnection(socket);
   })().finally(() => {
     connectPromise = null;
   });
@@ -78,6 +119,8 @@ export function disconnectSocket() {
     socket.disconnect();
     socket = null;
   }
+  joinedConversationIds.clear();
+  joinedThreadIds.clear();
   // Allow call listeners to be re-attached on next connect.
   import('@/features/calling/services/call-socket-service')
     .then(({ detachCallListeners }) => detachCallListeners())
@@ -86,19 +129,23 @@ export function disconnectSocket() {
 
 // ── Conversation room management ──
 export function joinConversation(conversationId: string) {
+  joinedConversationIds.add(conversationId);
   socket?.emit("conversation:join", conversationId);
 }
 
 export function leaveConversation(conversationId: string) {
+  joinedConversationIds.delete(conversationId);
   socket?.emit("conversation:leave", conversationId);
 }
 
 // ── Product thread room ──
 export function joinThread(threadId: string) {
+  joinedThreadIds.add(threadId);
   socket?.emit("thread:join", threadId);
 }
 
 export function leaveThread(threadId: string) {
+  joinedThreadIds.delete(threadId);
   socket?.emit("thread:leave", threadId);
 }
 

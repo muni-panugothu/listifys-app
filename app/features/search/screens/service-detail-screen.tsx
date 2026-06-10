@@ -17,10 +17,11 @@ import type { ListingItem } from "@/features/listing/services/listing-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { formatPrice } from "@/lib/currency";
 import { buildListingChatHref } from "@/lib/listing-chat";
-import { getListingSellerId } from "@/lib/is-own-listing";
+import { getListingSellerId, isOwnListing } from "@/lib/is-own-listing";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 
+ import { showErrorToast } from "@/lib/toast";
 type ApiReviewItem = {
   _id: string;
   rating: number;
@@ -250,6 +251,10 @@ export function ServiceDetailScreen() {
       router.push("/sign-in" as Href);
       return;
     }
+     if (isOwnListing(listing, user?.id)) {
+       showErrorToast("Not Allowed", "You can't message yourself on your own service.");
+       return;
+     }
     router.push(
       buildListingChatHref({
         recipientId: sellerId,
@@ -579,19 +584,20 @@ export function ServiceDetailScreen() {
 
           <Pressable
             onPress={handleMessageSeller}
+            disabled={isOwnListing(listing, user?.id)}
             className="flex-2 overflow-hidden rounded-lg"
-            style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}
+            style={({ pressed }) => ({ opacity: isOwnListing(listing, user?.id) ? 0.5 : (pressed ? 0.92 : 1) })}
           >
             <LinearGradient
-              colors={["#27BB97", "#1E9E7E"]}
+              colors={isOwnListing(listing, user?.id) ? ["#9CA3AF", "#6B7280"] : ["#27BB97", "#1E9E7E"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="h-12 flex-row items-center justify-center gap-2"
             >
-              <Text className="text-[18px] font-semibold text-white">
-                Message
+              <Text className="text-[18px] font-semibold text-white" style={{ opacity: isOwnListing(listing, user?.id) ? 0.6 : 1 }}>
+                {isOwnListing(listing, user?.id) ? "Your Service" : "Message"}
               </Text>
-              <MaterialIcons name="chat" size={20} color="#FFFFFF" />
+              <MaterialIcons name="chat" size={20} color="#FFFFFF" style={{ opacity: isOwnListing(listing, user?.id) ? 0.6 : 1 }} />
             </LinearGradient>
           </Pressable>
         </View>

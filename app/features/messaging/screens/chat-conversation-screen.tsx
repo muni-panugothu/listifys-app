@@ -173,6 +173,27 @@ export function ChatConversationScreen() {
 
         if (!convId) return;
 
+        if (!conversation) {
+          setConversation({
+            _id: convId,
+            participants: [],
+            listing: params.productId ? {
+              listingId: params.productId,
+              listingType: params.productType || undefined,
+              listingTitle: params.productTitle || undefined,
+              listingPrice: params.productPrice ? Number(params.productPrice) : undefined,
+              listingImage: params.productImage ?? undefined,
+              currency: params.currency || "₹",
+            } : null,
+            threadCount: 0,
+            activeThreadCount: 0,
+            lastMessage: null,
+            unreadCount: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          } as Conversation);
+        }
+
         // 2. Load all threads
         const threadsRes = await listThreads(convId, "all");
         if (cancelled) return;
@@ -220,6 +241,10 @@ export function ChatConversationScreen() {
     dispatch(setActiveThread(thread._id));
     try {
       await connectSocket().catch(() => {});
+      const activeConvId = convId ?? conversation?._id;
+      if (activeConvId) {
+        joinConversation(activeConvId);
+      }
       joinThread(thread._id);
       const res = await getThreadMessages(thread._id, 1, 50);
       setMessages(sortChron(res.messages));
@@ -231,7 +256,7 @@ export function ChatConversationScreen() {
         e instanceof Error ? e.message : "Could not load messages for this product.",
       );
     }
-  }, [dispatch, scrollToBottom]);
+  }, [conversation?._id, dispatch, scrollToBottom]);
 
   // ── Socket events ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -306,26 +331,28 @@ export function ChatConversationScreen() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (conversation) {
-        leaveConversation(conversation._id);
-        if (activeThread) leaveThread(activeThread._id);
-        markConversationRead(conversation._id).catch(() => {});
+      const convId = conversation?._id ?? params.conversationId;
+      if (convId) {
+        leaveConversation(convId);
+        markConversationRead(convId).catch(() => {});
       }
+      if (activeThread) leaveThread(activeThread._id);
       dispatch(setActiveConversation(null));
       dispatch(setActiveThread(null));
     };
-  }, [activeThread, conversation, dispatch]);
+  }, [activeThread, conversation, dispatch, params.conversationId]);
 
   // ── Send message ───────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
-    if (!canSend || !activeThread || !conversation) return;
+    const convId = conversation?._id ?? params.conversationId;
+    if (!canSend || !activeThread || !convId) return;
     const text = messageText.trim();
     setMessageText("");
     setSending(true);
 
     const tempId  = `temp-${Date.now()}`;
     const tempMsg: ChatMessage = {
-      _id: tempId, conversation: conversation._id, productThread: activeThread._id,
+      _id: tempId, conversation: convId, productThread: activeThread._id,
       sender: user?.id ?? "", content: text, messageType: "text",
       status: "sent", createdAt: new Date().toISOString(),
     };
@@ -333,7 +360,7 @@ export function ChatConversationScreen() {
     scrollToBottom();
 
     try {
-      const res = await sendMessageApi(conversation._id, { content: text, threadId: activeThread._id });
+      const res = await sendMessageApi(convId, { content: text, threadId: activeThread._id });
       setMessages((prev) => {
         const filtered = prev.filter((m) => m._id !== tempId);
         return sortChron([...filtered, res.message]);
@@ -348,7 +375,7 @@ export function ChatConversationScreen() {
     } finally {
       setSending(false);
     }
-  }, [canSend, activeThread, conversation, messageText, user, scrollToBottom]);
+  }, [canSend, activeThread, conversation, messageText, params.conversationId, user, scrollToBottom]);
 
   // ── Typing ─────────────────────────────────────────────────────────────────
   const handleTextChange = useCallback((t: string) => {

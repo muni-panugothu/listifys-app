@@ -28,7 +28,8 @@ import { Image } from "@/lib/nativewind-interop";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsoCountryCode, selectLocationLabel } from "@/store/slices/location-slice";
 import { formatPrice } from "@/lib/currency";
-import { getListingSellerId } from "@/lib/is-own-listing";
+import { getListingSellerId, isOwnListing } from "@/lib/is-own-listing";
+import { showErrorToast } from "@/lib/toast";
 
 export function JobDetailScreen() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BackHandler,
   Linking,
@@ -104,13 +104,13 @@ export function DashboardHomeScreen() {
     // When offline, skip live API calls — keep last-known counts and cached profile
     if (isOffline) return;
 
+    await dispatch(fetchProfile()).unwrap().catch(() => {});
+
     const [savedResult, chatResult, notificationResult] = await Promise.allSettled([
       fetchSavedListings(),
       getChatUnreadCount(),
       getNotificationUnreadCount(),
     ]);
-
-    await dispatch(fetchProfile()).unwrap().catch(() => {});
 
     setMenuCounts({
       savedItems: savedResult.status === "fulfilled" ? savedResult.value.listings.length : 0,
@@ -220,15 +220,7 @@ export function DashboardHomeScreen() {
           className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
           style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
         >
-          <MaterialIcons name="arrow-back-ios" size={18} color="#1A1A1A" />
-        </Pressable>
-
-        <Pressable
-          onPress={() => navigateProtected("/profile-details-edit" as Href)}
-          className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
-          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
-        >
-          <MaterialIcons name="add-a-photo" size={20} color="#1A1A1A" />
+          <MaterialIcons name="arrow-back-ios" size={18} color="#1A1A1A" style={{marginLeft: 6}} />
         </Pressable>
       </View>
 
