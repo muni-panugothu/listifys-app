@@ -11,6 +11,8 @@
         "buildType": "apk"
       },
       "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://listifys-app.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "AIzaSyDE0mXggZkkQxJKiogRvdT73J5yOqj6dVI",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "582870381419-ks689jiqpd5kuvurcbpc50bps6nlvbnk.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com"
       }
@@ -23,6 +25,8 @@
       "env": {
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a",
         "EAS_SKIP_AUTO_FINGERPRINT": "1",
+        "EXPO_PUBLIC_API_BASE_URL": "https://listifys-app.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "AIzaSyDE0mXggZkkQxJKiogRvdT73J5yOqj6dVI",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "582870381419-ks689jiqpd5kuvurcbpc50bps6nlvbnk.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com"
       }
@@ -32,6 +36,8 @@
         "buildType": "app-bundle"
       },
       "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://listifys-app.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "AIzaSyDE0mXggZkkQxJKiogRvdT73J5yOqj6dVI",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "582870381419-ks689jiqpd5kuvurcbpc50bps6nlvbnk.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com"
       }
