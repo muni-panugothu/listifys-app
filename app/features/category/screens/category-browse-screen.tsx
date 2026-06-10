@@ -180,6 +180,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
       // "Set location" / "Detecting location…" are UI placeholders \u2014 passing
       // them to the server as a text filter returns 0 results.
       const isRealLabel =
+        hasManualLocation &&
         Boolean(locationLabel) &&
         locationLabel !== "Set location" &&
         !locationLabel.startsWith("Detecting");
@@ -195,7 +196,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           lat: hasCoords ? userCoords.lat! : undefined,
           lng: hasCoords ? userCoords.lng! : undefined,
           radius: hasCoords ? 100 : undefined,
-          countryCode: isoCountryCode,
+          countryCode: hasManualLocation ? isoCountryCode : undefined,
         }),
         new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error("timeout")), FETCH_TIMEOUT_MS);

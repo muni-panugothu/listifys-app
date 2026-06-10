@@ -71,6 +71,18 @@ const normalizeStoredUser = (user: AuthUser | null): AuthUser | null => {
   };
 };
 
+/** True when the server is unreachable — keep local session instead of logging out. */
+function isTransientSessionError(error: unknown): boolean {
+  if (error instanceof AuthApiError) {
+    return error.status === 0 || error.status >= 500;
+  }
+  if (error instanceof TypeError) return true;
+  if (error instanceof Error) {
+    return /network|timed out|fetch|unable to connect|abort/i.test(error.message);
+  }
+  return false;
+}
+
 // ── Thunks ──────────────────────────────────────────────────────────────────────
 
 export const login = createAsyncThunk(
@@ -314,7 +326,14 @@ export const restoreSession = createAsyncThunk(
       if (liveUser) {
         return { user: liveUser, flow, isAuthenticated: true };
       }
-    } catch {
+    } catch (profileError) {
+      if (isTransientSessionError(profileError)) {
+        if (cachedUser) {
+          return { user: cachedUser, flow, isAuthenticated: true };
+        }
+        return { user: null, flow, isAuthenticated: true };
+      }
+
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         try {
@@ -322,8 +341,13 @@ export const restoreSession = createAsyncThunk(
           if (liveUser) {
             return { user: liveUser, flow, isAuthenticated: true };
           }
-        } catch {
-          // Fall through to cached session below.
+        } catch (retryError) {
+          if (isTransientSessionError(retryError)) {
+            if (cachedUser) {
+              return { user: cachedUser, flow, isAuthenticated: true };
+            }
+            return { user: null, flow, isAuthenticated: true };
+          }
         }
       }
     }

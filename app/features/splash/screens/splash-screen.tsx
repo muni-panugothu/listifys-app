@@ -8,6 +8,7 @@ import { configureGoogleSignIn } from "@/lib/google-sign-in";
 import { getFCMToken } from "@/lib/firebase-messaging";
 import { useAppDispatch } from "@/store/hooks";
 import { store } from "@/store";
+import { getAccessToken, getRefreshToken, restoreTokens } from "@/features/auth/services/auth-api";
 import { restoreSession } from "@/store/slices/auth-slice";
 import { checkOnboarding } from "@/store/slices/onboarding-slice";
 
@@ -23,12 +24,6 @@ export function SplashScreen() {
     let cancelled = false;
 
     const bootstrap = async () => {
-      const fallback = setTimeout(() => {
-        if (!cancelled && !hasNavigatedRef.current) {
-          finishNavigation(false);
-        }
-      }, 4000);
-
       try {
         await dispatch(checkOnboarding());
         const sessionResult = await dispatch(restoreSession());
@@ -43,11 +38,10 @@ export function SplashScreen() {
 
         finishNavigation(authenticated);
       } catch {
-        if (!cancelled) {
-          finishNavigation(false);
-        }
-      } finally {
-        clearTimeout(fallback);
+        if (cancelled) return;
+        await restoreTokens().catch(() => {});
+        const hasTokens = Boolean(getAccessToken() || getRefreshToken());
+        finishNavigation(hasTokens);
       }
     };
 

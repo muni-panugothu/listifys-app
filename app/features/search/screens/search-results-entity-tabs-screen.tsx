@@ -229,12 +229,9 @@ export function SearchResultsEntityTabsScreen() {
     shouldApplyLocationFilter &&
     locationCoords.lat != null &&
     locationCoords.lng != null;
-  const isoCountryCode = (
-    reduxCountryCode ??
-    paramCountryCode ??
-    localeCountryCode ??
-    null
-  )?.toUpperCase() ?? null;
+  const isoCountryCode = shouldApplyLocationFilter
+    ? ((reduxCountryCode ?? paramCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null)
+    : null;
   const initialEntity = useMemo(
     () => parseEntityParam(params.entity),
     [params.entity],

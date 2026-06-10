@@ -19,9 +19,11 @@ export class GoogleSignInError extends Error {
 
 type GoogleSigninApi = {
   configure: (config: Record<string, unknown>) => void;
-  hasPlayServices: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<boolean>;
-  signOut: () => Promise<void>;
+  hasPlayServices?: (opts: { showPlayServicesUpdateDialog: boolean }) => Promise<boolean>;
+  signOut?: () => Promise<void>;
   signIn: () => Promise<unknown>;
+  signInSilently?: () => Promise<unknown>;
+  getTokens?: () => Promise<{ idToken?: string | null; accessToken?: string | null }>;
 };
 
 type GoogleStatusCodes = {
@@ -86,12 +88,91 @@ function getGoogleModule(): GoogleModule | null {
   }
 
   try {
-    googleModule = require("@react-native-google-signin/google-signin") as GoogleModule;
+    const raw = require("@react-native-google-signin/google-signin") as GoogleModule & {
+      default?: GoogleModule;
+    };
+    const pkg = raw?.GoogleSignin ? raw : raw?.default ?? raw;
+    const GoogleSignin = pkg.GoogleSignin ?? (pkg as unknown as GoogleSigninApi);
+
+    if (!GoogleSignin || typeof GoogleSignin.signIn !== "function") {
+      googleModule = null;
+      return null;
+    }
+
+    googleModule = {
+      GoogleSignin,
+      isSuccessResponse:
+        typeof pkg.isSuccessResponse === "function"
+          ? pkg.isSuccessResponse
+          : typeof raw.isSuccessResponse === "function"
+            ? raw.isSuccessResponse
+            : undefined,
+      isErrorWithCode:
+        typeof pkg.isErrorWithCode === "function"
+          ? pkg.isErrorWithCode
+          : typeof raw.isErrorWithCode === "function"
+            ? raw.isErrorWithCode
+            : undefined,
+      statusCodes: pkg.statusCodes ?? raw.statusCodes,
+    };
   } catch {
     googleModule = null;
   }
 
   return googleModule;
+}
+
+function assertGoogleSigninReady(GoogleSignin: GoogleSigninApi): void {
+  if (typeof GoogleSignin.configure !== "function" || typeof GoogleSignin.signIn !== "function") {
+    throw new GoogleSignInError(
+      "Google Sign-In native module is incomplete. Rebuild and reinstall the Listifys APK (EAS preview or production profile).",
+    );
+  }
+  if (Platform.OS === "android" && typeof GoogleSignin.hasPlayServices !== "function") {
+    throw new GoogleSignInError(
+      "Google Play Services check is unavailable in this build. Reinstall the Listifys APK built with EAS.",
+    );
+  }
+}
+
+function extractIdTokenFromResponse(response: unknown): string | null {
+  if (!response || typeof response !== "object") return null;
+
+  const typed = response as {
+    idToken?: string | null;
+    data?: {
+      idToken?: string | null;
+      user?: { idToken?: string | null };
+    };
+  };
+
+  return (
+    typed.data?.idToken ??
+    typed.data?.user?.idToken ??
+    typed.idToken ??
+    null
+  );
+}
+
+async function resolveIdToken(
+  GoogleSignin: GoogleSigninApi,
+  response: unknown,
+): Promise<string> {
+  const fromResponse = extractIdTokenFromResponse(response);
+  if (fromResponse) return fromResponse;
+
+  if (typeof GoogleSignin.getTokens === "function") {
+    try {
+      const tokens = await GoogleSignin.getTokens();
+      if (tokens?.idToken) return tokens.idToken;
+    } catch {
+      // fall through
+    }
+  }
+
+  throw new GoogleSignInError(
+    "Google did not return an ID token. Check OAuth client configuration (Web client ID + SHA-1 fingerprints).",
+  );
 }
 
 function readEmbeddedGoogleClientIds(): GoogleClientIds | null {
@@ -170,6 +251,12 @@ export async function configureGoogleSignIn() {
       offlineAccess: false,
       forceCodeForRefreshToken: false,
     });
+
+    // v16 configure is async on the native side; signInSilently awaits the same
+    // config promise without showing UI when no saved credential exists.
+    if (typeof module.GoogleSignin.signInSilently === "function") {
+      await module.GoogleSignin.signInSilently().catch(() => null);
+    }
   })().catch((err: unknown) => {
     // Reset so the next sign-in attempt re-runs configure instead of
     // returning the same stale rejected promise forever.
@@ -187,6 +274,8 @@ export function isGoogleSignInAvailable() {
 /** One attempt of the native sign-in flow.  Exported for testability. */
 async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
   const { GoogleSignin } = module;
+  assertGoogleSigninReady(GoogleSignin);
+
   const statusCodes = module.statusCodes ?? FALLBACK_STATUS_CODES;
   const checkSuccess =
     typeof module.isSuccessResponse === "function"
@@ -198,14 +287,16 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
       : isGoogleSignInErrorWithCode;
 
   try {
-    if (Platform.OS === "android") {
+    if (Platform.OS === "android" && GoogleSignin.hasPlayServices) {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     }
 
-    try {
-      await GoogleSignin.signOut();
-    } catch {
-      // ignore stale session
+    if (typeof GoogleSignin.signOut === "function") {
+      try {
+        await GoogleSignin.signOut();
+      } catch {
+        // ignore stale session
+      }
     }
 
     const response = await GoogleSignin.signIn();
@@ -214,12 +305,7 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
       throw new GoogleSignInError("Google sign-in did not complete.", true);
     }
 
-    const idToken = (response as { data?: { idToken?: string | null } }).data?.idToken;
-    if (!idToken) {
-      throw new GoogleSignInError("Google did not return an ID token. Check OAuth client configuration.");
-    }
-
-    return idToken;
+    return await resolveIdToken(GoogleSignin, response);
   } catch (error: unknown) {
     if (checkErrorWithCode(error)) {
       const err = error as { code?: number | string; message?: string };
@@ -260,9 +346,15 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
     }
 
     if (error instanceof GoogleSignInError) throw error;
-    throw new GoogleSignInError(
-      error instanceof Error ? error.message : "Google sign-in failed.",
-    );
+
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    if (/undefined is not a function|is not a function/i.test(rawMessage)) {
+      throw new GoogleSignInError(
+        "Google Sign-In native module failed to load. Rebuild and reinstall the Listifys APK (EAS preview or production profile), then try again.",
+      );
+    }
+
+    throw new GoogleSignInError(rawMessage || "Google sign-in failed.");
   }
 }
 

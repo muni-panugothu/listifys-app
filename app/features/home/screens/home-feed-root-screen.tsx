@@ -275,7 +275,7 @@ export function HomeFeedRootScreen() {
       await loadFeed({ allowCacheFallback: !cached });
     })().catch(() => {});
 
-    getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {});
+    getRecentlyViewed(shouldApplyLocationFilter ? effectiveCountryCode : null).then(setRecentlyViewed).catch(() => {});
     if (isAuthenticated) {
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
@@ -319,21 +319,21 @@ export function HomeFeedRootScreen() {
   useFocusEffect(
     useCallback(() => {
       loadFeed({ allowCacheFallback: false }).catch(() => {});
-      getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {});
+      getRecentlyViewed(shouldApplyLocationFilter ? effectiveCountryCode : null).then(setRecentlyViewed).catch(() => {});
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
       getChatUnreadCount()
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {});
-    }, [effectiveCountryCode, loadFeed]),
+    }, [effectiveCountryCode, loadFeed, shouldApplyLocationFilter]),
   );
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       dispatch(fetchProfile()).unwrap().catch(() => {}),
       loadFeed(),
-      getRecentlyViewed(effectiveCountryCode).then(setRecentlyViewed).catch(() => {}),
+      getRecentlyViewed(shouldApplyLocationFilter ? effectiveCountryCode : null).then(setRecentlyViewed).catch(() => {}),
       getNotificationUnreadCount()
         .then((r) => setNotificationUnreadCount(r.unreadCount ?? 0))
         .catch(() => {}),
@@ -341,7 +341,7 @@ export function HomeFeedRootScreen() {
         .then((r) => setChatUnreadCount(r.unreadCount ?? 0))
         .catch(() => {}),
     ]);
-  }, [dispatch, effectiveCountryCode, loadFeed]);
+  }, [dispatch, effectiveCountryCode, loadFeed, shouldApplyLocationFilter]);
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 

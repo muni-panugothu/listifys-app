@@ -107,7 +107,7 @@ export function ServicesCategoryHubScreen() {
         lat: hasManualLocation ? userCoords.lat! : undefined,
         lng: hasManualLocation ? userCoords.lng! : undefined,
         radius: hasManualLocation ? 100 : undefined,
-        countryCode: isoCountryCode,
+        countryCode: hasManualLocation ? isoCountryCode : undefined,
         sort: sortMap[activeFilter] ?? "-createdAt",
       });
       const items = res.listings ?? [];
