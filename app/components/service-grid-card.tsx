@@ -25,6 +25,7 @@ export type ServiceGridCardProps = {
   rating?: number | null;
   reviewCount?: number | null;
   width: number;
+  distanceLabel?: string;
   isSaved?: boolean;
   onPress: () => void;
   onToggleSave?: () => void;
@@ -61,6 +62,7 @@ export function ServiceGridCard({
   rating,
   reviewCount,
   width,
+  distanceLabel,
   isSaved = false,
   onPress,
   onToggleSave,
@@ -281,6 +283,20 @@ export function ServiceGridCard({
             On request
           </Text>
         )}
+        {distanceLabel ? (
+          <Text
+            style={{
+              marginTop: 4,
+              fontFamily: ListifyFonts.medium,
+              fontSize: 12,
+              color: "#6B7280",
+              ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
+            }}
+            numberOfLines={1}
+          >
+            {distanceLabel}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );

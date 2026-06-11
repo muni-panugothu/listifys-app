@@ -318,7 +318,6 @@ export const selectLocationSource = (state: RootState) =>
 
 /** Distance on cards is shown only after the user explicitly picks a location. */
 export const selectCanShowDistanceOnCards = (state: RootState) =>
-  state.location.source === "manual" &&
   state.location.lat != null &&
   state.location.lng != null;
 

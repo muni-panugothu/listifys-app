@@ -223,15 +223,16 @@ export function SearchResultsEntityTabsScreen() {
   // Prefer Redux (always up-to-date), fall back to URL param passed by caller.
   const reduxCountryCode = useAppSelector(selectIsoCountryCode);
   const paramCountryCode = parseQueryParam(params.countryCode) || null;
-  // Keep geo-radius filtering only for explicit manual location selection.
-  const shouldApplyLocationFilter = locationSource === "manual";
-  const hasManualCoords =
-    shouldApplyLocationFilter &&
+  const effectiveCountryCode =
+    (reduxCountryCode ?? paramCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
+  const hasLocationCoords =
     locationCoords.lat != null &&
     locationCoords.lng != null;
-  const isoCountryCode = shouldApplyLocationFilter
-    ? ((reduxCountryCode ?? paramCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null)
-    : null;
+  const shouldApplyLocationFilter =
+    hasLocationCoords ||
+    paramCountryCode != null ||
+    effectiveCountryCode === "US";
+  const isoCountryCode = shouldApplyLocationFilter ? effectiveCountryCode : null;
   const initialEntity = useMemo(
     () => parseEntityParam(params.entity),
     [params.entity],
@@ -293,8 +294,8 @@ export function SearchResultsEntityTabsScreen() {
           try {
             const feed = await fetchHomeFeedWithTimeout(
               60,
-              hasManualCoords ? locationCoords.lat : undefined,
-              hasManualCoords ? locationCoords.lng : undefined,
+              hasLocationCoords ? locationCoords.lat : undefined,
+              hasLocationCoords ? locationCoords.lng : undefined,
               isoCountryCode,
             );
             const feedListings = feed?.categories
@@ -321,7 +322,7 @@ export function SearchResultsEntityTabsScreen() {
           return;
         }
 
-        const hasCoords = hasManualCoords;
+        const hasCoords = hasLocationCoords;
         const isRealLabel =
           shouldApplyLocationFilter &&
           Boolean(locationCoords.label) &&
@@ -380,7 +381,7 @@ export function SearchResultsEntityTabsScreen() {
       appliedQuery,
       activeEntity,
       activeSort,
-      hasManualCoords,
+      hasLocationCoords,
       locationCoords.label,
       locationCoords.lat,
       locationCoords.lng,

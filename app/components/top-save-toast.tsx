@@ -22,9 +22,9 @@ type TopSaveToastProps = {
 };
 
 const SHOW_DURATION_MS: Record<AppToastType, number> = {
-  success: 2200,
-  info: 2800,
-  error: 9000,
+  success: 1800,
+  info: 2400,
+  error: 5400,
 };
 
 export function TopSaveToast({

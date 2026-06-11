@@ -219,7 +219,9 @@ export function ChatConversationScreen() {
         }
 
         // 4. Socket
-        await connectSocket();
+        await connectSocket().catch((err) => {
+          console.warn("[Chat] Socket connect failed", err);
+        });
         joinConversation(convId);
       } catch (e) {
         console.warn("[Chat] Bootstrap error", e);

@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
 import { ServiceGridCard } from "@/components/service-grid-card";
 import { VoiceSearchModal } from "@/components/voice-search-modal";
+import { getListingDistanceLabel } from "@/lib/listing-distance";
 import { CATEGORIES } from "@/constants/categories";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import {
@@ -64,11 +65,12 @@ export function ServicesCategoryHubScreen() {
   const locationLabel = useAppSelector(selectLocationLabel);
   const rawCountryCode = useAppSelector(selectIsoCountryCode);
   const locationSource = useAppSelector(selectLocationSource);
-  const hasManualLocation =
-    locationSource === "manual" &&
+  const hasLocationCoords =
     userCoords.lat != null &&
     userCoords.lng != null;
   const isoCountryCode = (rawCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
+  const shouldApplyLocationFilter = hasLocationCoords || isoCountryCode === "US";
+  const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
   const handleBottomTabPress = useTabNavigation();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,10 +106,10 @@ export function ServicesCategoryHubScreen() {
       const res = await fetchServiceListings({
         subcategory: selectedSubcategory === "All" ? undefined : selectedSubcategory,
         search: appliedSearch.trim() || undefined,
-        lat: hasManualLocation ? userCoords.lat! : undefined,
-        lng: hasManualLocation ? userCoords.lng! : undefined,
-        radius: hasManualLocation ? 100 : undefined,
-        countryCode: hasManualLocation ? isoCountryCode : undefined,
+        lat: hasLocationCoords ? userCoords.lat! : undefined,
+        lng: hasLocationCoords ? userCoords.lng! : undefined,
+        radius: hasLocationCoords ? 100 : undefined,
+        countryCode: shouldApplyLocationFilter ? isoCountryCode : undefined,
         sort: sortMap[activeFilter] ?? "-createdAt",
       });
       const items = res.listings ?? [];
@@ -129,7 +131,7 @@ export function ServicesCategoryHubScreen() {
   }, [
     activeFilter,
     appliedSearch,
-    hasManualLocation,
+    hasLocationCoords,
     isoCountryCode,
     selectedSubcategory,
     user?.id,
@@ -448,6 +450,20 @@ export function ServicesCategoryHubScreen() {
                       image={item.images?.[0]}
                       rating={(item as any).stats?.rating ?? null}
                       reviewCount={(item as any).stats?.reviewCount ?? null}
+                      distanceLabel={canShowDistanceOnCards ? getListingDistanceLabel(
+                        {
+                          _id: item._id,
+                          category: item.category,
+                          distance: item.distance,
+                          coordinates: item.coordinates,
+                          countryCode: item.countryCode,
+                          currency: item.currency,
+                        },
+                        hasLocationCoords
+                          ? { lat: userCoords.lat!, lng: userCoords.lng! }
+                          : null,
+                        isoCountryCode,
+                      ) : undefined}
                       width={CARD_WIDTH}
                       isSaved={savedIds.has(item._id)}
                       onPress={() =>

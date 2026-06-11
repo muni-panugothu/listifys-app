@@ -2,26 +2,34 @@ import type { ListingItem } from "@/features/listing/services/listing-api";
 
 type ListingOwnerFields = {
   seller?: ListingItem["seller"];
-  userId?: string;
+  userId?: string | { _id?: string; id?: string };
   sellerId?: string;
 };
 
-/** Resolve listing owner id from API shapes (ObjectId string or populated seller). */
+/** Resolve listing owner id from API shapes (ObjectId string, populated seller, or populated userId). */
 export function getListingSellerId(listing: ListingOwnerFields): string | null {
   if (listing.sellerId) {
     return String(listing.sellerId);
   }
+
   const seller = listing.seller;
   if (typeof seller === "string" && seller.trim()) {
     return seller.trim();
   }
-  if (seller && typeof seller === "object" && "_id" in seller) {
-    const id = (seller as { _id?: string })._id;
-    return id ? String(id) : null;
+  if (seller && typeof seller === "object") {
+    const id = (seller as { _id?: string; id?: string })._id ?? (seller as { _id?: string; id?: string }).id;
+    if (id) return String(id);
   }
-  if (listing.userId) {
-    return String(listing.userId);
+
+  const userId = listing.userId;
+  if (typeof userId === "string" && userId.trim()) {
+    return userId.trim();
   }
+  if (userId && typeof userId === "object") {
+    const id = userId._id ?? userId.id;
+    if (id) return String(id);
+  }
+
   return null;
 }
 

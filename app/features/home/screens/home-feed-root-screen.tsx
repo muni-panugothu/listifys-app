@@ -122,10 +122,10 @@ export function HomeFeedRootScreen() {
   const [showLoginSheet, setShowLoginSheet] = useState(false);
   const locationPromptAttempted = useRef(false);
   const isOffline = !network.isConnected || network.isInternetReachable === false;
-   // Apply location filter when user has a valid location (manual, GPS, or profile-based)
+   // Apply location filter when user has a valid location (GPS/manual) or when the user is in the US.
    const hasValidLocation = locationCoords.lat != null && locationCoords.lng != null;
-   const shouldApplyLocationFilter = hasValidLocation;
-  const effectiveCountryCode = (isoCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
+   const effectiveCountryCode = (isoCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
+   const shouldApplyLocationFilter = hasValidLocation || effectiveCountryCode === "US";
   const canShowDistanceOnCards = useAppSelector(selectCanShowDistanceOnCards);
 
   useEffect(() => {
@@ -175,7 +175,6 @@ export function HomeFeedRootScreen() {
       try {
         let feedParams: any = { limit: 12 };
         if (shouldApplyLocationFilter) {
-          // Apply location filter only after explicit user selection.
           const hasCoords = locationCoords.lat != null && locationCoords.lng != null;
           const isRealLabel =
             Boolean(locationCoords.label) &&

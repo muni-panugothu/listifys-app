@@ -71,6 +71,14 @@ export type ListingItem = {
     profileImage?: string;
     createdAt?: string;
   };
+  userId?: string | {
+    _id?: string;
+    name?: string;
+    profileImage?: string;
+    googleProfileImage?: string;
+    avatar?: string;
+  };
+  sellerId?: string;
   views?: number;
   phone?: string;
   status?: string;

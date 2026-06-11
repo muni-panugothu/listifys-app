@@ -133,11 +133,11 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const locationLabel = useAppSelector(selectLocationLabel);
   const rawCountryCode = useAppSelector(selectIsoCountryCode);
   const locationSource = useAppSelector(selectLocationSource);
-  const hasManualLocation =
-    locationSource === "manual" &&
+  const hasLocationCoords =
     userCoords.lat != null &&
     userCoords.lng != null;
   const isoCountryCode = (rawCountryCode ?? localeCountryCode ?? null)?.toUpperCase() ?? null;
+  const shouldApplyCountryFilter = hasLocationCoords || isoCountryCode === "US";
 
   // Subcategories fetched live from the DB so any new subcategory added to
   // the model (or posted by a seller) appears immediately — static list from
@@ -174,13 +174,13 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
 
   const loadListings = useCallback(async () => {
     try {
-      const hasCoords = hasManualLocation;
+      const hasCoords = hasLocationCoords;
 
       // Only filter by location when the user has actually set one.
-      // "Set location" / "Detecting location…" are UI placeholders \u2014 passing
+      // "Set location" / "Detecting location…" are UI placeholders — passing
       // them to the server as a text filter returns 0 results.
       const isRealLabel =
-        hasManualLocation &&
+        hasLocationCoords &&
         Boolean(locationLabel) &&
         locationLabel !== "Set location" &&
         !locationLabel.startsWith("Detecting");
@@ -196,7 +196,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           lat: hasCoords ? userCoords.lat! : undefined,
           lng: hasCoords ? userCoords.lng! : undefined,
           radius: hasCoords ? 100 : undefined,
-          countryCode: hasManualLocation ? isoCountryCode : undefined,
+          countryCode: shouldApplyCountryFilter ? isoCountryCode : undefined,
         }),
         new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error("timeout")), FETCH_TIMEOUT_MS);
@@ -217,7 +217,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   }, [
     appliedSearch,
     categorySlug,
-    hasManualLocation,
+    hasLocationCoords,
     isoCountryCode,
     locationLabel,
     selectedSubcategory,
@@ -644,7 +644,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
                     image={item.images?.[0]}
                     createdAt={item.createdAt}
                     width={CARD_WIDTH}
-                    distanceLabel={hasManualLocation ? getListingDistanceLabel(
+                    distanceLabel={hasLocationCoords ? getListingDistanceLabel(
                       {
                         _id: item._id,
                         category: categorySlug,
