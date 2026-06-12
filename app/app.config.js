@@ -4,12 +4,12 @@ const appJson = require("./app.json");
 
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-/** Must match Google Cloud project 582870381419 OAuth clients + google-services.json */
+/** Must match Google Cloud project listifys-499209 OAuth clients + google-services.json */
 const GOOGLE_OAUTH_FALLBACK = {
   webClientId:
-    "582870381419-ks689jiqpd5kuvurcbpc50bps6nlvbnk.apps.googleusercontent.com",
+    "250525074952-6e1spofl9ro4jo2369c965s8a0463l5a.apps.googleusercontent.com",
   androidClientId:
-    "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com",
+    "250525074952-32uouodmqkfvl2u7nh2a61ugo16caqqs.apps.googleusercontent.com",
   packageName: "com.listifys.app",
 };
 

@@ -348,14 +348,14 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
         throw new GoogleSignInError(
           "Google Sign-In configuration error (code 10).\n\n" +
           "The app signing key must match Google Cloud Console.\n\n" +
-          "1. Open Google Cloud Console → project 582870381419 → Credentials\n" +
+          "1. Open Google Cloud Console → project listifys-499209 → Credentials\n" +
           "2. Open the Android OAuth client for com.listifys.app\n" +
           "3. Add BOTH SHA-1 fingerprints:\n" +
           `   Release/EAS: ${GOOGLE_OAUTH_CONFIG.releaseSha1}\n` +
           `   Debug/dev:   ${GOOGLE_OAUTH_CONFIG.debugSha1}\n\n` +
           "4. Confirm Web client ID matches:\n" +
           `   ${GOOGLE_OAUTH_CONFIG.webClientId}\n\n` +
-          "Note: Adding SHA-1 only in Firebase (listifysapp) is not enough — use GCP project 582870381419.\n" +
+          "Note: Adding SHA-1 only in Firebase is not enough — use GCP project listifys-499209.\n" +
           "After updating Console, rebuild and reinstall the APK.",
         );
       }
