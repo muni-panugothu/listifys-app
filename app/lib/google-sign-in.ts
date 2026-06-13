@@ -9,11 +9,13 @@ import { GOOGLE_OAUTH_CONFIG } from "@/lib/google-oauth-config";
 
 export class GoogleSignInError extends Error {
   cancelled: boolean;
+  code?: number | string;
 
-  constructor(message: string, cancelled = false) {
+  constructor(message: string, cancelled = false, code?: number | string) {
     super(message);
     this.name = "GoogleSignInError";
     this.cancelled = cancelled;
+    this.code = code;
   }
 }
 
@@ -52,6 +54,83 @@ function isGoogleSignInErrorWithCode(
   error: unknown,
 ): error is { code?: number | string; message?: string } {
   return error != null && typeof error === "object" && "code" in error;
+}
+
+const GOOGLE_SIGN_IN_STATUS_NAMES: Record<number, string> = {
+  4: "SIGN_IN_REQUIRED",
+  7: "NETWORK_ERROR",
+  8: "INTERNAL_ERROR",
+  10: "DEVELOPER_ERROR",
+  12500: "SIGN_IN_FAILED",
+  12501: "SIGN_IN_CANCELLED",
+  12502: "SIGN_IN_CURRENTLY_IN_PROGRESS",
+};
+
+function extractGoogleErrorCode(error: unknown): number | string | undefined {
+  if (error != null && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: number | string }).code;
+    if (code !== undefined && code !== null && code !== "") return code;
+  }
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : String(error);
+
+  const fromMessage = message.match(/ApiException:\s*(\d+)/i)?.[1];
+  if (fromMessage) return Number(fromMessage);
+
+  return undefined;
+}
+
+function describeGoogleSignInStatus(code: number | string | undefined): string | null {
+  if (code === undefined || code === null) return null;
+  const numeric = typeof code === "number" ? code : Number(code);
+  if (!Number.isNaN(numeric) && GOOGLE_SIGN_IN_STATUS_NAMES[numeric]) {
+    return GOOGLE_SIGN_IN_STATUS_NAMES[numeric];
+  }
+  return null;
+}
+
+function formatNativeGoogleSignInError(err: {
+  code?: number | string;
+  message?: string;
+}): string {
+  const code = extractGoogleErrorCode(err);
+  const statusName = describeGoogleSignInStatus(code);
+  const message =
+    typeof err.message === "string" && err.message.trim()
+      ? err.message.trim()
+      : "No message from Google Sign-In native module.";
+
+  const codeLabel =
+    code !== undefined && code !== null ? String(code) : "unknown";
+  const statusSuffix = statusName ? ` (${statusName})` : "";
+
+  const lines = [
+    `Google Sign-In error [code ${codeLabel}${statusSuffix}]: ${message}`,
+  ];
+
+  if (codeLabel === "12500" || codeLabel === "10" || statusName === "DEVELOPER_ERROR") {
+    lines.push(
+      "Usually means the app signing SHA-1 or OAuth client IDs do not match Google Cloud Console.",
+    );
+    if (__DEV__) {
+      lines.push(`Expected debug SHA-1: ${GOOGLE_OAUTH_CONFIG.debugSha1}`);
+    }
+  }
+
+  if (__DEV__) {
+    try {
+      lines.push(`Raw: ${JSON.stringify(err, Object.getOwnPropertyNames(err as object))}`);
+    } catch {
+      lines.push(`Raw: ${String(err)}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 const FALLBACK_STATUS_CODES: GoogleStatusCodes = {
@@ -170,9 +249,7 @@ async function resolveIdToken(
     }
   }
 
-  throw new GoogleSignInError(
-    "Google did not return an ID token. Check OAuth client configuration (Web client ID + SHA-1 fingerprints).",
-  );
+  throw new GoogleSignInError("Google did not return an ID token.");
 }
 
 function safeTrim(value: unknown): string | undefined {
@@ -270,6 +347,14 @@ export async function configureGoogleSignIn() {
       forceCodeForRefreshToken: false,
     });
 
+    if (__DEV__) {
+      console.info("[GoogleSignIn] configured", {
+        webClientId: clientIds.web,
+        androidClientId: clientIds.android,
+        packageName: GOOGLE_OAUTH_CONFIG.packageName,
+      });
+    }
+
     // v16 configure is async on the native side; signInSilently awaits the same
     // config promise without showing UI when no saved credential exists.
     if (typeof module.GoogleSignin.signInSilently === "function") {
@@ -327,40 +412,48 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
   } catch (error: unknown) {
     if (checkErrorWithCode(error)) {
       const err = error as { code?: number | string; message?: string };
-      const message = typeof err.message === "string" ? err.message : "";
+      const resolvedCode = extractGoogleErrorCode(err);
+
+      if (__DEV__) {
+        console.warn("[GoogleSignIn] native sign-in error", {
+          code: resolvedCode,
+          status: describeGoogleSignInStatus(resolvedCode),
+          message: err.message,
+          raw: err,
+        });
+      }
 
       if (err.code === statusCodes.SIGN_IN_CANCELLED) {
-        throw new GoogleSignInError("Sign-in cancelled.", true);
+        throw new GoogleSignInError("Sign-in cancelled.", true, err.code);
       }
       if (err.code === statusCodes.IN_PROGRESS) {
-        throw new GoogleSignInError("Sign-in already in progress.");
+        throw new GoogleSignInError("Sign-in already in progress.", false, err.code);
       }
       if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        throw new GoogleSignInError("Google Play Services is not available on this device.");
-      }
-      // err.code can be number 10 OR string "10" depending on library version
-      if (
-        err.code === 10 ||
-        err.code === "10" ||
-        message.includes("DEVELOPER_ERROR") ||
-        message.toLowerCase().includes("developer error")
-      ) {
         throw new GoogleSignInError(
-          "Google Sign-In configuration error (code 10).\n\n" +
-          "The app signing key must match Google Cloud Console.\n\n" +
-          "1. Open Google Cloud Console → project listifys-499209 → Credentials\n" +
-          "2. Open the Android OAuth client for com.listifys.app\n" +
-          "3. Add BOTH SHA-1 fingerprints:\n" +
-          `   Release/EAS: ${GOOGLE_OAUTH_CONFIG.releaseSha1}\n` +
-          `   Debug/dev:   ${GOOGLE_OAUTH_CONFIG.debugSha1}\n\n` +
-          "4. Confirm Web client ID matches:\n" +
-          `   ${GOOGLE_OAUTH_CONFIG.webClientId}\n\n` +
-          "Note: Adding SHA-1 only in Firebase is not enough — use GCP project listifys-499209.\n" +
-          "After updating Console, rebuild and reinstall the APK.",
+          "Google Play Services is not available on this device.",
+          false,
+          err.code,
         );
       }
 
-      throw new GoogleSignInError(message || "Google sign-in failed.");
+      throw new GoogleSignInError(
+        formatNativeGoogleSignInError(err),
+        false,
+        resolvedCode ?? err.code,
+      );
+    }
+
+    const fallbackCode = extractGoogleErrorCode(error);
+    if (fallbackCode !== undefined) {
+      const err = {
+        code: fallbackCode,
+        message: error instanceof Error ? error.message : String(error),
+      };
+      if (__DEV__) {
+        console.warn("[GoogleSignIn] native sign-in error", err);
+      }
+      throw new GoogleSignInError(formatNativeGoogleSignInError(err), false, fallbackCode);
     }
 
     if (error instanceof GoogleSignInError) throw error;

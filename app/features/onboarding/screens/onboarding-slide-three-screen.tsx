@@ -1,13 +1,15 @@
 import React from 'react'
-import { View, Text, Image, TouchableOpacity, Platform } from 'react-native'
+import { View, Text, TouchableOpacity } from 'react-native'
+import { Image } from '@/lib/nativewind-interop'
 import { LinearGradient } from 'expo-linear-gradient'
 import { type Href, useRouter } from '@/lib/safe-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
 import { showErrorToast } from '@/lib/toast'
+import { formatAuthFailureMessage } from '@/lib/auth-error-display'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
-import { clearError, googleLogin } from '@/store/slices/auth-slice'
+import { googleLogin } from '@/store/slices/auth-slice'
 import { completeOnboarding } from '@/store/slices/onboarding-slice'
 import {
   GoogleSignInError,
@@ -24,7 +26,7 @@ const App = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const dispatch = useAppDispatch()
-  const { isAuthenticated, sessionHydrated, error } = useAppSelector((s) => s.auth)
+  const { isAuthenticated, sessionHydrated } = useAppSelector((s) => s.auth)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const hasMountedRef = React.useRef(false)
 
@@ -52,13 +54,6 @@ const App = () => {
   }, [isAuthenticated, sessionHydrated])
 
   useEffect(() => {
-    if (error) {
-      showErrorToast('Google Sign In', error)
-      dispatch(clearError())
-    }
-  }, [dispatch, error])
-
-  useEffect(() => {
     void configureGoogleSignIn().catch(() => {})
   }, [])
 
@@ -71,13 +66,7 @@ const App = () => {
       if (err instanceof GoogleSignInError && err.cancelled) return
       showErrorToast(
         'Google Sign In',
-        err instanceof GoogleSignInError
-          ? err.message
-          : err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-          ? err
-          : 'Google sign-in failed.',
+        formatAuthFailureMessage(err, 'Google sign in'),
       )
     } finally {
       setIsGoogleLoading(false)
@@ -85,7 +74,7 @@ const App = () => {
   }
 
   return (
-    <View className="flex-1 relative">
+    <View className="relative flex-1 bg-[#B5E8D8]">
       <StatusBar style="light" />
 
       <TouchableOpacity
@@ -99,26 +88,29 @@ const App = () => {
         <Text className="font-semibold text-white">Skip</Text>
       </TouchableOpacity>
 
-      {/* Background Image - Fixed with explicit width/height */}
       <Image
         source={bgImage}
-        style={{ 
-          width: '100%', 
-          height: '100%',
+        contentFit="contain"
+        style={{
           position: 'absolute',
-          resizeMode: 'cover'
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          height: '100%',
         }}
       />
 
-      {/* Gradient Overlay */}
       <LinearGradient
-        colors={['transparent', 'black']}
-        className="absolute bottom-0 left-0 w-full h-[50%]"
+        colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.88)']}
+        locations={[0, 0.45, 1]}
+        className="absolute bottom-0 left-0 h-[55%] w-full"
       />
 
       {/* Bottom Buttons Container */}
       <View
-        className="absolute bottom-0 left-0 right-0 w-full px-4 flex-col gap-3 z-20"
+        className="absolute bottom-0 left-0 right-0 z-20 w-full flex-col gap-3 px-4"
         style={{ paddingBottom: Math.max(insets.bottom + 10, 40) }}
       >
 

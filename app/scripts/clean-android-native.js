@@ -3,6 +3,17 @@ const path = require("path");
 
 const projectRoot = process.cwd();
 
+const debugKeystoreSource = path.join(projectRoot, "signing", "debug.keystore");
+const debugKeystoreTarget = path.join(projectRoot, "android", "app", "debug.keystore");
+
+if (fs.existsSync(debugKeystoreSource)) {
+  const androidAppDir = path.dirname(debugKeystoreTarget);
+  if (fs.existsSync(androidAppDir)) {
+    fs.copyFileSync(debugKeystoreSource, debugKeystoreTarget);
+    console.log("Synced signing/debug.keystore -> android/app/debug.keystore");
+  }
+}
+
 const cleanupTargets = [
   "android/build/generated/autolinking",
   "android/app/.cxx",

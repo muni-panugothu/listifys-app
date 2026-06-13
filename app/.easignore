@@ -9,14 +9,9 @@ node_modules
 .vscode
 .idea
 
-# Ignore Android build outputs and caches
-android/.gradle
-android/app/build
-android/app/.cxx
-android/.cxx
-android/build
-android/gradle
-android/gradle-wrapper.jar
+# Let EAS run a fresh expo prebuild — do not upload local native folders
+android
+ios
 
 # Ignore temporary and log files
 *.log
@@ -24,7 +19,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .DS_Store
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 

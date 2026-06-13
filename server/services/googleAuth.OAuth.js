@@ -11,14 +11,71 @@ if (!process.env.GOOGLE_CLIENT_ID) {
 
 logger.info('Google Client ID configured');
 
-// All valid audiences: web + iOS + Android client IDs
+const GOOGLE_PROJECT_NUMBER =
+  process.env.GOOGLE_CLIENT_ID?.match(/^(\d+)-/)?.[1] ?? null;
+
+function splitClientIds(value) {
+  if (!value || typeof value !== "string") return [];
+  return value
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function isSameGoogleProjectClientId(clientId) {
+  if (!clientId || typeof clientId !== "string") return false;
+  if (!clientId.endsWith(".apps.googleusercontent.com")) return false;
+  if (!GOOGLE_PROJECT_NUMBER) return false;
+  return clientId.startsWith(`${GOOGLE_PROJECT_NUMBER}-`);
+}
+
+// All valid audiences: web + iOS + Android client IDs (+ optional extras)
 const GOOGLE_AUDIENCES = [
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_IOS_CLIENT_ID,
-  process.env.GOOGLE_ANDROID_CLIENT_ID,
+  ...splitClientIds(process.env.GOOGLE_CLIENT_ID),
+  ...splitClientIds(process.env.GOOGLE_IOS_CLIENT_ID),
+  ...splitClientIds(process.env.GOOGLE_ANDROID_CLIENT_ID),
+  ...splitClientIds(process.env.GOOGLE_EXTRA_CLIENT_IDS),
 ].filter(Boolean);
 
+const uniqueAudiences = [...new Set(GOOGLE_AUDIENCES)];
+
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+function decodeJwtPayload(idToken) {
+  try {
+    const payloadPart = idToken.split(".")[1];
+    if (!payloadPart) return null;
+    const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(Buffer.from(normalized, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function buildVerificationAudiences(idToken) {
+  const audiences = [...uniqueAudiences];
+  const unverified = decodeJwtPayload(idToken);
+
+  if (
+    unverified?.aud &&
+    typeof unverified.aud === "string" &&
+    isSameGoogleProjectClientId(unverified.aud) &&
+    !audiences.includes(unverified.aud)
+  ) {
+    logger.info("Including token audience from same Google Cloud project", {
+      aud: unverified.aud,
+    });
+    audiences.push(unverified.aud);
+  }
+
+  return audiences;
+}
+
+function isAllowedAudience(aud) {
+  if (!aud || typeof aud !== "string") return false;
+  if (uniqueAudiences.includes(aud)) return true;
+  return isSameGoogleProjectClientId(aud);
+}
 
 const verifyGoogleIdToken = async (idToken) => {
   try {
@@ -30,9 +87,14 @@ const verifyGoogleIdToken = async (idToken) => {
       );
     }
 
+    const verificationAudiences = buildVerificationAudiences(idToken);
+    if (verificationAudiences.length === 0) {
+      throw new Error("No Google OAuth client IDs configured on the server");
+    }
+
     const ticket = await googleClient.verifyIdToken({
       idToken,
-      audience: GOOGLE_AUDIENCES,
+      audience: verificationAudiences,
     });
 
     const payload = ticket.getPayload();
@@ -45,10 +107,13 @@ const verifyGoogleIdToken = async (idToken) => {
       throw new Error("Google ID token has expired");
     }
 
-    if (!GOOGLE_AUDIENCES.includes(payload.aud)) {
-      logger.error('Google token audience mismatch', { aud: payload.aud });
+    if (!isAllowedAudience(payload.aud)) {
+      logger.error("Google token audience mismatch", {
+        aud: payload.aud,
+        allowed: verificationAudiences,
+      });
       throw new Error(
-        "Invalid audience for Google ID token. Make sure you're using the correct Google Client ID.",
+        `Invalid audience for Google ID token (aud=${payload.aud}). Update GOOGLE_CLIENT_ID / GOOGLE_ANDROID_CLIENT_ID on the server.`,
       );
     }
 

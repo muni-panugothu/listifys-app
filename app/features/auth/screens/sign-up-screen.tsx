@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthSkipButton } from "@/features/auth/components/auth-skip-button";
 import { validateSignUpInput } from "@/lib/auth-validation";
+import { formatAuthFailureMessage } from "@/lib/auth-error-display";
 import {
   GoogleSignInError,
   configureGoogleSignIn,
@@ -106,15 +107,7 @@ export function SignUpScreen() {
       await dispatch(googleLogin({ idToken })).unwrap();
     } catch (err) {
       if (err instanceof GoogleSignInError && err.cancelled) return;
-      const message =
-        err instanceof GoogleSignInError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : typeof err === "string"
-              ? err
-              : "Google sign-in failed.";
-      showErrorToast("Google Sign In", message);
+      showErrorToast("Google Sign In", formatAuthFailureMessage(err, "Google sign in"));
     } finally {
       setIsGoogleLoading(false);
     }

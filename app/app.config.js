@@ -4,12 +4,12 @@ const appJson = require("./app.json");
 
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-/** Must match Google Cloud project listifys-499209 OAuth clients + google-services.json */
+/** Must match Google Cloud Console project "Listifys" (582870381419). Not Firebase. */
 const GOOGLE_OAUTH_FALLBACK = {
   webClientId:
-    "250525074952-6e1spofl9ro4jo2369c965s8a0463l5a.apps.googleusercontent.com",
+    "582870381419-m26s615uhqhcf6scj9rrov3s5qm8nb7n.apps.googleusercontent.com",
   androidClientId:
-    "250525074952-32uouodmqkfvl2u7nh2a61ugo16caqqs.apps.googleusercontent.com",
+    "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com",
   packageName: "com.listifys.app",
 };
 
@@ -34,7 +34,8 @@ module.exports = {
       packageName: GOOGLE_OAUTH_FALLBACK.packageName,
     },
   },
-  plugins: (appJson.expo.plugins || []).map((plugin) => {
+  plugins: [
+    ...((appJson.expo.plugins || []).map((plugin) => {
     if (plugin === "@react-native-google-signin/google-signin") {
       const clientIdForScheme = iosClientId || webClientId;
       const clientNumeric = clientIdForScheme?.replace(
@@ -49,5 +50,8 @@ module.exports = {
       ];
     }
     return plugin;
-  }),
+  })),
+    ["./plugins/with-google-sign-in-android.js", { webClientId }],
+    "./plugins/with-listifys-android-signing.js",
+  ],
 };

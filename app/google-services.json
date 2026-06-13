@@ -12,28 +12,7 @@
           "package_name": "com.listifys.app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.listifys.app",
-            "certificate_hash": "ad7f2f9247c90bbfdbcf76016bacb8ffbeb67614"
-          }
-        },
-        {
-          "client_id": "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.listifys.app",
-            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
-          }
-        },
-        {
-          "client_id": "582870381419-ks689jiqpd5kuvurcbpc50bps6nlvbnk.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
           "current_key": "AIzaSyCDh_KCrGlOjOBWl0xK61GJxVtz07-Y4kw"
@@ -41,12 +20,7 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "582870381419-ks689jiqpd5kuvurcbpc50bps6nlvbnk.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

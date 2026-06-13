@@ -614,9 +614,18 @@ exports.googleTokenAuth = async (req, res) => {
     });
   } catch (error) {
     logger.error("❌ Google Token Auth Error:", error);
+    const message =
+      error?.message?.includes("Google authentication failed") ||
+      error?.message?.includes("Google ID token") ||
+      error?.message?.includes("Invalid audience")
+        ? error.message
+        : error?.message
+          ? `Invalid Google token: ${error.message}`
+          : "Invalid Google token";
+
     res.status(401).json({
       success: false,
-      message: "Invalid Google token",
+      message,
     });
   }
 };

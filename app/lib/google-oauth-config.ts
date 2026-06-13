@@ -1,18 +1,18 @@
 /**
- * Public Google OAuth client IDs for Listifys (GCP project listifys-499209 / 250525074952).
- * These are not secrets — they must match Google Cloud Console + google-services.json.
- * Used as fallback when EXPO_PUBLIC_* env vars are missing from EAS/cloud builds.
+ * Google Cloud Console OAuth IDs (project Listifys / 582870381419).
+ * Google Sign-In uses these via GoogleSignin.configure() — NOT Firebase.
+ * google-services.json is Firebase/FCM only (project listifysapp).
  */
 export const GOOGLE_OAUTH_CONFIG = {
   /** Web application client — required as webClientId on Android for idToken. */
   webClientId:
-    "250525074952-6e1spofl9ro4jo2369c965s8a0463l5a.apps.googleusercontent.com",
+    "582870381419-m26s615uhqhcf6scj9rrov3s5qm8nb7n.apps.googleusercontent.com",
   /** Android OAuth client for com.listifys.app + signing SHA-1. */
   androidClientId:
-    "250525074952-32uouodmqkfvl2u7nh2a61ugo16caqqs.apps.googleusercontent.com",
+    "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com",
   packageName: "com.listifys.app",
-  /** Release / EAS upload-key SHA-1 (register in Google Cloud Console). */
-  releaseSha1: "AD:7F:2F:92:47:C9:0B:BF:DB:CF:76:01:6B:AC:B8:FF:BE:B6:76:14",
-  /** Expo / debug dev-client SHA-1 — add this too if testing development builds. */
-  debugSha1: "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
+  /** Release keystore SHA-1 (`app/signing/release.keystore`). */
+  releaseSha1: "33:F2:F5:19:E2:E0:DE:92:77:F9:0A:2C:62:C5:67:C0:CD:D8:12:79",
+  /** Debug keystore SHA-1 (`app/signing/debug.keystore`) for `expo run:android`. */
+  debugSha1: "C7:6E:C1:CB:3F:6B:0D:F8:B2:DC:DF:E3:78:0D:04:A0:48:72:D3:5F",
 } as const;

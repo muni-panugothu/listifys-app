@@ -14,8 +14,11 @@ function stringifyDetails(details: unknown): string | null {
 export function formatAuthFailureMessage(error: unknown, context = "Sign in") {
   if (error instanceof GoogleSignInError) {
     const lines = [error.message];
+    if (error.code !== undefined && error.code !== null) {
+      lines.push(`Google error code: ${error.code}`);
+    }
     if (__DEV__) {
-      lines.push(`Source: Google Sign-In`);
+      lines.push("Source: Google Sign-In (native)");
       if (error.cancelled) lines.push("Cancelled: yes");
     }
     return lines.join("\n");

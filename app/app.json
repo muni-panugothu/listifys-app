@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Listifys",
-    "slug": "Listify-App",
+    "slug": "listifys",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/splashscreenImg/logo.png",
@@ -91,7 +91,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0e4e2944-a852-4d25-8e65-26e589fffcfc"
+        "projectId": "58c2eb71-94ab-44de-a56d-7ee7eab5e597"
       }
     },
     "owner": "eagleiitech"
