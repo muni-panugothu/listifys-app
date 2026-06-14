@@ -42,8 +42,24 @@ const pushNotifyRecipient = async ({ recipientId, senderId, senderName, conversa
     ? `${senderName} made an offer on ${productTitle || 'a product'}`
     : `${senderName} sent a message${productTitle ? ` regarding ${productTitle}` : ''}`;
   await sendRichNotification(recipient.fcmToken, {
-    title, body: preview || '', type,
-    data: { conversationId: String(conversationId), threadId: String(threadId || ''), productTitle: productTitle || '', senderId: String(senderId), senderName },
+    notificationId: `msg_${conversationId}_${Date.now()}`,
+    type,
+    title,
+    body: preview || 'Tap to open chat',
+    route: '/chat-conversation',
+    params: {
+      conversationId: String(conversationId),
+      ...(threadId ? { threadId: String(threadId) } : {}),
+    },
+    groupKey: 'messages',
+    actions: [{ id: 'reply', title: '💬 Reply' }],
+    extra: {
+      conversationId: String(conversationId),
+      threadId: String(threadId || ''),
+      productTitle: productTitle || '',
+      senderId: String(senderId),
+      senderName,
+    },
   }).catch(() => {});
 };
 

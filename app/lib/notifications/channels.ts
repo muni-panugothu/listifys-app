@@ -119,6 +119,8 @@ export function channelForType(type: NotificationType | string): ChannelId {
       return CHANNEL.PRICE_ALERTS;
     case 'promotion':
     case 'flash_sale':
+    case 'engagement_digest':
+    case 're_engagement':
       return CHANNEL.PROMOTIONS;
     case 'system':
     case 'security_alert':

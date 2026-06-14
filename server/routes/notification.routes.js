@@ -21,6 +21,9 @@ router.put("/:id/read", notificationController.markAsRead);
 // POST /api/notifications/track — analytics event tracking
 router.post("/track", notificationController.trackEvent);
 
+// POST /api/notifications/fcm-token — register device FCM token for push
+router.post("/fcm-token", notificationController.registerFcmToken);
+
 // DELETE /api/notifications/all — delete all notifications
 router.delete("/all", notificationController.deleteAllNotifications);
 

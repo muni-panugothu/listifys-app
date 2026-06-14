@@ -45,11 +45,11 @@ export function useNotifications() {
     let unsubRefresh: (() => void) | undefined;
 
     getFCMToken().then((token) => {
-      if (token) registerFCMToken(token);
+      if (token) void registerFCMToken(token);
     });
 
     unsubRefresh = subscribeTokenRefresh((newToken) => {
-      registerFCMToken(newToken);
+      void registerFCMToken(newToken);
     });
 
     return () => unsubRefresh?.();

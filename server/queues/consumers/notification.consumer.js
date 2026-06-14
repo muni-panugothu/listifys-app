@@ -22,32 +22,27 @@ const getSocket = () => {
   try { return require('../../config/socket').getIO(); } catch { return null; }
 };
 const getEmailService = () => require('../../services/email.service');
-const getFcmService = () => require('../../services/fcm.service');
+const { dispatchInAppNotificationPush } = require('../../services/notification-push.service');
 
 /**
  * Dispatch FCM push for a notification if the recipient has a token.
  * Fire-and-forget — never throws so a failed push never blocks the consumer.
  */
-const sendFcmPush = async ({ notificationId, recipientId, notifType, message, imageUrl, metadata }) => {
+const sendFcmPush = async ({ notificationId, recipientId, notifType, message, imageUrl, metadata, title, iconUrl, senderName }) => {
   try {
-    const User = getUserModel();
-    const user = await User.findById(recipientId).select('fcmToken').lean();
-    if (!user?.fcmToken) return;
-
-    const { sendRichNotification } = getFcmService();
-    await sendRichNotification(user.fcmToken, {
-      notificationId: String(notificationId),
-      type:           notifType,
-      title:          titleForType(notifType),
-      body:           message,
-      imageUrl:       imageUrl || null,
-      ...(metadata?.conversationId  && { conversationId:  String(metadata.conversationId)  }),
-      ...(metadata?.listingId       && { listingId:       String(metadata.listingId)       }),
-      ...(metadata?.bookingId       && { bookingId:       String(metadata.bookingId)       }),
-      ...(metadata?.followerId      && { followerId:      String(metadata.followerId)      }),
+    const sent = await dispatchInAppNotificationPush({
+      notificationId,
+      recipientId,
+      notifType,
+      message,
+      title,
+      imageUrl: imageUrl || metadata?.listingImage || metadata?.imageUrl || null,
+      iconUrl,
+      metadata,
+      senderName,
     });
+    if (!sent) return;
 
-    // Mark push as sent
     const Notification = getNotificationModel();
     await Notification.findByIdAndUpdate(notificationId, { $set: { pushSent: true } });
 
@@ -76,6 +71,9 @@ const titleForType = (type) => {
     review_received:    'New Review',
     promotion:          'Special Offer',
     flash_sale:         'Flash Sale',
+    engagement_digest:  'Listifys',
+    re_engagement:      'Listifys',
+    new_listing:        'New listing',
     system:             'Listifys',
   };
   return map[type] || 'Listifys';

@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, TouchableOpacity } from 'react-native'
+import { Dimensions, useWindowDimensions, View, Text, TouchableOpacity } from 'react-native'
 import { Image } from '@/lib/nativewind-interop'
 import { LinearGradient } from 'expo-linear-gradient'
 import { type Href, useRouter } from '@/lib/safe-router'
@@ -7,12 +7,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
 import { showErrorToast } from '@/lib/toast'
-import { formatAuthFailureMessage } from '@/lib/auth-error-display'
+import { reportGoogleSignInFailure } from '@/lib/auth-error-display'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { googleLogin } from '@/store/slices/auth-slice'
 import { completeOnboarding } from '@/store/slices/onboarding-slice'
 import {
-  GoogleSignInError,
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from '@/lib/google-sign-in'
@@ -22,9 +21,20 @@ const bgImage = require('../../../assets/bg.png')
 const googleIcon = require('../../../assets/google.jpg')
 const mobileIcon = require('../../../assets/mobile.jpg')
 
+/** Full physical screen size — stable in dev + release APK (avoid inset-expanded layout). */
+function useFullScreenBackgroundSize() {
+  const window = useWindowDimensions()
+  const screen = Dimensions.get('screen')
+  return {
+    width: Math.max(window.width, screen.width),
+    height: Math.max(window.height, screen.height),
+  }
+}
+
 const App = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const bgSize = useFullScreenBackgroundSize()
   const dispatch = useAppDispatch()
   const { isAuthenticated, sessionHydrated } = useAppSelector((s) => s.auth)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
@@ -63,18 +73,14 @@ const App = () => {
       const idToken = await signInWithGoogleNative()
       await dispatch(googleLogin({ idToken })).unwrap()
     } catch (err) {
-      if (err instanceof GoogleSignInError && err.cancelled) return
-      showErrorToast(
-        'Google Sign In',
-        formatAuthFailureMessage(err, 'Google sign in'),
-      )
+      reportGoogleSignInFailure(err, showErrorToast, 'Google sign in')
     } finally {
       setIsGoogleLoading(false)
     }
   }
 
   return (
-    <View className="relative flex-1 bg-[#B5E8D8]">
+    <View className="relative flex-1 overflow-hidden bg-[#B5E8D8]">
       <StatusBar style="light" />
 
       <TouchableOpacity
@@ -90,15 +96,15 @@ const App = () => {
 
       <Image
         source={bgImage}
-        contentFit="contain"
+        contentFit="cover"
+        contentPosition="center"
+        pointerEvents="none"
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
-          right: 0,
-          bottom: 0,
-          width: '100%',
-          height: '100%',
+          width: bgSize.width,
+          height: bgSize.height,
         }}
       />
 

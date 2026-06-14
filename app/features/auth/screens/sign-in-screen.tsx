@@ -20,11 +20,10 @@ import { AuthSkipButton } from "@/features/auth/components/auth-skip-button";
 import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
 import { validateSignInInput } from "@/lib/auth-validation";
 import {
-  GoogleSignInError,
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from "@/lib/google-sign-in";
-import { formatAuthFailureMessage } from "@/lib/auth-error-display";
+import { formatAuthFailureMessage, reportAuthSliceError, reportGoogleSignInFailure } from "@/lib/auth-error-display";
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
@@ -73,10 +72,9 @@ export function SignInScreen() {
   }, [dispatch, isAuthenticated, redirectTo]);
 
   useEffect(() => {
-    if (error) {
-      showErrorToast("Sign In Failed", formatAuthFailureMessage(error, "Sign in"));
-      dispatch(clearError());
-    }
+    if (!error) return;
+    reportAuthSliceError(error, showErrorToast, "Sign In Failed", "Sign in");
+    dispatch(clearError());
   }, [dispatch, error]);
 
   const handleSignIn = async () => {
@@ -108,8 +106,7 @@ export function SignInScreen() {
       const idToken = await signInWithGoogleNative();
       await dispatch(googleLogin({ idToken })).unwrap();
     } catch (err) {
-      if (err instanceof GoogleSignInError && err.cancelled) return;
-      showErrorToast("Google Sign In", formatAuthFailureMessage(err, "Google sign in"));
+      reportGoogleSignInFailure(err, showErrorToast, "Google sign in");
     } finally {
       setIsGoogleLoading(false);
     }

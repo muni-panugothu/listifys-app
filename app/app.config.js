@@ -33,6 +33,7 @@ module.exports = {
       iosClientId,
       packageName: GOOGLE_OAUTH_FALLBACK.packageName,
     },
+    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || null,
   },
   plugins: [
     ...((appJson.expo.plugins || []).map((plugin) => {

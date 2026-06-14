@@ -2,6 +2,7 @@ const User = require("../models/user.model.js");
 const { createNotification } = require("../controllers/notification.controller.js");
 const { getIO } = require("../config/socket");
 const { decrypt } = require("./encryption.service.js");
+const { dispatchInAppNotificationPush } = require("./notification-push.service");
 const { logger } = require("../utils/logger");
 
 /**
@@ -15,14 +16,17 @@ const { logger } = require("../utils/logger");
  */
 async function notifyFollowersOfNewListing(sellerId, listing, listingType) {
   try {
-    const seller = await User.findById(sellerId).select("followers name email");
+    const seller = await User.findById(sellerId).select(
+      "followers name email firstName lastName profileImage googleProfileImage avatar",
+    );
     if (!seller || !seller.followers || seller.followers.length === 0) return;
 
     const sellerName = seller.firstName
       ? `${seller.firstName} ${seller.lastName || ""}`.trim()
-      : seller.email?.split("@")[0] || "Someone";
+      : seller.name || seller.email?.split("@")[0] || "Someone";
 
-    const message = `${sellerName} posted a new ${listingType} listing: "${listing.title}"`;
+    const listingImage = listing.images?.[0] || listing.image || listing.thumbnail || null;
+    const message = `${sellerName} posted: "${listing.title}"`;
     const io = getIO();
 
     const notificationPromises = seller.followers.map(async (followerId) => {
@@ -35,33 +39,54 @@ async function notifyFollowersOfNewListing(sellerId, listing, listingType) {
           listingId: listing._id,
           listingType,
           listingTitle: listing.title,
-          listingImage: listing.images?.[0] || null,
+          listingImage,
           listingPrice: listing.price,
+          sellerName,
         },
       });
 
-      if (notification && io) {
-        // Populate sender info for the real-time payload
-        const populated = await notification.populate(
-          "sender",
-          "name profileImage googleProfileImage avatar provider"
-        );
-        const s = populated.sender;
-        const profileImg = s.profileImage || s.googleProfileImage || s.avatar || null;
-        io.to(`user:${followerId}`).emit("notification:new", {
-          _id: populated._id,
-          type: populated.type,
-          message: decrypt(populated.message),
-          read: false,
-          createdAt: populated.createdAt,
-          metadata: populated.metadata,
-          sender: {
-            _id: s._id,
-            name: s.firstName ? `${s.firstName} ${s.lastName || ""}`.trim() : "User",
-            profileImage: profileImg,
-            profileImageUrl: profileImg,
+      if (notification) {
+        await dispatchInAppNotificationPush({
+          notificationId: notification._id,
+          recipientId: followerId,
+          notifType: "new_listing",
+          title: `New from ${sellerName}`,
+          message: listing.title || message,
+          imageUrl: listingImage,
+          iconUrl: seller.profileImage || seller.googleProfileImage || seller.avatar || null,
+          metadata: {
+            listingId: listing._id,
+            listingType,
+            listingTitle: listing.title,
+            listingImage,
+            sellerId,
+            sellerName,
           },
-        });
+          senderName: sellerName,
+        }).catch(() => {});
+
+        if (io) {
+          const populated = await notification.populate(
+            "sender",
+            "name profileImage googleProfileImage avatar provider firstName lastName",
+          );
+          const s = populated.sender;
+          const profileImg = s.profileImage || s.googleProfileImage || s.avatar || null;
+          io.to(`user:${followerId}`).emit("notification:new", {
+            _id: populated._id,
+            type: populated.type,
+            message: decrypt(populated.message),
+            read: false,
+            createdAt: populated.createdAt,
+            metadata: populated.metadata,
+            sender: {
+              _id: s._id,
+              name: s.firstName ? `${s.firstName} ${s.lastName || ""}`.trim() : s.name || "User",
+              profileImage: profileImg,
+              profileImageUrl: profileImg,
+            },
+          });
+        }
       }
     });
 

@@ -238,6 +238,24 @@ export async function registerIOSCategories(): Promise<void> {
       ],
     },
     {
+      id: 'new_listing',
+      actions: [
+        { id: 'open_listing', title: '👀 View listing' },
+      ],
+    },
+    {
+      id: 'engagement_digest',
+      actions: [
+        { id: 'browse', title: '🔍 Browse now' },
+      ],
+    },
+    {
+      id: 're_engagement',
+      actions: [
+        { id: 'browse', title: '👀 See deals' },
+      ],
+    },
+    {
       id: 'message',
       actions: [
         { id: 'reply', title: '💬 Reply' },

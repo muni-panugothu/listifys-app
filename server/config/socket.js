@@ -389,6 +389,7 @@ async function initSocket(httpServer, corsOptions) {
       try {
         const User = require('../models/user.model');
         await User.updateOne({ _id: userId }, { fcmToken });
+        logger.info('[Socket] FCM token updated', { userId, tokenPrefix: fcmToken.slice(0, 20) });
       } catch (err) {
         logger.debug('[Socket] call:update-fcm-token error', { err: err.message });
       }

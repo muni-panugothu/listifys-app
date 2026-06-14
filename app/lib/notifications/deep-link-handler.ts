@@ -107,7 +107,7 @@ function resolveHref(
     return '/(tabs)/home-feed-root' as Href;
   }
 
-  if (type === 'promotion' || type === 'flash_sale') {
+  if (type === 'promotion' || type === 'flash_sale' || type === 'engagement_digest' || type === 're_engagement') {
     return '/(tabs)/home-feed-root' as Href;
   }
 

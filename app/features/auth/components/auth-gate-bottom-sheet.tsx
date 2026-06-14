@@ -18,9 +18,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { formatAuthFailureMessage } from "@/lib/auth-error-display";
+import { formatAuthFailureMessage, reportGoogleSignInFailure } from "@/lib/auth-error-display";
 import {
-  GoogleSignInError,
   configureGoogleSignIn,
   signInWithGoogleNative,
 } from "@/lib/google-sign-in";
@@ -143,8 +142,7 @@ export function AuthGateBottomSheet({
       const idToken = await signInWithGoogleNative();
       await dispatch(googleLogin({ idToken })).unwrap();
     } catch (err) {
-      if (err instanceof GoogleSignInError && err.cancelled) return;
-      showErrorToast("Google Sign In", formatAuthFailureMessage(err, "Google sign in"));
+      reportGoogleSignInFailure(err, showErrorToast, "Google sign in");
     } finally {
       setIsGoogleLoading(false);
     }

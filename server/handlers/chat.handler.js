@@ -58,10 +58,23 @@ const ChatHandler = {
         const { sendRichNotification } = require('../services/fcm.service');
         const title = `${senderName} sent a message${productTitle ? ` regarding ${productTitle}` : ''}`;
         await sendRichNotification(recipient.fcmToken, {
+          notificationId: `msg_${conversationId}_${Date.now()}`,
+          type: 'message',
           title,
-          body:  preview || 'You have a new message',
-          type:  'message',
-          data:  { conversationId: String(conversationId), threadId: String(threadId || ''), senderName, productTitle: productTitle || '' },
+          body: preview || 'You have a new message',
+          route: '/chat-conversation',
+          params: {
+            conversationId: String(conversationId),
+            ...(threadId ? { threadId: String(threadId) } : {}),
+          },
+          groupKey: 'messages',
+          actions: [{ id: 'reply', title: '💬 Reply' }],
+          extra: {
+            conversationId: String(conversationId),
+            threadId: String(threadId || ''),
+            senderName,
+            productTitle: productTitle || '',
+          },
         });
       }
     } catch (err) {
@@ -105,10 +118,17 @@ const ChatHandler = {
       if (seller?.fcmToken) {
         const { sendRichNotification } = require('../services/fcm.service');
         await sendRichNotification(seller.fcmToken, {
+          notificationId: `offer_${threadId}_${Date.now()}`,
+          type: 'offer_received',
           title: `New offer on ${productTitle || 'your product'}`,
-          body:  `Buyer offered ${currency || '₹'}${(amount || 0).toLocaleString('en-IN')}`,
-          type:  'offer',
-          data:  { threadId: String(threadId), type: 'offer', buyerId: String(buyerId) },
+          body: `Buyer offered ${currency || '₹'}${(amount || 0).toLocaleString('en-IN')}`,
+          route: '/messages-inbox',
+          groupKey: 'messages',
+          actions: [
+            { id: 'view_offer', title: '👀 View offer' },
+            { id: 'open_chat', title: '💬 Reply' },
+          ],
+          extra: { threadId: String(threadId), buyerId: String(buyerId) },
         });
       }
     } catch (err) {
@@ -126,10 +146,14 @@ const ChatHandler = {
       if (buyer?.fcmToken) {
         const { sendRichNotification } = require('../services/fcm.service');
         await sendRichNotification(buyer.fcmToken, {
+          notificationId: `offer_accept_${threadId}_${Date.now()}`,
+          type: 'offer_accepted',
           title: 'Your offer was accepted!',
-          body:  `The seller accepted your offer of ${currency || '₹'}${(amount || 0).toLocaleString('en-IN')}`,
-          type:  'offer_accepted',
-          data:  { threadId: String(threadId), type: 'offer_accepted' },
+          body: `The seller accepted your offer of ${currency || '₹'}${(amount || 0).toLocaleString('en-IN')}`,
+          route: '/messages-inbox',
+          groupKey: 'messages',
+          actions: [{ id: 'view_offer', title: '👀 View' }],
+          extra: { threadId: String(threadId) },
         });
       }
     } catch (err) {
@@ -147,10 +171,13 @@ const ChatHandler = {
       if (buyer?.fcmToken) {
         const { sendRichNotification } = require('../services/fcm.service');
         await sendRichNotification(buyer.fcmToken, {
+          notificationId: `offer_decline_${threadId}_${Date.now()}`,
+          type: 'offer_rejected',
           title: 'Offer declined',
-          body:  'The seller declined your offer.',
-          type:  'offer_declined',
-          data:  { threadId: String(threadId), type: 'offer_declined' },
+          body: 'The seller declined your offer.',
+          route: '/messages-inbox',
+          groupKey: 'messages',
+          extra: { threadId: String(threadId) },
         });
       }
     } catch (err) {

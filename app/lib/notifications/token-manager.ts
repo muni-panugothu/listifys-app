@@ -10,9 +10,25 @@
 let messaging: any = null;
 try { messaging = require('@react-native-firebase/messaging').default; } catch {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PermissionsAndroid, Platform } from 'react-native';
 import type { PermissionStatus } from './types';
 
 const TOKEN_CACHE_KEY = '@fcm_token_v2';
+
+async function ensureAndroidNotificationPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  const apiLevel = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
+  if (!apiLevel || apiLevel < 33) return true;
+
+  try {
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  } catch {
+    return false;
+  }
+}
 
 // ── Permission ────────────────────────────────────────────────────────────────
 
@@ -50,17 +66,34 @@ export async function checkPermission(): Promise<PermissionStatus> {
  * Returns null if permission is denied or on error.
  */
 export async function getFCMToken(): Promise<string | null> {
+  if (!messaging) {
+    if (__DEV__) console.warn('[FCM] Firebase Messaging not available — rebuild native app with google-services.json');
+    return null;
+  }
+
   try {
+    const androidOk = await ensureAndroidNotificationPermission();
+    if (!androidOk) {
+      if (__DEV__) console.warn('[FCM] POST_NOTIFICATIONS denied — enable in Settings → Apps → Listifys → Notifications');
+      return null;
+    }
+
     const status = await requestPermission();
-    if (status === 'denied') return null;
+    if (status === 'denied') {
+      if (__DEV__) console.warn('[FCM] Notification permission denied');
+      return null;
+    }
 
     const token = await messaging().getToken();
     if (token) {
       await AsyncStorage.setItem(TOKEN_CACHE_KEY, token);
-      console.log('[FCM] Device token:', token); // copy this for testing
+      if (__DEV__) console.log('[FCM] Device token:', token);
+    } else if (__DEV__) {
+      console.warn('[FCM] messaging().getToken() returned empty');
     }
     return token ?? null;
-  } catch {
+  } catch (error) {
+    if (__DEV__) console.warn('[FCM] getFCMToken failed:', error);
     return null;
   }
 }

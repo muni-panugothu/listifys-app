@@ -165,14 +165,17 @@ function AppLayout() {
   // a valid (or freshly-refreshed) access token instead of an expired one.
   useEffect(() => {
     if (!sessionHydrated || !isAuthenticated) return;
-    void connectSocket().catch(() => {});
-    // eslint-disable-next-line no-console
-    console.log('[Layout] Session hydrated + authenticated — attaching call listeners');
-    import('@/features/calling/services/call-socket-service').then(
-      ({ attachCallListeners }) => attachCallListeners()
-    );
-    // FCM token registration + foreground message handler are managed
-    // by the useNotifications hook inside NotificationProvider.
+
+    void connectSocket()
+      .then(async () => {
+        const { attachCallListeners } = await import('@/features/calling/services/call-socket-service');
+        attachCallListeners();
+        const { getCachedToken } = await import('@/lib/notifications/token-manager');
+        const { registerFCMToken } = await import('@/features/calling/services/call-socket-service');
+        const cached = await getCachedToken();
+        if (cached) void registerFCMToken(cached);
+      })
+      .catch(() => {});
   }, [sessionHydrated, isAuthenticated]);
 
   // ── Real-time force-logout listener ───────────────────────────────────────

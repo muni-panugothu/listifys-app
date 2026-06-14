@@ -24,6 +24,8 @@ export type NotificationType =
   | 'promotion'
   | 'flash_sale'
   | 'security_alert'
+  | 'engagement_digest'
+  | 're_engagement'
   | 'system'
   | 'silent'; // data-only, no visible notification
 

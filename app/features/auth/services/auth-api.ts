@@ -1,10 +1,11 @@
 import Constants from "expo-constants";
+import * as Device from "expo-device";
 import {
   readStoredTokens,
   writeStoredTokens,
 } from "@/lib/secure-auth-storage";
 import { requireOptionalNativeModule } from "expo-modules-core";
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
 
 type ExpoDeviceModule = {
   brand?: string | null;
@@ -76,9 +77,48 @@ const AUTH_REQUEST_PATH_PREFIXES = [
   "/api/auth/refresh",
 ];
 
+function isAndroidEmulator(): boolean {
+  return Platform.OS === "android" && !Device.isDevice;
+}
+
+function getMetroPackagerHost(): string | undefined {
+  try {
+    const scriptURL = NativeModules.SourceCode?.scriptURL as string | undefined;
+    if (!scriptURL) return undefined;
+    const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
+    const host = match?.[1];
+    if (
+      host &&
+      host.includes(".") &&
+      host !== "127.0.0.1" &&
+      host !== "localhost"
+    ) {
+      return host;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function getDevLanHost(): string | undefined {
+  return getMetroPackagerHost() ?? getExpoDevHost();
+}
+
+function isRemoteHostedApiBase(url: string) {
+  return /onrender\.com|render\.com/i.test(url);
+}
+
 function getRequestTimeoutMs(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   if (AUTH_REQUEST_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+    if (
+      typeof __DEV__ !== "undefined" &&
+      __DEV__ &&
+      !isRemoteHostedApiBase(getAuthApiBaseUrl())
+    ) {
+      return API_REQUEST_TIMEOUT_MS;
+    }
     return AUTH_REQUEST_TIMEOUT_MS;
   }
   return API_REQUEST_TIMEOUT_MS;
@@ -105,59 +145,102 @@ function getExpoDevHost() {
   return undefined;
 }
 
-function resolveApiBaseUrl() {
-  const devHost = getExpoDevHost();
-  const explicitBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+function getConfiguredApiBaseUrl(): string | undefined {
+  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  const fromExtra = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)
+    ?.apiBaseUrl?.trim();
+  const value = fromEnv || fromExtra;
+  return value ? value.replace(/\/$/, "") : undefined;
+}
 
-  // If explicitly configured, always honor it (including dev).
-  // This prevents accidental use of a stale/incorrect Expo host IP.
+function resolveApiBaseUrl(): string {
+  const explicitBaseUrl = getConfiguredApiBaseUrl();
+
+  // User-configured URL always wins (physical device + local server).
   if (explicitBaseUrl) {
-    return explicitBaseUrl.replace(/\/$/, "");
+    return explicitBaseUrl;
   }
 
-  // In DEV mode, prefer the runtime Metro host when no explicit base URL is set.
-  // Constants.expoConfig.hostUri is set at runtime by the Expo packager to
-  // the CURRENT LAN IP — it is always accurate even when the machine's IP
-  // changes between sessions, so we never hit a stale baked-in URL.
-  if (typeof __DEV__ !== "undefined" && __DEV__ && devHost) {
-    return `http://${devHost}:5000`;
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    const lanHost = getDevLanHost();
+    if (lanHost) {
+      return `http://${lanHost}:5000`;
+    }
+    if (isAndroidEmulator()) {
+      return "http://10.0.2.2:5000";
+    }
+    return "http://localhost:5000";
   }
 
-  if (Platform.OS === "android") {
-    return "http://10.0.2.2:5000"; // Android emulator loopback to host
+  if (Platform.OS === "android" && isAndroidEmulator()) {
+    return "http://10.0.2.2:5000";
   }
 
   return "http://localhost:5000";
 }
 
-export const AUTH_API_BASE_URL = resolveApiBaseUrl();
+/** Always resolves the current API base (Metro LAN IP on physical devices in dev). */
+export function getAuthApiBaseUrl(): string {
+  return resolveApiBaseUrl();
+}
+
+/** Initial snapshot at module load — prefer getAuthApiBaseUrl() in dev. */
+export const AUTH_API_BASE_URL = getAuthApiBaseUrl();
+
+if (typeof __DEV__ !== "undefined" && __DEV__) {
+  // eslint-disable-next-line no-console
+  console.info("[API] Using base URL:", getAuthApiBaseUrl(), {
+    configured: getConfiguredApiBaseUrl(),
+    env: process.env.EXPO_PUBLIC_API_BASE_URL ?? "(unset)",
+    extra: (Constants.expoConfig?.extra as { apiBaseUrl?: string })?.apiBaseUrl ?? "(unset)",
+  });
+  setTimeout(() => {
+    const resolved = getAuthApiBaseUrl();
+    if (resolved !== AUTH_API_BASE_URL) {
+      // eslint-disable-next-line no-console
+      console.info("[API] Resolved base URL (runtime):", resolved);
+    }
+  }, 0);
+}
+
+function isAndroidPhysicalDevice(): boolean {
+  return Platform.OS === "android" && Device.isDevice;
+}
 
 function getCandidateApiBaseUrls() {
   const candidates: string[] = [];
-  const add = (value?: string | null) => {
+  const add = (value?: string | null, { prepend = false } = {}) => {
     if (!value) return;
     const normalized = value.trim().replace(/\/$/, "");
     if (!normalized) return;
-    if (!candidates.includes(normalized)) {
+    if (candidates.includes(normalized)) return;
+    if (prepend) {
+      candidates.unshift(normalized);
+    } else {
       candidates.push(normalized);
     }
   };
 
-  add(AUTH_API_BASE_URL);
+  const configured = getConfiguredApiBaseUrl();
+  if (configured) {
+    add(configured, { prepend: true });
+  }
 
-  const devHost = getExpoDevHost();
   if (typeof __DEV__ !== "undefined" && __DEV__) {
-    add(process.env.EXPO_PUBLIC_API_BASE_URL);
-    if (devHost) {
-      add(`http://${devHost}:5000`);
+    const lanHost = getDevLanHost();
+    if (lanHost) {
+      add(`http://${lanHost}:5000`);
     }
-    // Manual LAN fallback for local physical-device testing.
-    add("http://10.22.25.71:5000");
-
-    if (Platform.OS === "android") {
+    // USB dev: adb reverse tcp:5000 tcp:5000 — works when Wi-Fi to PC IP is blocked/isolated
+    if (isAndroidPhysicalDevice()) {
+      add("http://127.0.0.1:5000");
+    }
+    if (isAndroidEmulator()) {
       add("http://10.0.2.2:5000");
     }
   }
+
+  add(getAuthApiBaseUrl());
 
   return candidates;
 }
@@ -207,9 +290,9 @@ function toAbsoluteUrl(url?: string | null) {
     return `https:${url}`;
   }
   if (url.startsWith("/")) {
-    return `${AUTH_API_BASE_URL}${url}`;
+    return `${getAuthApiBaseUrl()}${url}`;
   }
-  return `${AUTH_API_BASE_URL}/${url}`;
+  return `${getAuthApiBaseUrl()}/${url}`;
 }
 
 export function resolveAbsoluteMediaUrl(url?: string | null) {
@@ -333,7 +416,7 @@ export async function refreshAccessToken(): Promise<boolean> {
 
   _refreshPromise = (async () => {
     try {
-      const res = await fetchWithTimeout(`${AUTH_API_BASE_URL}/api/auth/refresh`, {
+      const res = await fetchWithTimeout(`${getAuthApiBaseUrl()}/api/auth/refresh`, {
         method: "POST",
         credentials: getRequestCredentials(),
         headers: getApiClientHeaders(),
@@ -425,6 +508,11 @@ async function executeRequestJson<T>(
   const baseUrls = getCandidateApiBaseUrls();
   const timeoutMs = options?.timeoutMs ?? getRequestTimeoutMs(normalizedPath);
 
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    // eslint-disable-next-line no-console
+    console.info("[API] Request", normalizedPath, "→", baseUrls.join(", "));
+  }
+
   // Ensure in-memory tokens are loaded from storage before first request
   if (!_accessToken && !_refreshToken) {
     await restoreTokens();
@@ -474,6 +562,10 @@ async function executeRequestJson<T>(
         throw error;
       }
       lastNetworkError = error;
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn("[API] Failed", url, error instanceof Error ? error.message : error);
+      }
       continue;
     }
   }
@@ -660,7 +752,7 @@ export function resetPasswordWithToken(
 }
 
 export async function getGoogleClientIds() {
-  const response = await fetch(`${AUTH_API_BASE_URL}/api/auth/google/client-ids`, {
+  const response = await fetch(`${getAuthApiBaseUrl()}/api/auth/google/client-ids`, {
     method: "GET",
     headers: getApiClientHeaders(),
   });
@@ -682,6 +774,10 @@ export async function getGoogleClientIds() {
 }
 
 export function loginWithGoogleToken(idToken: string) {
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.info("[GoogleLogin] POST /api/auth/google/token →", getAuthApiBaseUrl());
+  }
   return requestJson<AuthResponse>("/api/auth/google/token", {
     method: "POST",
     body: JSON.stringify({ idToken }),
@@ -734,7 +830,7 @@ export function updateProfile(data: {
 
 export function uploadProfileImage(formData: FormData) {
   const normalizedPath = "/api/auth/profile/upload-image";
-  const uploadUrl = `${AUTH_API_BASE_URL}${normalizedPath}`;
+  const uploadUrl = `${getAuthApiBaseUrl()}${normalizedPath}`;
 
   const doUpload = () => {
     const token = getAccessToken();

@@ -52,7 +52,7 @@ export default function OutgoingCallScreen() {
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-    attachCallListeners();
+    void attachCallListeners();
 
     (async () => {
       try {

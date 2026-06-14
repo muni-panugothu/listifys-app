@@ -486,6 +486,7 @@ exports.login = async (req, res) => {
 // ==================== UPDATED: GOOGLE LOGIN WITH DEVICE TRACKING ====================
 exports.googleTokenAuth = async (req, res) => {
   try {
+    logger.info("[GoogleAuth] Token login request received");
     const { token: googleToken, idToken, accessToken: googleAccessToken } = req.body;
 
     // Accept token from web OR idToken from mobile (React Native Google Sign-In)
@@ -500,22 +501,25 @@ exports.googleTokenAuth = async (req, res) => {
 
     const { user, isNew } = await handleGoogleAuth(resolvedToken, req);
 
-    // Upload Google profile picture to S3 if the user doesn't already have one
+    // Upload Google profile picture in the background — don't block login response.
     if (user.googleProfileImage && !user.profileImage) {
-      try {
-        const uploadResult = await s3Service.uploadRemoteProfileImage(
-          user.googleProfileImage,
-          user._id.toString(),
-        );
-        if (uploadResult?.imageUrl) {
-          user.profileImage = uploadResult.imageUrl;
-          user.profileImageKey = uploadResult.key;
-          await user.save();
-          logger.info('✅ Google profile image uploaded to S3', { userId: user._id });
-        }
-      } catch (imgErr) {
-        logger.warn('Could not upload Google profile image to S3:', imgErr.message);
-      }
+      const userId = user._id.toString();
+      const googleImageUrl = user.googleProfileImage;
+      setImmediate(() => {
+        s3Service.uploadRemoteProfileImage(googleImageUrl, userId)
+          .then(async (uploadResult) => {
+            if (!uploadResult?.imageUrl) return;
+            const fresh = await User.findById(userId);
+            if (!fresh || fresh.profileImage) return;
+            fresh.profileImage = uploadResult.imageUrl;
+            fresh.profileImageKey = uploadResult.key;
+            await fresh.save();
+            logger.info('✅ Google profile image uploaded to S3 (background)', { userId });
+          })
+          .catch((imgErr) => {
+            logger.warn('Could not upload Google profile image to S3:', imgErr.message);
+          });
+      });
     }
 
     // Generate tokens (pass req for fingerprint binding)

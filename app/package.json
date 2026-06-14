@@ -6,7 +6,7 @@
     "start": "node ./scripts/start-expo-lan.js",
     "start:tunnel": "expo start --tunnel",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "npm run android:clean-native && expo run:android --all-arch",
+    "android": "npm run android:clean-native && node ./scripts/adb-reverse-dev.js && expo run:android --all-arch",
     "android:clean-native": "node ./scripts/clean-android-native.js",
     "android:sha1": "node ./scripts/print-android-sha1.js",
     "android:device": "cd android && gradlew.bat app:assembleDebug app:installDebug -x lint -x test --configure-on-demand --no-build-cache -PreactNativeDevServerPort=8081 -PreactNativeArchitectures=arm64-v8a",

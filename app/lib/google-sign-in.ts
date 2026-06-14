@@ -1,10 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-import {
-  getGoogleClientIds,
-  type GoogleClientIds,
-} from "@/features/auth/services/auth-api";
+import type { GoogleClientIds } from "@/features/auth/services/auth-api";
 import { GOOGLE_OAUTH_CONFIG } from "@/lib/google-oauth-config";
 
 export class GoogleSignInError extends Error {
@@ -37,13 +34,19 @@ type GoogleStatusCodes = {
 type GoogleModule = {
   GoogleSignin: GoogleSigninApi;
   isSuccessResponse?: (response: unknown) => boolean;
+  isCancelledResponse?: (response: unknown) => boolean;
   isErrorWithCode?: (error: unknown) => boolean;
   statusCodes?: GoogleStatusCodes;
 };
 
+function isGoogleSignInCancelledResponse(response: unknown): boolean {
+  if (!response || typeof response !== "object") return false;
+  return (response as { type?: string }).type === "cancelled";
+}
+
 /** v16+ returns `{ type: 'success', data: { idToken } }` — helpers may be missing from require(). */
 function isGoogleSignInSuccess(response: unknown): boolean {
-  if (!response || typeof response !== "object") return false;
+  if (isGoogleSignInCancelledResponse(response)) return false;
 
   const typed = response as { type?: string; data?: { idToken?: string | null } };
   if (typed.type === "success") return true;
@@ -67,9 +70,12 @@ const GOOGLE_SIGN_IN_STATUS_NAMES: Record<number, string> = {
 };
 
 function extractGoogleErrorCode(error: unknown): number | string | undefined {
-  if (error != null && typeof error === "object" && "code" in error) {
-    const code = (error as { code?: number | string }).code;
-    if (code !== undefined && code !== null && code !== "") return code;
+  if (error != null && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const code = record.code;
+    if (code !== undefined && code !== null && code !== "") {
+      return typeof code === "number" || typeof code === "string" ? code : String(code);
+    }
   }
 
   const message =
@@ -82,7 +88,46 @@ function extractGoogleErrorCode(error: unknown): number | string | undefined {
   const fromMessage = message.match(/ApiException:\s*(\d+)/i)?.[1];
   if (fromMessage) return Number(fromMessage);
 
+  if (/sign_in_cancelled/i.test(message)) return "SIGN_IN_CANCELLED";
+
   return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error != null && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return String(error ?? "");
+}
+
+function isSignInCancelledCode(code: number | string | undefined): boolean {
+  if (code === undefined || code === null || code === "") return false;
+  if (code === "SIGN_IN_CANCELLED") return true;
+  const numeric = typeof code === "number" ? code : Number(code);
+  if (!Number.isNaN(numeric) && numeric === 12501) return true;
+  // Native module may use the string constant from getConstants() (e.g. "12501").
+  return String(code).toUpperCase().includes("CANCEL");
+}
+
+/** True when the user dismissed the Google account picker (not a real failure). */
+export function isGoogleSignInCancellation(error: unknown): boolean {
+  if (error != null && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (record.cancelled === true) return true;
+  }
+
+  if (error instanceof GoogleSignInError && error.cancelled) return true;
+
+  const code = extractGoogleErrorCode(error);
+  if (isSignInCancelledCode(code)) return true;
+
+  const message = getErrorMessage(error);
+  return /sign[- ]in cancelled|sign-in cancelled|12501|sign_in_cancelled|canceled|cancelled by user|user canceled|user cancelled|operation was canceled|operation was cancelled|flow was canceled|flow was cancelled|picker was dismissed|dismissed/i.test(
+    message,
+  );
 }
 
 function describeGoogleSignInStatus(code: number | string | undefined): string | null {
@@ -185,6 +230,12 @@ function getGoogleModule(): GoogleModule | null {
           ? pkg.isSuccessResponse
           : typeof raw.isSuccessResponse === "function"
             ? raw.isSuccessResponse
+            : undefined,
+      isCancelledResponse:
+        typeof pkg.isCancelledResponse === "function"
+          ? pkg.isCancelledResponse
+          : typeof raw.isCancelledResponse === "function"
+            ? raw.isCancelledResponse
             : undefined,
       isErrorWithCode:
         typeof pkg.isErrorWithCode === "function"
@@ -308,16 +359,7 @@ async function resolveGoogleClientIds(): Promise<GoogleClientIds> {
     return embedded;
   }
 
-  try {
-    const ids = await getGoogleClientIds();
-    if (ids.web) {
-      resolvedClientIds = ids;
-      return ids;
-    }
-  } catch {
-    // Server unreachable — use baked-in public client IDs.
-  }
-
+  // Env / app config already has client IDs — never block sign-in on a network round-trip.
   resolvedClientIds = {
     web: GOOGLE_OAUTH_CONFIG.webClientId,
     ios: null,
@@ -355,11 +397,8 @@ export async function configureGoogleSignIn() {
       });
     }
 
-    // v16 configure is async on the native side; signInSilently awaits the same
-    // config promise without showing UI when no saved credential exists.
-    if (typeof module.GoogleSignin.signInSilently === "function") {
-      await module.GoogleSignin.signInSilently().catch(() => null);
-    }
+    // Do not await signInSilently — it can hang several seconds and blocks the first
+    // user-initiated sign-in because configureGoogleSignIn() is awaited first.
   })().catch((err: unknown) => {
     // Reset so the next sign-in attempt re-runs configure instead of
     // returning the same stale rejected promise forever.
@@ -384,6 +423,10 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
     typeof module.isSuccessResponse === "function"
       ? module.isSuccessResponse
       : isGoogleSignInSuccess;
+  const checkCancelled =
+    typeof module.isCancelledResponse === "function"
+      ? module.isCancelledResponse
+      : isGoogleSignInCancelledResponse;
   const checkErrorWithCode =
     typeof module.isErrorWithCode === "function"
       ? module.isErrorWithCode
@@ -394,22 +437,31 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     }
 
+    // Clear cached account so the Google account picker always appears.
     if (typeof GoogleSignin.signOut === "function") {
       try {
         await GoogleSignin.signOut();
       } catch {
-        // ignore stale session
+        // Non-fatal — signIn may still prompt if no session remains.
       }
     }
 
     const response = await GoogleSignin.signIn();
 
+    if (checkCancelled(response)) {
+      throw new GoogleSignInError("Sign-in cancelled.", true);
+    }
+
     if (!checkSuccess(response)) {
-      throw new GoogleSignInError("Google sign-in did not complete.", true);
+      throw new GoogleSignInError("Google sign-in did not complete.");
     }
 
     return await resolveIdToken(GoogleSignin, response);
   } catch (error: unknown) {
+    if (isGoogleSignInCancellation(error)) {
+      throw new GoogleSignInError("Sign-in cancelled.", true, extractGoogleErrorCode(error));
+    }
+
     if (checkErrorWithCode(error)) {
       const err = error as { code?: number | string; message?: string };
       const resolvedCode = extractGoogleErrorCode(err);
@@ -423,8 +475,8 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
         });
       }
 
-      if (err.code === statusCodes.SIGN_IN_CANCELLED) {
-        throw new GoogleSignInError("Sign-in cancelled.", true, err.code);
+      if (isSignInCancelledCode(resolvedCode ?? err.code)) {
+        throw new GoogleSignInError("Sign-in cancelled.", true, resolvedCode ?? err.code);
       }
       if (err.code === statusCodes.IN_PROGRESS) {
         throw new GoogleSignInError("Sign-in already in progress.", false, err.code);
@@ -452,6 +504,9 @@ async function _attemptGoogleSignIn(module: GoogleModule): Promise<string> {
       };
       if (__DEV__) {
         console.warn("[GoogleSignIn] native sign-in error", err);
+      }
+      if (isSignInCancelledCode(fallbackCode)) {
+        throw new GoogleSignInError("Sign-in cancelled.", true, fallbackCode);
       }
       throw new GoogleSignInError(formatNativeGoogleSignInError(err), false, fallbackCode);
     }
@@ -485,6 +540,13 @@ function isRunningInExpoGo(): boolean {
 }
 
 export async function signInWithGoogleNative(): Promise<string> {
+  const started = Date.now();
+  const logStep = (step: string) => {
+    if (__DEV__) {
+      console.info(`[GoogleSignIn] ${step} (+${Date.now() - started}ms)`);
+    }
+  };
+
   if (isRunningInExpoGo()) {
     throw new GoogleSignInError(
       "Google Sign-In is not available in Expo Go. Install the Listifys preview APK or run a development build (eas build --profile preview).",
@@ -499,9 +561,12 @@ export async function signInWithGoogleNative(): Promise<string> {
   }
 
   await configureGoogleSignIn();
+  logStep("configured");
 
   try {
-    return await _attemptGoogleSignIn(module);
+    const token = await _attemptGoogleSignIn(module);
+    logStep("native sign-in complete");
+    return token;
   } catch (firstError: unknown) {
     if (isActivityNullError(firstError)) {
       // Activity was null — wait for it to settle then try once more.

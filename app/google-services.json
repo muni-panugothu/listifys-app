@@ -1,26 +1,44 @@
 {
   "project_info": {
-    "project_number": "157035185864",
-    "project_id": "listifysapp",
-    "storage_bucket": "listifysapp.firebasestorage.app"
+    "project_number": "582870381419",
+    "project_id": "listifys",
+    "storage_bucket": "listifys.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:157035185864:android:82ff338669049714e6c7fd",
+        "mobilesdk_app_id": "1:582870381419:android:400482105aa301a23f922e",
         "android_client_info": {
           "package_name": "com.listifys.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "582870381419-mkv03be59hu8camecqif5cg7btkaesko.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.listifys.app",
+            "certificate_hash": "c76ec1cb3f6b0df8b2dcdfe3780d04a04872d35f"
+          }
+        },
+        {
+          "client_id": "582870381419-m26s615uhqhcf6scj9rrov3s5qm8nb7n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCDh_KCrGlOjOBWl0xK61GJxVtz07-Y4kw"
+          "current_key": "AIzaSyA7Xi4hBU9GmKOin0bkWbMKnot0Dy23Cuw"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "582870381419-m26s615uhqhcf6scj9rrov3s5qm8nb7n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

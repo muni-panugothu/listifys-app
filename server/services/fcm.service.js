@@ -34,6 +34,7 @@ function getAdmin() {
     }
 
     let credential;
+    let projectId;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       // Load from JSON file
       const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH.trim();
@@ -41,6 +42,7 @@ function getAdmin() {
         ? configuredPath
         : path.resolve(__dirname, '..', configuredPath);
       const serviceAccount = require(resolvedPath);
+      projectId = serviceAccount.project_id;
       credential = admin.credential.cert(serviceAccount);
     } else if (process.env.FIREBASE_PRIVATE_KEY) {
       // Load from individual env vars
@@ -49,14 +51,15 @@ function getAdmin() {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
       });
+      projectId = process.env.FIREBASE_PROJECT_ID;
     } else {
       logger.warn('[FCM] No Firebase credentials configured — push notifications disabled');
       return null;
     }
 
-    admin.initializeApp({ credential });
+    admin.initializeApp({ credential, projectId });
     messaging = admin.messaging();
-    logger.info('[FCM] Firebase Admin SDK initialized');
+    logger.info('[FCM] Firebase Admin SDK initialized', { projectId });
   } catch (err) {
     logger.error('[FCM] Failed to initialize Firebase Admin SDK', { error: err.message });
     admin = null;
@@ -317,6 +320,21 @@ async function sendSecurityAlertNotification(fcmToken, {
   });
 }
 
+async function sendEngagementNotification(fcmToken, {
+  notificationId, title, body, campaign,
+}) {
+  return sendRichNotification(fcmToken, {
+    notificationId,
+    type: campaign === 're_engagement' ? 're_engagement' : 'engagement_digest',
+    title,
+    body,
+    route: '/(tabs)/home-feed-root',
+    actions: [{ id: 'browse', title: '🔍 Browse now' }],
+    groupKey: 'promotions',
+    extra: { campaign },
+  });
+}
+
 module.exports = {
   sendCallNotification,
   sendRichNotification,
@@ -329,4 +347,5 @@ module.exports = {
   sendBookingNotification,
   sendFollowNotification,
   sendSecurityAlertNotification,
+  sendEngagementNotification,
 };

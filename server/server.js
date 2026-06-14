@@ -514,8 +514,8 @@ httpServer.on('error', (err) => {
   });
 });
 
-const server = dbReadyPromise.then(() => httpServer.listen(PORT, () => {
-  logger.info('Server started', { port: PORT, env: process.env.NODE_ENV });
+const server = dbReadyPromise.then(() => httpServer.listen(PORT, "0.0.0.0", () => {
+  logger.info('Server started', { port: PORT, env: process.env.NODE_ENV, host: "0.0.0.0" });
 
   // Initialize write-back view counter service
   const viewCounter = require('./services/viewcount.service');
@@ -627,6 +627,9 @@ const server = dbReadyPromise.then(() => httpServer.listen(PORT, () => {
   startCloudWatchMetrics({ getSocketStats }).catch((err) => {
     logger.warn('[Server] CloudWatch metrics failed to start (non-fatal)', { error: err.message });
   });
+
+  const { startEngagementScheduler } = require('./services/engagement-notification.scheduler');
+  startEngagementScheduler();
 }));
 
 // ============== GRACEFUL SHUTDOWN WITH CONNECTION DRAINING ==============
@@ -668,6 +671,13 @@ const shutdown = async (signal) => {
       logger.info('RabbitMQ workers stopped');
     } catch (queueErr) {
       logger.warn('RabbitMQ workers stop error (non-fatal)', { error: queueErr.message });
+    }
+
+    try {
+      const { stopEngagementScheduler } = require('./services/engagement-notification.scheduler');
+      stopEngagementScheduler();
+    } catch (engErr) {
+      logger.warn('Engagement scheduler stop error (non-fatal)', { error: engErr.message });
     }
 
     try {

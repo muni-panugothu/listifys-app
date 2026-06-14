@@ -195,6 +195,30 @@ exports.trackEvent = async (req, res) => {
   }
 };
 
+// ==================== REGISTER FCM TOKEN ====================
+exports.registerFcmToken = async (req, res) => {
+  try {
+    const fcmToken = typeof req.body?.fcmToken === 'string' ? req.body.fcmToken.trim() : '';
+    if (!fcmToken || fcmToken.length > 500) {
+      return res.status(400).json({ success: false, message: 'Invalid FCM token' });
+    }
+
+    const User = require('../models/user.model');
+    await User.updateOne({ _id: req.user.id }, { fcmToken });
+
+    logger.info('[FCM] Device token registered', {
+      userId: req.user.id,
+      tokenPrefix: fcmToken.slice(0, 20),
+    });
+
+    setNoCacheHeaders(res);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Register FCM token error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to register FCM token' });
+  }
+};
+
 // ==================== CREATE NOTIFICATION (internal helper) ====================
 exports.createNotification = async ({ recipient, sender, type, message, metadata = {}, allowSelf = false }) => {
   try {

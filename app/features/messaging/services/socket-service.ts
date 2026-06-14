@@ -2,6 +2,7 @@ import { io, type Socket } from "socket.io-client";
 
 import {
   AUTH_API_BASE_URL,
+  getAuthApiBaseUrl,
   getAccessToken,
   refreshAccessToken,
   restoreTokens,
@@ -79,7 +80,7 @@ export async function connectSocket(): Promise<Socket> {
       return await waitForSocketConnection(socket);
     }
 
-    socket = io(AUTH_API_BASE_URL, {
+    socket = io(getAuthApiBaseUrl(), {
       auth: { token },
       transports: ["websocket", "polling"],
       reconnection: true,

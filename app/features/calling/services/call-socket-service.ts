@@ -2,6 +2,7 @@
  * Call signaling via the existing Socket.IO connection.
  * All call events are routed through the shared socket from messaging/socket-service.
  */
+import type { Socket } from 'socket.io-client';
 import { getSocket, connectSocket } from '@/features/messaging/services/socket-service';
 import { store } from '@/store';
 import {
@@ -12,19 +13,28 @@ import {
 } from '@/store/slices/call-slice';
 import { router } from 'expo-router';
 
-function getOrConnect() {
+async function getOrConnectAsync(): Promise<Socket | null> {
   try {
-    const s = getSocket();
-    return s?.connected ? s : connectSocket();
+    const existing = getSocket();
+    if (existing?.connected) return existing;
+    return await connectSocket();
   } catch {
     return null;
   }
 }
 
+/** Fire-and-forget connect for emits when socket may still be connecting. */
+function getConnectedOrConnecting(): Socket | null {
+  const s = getSocket();
+  if (s?.connected) return s;
+  void connectSocket().catch(() => {});
+  return s;
+}
+
 /** Register FCM token with server so it can wake device for offline calls */
-export function registerFCMToken(fcmToken: string) {
-  const s = getOrConnect();
-  s?.emit('call:update-fcm-token', { fcmToken });
+export async function registerFCMToken(fcmToken: string) {
+  const { registerFCMTokenWithServer } = await import("@/lib/notifications/register-fcm-server");
+  await registerFCMTokenWithServer(fcmToken);
 }
 
 /** Start an outgoing call. Returns the callId assigned by server. */
@@ -35,27 +45,27 @@ export function initiateCall(params: {
   callerName: string;
   callerPhoto?: string;
 }) {
-  const s = getOrConnect();
+  const s = getConnectedOrConnecting();
   s?.emit('call:initiate', params);
 }
 
 export function acceptCall(to: string, answer: object, callId: string) {
-  const s = getOrConnect();
+  const s = getConnectedOrConnecting();
   s?.emit('call:accept', { to, answer, callId });
 }
 
 export function rejectCall(to: string, callId: string) {
-  const s = getOrConnect();
+  const s = getConnectedOrConnecting();
   s?.emit('call:reject', { to, callId });
 }
 
 export function endCall(to: string, callId: string, duration: number, callType: CallType) {
-  const s = getOrConnect();
+  const s = getConnectedOrConnecting();
   s?.emit('call:end', { to, callId, duration, callType });
 }
 
 export function sendIceCandidate(to: string, candidate: object) {
-  const s = getOrConnect();
+  const s = getConnectedOrConnecting();
   s?.emit('call:ice-candidate', { to, candidate });
 }
 
@@ -63,15 +73,18 @@ export function sendIceCandidate(to: string, candidate: object) {
 
 let _listenersAttached = false;
 
-export function attachCallListeners() {
+function isSocketClient(s: unknown): s is Socket {
+  return s != null && typeof (s as Socket).on === 'function';
+}
+
+export async function attachCallListeners() {
   if (_listenersAttached) return;
-  const s = getOrConnect();
-  if (!s) {
-    // Socket unavailable (no token yet) — will be retried once session hydrates.
+
+  const s = await getOrConnectAsync();
+  if (!isSocketClient(s)) {
     return;
   }
 
-  // Mark attached only after we have a real socket reference.
   _listenersAttached = true;
 
   s.on('call:incoming', (data: {
@@ -93,22 +106,18 @@ export function attachCallListeners() {
     router.push('/incoming-call');
   });
 
-  // Caller receives this when the receiver accepts.
-  // Apply the SDP answer to complete the WebRTC handshake.
   s.on('call:accepted', async (data: { answer?: object } | void) => {
-    if (data && (data as any).answer) {
+    if (data && (data as { answer?: object }).answer) {
       try {
-        // Lazy require to avoid circular import with useWebRTC
         const { applyCallAnswer } = require('@/features/calling/hooks/useWebRTC') as
           typeof import('@/features/calling/hooks/useWebRTC');
-        await applyCallAnswer((data as any).answer);
+        await applyCallAnswer((data as { answer: object }).answer);
       } catch { /* ignore */ }
     }
     store.dispatch(callConnected());
     router.replace('/active-call');
   });
 
-  // Apply ICE candidates forwarded from the remote peer
   s.on('call:ice-candidate', async (data: { candidate: object }) => {
     try {
       const { addCallIceCandidate } = require('@/features/calling/hooks/useWebRTC') as
@@ -130,9 +139,10 @@ export function attachCallListeners() {
 
 export function detachCallListeners() {
   const s = getSocket();
-  if (!s) return;
+  if (!isSocketClient(s)) return;
   s.off('call:incoming');
   s.off('call:accepted');
+  s.off('call:ice-candidate');
   s.off('call:rejected');
   s.off('call:ended');
   _listenersAttached = false;

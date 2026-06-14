@@ -246,6 +246,11 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
     },
+    /** Curated FOMO / weekly digest pushes (transactional pushes still use pushNotifications). */
+    engagementNotifications: {
+      type: Boolean,
+      default: true,
+    },
     twoFactorAuth: {
       type: Boolean,
       default: false,
