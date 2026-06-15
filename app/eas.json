@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug --no-configure-on-demand"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://listifys-app.onrender.com",
@@ -20,7 +21,8 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease --no-configure-on-demand"
       },
       "env": {
         "EAS_SKIP_AUTO_FINGERPRINT": "1",
@@ -32,7 +34,8 @@
     },
     "production": {
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease --no-configure-on-demand"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://listifys-app.onrender.com",

@@ -11,7 +11,14 @@ node_modules
 
 # Let EAS run a fresh expo prebuild — do not upload local native folders
 android
+android/**
 ios
+ios/**
+
+# Gradle / native caches (locked on Windows if a local build is running)
+**/.gradle
+**/.gradle/**
+**/.cxx
 
 # Ignore temporary and log files
 *.log
