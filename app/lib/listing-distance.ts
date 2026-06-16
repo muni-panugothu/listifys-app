@@ -3,28 +3,21 @@ import { haversineDistanceKm, parseListingCoordinates, type LatLng } from "@/lib
 /** Categories where distance from buyer is not shown (e.g. remote jobs). */
 const NO_DISTANCE_CATEGORIES = new Set(["jobs"]);
 
-/**
- * Countries that display distance in miles rather than kilometres.
- * US, UK, Myanmar (MM), Liberia (LR).
- */
-const MILES_COUNTRIES = new Set(["US", "GB", "MM", "LR"]);
-const MILES_CURRENCY_COUNTRY: Record<string, string> = {
-  USD: "US",
-  GBP: "GB",
-  MMK: "MM",
-  LRD: "LR",
-};
+/** India uses kilometres; all other countries use miles for distance display. */
+const KM_COUNTRY = "IN";
 
 export function shouldShowListingDistance(category?: string | null) {
   if (!category) return true;
   return !NO_DISTANCE_CATEGORIES.has(category);
 }
 
+/**
+ * Distance unit based on the viewer's country (from location / locale).
+ * India → km; USA and all other countries → mi.
+ */
 export function usesMilesForCountry(isoCountryCode?: string | null) {
-  return (
-    isoCountryCode != null &&
-    MILES_COUNTRIES.has(isoCountryCode.toUpperCase())
-  );
+  if (!isoCountryCode) return false;
+  return isoCountryCode.trim().toUpperCase() !== KM_COUNTRY;
 }
 
 export function getMileageUnitForCountry(
@@ -71,15 +64,14 @@ export function formatDistanceKm(km: number) {
 }
 
 /**
- * Format a distance, choosing km or miles based on the user's country.
+ * Format a distance, choosing km or miles based on the viewer's country.
  * Pass `isoCountryCode` (ISO 3166-1 alpha-2) to get the right unit.
- * Defaults to kilometres when unknown.
+ * Defaults to kilometres when unknown (India default).
  */
 export function formatDistance(km: number, isoCountryCode?: string | null) {
   if (!Number.isFinite(km) || km < 0) return null;
 
-  const useMiles =
-    usesMilesForCountry(isoCountryCode);
+  const useMiles = usesMilesForCountry(isoCountryCode);
 
   if (useMiles) {
     const miles = km * 0.621371;
@@ -93,20 +85,14 @@ export function formatDistance(km: number, isoCountryCode?: string | null) {
   return formatDistanceKm(km);
 }
 
-function resolveDistanceCountryCode(
-  listingCountryCode?: string | null,
-  currency?: string | null,
-  fallbackCountryCode?: string | null,
-) {
-  const countryCode = listingCountryCode?.trim().toUpperCase();
-  if (countryCode) return countryCode;
-
-  const currencyCode = currency?.trim().toUpperCase();
-  if (currencyCode && MILES_CURRENCY_COUNTRY[currencyCode]) {
-    return MILES_CURRENCY_COUNTRY[currencyCode];
+/** Format a search radius label (e.g. nearby map "within 50 km"). */
+export function formatRadiusLabel(radiusKm: number, isoCountryCode?: string | null) {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) return "";
+  if (usesMilesForCountry(isoCountryCode)) {
+    const miles = Math.round(radiusKm * 0.621371);
+    return `${miles} mi`;
   }
-
-  return fallbackCountryCode?.trim().toUpperCase() || null;
+  return `${radiusKm} km`;
 }
 
 export function resolveListingDistanceKm(
@@ -163,9 +149,6 @@ export function getListingDistanceLabel(
   const km = resolveListingDistanceKm(item, userLocation);
   if (km == null) return undefined;
 
-  // Use the listing's country/currency for the unit (US listings → mi, IN → km).
-  const unitCountryCode =
-    resolveDistanceCountryCode(item.countryCode, item.currency, isoCountryCode);
-
-  return formatDistance(km, unitCountryCode) ?? undefined;
+  // Unit follows the viewer's country (India → km, others → mi).
+  return formatDistance(km, isoCountryCode) ?? undefined;
 }

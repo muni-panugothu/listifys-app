@@ -18,8 +18,12 @@ import { ListifyFonts } from "@/constants/typography";
 import {
   requestJson,
   resolveAbsoluteMediaUrl,
+  fetchSellerReviews,
+  deleteSellerReview,
 } from "@/features/auth/services/auth-api";
+import { SellerReviewModal } from "@/components/seller-review-modal";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showAuthGate } from "@/store/slices/auth-gate-slice";
@@ -36,6 +40,8 @@ type SellerProfile = {
   followersCount: number;
   followingCount: number;
   listingsCount: number;
+  averageRating?: number;
+  reviewsCount?: number;
 };
 
 type SellerListing = {
@@ -63,6 +69,14 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GUTTER = 14;
 const GRID_SIDE_PADDING = 16;
 const CARD_WIDTH = (SCREEN_WIDTH - GRID_SIDE_PADDING * 2 - GRID_GUTTER) / 2;
+
+function formatReviewDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 async function fetchSellerProfile(sellerId: string): Promise<SellerProfile> {
   const res = await requestJson<{ seller: SellerProfile }>(
@@ -116,6 +130,7 @@ function SellerStars({ rating }: { rating: number }) {
 
 type SellerReview = {
   id: string;
+  reviewerId?: string;
   name: string;
   avatar: string;
   rating: number;
@@ -123,14 +138,26 @@ type SellerReview = {
   review: string;
 };
 
-function SellerReviewCard({ item }: { item: SellerReview }) {
+function SellerReviewCard({
+  item,
+  isOwn,
+  onEdit,
+  onDelete,
+}: {
+  item: SellerReview;
+  isOwn?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <View className="border-b border-[#F0F0F0] pb-4">
       <View className="mb-2 flex-row items-center gap-3">
         <Image
-          source={item.avatar}
+          source={item.avatar || undefined}
           contentFit="cover"
-          className="h-10 w-10 rounded-full"
+          className="h-10 w-10 rounded-full bg-[#E5E7EB]"
         />
         <View className="flex-1">
           <Text
@@ -150,12 +177,62 @@ function SellerReviewCard({ item }: { item: SellerReview }) {
             ))}
           </View>
         </View>
-        <Text
-          className="text-[12px] text-[#9CA3AF]"
-          style={{ fontFamily: ListifyFonts.regular }}
-        >
-          {item.date}
-        </Text>
+        {isOwn ? (
+          <View>
+            <Pressable
+              onPress={() => setMenuOpen((v) => !v)}
+              hitSlop={10}
+              className="rounded-full p-1.5"
+            >
+              <MaterialIcons name="more-vert" size={22} color="#9CA3AF" />
+            </Pressable>
+            {menuOpen ? (
+              <View
+                className="absolute right-0 top-8 z-20 min-w-[130px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white"
+                style={{
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.12,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }}
+              >
+                <Pressable
+                  onPress={() => {
+                    setMenuOpen(false);
+                    onEdit?.();
+                  }}
+                  className="flex-row items-center gap-2 px-4 py-3"
+                >
+                  <MaterialIcons name="edit" size={18} color="#374151" />
+                  <Text style={{ fontFamily: ListifyFonts.medium, fontSize: 14, color: "#374151" }}>
+                    Edit
+                  </Text>
+                </Pressable>
+                <View className="h-px bg-[#F0F0F0]" />
+                <Pressable
+                  onPress={() => {
+                    setMenuOpen(false);
+                    onDelete?.();
+                  }}
+                  className="flex-row items-center gap-2 px-4 py-3"
+                >
+                  <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
+                  <Text style={{ fontFamily: ListifyFonts.medium, fontSize: 14, color: "#EF4444" }}>
+                    Delete
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <Text
+            className="text-[12px] text-[#9CA3AF]"
+            style={{ fontFamily: ListifyFonts.regular }}
+          >
+            {item.date}
+          </Text>
+        )}
       </View>
       <Text
         className="text-[14px] leading-5 text-[#4B5563]"
@@ -172,6 +249,7 @@ export function SellerPublicProfileScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const currentUserId = useAppSelector((s) => s.auth.user?.id);
   const params = useLocalSearchParams<{
     sellerId?: string;
     userId?: string;
@@ -191,6 +269,12 @@ export function SellerPublicProfileScreen() {
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewModalMode, setReviewModalMode] = useState<"create" | "edit">("create");
+  const [editReviewData, setEditReviewData] = useState<SellerReview | null>(null);
+
+  const isOwnProfile = Boolean(currentUserId && sellerId && currentUserId === sellerId);
 
   const loadData = useCallback(async () => {
     if (!sellerId) {
@@ -208,9 +292,26 @@ export function SellerPublicProfileScreen() {
       // Fetch profile first — listings failure must not block the profile view
       const profileRes = await fetchSellerProfile(sellerId);
       setSeller(profileRes);
-      setReviews([]);
       setFollowing(profileRes.isFollowedByCurrentUser);
       setFollowersCount(profileRes.followersCount);
+      setAverageRating(profileRes.averageRating ?? 0);
+
+      fetchSellerReviews(sellerId)
+        .then((reviewRes) => {
+          setAverageRating(reviewRes.averageRating);
+          setReviews(
+            (reviewRes.reviews ?? []).map((item) => ({
+              id: item.id,
+              reviewerId: item.reviewer.id ? String(item.reviewer.id) : undefined,
+              name: item.reviewer.name,
+              avatar: item.reviewer.profileImageUrl ?? "",
+              rating: item.rating,
+              date: formatReviewDate(item.createdAt),
+              review: item.comment,
+            })),
+          );
+        })
+        .catch(() => setReviews([]));
 
       // Listings load independently so a failure here doesn't hide the profile
       setListingsLoading(true);
@@ -253,12 +354,13 @@ export function SellerPublicProfileScreen() {
   }, [params.sellerImage, seller?.profileImageUrl]);
 
   const sellerRating = useMemo(() => {
+    if (averageRating > 0) return averageRating;
     const fromParam = Number.parseFloat(params.sellerRating ?? "");
     if (!Number.isNaN(fromParam) && fromParam > 0) return fromParam;
-    return 0;
-  }, [params.sellerRating]);
+    return seller?.averageRating ?? 0;
+  }, [averageRating, params.sellerRating, seller?.averageRating]);
 
-  const ratingsCount = reviews.length;
+  const ratingsCount = seller?.reviewsCount ?? reviews.length;
 
   const stats = useMemo(
     () => [
@@ -285,6 +387,40 @@ export function SellerPublicProfileScreen() {
     [dispatch, displayName, isAuthenticated, sellerId],
   );
 
+  const handleOpenReview = useCallback(() => {
+    requireAuth(() => {
+      setReviewModalMode("create");
+      setEditReviewData(null);
+      setReviewModalVisible(true);
+    });
+  }, [requireAuth]);
+
+  const handleEditReview = useCallback((review: SellerReview) => {
+    setReviewModalMode("edit");
+    setEditReviewData(review);
+    setReviewModalVisible(true);
+  }, []);
+
+  const handleDeleteReview = useCallback(async () => {
+    if (!sellerId) return;
+    try {
+      const res = await deleteSellerReview(sellerId);
+      setAverageRating(res.averageRating ?? 0);
+      await loadData();
+      showSuccessToast("Review deleted", "Your review has been removed.");
+    } catch (e) {
+      showErrorToast("Could not delete", e instanceof Error ? e.message : "Please try again.");
+    }
+  }, [loadData, sellerId]);
+
+  const handleReviewSubmitted = useCallback(
+    (nextAverage: number, _nextCount: number) => {
+      setAverageRating(nextAverage);
+      void loadData();
+    },
+    [loadData],
+  );
+
   const handleToggleFollow = useCallback(() => {
     requireAuth(async () => {
       if (!sellerId || followLoading) return;
@@ -309,10 +445,11 @@ export function SellerPublicProfileScreen() {
         params: {
           recipientId: sellerId,
           name: displayName,
+          ...(seller?.profileImageUrl ? { contactImage: seller.profileImageUrl } : {}),
         },
       } as Href);
     });
-  }, [displayName, requireAuth, router, sellerId]);
+  }, [displayName, requireAuth, router, seller?.profileImageUrl, sellerId]);
 
   const navigateToListing = useCallback(
     (item: SellerListing) => {
@@ -510,6 +647,33 @@ export function SellerPublicProfileScreen() {
                   )}
                 </Pressable>
 
+                {!isOwnProfile ? (
+                  <Pressable
+                    onPress={handleOpenReview}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      height: 48,
+                      borderRadius: 14,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#FFFFFF",
+                      borderWidth: 1,
+                      borderColor: "#E5E7EB",
+                      opacity: pressed ? 0.88 : 1,
+                    })}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: ListifyFonts.semiBold,
+                        fontSize: 16,
+                        color: "#1A1A1A",
+                      }}
+                    >
+                      Write Review
+                    </Text>
+                  </Pressable>
+                ) : null}
+
                 {/* <Pressable
                   onPress={handleMessage}
                   style={({ pressed }) => ({
@@ -649,11 +813,35 @@ export function SellerPublicProfileScreen() {
                   >
                     No reviews yet.
                   </Text>
+                  {!isOwnProfile ? (
+                    <Pressable
+                      onPress={handleOpenReview}
+                      className="mt-4 rounded-xl px-5 py-3"
+                      style={{ backgroundColor: BRAND_GREEN }}
+                    >
+                      <Text
+                        className="text-[14px] text-white"
+                        style={{ fontFamily: ListifyFonts.semiBold }}
+                      >
+                        Write the first review
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : (
                 <View className="gap-4">
                   {reviews.map((item) => (
-                    <SellerReviewCard key={item.id} item={item} />
+                    <SellerReviewCard
+                      key={item.id}
+                      item={item}
+                      isOwn={Boolean(
+                        currentUserId &&
+                          item.reviewerId &&
+                          String(item.reviewerId) === String(currentUserId),
+                      )}
+                      onEdit={() => handleEditReview(item)}
+                      onDelete={() => void handleDeleteReview()}
+                    />
                   ))}
                 </View>
               )}
@@ -661,6 +849,20 @@ export function SellerPublicProfileScreen() {
           </>
         )}
       </ScrollView>
+
+      <SellerReviewModal
+        visible={reviewModalVisible}
+        sellerId={sellerId}
+        sellerName={displayName}
+        mode={reviewModalMode}
+        initialRating={editReviewData?.rating ?? 0}
+        initialComment={editReviewData?.review ?? ""}
+        onClose={() => {
+          setReviewModalVisible(false);
+          setEditReviewData(null);
+        }}
+        onSubmitted={handleReviewSubmitted}
+      />
     </View>
   );
 }

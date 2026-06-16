@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type DeviceSession, getDevices, logoutAllDevices, revokeDevice } from "@/features/auth/services/auth-api";
 import { ListifyFonts } from "@/constants/typography";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 function getDeviceIcon(device: DeviceSession): React.ComponentProps<typeof MaterialIcons>["name"] {
@@ -66,7 +66,6 @@ export function DevicesScreen() {
         onPress: async () => {
           try {
             await logoutAllDevices();
-            showSuccessToast("Done", "Logged out from all other devices.");
             loadDevices();
           } catch (e: any) {
             showErrorToast("Error", e.message || "Failed");
@@ -342,39 +341,6 @@ export function DevicesScreen() {
             ))}
           </View>
         )}
-
-        {/* ── Log out all ── */}
-        <View style={{ marginTop: 28 }}>
-          <Pressable
-            onPress={handleLogoutAll}
-            style={({ pressed }) => ({
-              overflow: "hidden",
-              borderRadius: 16,
-              transform: [{ scale: pressed ? 0.98 : 1 }],
-            })}
-          >
-            <LinearGradient
-              colors={["#27BB97", "#1E9E7E"]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={{
-                height: 52,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-              }}
-            >
-              <MaterialIcons name="logout" size={20} color="#FFFFFF" />
-              <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 15, color: "#FFFFFF" }}>
-                Log out from all devices
-              </Text>
-            </LinearGradient>
-          </Pressable>
-          <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 12, color: "#94A3B8", marginTop: 10, textAlign: "center" }}>
-            This will sign you out of all devices except this one.
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );

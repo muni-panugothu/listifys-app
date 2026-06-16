@@ -142,6 +142,14 @@ export function getConversations(page = 1, limit = 20) {
   }>(`/api/chat/conversations?page=${page}&limit=${limit}`, { method: "GET" });
 }
 
+/** Fetch a single conversation with populated participants. */
+export function getConversation(conversationId: string) {
+  return requestJson<{ success: boolean; conversation: Conversation }>(
+    `/api/chat/conversations/${conversationId}`,
+    { method: "GET" },
+  );
+}
+
 // ── Product Thread API ─────────────────────────────────────────────────────────
 
 /** Get or create a product thread within a conversation */

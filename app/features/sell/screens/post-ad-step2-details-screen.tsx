@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BackHandler, FlatList, Modal, Pressable, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BackHandler, FlatList, Modal, Pressable, Text, TextInput, View, Alert, ActivityIndicator } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { SellFlowLayout } from "@/components/sell-flow-layout";
@@ -10,6 +10,8 @@ import { useLocale } from "@/providers/locale-provider";
 import { showErrorToast } from "@/lib/toast";
 import { getMileageUnitForCountry } from "@/lib/listing-distance";
 
+import { CATEGORY_MAP } from "@/constants/categories";
+import { deleteListing } from "@/features/listing/services/listing-api";
 import {
   CONDITION_OPTIONS,
   CONDITION_SKIP_CATEGORIES,
@@ -55,6 +57,7 @@ import {
   setBatteryRequired, setPlayMode, setCharacterTheme,
   // Services
   setPriceUnit, setServiceArea, setServiceMode, setResponseTime,
+  resetPostForm,
 } from "@/store/slices/post-form-slice";
 
 // ── Option constants ────────────────────────────────────────────────────────────
@@ -169,22 +172,40 @@ function ChipRow({ options, selected, onToggle }: { options: string[]; selected:
 }
 
 /** Text input field with icon */
-function IconField({ icon, value, onChangeText, placeholder, numeric, maxLength }: {
+function IconField({ icon, value, onChangeText, placeholder, numeric, maxLength, dateExpiry }: {
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
   numeric?: boolean;
   maxLength?: number;
+  dateExpiry?: boolean;
 }) {
+  const handleChange = (v: string) => {
+    if (numeric) {
+      onChangeText(v.replace(/[^0-9]/g, ""));
+      return;
+    }
+    if (dateExpiry) {
+      const digits = v.replace(/\D/g, "").slice(0, 6);
+      if (digits.length <= 2) {
+        onChangeText(digits);
+      } else {
+        onChangeText(`${digits.slice(0, 2)}/${digits.slice(2)}`);
+      }
+      return;
+    }
+    onChangeText(v);
+  };
+
   return (
     <View className="h-12 flex-row items-center rounded-2xl border border-[#E5E7EB] bg-white px-4">
       <MaterialIcons name={icon} size={20} color="#6C7A74" />
       <TextInput
         value={value}
-        onChangeText={numeric ? (v) => onChangeText(v.replace(/[^0-9]/g, "")) : onChangeText}
-        keyboardType={numeric ? "numeric" : "default"}
-        maxLength={maxLength}
+        onChangeText={handleChange}
+        keyboardType={numeric || dateExpiry ? "numeric" : "default"}
+        maxLength={dateExpiry ? 7 : maxLength}
         placeholder={placeholder}
         placeholderTextColor="#94A3B8"
         className="ml-2 flex-1 text-[14px] text-[#161D1A]"
@@ -194,14 +215,26 @@ function IconField({ icon, value, onChangeText, placeholder, numeric, maxLength 
   );
 }
 
+function isValidExpiryDate(value: string): boolean {
+  if (!value.trim()) return true;
+  const match = /^(\d{2})\/(\d{4})$/.exec(value.trim());
+  if (!match) return false;
+  const month = Number(match[1]);
+  const year = Number(match[2]);
+  return month >= 1 && month <= 12 && year >= 2000 && year <= 2100;
+}
+
 /** Section label */
-function Label({ text }: { text: string }) {
+function Label({ text, required }: { text: string; required?: boolean }) {
   return (
     <Text
       className="mb-2 text-[12px] text-[#1A1A1A]"
       style={{ fontFamily: ListifyFonts.medium }}
     >
       {text}
+      {required ? (
+        <Text style={{ color: "#EF4444" }}> *</Text>
+      ) : null}
     </Text>
   );
 }
@@ -408,13 +441,16 @@ function getAdPlaceholders(category: string, subcategory: string): PlaceholderPa
   if (!catMap) return AD_PLACEHOLDERS._default._default;
   return catMap[subcategory] ?? catMap._default;
 }
-function LabelPill({ text }: { text: string }) {
+function LabelPill({ text, required }: { text: string; required?: boolean }) {
   return (
     <Text
       className="mb-3 text-[12px] text-[#1A1A1A]"
       style={{ fontFamily: ListifyFonts.medium }}
     >
       {text}
+      {required ? (
+        <Text style={{ color: "#EF4444" }}> *</Text>
+      ) : null}
     </Text>
   );
 }
@@ -429,18 +465,36 @@ export function PostAdStep2DetailsScreen() {
   // Track if user has manually chosen a currency this session.
   // When false, currency always mirrors the selected location's locale.
   const [isCurrencyManual, setIsCurrencyManual] = useState(false);
+  const editListingId = useAppSelector((s) => s.postForm.editListingId);
+  const isEditMode = Boolean(editListingId);
 
   // Auto-sync currency from locale whenever the location (and thus currencyCode) changes
   useEffect(() => {
+    if (isEditMode) {
+      setIsCurrencyManual(true);
+      return;
+    }
     if (!isCurrencyManual) {
       dispatch(setCurrency(currencyCode));
     }
-  }, [currencyCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currencyCode, isCurrencyManual, isEditMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const prevCountryRef = useRef(isoCountryCode);
+  useEffect(() => {
+    if (isEditMode) return;
+    if (prevCountryRef.current !== isoCountryCode) {
+      prevCountryRef.current = isoCountryCode;
+      setIsCurrencyManual(false);
+      dispatch(setCurrency(currencyCode));
+      dispatch(setMileageUnit(getMileageUnitForCountry(isoCountryCode)));
+    }
+  }, [currencyCode, dispatch, isoCountryCode, isEditMode]);
 
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [currencySearch, setCurrencySearch] = useState("");
 
   const pf = useAppSelector((s) => s.postForm);
+  const [deleting, setDeleting] = useState(false);
   const {
     title, description, price, condition, category, subcategory, listingType, currency,
     bedrooms, bathrooms, furnishing, squareFeet, features, petFriendly, genderPreference, occupancy,
@@ -560,14 +614,54 @@ export function PostAdStep2DetailsScreen() {
       }
     }
 
+    if (isBeauty && expiryDate.trim() && !isValidExpiryDate(expiryDate)) {
+      showErrorToast(
+        "Invalid expiry date",
+        "Use MM/YYYY format (e.g. 12/2026). Month must be 01–12.",
+      );
+      return;
+    }
+
     router.push("/post-ad-step3-media");
   };
 
   const handleBack = () => {
+    if (isEditMode) {
+      dispatch(resetPostForm());
+      router.back();
+      return;
+    }
     router.replace({
       pathname: "/post-ad-step1-category",
       params: { category },
     } as Href);
+  };
+
+  const handleDeleteListing = () => {
+    if (!editListingId) return;
+    Alert.alert(
+      "Delete Listing",
+      "This will permanently delete the listing and all associated images. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteListing(category, editListingId);
+              dispatch(resetPostForm());
+              router.replace("/my-listings-active" as Href);
+            } catch {
+              showErrorToast("Error", "Failed to delete listing.");
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   useFocusEffect(
@@ -578,17 +672,38 @@ export function PostAdStep2DetailsScreen() {
       };
       const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
       return () => sub.remove();
-    }, [router, category]),
+    }, [category, isEditMode, router]),
   );
 
   return (
     <>
     <SellFlowLayout
-      step={2}
-      title="Listing details"
-      subtitle="Title, price & item info"
+      step={isEditMode ? 2 : 2}
+      title={isEditMode ? "Edit listing" : "Listing details"}
+      subtitle={isEditMode ? "Update title, price & item info" : "Title, price & item info"}
       onBack={handleBack}
-      primaryLabel="Continue"
+      rightAction={
+        isEditMode ? (
+          <Pressable
+            onPress={handleDeleteListing}
+            disabled={deleting}
+            className="flex-row items-center gap-1.5 rounded-lg px-3 py-1.5"
+            style={({ pressed }) => ({ opacity: pressed || deleting ? 0.5 : 1 })}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color="#BA1A1A" />
+            ) : (
+              <>
+                <MaterialIcons name="delete" size={20} color="#BA1A1A" />
+                <Text className="text-[12px] font-medium text-[#BA1A1A]">Delete</Text>
+              </>
+            )}
+          </Pressable>
+        ) : undefined
+      }
+      footerLabel={isEditMode ? "Editing" : undefined}
+      footerMeta={isEditMode ? (CATEGORY_MAP[category]?.name ?? category) : undefined}
+      primaryLabel={isEditMode ? "Continue" : "Continue"}
       onPrimaryPress={handleNext}
     >
 
@@ -623,7 +738,7 @@ export function PostAdStep2DetailsScreen() {
           {/* ── Ad Title ── */}
           <View className="mb-6">
             <View className="mb-2 flex-row items-end justify-between">
-              <Label text="Ad Title" />
+              <Label text="Ad Title" required />
               <Text className="text-[10px] font-medium text-[#6C7A74]">{title.length}/70</Text>
             </View>
             <TextInput
@@ -639,7 +754,7 @@ export function PostAdStep2DetailsScreen() {
 
           {/* ── Description ── */}
           <View className="mb-6">
-            <Label text="Description" />
+            <Label text="Description" required />
             <TextInput
               value={description}
               onChangeText={(v) => dispatch(setDescription(v))}
@@ -657,7 +772,7 @@ export function PostAdStep2DetailsScreen() {
 
           {!priceOptional && (
             <View className="mb-6">
-              <Label text="Price" />
+              <Label text="Price" required />
               <View
                 className="h-12 flex-row items-center rounded-lg bg-white overflow-hidden"
                 style={{ borderWidth: 1, borderColor: priceError ? "#BA1A1A" : "#E2E8F0" }}
@@ -702,7 +817,7 @@ export function PostAdStep2DetailsScreen() {
           {/* ── Condition ── */}
           {showCondition && (
             <View className="mb-8">
-              <LabelPill text="Condition" />
+              <LabelPill text="Condition" required />
               <PillRow options={[...CONDITION_OPTIONS]} value={condition} onSelect={(v) => dispatch(setCondition(v || "Good"))} />
             </View>
           )}
@@ -1417,7 +1532,13 @@ export function PostAdStep2DetailsScreen() {
                 </View>
                 <View className="flex-1">
                   <Label text="Expiry Date" />
-                  <IconField icon="event" value={expiryDate} onChangeText={(v) => dispatch(setExpiryDate(v))} placeholder="e.g. Dec 2026" />
+                  <IconField
+                    icon="event"
+                    value={expiryDate}
+                    onChangeText={(v) => dispatch(setExpiryDate(v))}
+                    placeholder="MM/YYYY"
+                    dateExpiry
+                  />
                 </View>
               </View>
               <View className="mb-6">

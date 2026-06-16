@@ -24,6 +24,7 @@ import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import {
   fetchHomeFeed,
   fetchSavedListings,
+  getCachedHomeFeed,
   toggleSaveListing,
 } from "@/features/listing/services/listing-api";
 import {
@@ -139,6 +140,9 @@ function mapFeedToResults(
     status?: string;
     createdAt?: string;
     savedBy?: string[];
+    countryCode?: string;
+    distance?: number | null;
+    coordinates?: unknown;
   }>,
 ): SearchResultItem[] {
   return feedListings.map((item) => ({
@@ -151,6 +155,9 @@ function mapFeedToResults(
     subcategory: item.subcategory,
     condition: item.condition,
     location: item.location,
+    countryCode: item.countryCode,
+    distance: item.distance ?? undefined,
+    coordinates: item.coordinates,
     images: item.images ?? [],
     brand: typeof item.brand === "string" ? item.brand : undefined,
     model: typeof item.model === "string" ? item.model : undefined,
@@ -290,6 +297,35 @@ export function SearchResultsEntityTabsScreen() {
       try {
         if (isBrowse) {
           let mapped: SearchResultItem[] = [];
+
+          // Show cached feed immediately for faster navigation (e.g. Fresh recommendations See all).
+          if (!opts?.isRefresh) {
+            try {
+              const cached = await getCachedHomeFeed();
+              if (cached?.data?.categories) {
+                const cachedListings = Object.values(cached.data.categories).flatMap(
+                  (cat) => cat.listings ?? [],
+                );
+                const cachedMapped = mapFeedToResults(cachedListings);
+                const sortedCached = applyEntityAndSort(
+                  cachedMapped,
+                  activeEntity,
+                  activeSort,
+                );
+                setResults(sortedCached);
+                setParsedChips([]);
+                setPagination({
+                  total: sortedCached.length,
+                  page: 1,
+                  pages: 1,
+                  limit: 50,
+                });
+                setLoading(false);
+              }
+            } catch {
+              // ignore cache read errors
+            }
+          }
 
           try {
             const feed = await fetchHomeFeedWithTimeout(
@@ -525,6 +561,7 @@ export function SearchResultsEntityTabsScreen() {
           _id: item._id,
           category: item._entity ?? item.category,
           distance: item.distance,
+          coordinates: item.coordinates,
           countryCode: item.countryCode,
           currency: item.currency,
         },

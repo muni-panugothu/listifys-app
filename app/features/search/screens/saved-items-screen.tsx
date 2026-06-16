@@ -150,6 +150,8 @@ export function SavedItemsScreen() {
                     category,
                     countryCode: item.countryCode,
                     currency: item.currency,
+                    coordinates: item.coordinates,
+                    distance: (item as { distance?: number }).distance,
                   },
                   { lat: locationCoords.lat!, lng: locationCoords.lng! },
                   isoCountryCode,

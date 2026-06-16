@@ -19,11 +19,12 @@ import {
   HomeCategoryMoreTile,
   HomeCategoryTile,
 } from "@/components/home-category-tile";
-import { ListingItemsGridCard } from "@/components/listing-items-grid-card";
+import { ListingItemsGridCard, getListingGridCarouselHeight } from "@/components/listing-items-grid-card";
 import { TrendingListingCard } from "@/components/trending-listing-card";
 import { CATEGORIES, type CategorySlug } from "@/constants/categories";
 import { ListifyFonts, ListifyTypography } from "@/constants/typography";
 import { getUnreadCount as getNotificationUnreadCount } from "@/features/auth/services/auth-api";
+import { subscribeNotificationUnreadAdjust } from "@/lib/notification-unread-bus";
 import { getUnreadCount as getChatUnreadCount } from "@/features/messaging/services/chat-api";
 import {
   fetchHomeFeed,
@@ -48,6 +49,7 @@ import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
+import { showAuthGate } from "@/store/slices/auth-gate-slice";
 import {
   hydrateAppLocation,
   refreshDeviceLocation,
@@ -62,6 +64,7 @@ import { clearSlowRequestSignal, reportSlowRequest } from "@/store/slices/networ
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 14) / 2;
+const RECENTLY_VIEWED_ROW_HEIGHT = getListingGridCarouselHeight(GRID_CARD_WIDTH) + 8;
 const SLOW_HOME_FEED_MS = 3500;
 const SELL_BANNER_CAMERA_IMAGE =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80";
@@ -345,6 +348,12 @@ export function HomeFeedRootScreen() {
 
   const { refreshing, onRefresh } = usePullToRefresh(handleRefresh);
 
+  useEffect(() => {
+    return subscribeNotificationUnreadAdjust((delta) => {
+      setNotificationUnreadCount((count) => Math.max(0, count + delta));
+    });
+  }, []);
+
   const handleBottomTabPress = useTabNavigation(() => setShowLoginSheet(true));
 
   const displayName = user?.name?.trim() || "Guest";
@@ -394,7 +403,7 @@ export function HomeFeedRootScreen() {
             currency: item.currency,
           },
           userLatLng,
-          item.countryCode ?? undefined,
+          isoCountryCode,
         );
       }
 
@@ -417,7 +426,7 @@ export function HomeFeedRootScreen() {
       category,
       distanceLabel,
     }));
-  }, [allListings, canShowDistanceOnCards, locationCoords.lat, locationCoords.lng]);
+  }, [allListings, canShowDistanceOnCards, isoCountryCode, locationCoords.lat, locationCoords.lng]);
 
   const navigateToCategory = useCallback(
     (catId: CategorySlug) => {
@@ -502,7 +511,13 @@ export function HomeFeedRootScreen() {
 
         <View className="flex-row items-center gap-4">
           <Pressable
-            onPress={() => router.push("/messages-inbox" as Href)}
+            onPress={() => {
+              if (isAuthenticated) {
+                router.push("/messages-inbox" as Href);
+                return;
+              }
+              dispatch(showAuthGate({ action: "messages", redirectTo: "/messages-inbox" }));
+            }}
             className="h-10 w-10 items-center justify-center rounded-full bg-white shadow-xl"
             style={({ pressed }) => ({
               opacity: pressed ? 0.7 : 1,
@@ -524,7 +539,13 @@ export function HomeFeedRootScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => router.push("/notifications-center" as Href)}
+            onPress={() => {
+              if (isAuthenticated) {
+                router.push("/notifications-center" as Href);
+                return;
+              }
+              dispatch(showAuthGate({ action: "notifications", redirectTo: "/notifications-center" }));
+            }}
             className="h-10 w-10 items-center justify-center rounded-full bg-white shadow-xl"
             style={({ pressed }) => ({
               opacity: pressed ? 0.7 : 1,
@@ -788,7 +809,14 @@ export function HomeFeedRootScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
+              removeClippedSubviews={false}
+              nestedScrollEnabled
+              style={{ minHeight: RECENTLY_VIEWED_ROW_HEIGHT, overflow: "visible" }}
+              contentContainerStyle={{
+                paddingHorizontal: 16,
+                gap: 14,
+                paddingBottom: 8,
+              }}
               decelerationRate="fast"
             >
               {filterOutOwnListings(recentlyViewed, user?.id)
@@ -810,6 +838,7 @@ export function HomeFeedRootScreen() {
                 return (
                   <ListingItemsGridCard
                     key={item._id}
+                    layout="carousel"
                     width={GRID_CARD_WIDTH}
                     title={item.title}
                     price={item.price}

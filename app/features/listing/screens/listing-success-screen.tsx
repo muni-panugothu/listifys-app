@@ -1,11 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useMemo } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useMemo } from "react";
+import { Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Image } from "@/lib/nativewind-interop";
+import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
 import { getCurrencySymbol } from "@/lib/currency";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
@@ -38,6 +39,7 @@ export function ListingSuccessScreen() {
   const listingLocation = params.location || "";
   const listingImage = params.image || "";
   const listingCategory = params.category || "";
+  const listingImageUrl = listingImage ? resolveAbsoluteMediaUrl(listingImage) : "";
 
   /** Navigate to the listing's detail screen based on entity type */
   const handleViewListing = () => {
@@ -49,12 +51,26 @@ export function ListingSuccessScreen() {
       services: "/service-detail",
     };
     const route = SPECIAL[categorySlug] ?? "/listing-detail-template";
-    // Use replace-string router push with loose typing via unknown cast
     (router.push as (h: { pathname: string; params: Record<string, string> }) => void)({
       pathname: route,
       params: { category: categorySlug, id: listingId },
     });
   };
+
+  const handleShare = useCallback(async () => {
+    const lines = [listingTitle];
+    if (listingPrice) lines.push(listingPrice);
+    if (listingLocation) lines.push(listingLocation);
+    lines.push("Posted on Listify");
+    try {
+      await Share.share({
+        message: lines.join("\n"),
+        title: listingTitle,
+      });
+    } catch {
+      // user dismissed
+    }
+  }, [listingLocation, listingPrice, listingTitle]);
 
   return (
     <View className="flex-1 bg-[#F6F7F8]">
@@ -125,15 +141,19 @@ export function ListingSuccessScreen() {
               elevation: 2,
             }}
           >
-            {listingImage ? (
-            <View className="relative h-48 w-full">
+            {listingImageUrl ? (
+            <View className="relative w-full bg-[#F3F4F6]" style={{ aspectRatio: 4 / 3 }}>
               <Image
-                source={{ uri: listingImage }}
-                contentFit="cover"
+                source={{ uri: listingImageUrl }}
+                contentFit="contain"
+                style={{ width: "100%", height: "100%" }}
                 transition={200}
-                className="h-full w-full"
               />
-              <Pressable className="absolute right-3 top-3 rounded-full bg-white/70 p-2">
+              <Pressable
+                onPress={() => void handleShare()}
+                className="absolute right-3 top-3 rounded-full bg-white/90 p-2"
+                style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+              >
                 <MaterialIcons name="share" size={20} color="#161D1A" />
               </Pressable>
               <View className="absolute bottom-3 left-3 rounded-full bg-[#27BB97]/90 px-3 py-1">
@@ -189,9 +209,16 @@ export function ListingSuccessScreen() {
                     Published
                   </Text>
                 </View>
-                <Text className="text-[12px] font-medium text-slate-400">
-                  Just now
-                </Text>
+                <Pressable
+                  onPress={() => void handleShare()}
+                  className="flex-row items-center gap-1"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                >
+                  <MaterialIcons name="share" size={16} color="#6C7A74" />
+                  <Text className="text-[12px] font-medium text-[#6C7A74]">
+                    Share
+                  </Text>
+                </Pressable>
               </View>
             </View>
           </View>

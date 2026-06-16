@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { revokeDevice, logoutAllDevices } from "@/features/auth/services/auth-api";
 import { ListifyFonts } from "@/constants/typography";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 type AlertParams = {
@@ -66,7 +66,6 @@ export function SecurityAlertScreen() {
             setIsRevoking(true);
             try {
               await revokeDevice(params.deviceId!);
-              showSuccessToast("Secured", "Device session has been revoked.");
               router.back();
             } catch (err) {
               showErrorToast(
@@ -85,7 +84,6 @@ export function SecurityAlertScreen() {
             setIsRevoking(true);
             try {
               await logoutAllDevices();
-              showSuccessToast("Secured", "All sessions have been revoked.");
               router.back();
             } catch (err) {
               showErrorToast(

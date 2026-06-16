@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { requestPhoneChange, verifyPhoneChange } from "@/features/auth/services/auth-api";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile, setAuthUser } from "@/store/slices/auth-slice";
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
@@ -165,7 +165,6 @@ export function ChangePhonePrimaryScreen() {
         dispatch(setAuthUser({ ...user, phone: res.phone, phoneVerified: true }));
       }
       await dispatch(fetchProfile());
-      showSuccessToast("Phone updated", "Your phone number has been changed successfully.");
       handleBack();
     } catch (e: unknown) {
       showErrorToast("Incorrect OTP", e instanceof Error ? e.message : "Invalid or expired code.");
@@ -184,7 +183,6 @@ export function ChangePhonePrimaryScreen() {
       setOtp("");
       expireTimer.start(res.expiresIn ?? OTP_EXPIRE_SECS);
       resendTimer.start(RESEND_COOLDOWN_SECS);
-      showSuccessToast("OTP resent", "A new verification code has been sent.");
     } catch (e: unknown) {
       showErrorToast("Failed", e instanceof Error ? e.message : "Could not resend OTP.");
     } finally {

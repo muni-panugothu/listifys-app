@@ -69,7 +69,7 @@ function findTabNavigator(navigation: AnyNavigation) {
 }
 
 const AUTH_GATED_TABS: Partial<Record<string, AuthGateAction>> = {
-  messages: "message",
+  messages: "messages",
 };
 
 const AUTH_REQUIRED_TABS = new Set<string>();

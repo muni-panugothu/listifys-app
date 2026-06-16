@@ -632,7 +632,9 @@ const authSlice = createSlice({
     // Fetch profile
     builder
       .addCase(fetchProfile.fulfilled, (state, action) => {
-        state.user = action.payload.user ?? state.user;
+        if (action.payload.user) {
+          state.user = { ...(state.user ?? {}), ...action.payload.user };
+        }
       });
 
     // Update profile

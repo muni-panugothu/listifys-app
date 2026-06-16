@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { sendRecoveryPhoneOTP, verifyRecoveryPhoneOTP } from "@/features/auth/services/auth-api";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthUser } from "@/store/slices/auth-slice";
 import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
@@ -62,7 +62,6 @@ export function ChangePhoneScreen() {
       if (res.success) {
         setMaskedPhone(res.phone || fullPhone);
         setStep("otp");
-        showSuccessToast("OTP Sent", `Code sent to ${res.phone || fullPhone}`);
       } else {
         showErrorToast("Failed", res.message || "Could not send OTP");
       }
@@ -90,7 +89,6 @@ export function ChangePhoneScreen() {
             phoneVerified: res.phoneVerified ?? true,
           }));
         }
-        showSuccessToast("Phone updated", "Your recovery phone has been verified.");
         // Navigate back to security screen
         if (router.canGoBack()) {
           router.back();

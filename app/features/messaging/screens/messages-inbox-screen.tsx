@@ -196,6 +196,7 @@ export function MessagesInboxScreen() {
           conversationId: conv._id,
           recipientId: otherId,
           name: otherName,
+          ...(other?.profileImageUrl ? { contactImage: other.profileImageUrl } : {}),
           ...(listing?.listingId
             ? {
                 productId: listing.listingId,

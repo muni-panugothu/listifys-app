@@ -9,6 +9,7 @@ export type ListingChatInput = {
   recipientId: string;
   sellerId?: string;
   name?: string;
+  contactImage?: string | null;
   productId: string;
   productType: string;
   productTitle?: string;
@@ -35,6 +36,7 @@ export function normalizeListingChatParams(params: Record<string, string | strin
     productImage: pick("productImage") ?? pick("listingImage"),
     currency: pick("currency"),
     sellerId: pick("sellerId"),
+    contactImage: pick("contactImage"),
   };
 }
 
@@ -44,6 +46,7 @@ export function buildListingChatHref(input: ListingChatInput): Href {
     params: {
       recipientId: input.recipientId,
       name: input.name ?? "Seller",
+      ...(input.contactImage ? { contactImage: input.contactImage } : {}),
       productId: input.productId,
       productType: input.productType,
       productTitle: input.productTitle ?? "",

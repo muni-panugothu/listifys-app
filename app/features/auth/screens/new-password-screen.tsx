@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Pressable,
     ScrollView,
@@ -13,11 +12,12 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAvoidingView } from "react-native";
 
 import { ListifyOnboardingAssets } from "@/constants/listify-theme";
 import { validatePassword } from "@/lib/auth-validation";
 import { Image } from "@/lib/nativewind-interop";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, clearResetFlow, resetPassword } from "@/store/slices/auth-slice";
 
@@ -112,7 +112,6 @@ export function NewPasswordScreen() {
     );
     if (action.meta.requestStatus === "fulfilled") {
       dispatch(clearResetFlow());
-      showSuccessToast("Success", "Password reset successfully. Please sign in.");
       setTimeout(() => {
         router.replace("/sign-in" as Href);
       }, 700);

@@ -1,10 +1,19 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import { useEffect } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyTypography } from "@/constants/typography";
 import { formatPrice as libFormatPrice } from "@/lib/currency";
 import { Image } from "@/lib/nativewind-interop";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type TrendingListingCardProps = {
   id: string;
@@ -46,6 +55,38 @@ export function TrendingListingCard({
   onToggleSave,
 }: TrendingListingCardProps) {
   const imageHeight = cardWidth * 1.15;
+  const savedProgress = useSharedValue(isSaved ? 1 : 0);
+
+  useEffect(() => {
+    savedProgress.value = withSpring(isSaved ? 1 : 0, {
+      damping: 14,
+      stiffness: 220,
+    });
+  }, [isSaved, savedProgress]);
+
+  const buttonBgStyle = useAnimatedStyle(() => ({
+    backgroundColor: savedProgress.value > 0.5 ? "#27BB97" : "#2D2D2D",
+    transform: [
+      {
+        scale: interpolate(savedProgress.value, [0, 0.5, 1], [1, 1.12, 1]),
+      },
+    ],
+  }));
+
+  const plusIconStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(savedProgress.value, [0, 0.4], [1, 0]),
+    transform: [
+      { scale: interpolate(savedProgress.value, [0, 1], [1, 0.4]) },
+      { rotate: `${interpolate(savedProgress.value, [0, 1], [0, -90])}deg` },
+    ],
+  }));
+
+  const checkIconStyle = useAnimatedStyle(() => ({
+    opacity: savedProgress.value,
+    transform: [
+      { scale: interpolate(savedProgress.value, [0, 1], [0.3, 1]) },
+    ],
+  }));
 
   return (
     <Pressable onPress={onPress} style={{ width: cardWidth }}>
@@ -62,29 +103,32 @@ export function TrendingListingCard({
       >
         <Image source={image} contentFit="cover" transition={200} className="h-full w-full" />
         <ListingTimeBadge date={createdAt} />
-        <Pressable
+        <AnimatedPressable
           onPress={(e) => {
             e.stopPropagation();
-            onToggleSave();
+            if (!isOffline) onToggleSave();
           }}
           hitSlop={10}
           disabled={isOffline}
-          className="absolute right-3 top-3 h-10 w-10 items-center justify-center rounded-full bg-white"
-          style={({ pressed }) => ({
-            opacity: isOffline ? 0.45 : pressed ? 0.88 : 1,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.12,
-            shadowRadius: 6,
-            elevation: 3,
-          })}
+          className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full"
+          style={[
+            buttonBgStyle,
+            { opacity: isOffline ? 0.45 : 1 },
+          ]}
         >
-          <MaterialIcons
-            name={isSaved ? "favorite" : "favorite-border"}
-            size={22}
-            color={isSaved ? "#EF4444" : "#6B7280"}
-          />
-        </Pressable>
+          <Animated.View
+            style={[{ position: "absolute" }, plusIconStyle]}
+            pointerEvents="none"
+          >
+            <MaterialIcons name="add" size={20} color="#FFFFFF" />
+          </Animated.View>
+          <Animated.View
+            style={[{ position: "absolute" }, checkIconStyle]}
+            pointerEvents="none"
+          >
+            <MaterialIcons name="check" size={20} color="#FFFFFF" />
+          </Animated.View>
+        </AnimatedPressable>
       </View>
       <Text
         className="mt-3 text-[15px]"

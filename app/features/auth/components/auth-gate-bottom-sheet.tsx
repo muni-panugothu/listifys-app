@@ -12,12 +12,15 @@ import {
   Keyboard,
   Modal,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useKeyboardStickyOffset } from "@/components/chat-keyboard-scroll-view";
 import { formatAuthFailureMessage, reportGoogleSignInFailure } from "@/lib/auth-error-display";
 import {
   configureGoogleSignIn,
@@ -40,10 +43,12 @@ type Props = {
 const ACTION_TITLES: Record<string, string> = {
   save: "save this item",
   message: "message the seller",
+  messages: "view your messages",
   offer: "make an offer",
   general: "continue",
-  sell: "start selling",
+  sell: "post your ad",
   profile: "open your profile",
+  notifications: "view your notifications",
 };
 
 export function AuthGateBottomSheet({
@@ -55,6 +60,7 @@ export function AuthGateBottomSheet({
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const stickyOffset = useKeyboardStickyOffset();
   const dispatch = useAppDispatch();
   const { isAuthenticated, status } = useAppSelector((s) => s.auth);
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -89,6 +95,7 @@ export function AuthGateBottomSheet({
         friction: 11,
       }).start();
     } else {
+      Keyboard.dismiss();
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 200,
@@ -102,6 +109,11 @@ export function AuthGateBottomSheet({
       void configureGoogleSignIn().catch(() => {});
     }
   }, [visible]);
+
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    onClose();
+  }, [onClose]);
 
   const handleSendOtp = useCallback(async () => {
     const cleaned = phone.trim().replace(/\s+/g, "");
@@ -148,7 +160,10 @@ export function AuthGateBottomSheet({
     }
   }, [dispatch]);
 
-  const title = `Sign in to ${ACTION_TITLES[action] ?? "continue"}`;
+  const title = useMemo(
+    () => `Sign in to ${ACTION_TITLES[action] ?? "continue"}`,
+    [action],
+  );
 
   if (!visible) return null;
 
@@ -158,187 +173,182 @@ export function AuthGateBottomSheet({
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <Pressable onPress={onClose} className="flex-1 bg-black/40">
-        <View style={{ flex: 1 }} />
-      </Pressable>
+      <Pressable onPress={handleClose} className="flex-1 bg-black/40" />
 
-      <Animated.View
-        style={{
-          transform: [{
-            translateY: slideAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [600, 0],
-            }),
-          }],
-        }}
-      >
-        <View
-          className="rounded-t-3xl bg-white"
+      <KeyboardStickyView offset={stickyOffset}>
+        <Animated.View
           style={{
-            paddingBottom: Math.max(insets.bottom, 20),
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -12 },
-            shadowOpacity: 0.15,
-            shadowRadius: 40,
-            elevation: 24,
+            transform: [{
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [600, 0],
+              }),
+            }],
           }}
         >
-          {/* Handle */}
-          <View className="items-center py-3">
-            <View className="h-1.5 w-12 rounded-full bg-slate-200" />
-          </View>
-
-          <View className="px-5 pb-4">
-            {/* Header */}
-            <View className="mb-1 flex-row items-center justify-between">
-              <Text className="text-[22px] font-bold tracking-tight text-[#161D1A]">
-                {title}
-              </Text>
-              <Pressable onPress={onClose} className="rounded-full p-2">
-                <MaterialIcons name="close" size={22} color="#94A3B8" />
-              </Pressable>
-            </View>
-            <Text className="mb-6 text-[14px] text-[#6C7A74]">
-              {step === "phone"
-                ? "Enter your mobile number to get started"
-                : `We sent a code to +91${phone.replace(/^\+91/, "")}`}
-            </Text>
-
-            {/* Error */}
-            {localError ? (
-              <View className="mb-4 flex-row items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
-                <MaterialIcons name="error-outline" size={18} color="#EF4444" />
-                <Text className="flex-1 text-[13px] text-red-600">{localError}</Text>
-              </View>
-            ) : null}
-
-            {step === "phone" ? (
-              <>
-                {/* Phone Input */}
-                <View className="mb-5 h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
-                  <Text className="mr-2 text-[16px] font-medium text-[#3C4A44]">+91</Text>
-                  <View className="mr-2 h-6 w-px bg-slate-200" />
-                  <TextInput
-                    value={phone}
-                    onChangeText={(val) => { setPhone(val.replace(/[^0-9]/g, "")); setLocalError(""); }}
-                    placeholder="Enter mobile number"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    className="flex-1 text-[16px] font-medium text-[#161D1A]"
-                    style={{ paddingVertical: 0 }}
-                    autoFocus
-                  />
-                </View>
-
-                {/* Send OTP Button */}
-                <Pressable
-                  onPress={handleSendOtp}
-                  disabled={isLoading}
-                  className="mb-4 h-14 items-center justify-center rounded-xl bg-[#27BB97]"
-                  style={{
-                    opacity: isLoading ? 0.7 : 1,
-                    shadowColor: "#27BB97",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text className="text-[16px] font-bold text-white">Send OTP</Text>
-                  )}
-                </Pressable>
-              </>
-            ) : (
-              <>
-                {/* OTP Input */}
-                <View className="mb-5 h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
-                  <MaterialIcons name="lock-outline" size={20} color="#94A3B8" />
-                  <TextInput
-                    value={otp}
-                    onChangeText={(val) => { setOtp(val.replace(/[^0-9]/g, "")); setLocalError(""); }}
-                    placeholder="Enter OTP"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    className="ml-3 flex-1 text-[18px] font-bold tracking-[8px] text-[#161D1A]"
-                    style={{ paddingVertical: 0 }}
-                    autoFocus
-                  />
-                </View>
-
-                {/* Verify Button */}
-                <Pressable
-                  onPress={handleVerifyOtp}
-                  disabled={isLoading}
-                  className="mb-3 h-14 items-center justify-center rounded-xl bg-[#27BB97]"
-                  style={{
-                    opacity: isLoading ? 0.7 : 1,
-                    shadowColor: "#27BB97",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text className="text-[16px] font-bold text-white">Verify & Continue</Text>
-                  )}
-                </Pressable>
-
-                {/* Back to phone */}
-                <Pressable onPress={() => { setStep("phone"); setOtp(""); setLocalError(""); }} className="mb-2 items-center py-2">
-                  <Text className="text-[14px] font-medium text-[#27BB97]">Change number</Text>
-                </Pressable>
-              </>
-            )}
-
-            {/* Divider */}
-            <View className="my-4 flex-row items-center">
-              <View className="h-px flex-1 bg-slate-200" />
-              <Text className="mx-4 text-[12px] font-medium uppercase tracking-wider text-[#94A3B8]">or</Text>
-              <View className="h-px flex-1 bg-slate-200" />
+          <View
+            className="rounded-t-3xl bg-white"
+            style={{
+              paddingBottom: Math.max(insets.bottom, 20),
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -12 },
+              shadowOpacity: 0.15,
+              shadowRadius: 40,
+              elevation: 24,
+            }}
+          >
+            <View className="items-center py-3">
+              <View className="h-1.5 w-12 rounded-full bg-slate-200" />
             </View>
 
-            {/* Google Sign In */}
-            <Pressable
-              onPress={handleGoogleSignIn}
-              disabled={isGoogleLoading}
-              className="mb-3 h-14 flex-row items-center justify-center gap-3 rounded-xl border-2 border-slate-100 bg-white"
-              style={{ opacity: isGoogleLoading ? 0.7 : 1 }}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
             >
-              {isGoogleLoading ? (
-                <ActivityIndicator color="#4285F4" />
+              <View className="mb-1 flex-row items-center justify-between">
+                <Text className="flex-1 pr-3 text-[22px] font-bold tracking-tight text-[#161D1A]">
+                  {title}
+                </Text>
+                <Pressable onPress={handleClose} className="rounded-full p-2">
+                  <MaterialIcons name="close" size={22} color="#94A3B8" />
+                </Pressable>
+              </View>
+              <Text className="mb-6 text-[14px] text-[#6C7A74]">
+                {step === "phone"
+                  ? "Enter your mobile number to get started"
+                  : `We sent a code to +91${phone.replace(/^\+91/, "")}`}
+              </Text>
+
+              {localError ? (
+                <View className="mb-4 flex-row items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
+                  <MaterialIcons name="error-outline" size={18} color="#EF4444" />
+                  <Text className="flex-1 text-[13px] text-red-600">{localError}</Text>
+                </View>
+              ) : null}
+
+              {step === "phone" ? (
+                <>
+                  <View className="mb-5 h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
+                    <Text className="mr-2 text-[16px] font-medium text-[#3C4A44]">+91</Text>
+                    <View className="mr-2 h-6 w-px bg-slate-200" />
+                    <TextInput
+                      value={phone}
+                      onChangeText={(val) => { setPhone(val.replace(/[^0-9]/g, "")); setLocalError(""); }}
+                      placeholder="Enter mobile number"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      className="flex-1 text-[16px] font-medium text-[#161D1A]"
+                      style={{ paddingVertical: 0 }}
+                    />
+                  </View>
+
+                  <Pressable
+                    onPress={handleSendOtp}
+                    disabled={isLoading}
+                    className="mb-4 h-14 items-center justify-center rounded-xl bg-[#27BB97]"
+                    style={{
+                      opacity: isLoading ? 0.7 : 1,
+                      shadowColor: "#27BB97",
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text className="text-[16px] font-bold text-white">Send OTP</Text>
+                    )}
+                  </Pressable>
+                </>
               ) : (
                 <>
-                  <Ionicons name="logo-google" size={20} color="#4285F4" />
-                  <Text className="text-[15px] font-semibold text-[#161D1A]">
-                    Sign in with Google
-                  </Text>
+                  <View className="mb-5 h-14 flex-row items-center rounded-xl border-2 border-slate-100 bg-slate-50 px-4">
+                    <MaterialIcons name="lock-outline" size={20} color="#94A3B8" />
+                    <TextInput
+                      value={otp}
+                      onChangeText={(val) => { setOtp(val.replace(/[^0-9]/g, "")); setLocalError(""); }}
+                      placeholder="Enter OTP"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      className="ml-3 flex-1 text-[18px] font-bold tracking-[8px] text-[#161D1A]"
+                      style={{ paddingVertical: 0 }}
+                    />
+                  </View>
+
+                  <Pressable
+                    onPress={handleVerifyOtp}
+                    disabled={isLoading}
+                    className="mb-3 h-14 items-center justify-center rounded-xl bg-[#27BB97]"
+                    style={{
+                      opacity: isLoading ? 0.7 : 1,
+                      shadowColor: "#27BB97",
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text className="text-[16px] font-bold text-white">Verify & Continue</Text>
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => { setStep("phone"); setOtp(""); setLocalError(""); }}
+                    className="mb-2 items-center py-2"
+                  >
+                    <Text className="text-[14px] font-medium text-[#27BB97]">Change number</Text>
+                  </Pressable>
                 </>
               )}
-            </Pressable>
 
-            {/* Sign in with email link */}
-            <Pressable
-              onPress={() => { onClose(); router.push(emailSignInHref); }}
-              className="items-center py-3"
-            >
-              <Text className="text-[14px] text-[#6C7A74]">
-                Have an account?{" "}
-                <Text className="font-semibold text-[#27BB97]">Sign in with email</Text>
-              </Text>
-            </Pressable>
+              <View className="my-4 flex-row items-center">
+                <View className="h-px flex-1 bg-slate-200" />
+                <Text className="mx-4 text-[12px] font-medium uppercase tracking-wider text-[#94A3B8]">or</Text>
+                <View className="h-px flex-1 bg-slate-200" />
+              </View>
+
+              <Pressable
+                onPress={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                className="mb-3 h-14 flex-row items-center justify-center gap-3 rounded-xl border-2 border-slate-100 bg-white"
+                style={{ opacity: isGoogleLoading ? 0.7 : 1 }}
+              >
+                {isGoogleLoading ? (
+                  <ActivityIndicator color="#4285F4" />
+                ) : (
+                  <>
+                    <Ionicons name="logo-google" size={20} color="#4285F4" />
+                    <Text className="text-[15px] font-semibold text-[#161D1A]">
+                      Sign in with Google
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => { handleClose(); router.push(emailSignInHref); }}
+                className="items-center py-3"
+              >
+                <Text className="text-[14px] text-[#6C7A74]">
+                  Have an account?{" "}
+                  <Text className="font-semibold text-[#27BB97]">Sign in with email</Text>
+                </Text>
+              </Pressable>
+            </ScrollView>
           </View>
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </KeyboardStickyView>
     </Modal>
   );
 }

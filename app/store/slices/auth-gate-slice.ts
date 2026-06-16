@@ -1,6 +1,14 @@
 import { type PayloadAction, createSlice } from "@reduxjs/toolkit";
 
-export type AuthGateAction = "save" | "message" | "offer" | "general" | "sell" | "profile";
+export type AuthGateAction =
+  | "save"
+  | "message"
+  | "messages"
+  | "offer"
+  | "general"
+  | "sell"
+  | "profile"
+  | "notifications";
 
 type AuthGateState = {
   visible: boolean;

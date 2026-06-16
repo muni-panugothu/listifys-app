@@ -90,6 +90,7 @@ export type SearchResultItem = {
   distance?: number | null;
   kmDriven?: string;
   mileageUnit?: "km" | "mi" | string;
+  coordinates?: unknown;
   createdAt?: string;
 };
 

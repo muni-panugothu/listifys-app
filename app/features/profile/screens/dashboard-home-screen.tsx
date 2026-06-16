@@ -22,6 +22,7 @@ import { getUnreadCount as getNotificationUnreadCount } from "@/features/auth/se
 import { fetchSavedListings } from "@/features/listing/services/listing-api";
 import { getUnreadCount as getChatUnreadCount } from "@/features/messaging/services/chat-api";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useProtectedNavigation } from "@/lib/use-protected-navigation";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
@@ -66,7 +67,7 @@ function MenuRow({ icon, iconBg, iconColor, label, badge, onPress }: MenuRowProp
       </View>
       <View className="flex-row items-center gap-2">
         {badge != null && badge > 0 ? (
-          <View className="min-w-5 rounded-full bg-[#F43F9C] px-1.5 py-0.5">
+          <View className="min-w-5 rounded-full bg-[#27BB97] px-1.5 py-0.5">
             <Text
               className="text-center text-[10px] text-white"
               style={{ fontFamily: ListifyFonts.bold }}
@@ -157,16 +158,7 @@ export function DashboardHomeScreen() {
     [router],
   );
 
-  const navigateProtected = useCallback(
-    (href: Href) => {
-      if (isAuthenticated) {
-        router.push(href);
-        return;
-      }
-      dispatch(showAuthGate({ action: "profile", redirectTo: href as string }));
-    },
-    [dispatch, isAuthenticated, router],
-  );
+  const { navigateProtected } = useProtectedNavigation();
 
   const handleInviteFriend = useCallback(async () => {
     try {
@@ -231,8 +223,8 @@ export function DashboardHomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#F43F9C"]}
-            tintColor="#F43F9C"
+            colors={["#27BB97"]}
+            tintColor="#27BB97"
           />
         }
         contentContainerStyle={{
@@ -348,8 +340,8 @@ export function DashboardHomeScreen() {
           />
           <MenuRow
             icon="favorite-border"
-            iconBg="rgba(244,63,156,0.12)"
-            iconColor="#F472B6"
+            iconBg="rgba(39,187,151,0.12)"
+            iconColor="#27BB97"
             label="Saved items"
             badge={menuCounts.savedItems}
             onPress={() => navigateProtected("/saved-items" as Href)}
@@ -360,7 +352,7 @@ export function DashboardHomeScreen() {
             iconColor="#3B82F6"
             label="Messages"
             badge={menuCounts.unreadMessages}
-            onPress={() => navigate("/messages-inbox" as Href)}
+            onPress={() => navigateProtected("/messages-inbox" as Href, "messages")}
           />
           <MenuRow
             icon="notifications-none"
@@ -368,7 +360,7 @@ export function DashboardHomeScreen() {
             iconColor="#27BB97"
             label="Notifications"
             badge={menuCounts.unreadNotifications}
-            onPress={() => navigate("/notifications-center" as Href)}
+            onPress={() => navigateProtected("/notifications-center" as Href, "notifications")}
           />
           <MenuRow
             icon="settings"

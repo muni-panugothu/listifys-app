@@ -51,6 +51,34 @@ const LISTING_PROJECTION = {
   seller: 1,
 };
 
+function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function attachListingDistance(listings, lat, lng) {
+  const userLat = Number(lat);
+  const userLng = Number(lng);
+  if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) return listings;
+
+  return listings.map((listing) => {
+    const coords = listing?.coordinates?.coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const listingLng = Number(coords[0]);
+      const listingLat = Number(coords[1]);
+      if (Number.isFinite(listingLat) && Number.isFinite(listingLng)) {
+        listing.distance = haversineDistanceKm(userLat, userLng, listingLat, listingLng);
+      }
+    }
+    return listing;
+  });
+}
+
 /**
  * GET /api/feed
  * Query params:
@@ -167,7 +195,7 @@ router.get("/", optionalAuth, async (req, res) => {
       const hasMore = listings.length > limit;
       const pageListings = hasMore ? listings.slice(0, limit) : listings;
 
-      return { listings: pageListings, hasMore, source: "mongodb" };
+      return { listings: lat && lng ? attachListingDistance(pageListings, lat, lng) : pageListings, hasMore, source: "mongodb" };
     };
 
     // Run all category queries in parallel

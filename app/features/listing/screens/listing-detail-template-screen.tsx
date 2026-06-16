@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  FlatList,
   Keyboard,
   Modal,
   Pressable,
@@ -14,15 +15,25 @@ import {
   Text,
   TextInput,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useKeyboardStickyOffset } from "@/components/chat-keyboard-scroll-view";
 
 import type { CategorySlug } from "@/constants/categories";
 import { ListifyFonts } from "@/constants/typography";
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
-import { AUTH_API_BASE_URL } from "@/features/auth/services/auth-api";
+import { AUTH_API_BASE_URL, fetchSellerReviews } from "@/features/auth/services/auth-api";
 import { buildListingChatHref } from "@/lib/listing-chat";
 import { showErrorToast } from "@/lib/toast";
+import {
+  getSuggestedOfferAmounts,
+  parseListedPrice,
+  validateOfferAmount,
+} from "@/lib/offer-validation";
 import {
   addToRecentlyViewed,
   fetchListingById,
@@ -100,6 +111,7 @@ function SellerStars({ rating }: { rating: number }) {
 export function ListingDetailTemplateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const stickyOffset = useKeyboardStickyOffset();
   const params = useLocalSearchParams<{ category?: string; id?: string }>();
   const user = useAppSelector((s) => s.auth.user);
   const userCoords = useAppSelector(selectLocationCoords);
@@ -124,7 +136,11 @@ export function ListingDetailTemplateScreen() {
   const [selectedChip, setSelectedChip] = useState("");
   const [sendingOffer, setSendingOffer] = useState(false);
   const [offerSent, setOfferSent] = useState(false);
+  const [offerError, setOfferError] = useState("");
+  const [sellerRating, setSellerRating] = useState(0);
+  const [sellerReviewsCount, setSellerReviewsCount] = useState(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const imageListRef = useRef<FlatList<string>>(null);
   // Stores the action to run after the user successfully authenticates via
   // the auth-gate bottom sheet (so we can auto-continue after login).
   const pendingActionRef = useRef<(() => void) | null>(null);
@@ -172,6 +188,22 @@ export function ListingDetailTemplateScreen() {
     void loadListing();
   }, [loadListing]);
 
+  useEffect(() => {
+    if (!listing) return;
+    const sellerId = getListingSellerId(listing);
+    if (!sellerId) return;
+
+    fetchSellerReviews(sellerId)
+      .then((res) => {
+        setSellerRating(res.averageRating ?? 0);
+        setSellerReviewsCount(res.reviewsCount ?? 0);
+      })
+      .catch(() => {
+        setSellerRating(0);
+        setSellerReviewsCount(0);
+      });
+  }, [listing?._id]);
+
   const { refreshing, onRefresh } = usePullToRefresh(loadListing);
 
   const handleToggleSave = useCallback(async () => {
@@ -207,6 +239,7 @@ export function ListingDetailTemplateScreen() {
           recipientId: sellerId,
           sellerId,
           name: sellerName,
+          contactImage: sellerProfileImage ?? undefined,
           productId: listing._id,
           productType: categorySlug,
           productTitle: listing.title ?? "",
@@ -218,25 +251,27 @@ export function ListingDetailTemplateScreen() {
     });
   }, [categorySlug, listing, requireAuth, router]);
 
+  const listedPrice = useMemo(
+    () => (listing ? parseListedPrice(listing.price) : 0),
+    [listing],
+  );
+
   const recommendedOffers = useMemo(() => {
-    if (!listing?.price) return [];
-    const p = Number(listing.price);
-    return [
-      Math.round((p * 0.85) / 100) * 100,
-      Math.round((p * 0.9) / 100) * 100,
-      Math.round((p * 0.95) / 100) * 100,
-    ];
-  }, [listing?.price]);
+    if (listedPrice <= 0) return [];
+    return getSuggestedOfferAmounts(listedPrice);
+  }, [listedPrice]);
 
   const openOfferSheet = useCallback(() => {
-    if (listing?.price) {
-      const defaultOffer = Math.round((Number(listing.price) * 0.9) / 100) * 100;
+    if (listedPrice > 0) {
+      const suggestions = getSuggestedOfferAmounts(listedPrice);
+      const defaultOffer = suggestions[1] ?? suggestions[0] ?? listedPrice;
       setOfferAmount(String(defaultOffer));
       setSelectedChip(String(defaultOffer));
     } else {
       setOfferAmount("");
       setSelectedChip("");
     }
+    setOfferError("");
     setOfferSent(false);
     setOfferVisible(true);
     Animated.spring(slideAnim, {
@@ -245,7 +280,7 @@ export function ListingDetailTemplateScreen() {
       tension: 65,
       friction: 11,
     }).start();
-  }, [listing?.price, slideAnim]);
+  }, [listedPrice, slideAnim]);
 
   const closeOfferSheet = useCallback(() => {
     Keyboard.dismiss();
@@ -258,6 +293,14 @@ export function ListingDetailTemplateScreen() {
 
   const handleSendOffer = useCallback(async () => {
     if (!listing || !offerAmount || sendingOffer) return;
+
+    const amount = Number(offerAmount);
+    const validation = validateOfferAmount(amount, listedPrice);
+    if (!validation.valid) {
+      setOfferError(validation.error);
+      return;
+    }
+    setOfferError("");
 
     const sellerId = getListingSellerId(listing);
     if (!sellerId) {
@@ -274,11 +317,11 @@ export function ListingDetailTemplateScreen() {
           productId: listing._id,
           productType: categorySlug,
           productTitle: listing.title,
-          productPrice: listing.price,
+          productPrice: listedPrice,
           productImage: listing.images?.[0] ?? null,
           currency: listing.currency ?? "₹",
         },
-        Number(offerAmount),
+        amount,
         listing.currency ?? "₹",
       );
       setOfferSent(true);
@@ -306,7 +349,7 @@ export function ListingDetailTemplateScreen() {
     } finally {
       setSendingOffer(false);
     }
-  }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet]);
+  }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet, listedPrice]);
 
   const handleMakeOffer = useCallback(() => {
     if (!listing) return;
@@ -368,8 +411,6 @@ export function ListingDetailTemplateScreen() {
       ? listing.seller.profileImage
       : `${AUTH_API_BASE_URL}${listing.seller.profileImage}`
     : null;
-  const sellerRating =
-    Number((listing?.seller as { rating?: number } | undefined)?.rating) || 4.8;
   const sellerJoined = listing?.seller?.createdAt
     ? `Member since ${new Date(listing.seller.createdAt).getFullYear()}`
     : "Verified seller on Listify";
@@ -381,6 +422,19 @@ export function ListingDetailTemplateScreen() {
 
   const footerInsetPadding = Math.max(insets.bottom, 12);
   const headerHeight = insets.top + 56;
+
+  const handleImageScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const idx = Math.round(e.nativeEvent.contentOffset.x / IMAGE_WIDTH);
+      if (idx >= 0 && idx < images.length) setActiveImageIndex(idx);
+    },
+    [images.length],
+  );
+
+  const scrollToImage = useCallback((index: number) => {
+    setActiveImageIndex(index);
+    imageListRef.current?.scrollToIndex({ index, animated: true });
+  }, []);
 
   const detailRows = useMemo(() => {
     if (!listing) return [] as { label: string; value: string }[];
@@ -465,6 +519,59 @@ export function ListingDetailTemplateScreen() {
     return rows;
   }, [isoCountryCode, listing]);
 
+  const sellerDetailsBlock = (
+    <View className="mt-8">
+      <Text
+        className="mb-3 text-[16px] text-[#1A1A1A]"
+        style={{ fontFamily: ListifyFonts.bold }}
+      >
+        Seller details
+      </Text>
+      <Pressable
+        onPress={() => {
+          const sid = listing ? getListingSellerId(listing) : null;
+          if (!sid) return;
+          router.push({
+            pathname: "/seller-public-profile",
+            params: {
+              sellerId: sid,
+              sellerName,
+              sellerRating: String(sellerRating),
+              ...(sellerProfileImage ? { sellerImage: sellerProfileImage } : {}),
+            },
+          } as Href);
+        }}
+        className="flex-row items-center rounded-2xl border border-[#F0F0F0] bg-[#FAFAFA] p-4"
+        style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+      >
+        <View className="mr-3 h-14 w-14 overflow-hidden rounded-full bg-[#E5E7EB]">
+          {sellerProfileImage ? (
+            <Image source={sellerProfileImage} contentFit="cover" className="h-full w-full" />
+          ) : (
+            <View className="h-full w-full items-center justify-center bg-[#F43F9C]">
+              <Text className="text-[20px] text-white" style={{ fontFamily: ListifyFonts.bold }}>
+                {sellerName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View className="flex-1">
+          <Text className="text-[17px] text-[#1A1A1A]" style={{ fontFamily: ListifyFonts.semiBold }}>
+            {sellerName}
+          </Text>
+          <SellerStars rating={sellerRating} />
+          <Text className="mt-0.5 text-[12px] text-[#9CA3AF]" style={{ fontFamily: ListifyFonts.regular }}>
+            {sellerReviewsCount} {sellerReviewsCount === 1 ? "member rated" : "members rated"}
+          </Text>
+          <Text className="mt-1 text-[12px] text-[#9CA3AF]" style={{ fontFamily: ListifyFonts.regular }}>
+            {sellerJoined}
+          </Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={22} color="#C4C4C4" />
+      </Pressable>
+    </View>
+  );
+
   if (loading && !listing) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -490,70 +597,97 @@ export function ListingDetailTemplateScreen() {
         }
         contentContainerStyle={{ paddingBottom: 100 + footerInsetPadding }}
       >
-        {/* Main image */}
+        {/* Main image — swipeable carousel */}
         <View className="mt-4 px-4">
           <View
-            className="items-center justify-center overflow-hidden rounded-[28px] bg-[#F3F4F6]"
+            className="overflow-hidden rounded-[28px] bg-[#F3F4F6]"
             style={{ width: IMAGE_WIDTH, height: IMAGE_WIDTH * 0.92 }}
           >
-            {images[activeImageIndex] ? (
-              <Image
-                source={images[activeImageIndex]}
-                contentFit="contain"
-                style={{ width: IMAGE_WIDTH * 0.88, height: IMAGE_WIDTH * 0.88 }}
+            {galleryImages.length > 0 ? (
+              <FlatList
+                ref={imageListRef}
+                data={galleryImages}
+                horizontal
+                pagingEnabled
+                bounces={galleryImages.length > 1}
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item, index) => `${item}-${index}`}
+                onMomentumScrollEnd={handleImageScroll}
+                getItemLayout={(_, index) => ({
+                  length: IMAGE_WIDTH,
+                  offset: IMAGE_WIDTH * index,
+                  index,
+                })}
+                renderItem={({ item }) => (
+                  <View
+                    className="items-center justify-center"
+                    style={{ width: IMAGE_WIDTH, height: IMAGE_WIDTH * 0.92 }}
+                  >
+                    <Image
+                      source={item}
+                      contentFit="contain"
+                      style={{ width: IMAGE_WIDTH * 0.88, height: IMAGE_WIDTH * 0.88 }}
+                    />
+                  </View>
+                )}
               />
             ) : (
-              <MaterialIcons name="image" size={64} color="#D1D5DB" />
+              <View className="flex-1 items-center justify-center">
+                <MaterialIcons name="image" size={64} color="#D1D5DB" />
+              </View>
             )}
           </View>
 
           {/* Carousel dots */}
-          <View className="mt-4 flex-row items-center justify-center gap-2">
-            {galleryImages.map((_, index) => {
-              const active = index === activeImageIndex;
-              return (
-                <Pressable key={index} onPress={() => setActiveImageIndex(index)}>
-                  <View
-                    className="h-2.5 w-2.5 rounded-full"
+          {galleryImages.length > 1 ? (
+            <View className="mt-4 flex-row items-center justify-center gap-2">
+              {galleryImages.map((_, index) => {
+                const active = index === activeImageIndex;
+                return (
+                  <Pressable key={index} onPress={() => scrollToImage(index)}>
+                    <View
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{
+                        backgroundColor: active ? TAB_BLUE : "#D1D5DB",
+                        borderWidth: active ? 0 : 0,
+                      }}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/* Thumbnails */}
+          {galleryImages.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mt-4"
+              contentContainerStyle={{ gap: 10 }}
+            >
+              {galleryImages.map((img, index) => {
+                const tints = ["#FDE8D8", "#D8E8FD", "#E8E8E8", "#E8DDF5"];
+                const active = index === activeImageIndex;
+                return (
+                  <Pressable
+                    key={`${img}-${index}`}
+                    onPress={() => scrollToImage(index)}
+                    className="overflow-hidden rounded-2xl"
                     style={{
-                      backgroundColor: active ? "transparent" : "#D1D5DB",
+                      width: THUMB_SIZE,
+                      height: THUMB_SIZE,
+                      backgroundColor: tints[index % tints.length],
                       borderWidth: active ? 2 : 0,
                       borderColor: TAB_BLUE,
                     }}
-                  />
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Thumbnails */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="mt-4"
-            contentContainerStyle={{ gap: 10 }}
-          >
-            {galleryImages.map((img, index) => {
-              const tints = ["#FDE8D8", "#D8E8FD", "#E8E8E8", "#E8DDF5"];
-              const active = index === activeImageIndex;
-              return (
-                <Pressable
-                  key={`${img}-${index}`}
-                  onPress={() => setActiveImageIndex(index)}
-                  className="overflow-hidden rounded-2xl"
-                  style={{
-                    width: THUMB_SIZE,
-                    height: THUMB_SIZE,
-                    backgroundColor: tints[index % tints.length],
-                    borderWidth: active ? 2 : 0,
-                    borderColor: TAB_BLUE,
-                  }}
-                >
-                  <Image source={img} contentFit="cover" className="h-full w-full" />
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                  >
+                    <Image source={img} contentFit="cover" className="h-full w-full" />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
         </View>
 
         {/* Title + price */}
@@ -671,69 +805,7 @@ export function ListingDetailTemplateScreen() {
                 </Pressable>
               ) : null}
 
-              {/* Seller details — rating is for seller only */}
-              <View className="mt-8">
-                <Text
-                  className="mb-3 text-[16px] text-[#1A1A1A]"
-                  style={{ fontFamily: ListifyFonts.bold }}
-                >
-                  Seller details
-                </Text>
-                <Pressable
-                  onPress={() => {
-                    const sid = listing ? getListingSellerId(listing) : null;
-                    if (!sid) return;
-                    router.push({
-                      pathname: "/seller-public-profile",
-                      params: {
-                        sellerId: sid,
-                        sellerName,
-                        sellerRating: String(sellerRating),
-                        ...(sellerProfileImage
-                          ? { sellerImage: sellerProfileImage }
-                          : {}),
-                      },
-                    } as Href);
-                  }}
-                  className="flex-row items-center rounded-2xl border border-[#F0F0F0] bg-[#FAFAFA] p-4"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
-                >
-                  <View className="mr-3 h-14 w-14 overflow-hidden rounded-full bg-[#E5E7EB]">
-                    {sellerProfileImage ? (
-                      <Image
-                        source={sellerProfileImage}
-                        contentFit="cover"
-                        className="h-full w-full"
-                      />
-                    ) : (
-                      <View className="h-full w-full items-center justify-center bg-[#F43F9C]">
-                        <Text
-                          className="text-[20px] text-white"
-                          style={{ fontFamily: ListifyFonts.bold }}
-                        >
-                          {sellerName.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text
-                      className="text-[17px] text-[#1A1A1A]"
-                      style={{ fontFamily: ListifyFonts.semiBold }}
-                    >
-                      {sellerName}
-                    </Text>
-                    <SellerStars rating={sellerRating} />
-                    <Text
-                      className="mt-1 text-[12px] text-[#9CA3AF]"
-                      style={{ fontFamily: ListifyFonts.regular }}
-                    >
-                      {sellerJoined}
-                    </Text>
-                  </View>
-                  <MaterialIcons name="chevron-right" size={22} color="#C4C4C4" />
-                </Pressable>
-              </View>
+              {sellerDetailsBlock}
             </>
           ) : (
             <View className="gap-3">
@@ -765,6 +837,7 @@ export function ListingDetailTemplateScreen() {
                   </View>
                 ))
               )}
+              {sellerDetailsBlock}
             </View>
           )}
         </View>
@@ -832,37 +905,47 @@ export function ListingDetailTemplateScreen() {
         statusBarTranslucent
         onRequestClose={closeOfferSheet}
       >
-        <Pressable onPress={closeOfferSheet} className="flex-1 bg-black/40">
-          <View style={{ flex: 1, minHeight: 80 }} />
-        </Pressable>
-        <Animated.View
-          style={{
-            transform: [
-              {
-                translateY: slideAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [600, 0],
-                }),
-              },
-            ],
-          }}
-        >
-          <View
-            className="rounded-t-3xl border-t border-slate-100 bg-white"
+        <View style={{ flex: 1 }}>
+          <Pressable onPress={closeOfferSheet} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}>
+            <View style={{ flex: 1, minHeight: 80 }} />
+          </Pressable>
+          <KeyboardStickyView offset={stickyOffset}>
+          <Animated.View
             style={{
-              paddingBottom: Math.max(insets.bottom, 16),
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -12 },
-              shadowOpacity: 0.15,
-              shadowRadius: 40,
-              elevation: 24,
+              transform: [
+                {
+                  translateY: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [600, 0],
+                  }),
+                },
+              ],
             }}
           >
-            <View className="items-center py-3">
-              <View className="h-1.5 w-12 rounded-full bg-slate-200" />
-            </View>
+            <View
+              className="rounded-t-3xl border-t border-slate-100 bg-white"
+              style={{
+                paddingBottom: Math.max(insets.bottom, 16),
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -12 },
+                shadowOpacity: 0.15,
+                shadowRadius: 40,
+                elevation: 24,
+              }}
+            >
+              <View className="items-center py-3">
+                <View className="h-1.5 w-12 rounded-full bg-slate-200" />
+              </View>
 
-            <View className="px-4 pb-4">
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingBottom: 16,
+                }}
+              >
               {offerSent ? (
                 <View className="items-center py-8">
                   <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-[#27BB97]/15">
@@ -999,6 +1082,7 @@ export function ListingDetailTemplateScreen() {
                         onChangeText={(val) => {
                           setOfferAmount(val.replace(/[^0-9]/g, ""));
                           setSelectedChip("");
+                          setOfferError("");
                         }}
                         keyboardType="numeric"
                         placeholder="Enter amount"
@@ -1010,6 +1094,14 @@ export function ListingDetailTemplateScreen() {
                         }}
                       />
                     </View>
+                    {offerError ? (
+                      <Text
+                        className="mt-2 text-[13px] text-[#DC2626]"
+                        style={{ fontFamily: ListifyFonts.medium }}
+                      >
+                        {offerError}
+                      </Text>
+                    ) : null}
                   </View>
 
                   <Pressable
@@ -1050,9 +1142,11 @@ export function ListingDetailTemplateScreen() {
                   </Pressable>
                 </>
               )}
+              </ScrollView>
             </View>
-          </View>
-        </Animated.View>
+          </Animated.View>
+          </KeyboardStickyView>
+        </View>
       </Modal>
 
       <AuthGateBottomSheet

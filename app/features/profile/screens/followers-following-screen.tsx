@@ -1,8 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "@/lib/safe-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -27,6 +30,7 @@ import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 
 type FollowTab = "followers" | "following";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const defaultAvatar = "https://ui-avatars.com/api/?name=User&background=27BB97&color=fff&size=128";
 
 const getTabParam = (value?: string | string[]): FollowTab => {
@@ -60,6 +64,7 @@ export function FollowersFollowingScreen() {
   const bottomNavPadding = Math.max(insets.bottom, 8);
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector((s) => s.auth.user);
+  const pagerRef = useRef<ScrollView>(null);
   const [activeTab, setActiveTab] = useState<FollowTab>(getTabParam(params.tab));
   const [searchQuery, setSearchQuery] = useState("");
   const [followers, setFollowers] = useState<FollowListUser[]>([]);
@@ -71,7 +76,12 @@ export function FollowersFollowingScreen() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    setActiveTab(getTabParam(params.tab));
+    const tab = getTabParam(params.tab);
+    setActiveTab(tab);
+    pagerRef.current?.scrollTo({
+      x: tab === "following" ? SCREEN_WIDTH : 0,
+      animated: false,
+    });
   }, [params.tab]);
 
   const loadFollowData = useCallback(async () => {
@@ -113,27 +123,45 @@ export function FollowersFollowingScreen() {
     await dispatch(fetchProfile()).unwrap().catch(() => {});
   });
 
-  const visibleUsers = useMemo(() => {
-    const source = activeTab === "followers" ? followers : followingUsers;
-    const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filterUsers = useCallback(
+    (source: FollowListUser[]) => {
+      const normalizedQuery = searchQuery.trim().toLowerCase();
+      if (!normalizedQuery) {
+        return source;
+      }
 
-    if (!normalizedQuery) {
-      return source;
-    }
+      return source.filter((user) => {
+        return (
+          user.name.toLowerCase().includes(normalizedQuery) ||
+          formatFollowMeta(user).toLowerCase().includes(normalizedQuery)
+        );
+      });
+    },
+    [searchQuery],
+  );
 
-    return source.filter((user) => {
-      return (
-        user.name.toLowerCase().includes(normalizedQuery) ||
-        formatFollowMeta(user).toLowerCase().includes(normalizedQuery)
-      );
-    });
-  }, [activeTab, searchQuery, followers, followingUsers]);
+  const visibleFollowers = useMemo(() => filterUsers(followers), [filterUsers, followers]);
+  const visibleFollowing = useMemo(() => filterUsers(followingUsers), [filterUsers, followingUsers]);
 
   const handleBottomTabPress = useTabNavigation();
 
   const openTab = (tab: FollowTab) => {
     setActiveTab(tab);
+    pagerRef.current?.scrollTo({
+      x: tab === "following" ? SCREEN_WIDTH : 0,
+      animated: true,
+    });
     router.replace({ pathname: "/followers-following", params: { tab } });
+  };
+
+  const handlePagerScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const pageIndex = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const nextTab: FollowTab = pageIndex === 1 ? "following" : "followers";
+
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+      router.replace({ pathname: "/followers-following", params: { tab: nextTab } });
+    }
   };
 
   const handleBack = () => {
@@ -185,6 +213,93 @@ export function FollowersFollowingScreen() {
     }
   };
 
+  const renderUserList = (tab: FollowTab, users: FollowListUser[]) => {
+    if (isLoading) {
+      return (
+        <View className="items-center py-16">
+          <ActivityIndicator size="large" color="#27BB97" />
+          <Text className="mt-3 text-[14px] text-slate-500">Loading...</Text>
+        </View>
+      );
+    }
+
+    if (users.length === 0) {
+      return (
+        <View className="items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10">
+          <MaterialIcons name="group-off" size={30} color="#94A3B8" />
+          <Text className="mt-3 text-[16px] font-semibold text-[#161D1A]">
+            {tab === "followers" ? "No followers yet" : "Not following anyone yet"}
+          </Text>
+          <Text className="mt-1 text-center text-[13px] leading-5 text-slate-500">
+            {searchQuery.trim()
+              ? "Try a different name search."
+              : tab === "followers"
+                ? "People who follow you will appear here."
+                : "Profiles you follow will appear here."}
+          </Text>
+        </View>
+      );
+    }
+
+    return users.map((user) => {
+      const isFollowing = tab === "following" ? true : !!followState[user.id];
+      const isPending = pendingUserId === user.id;
+      const buttonLabel =
+        tab === "followers" && !isFollowing
+          ? "Follow back"
+          : isFollowing
+            ? "Unfollow"
+            : "Follow";
+
+      return (
+        <View
+          key={user.id}
+          className="flex-row items-center justify-between rounded-xl border border-transparent px-3 py-3"
+          style={{ backgroundColor: "transparent" }}
+        >
+          <Pressable
+            onPress={() => router.push({ pathname: "/seller-public-profile", params: { userId: user.id } })}
+            className="flex-1 flex-row items-center gap-3"
+            style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+          >
+            <View className="h-12 w-12 overflow-hidden rounded-full border border-slate-100 bg-slate-200">
+              <Image source={user.profileImageUrl || defaultAvatar} contentFit="cover" className="h-full w-full" />
+            </View>
+            <View>
+              <View className="flex-row items-center gap-1">
+                <Text className="text-[18px] font-semibold text-[#161D1A]">{user.name}</Text>
+                {user.provider === "google" ? (
+                  <MaterialIcons name="verified" size={18} color="#27BB97" />
+                ) : null}
+              </View>
+              <Text className="text-[12px] font-medium text-slate-500">{formatFollowMeta(user)}</Text>
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => void toggleFollow(user)}
+            disabled={isPending}
+            className="min-w-[96px] items-center justify-center rounded-full px-5 py-2"
+            style={({ pressed }) => ({
+              backgroundColor: isFollowing ? "#FFFFFF" : "#27BB97",
+              borderWidth: isFollowing ? 1 : 0,
+              borderColor: isFollowing ? "#E2E8F0" : "transparent",
+              opacity: pressed || isPending ? 0.75 : 1,
+            })}
+          >
+            {isPending ? (
+              <ActivityIndicator size="small" color={isFollowing ? "#475569" : "#FFFFFF"} />
+            ) : (
+              <Text className="text-[12px] font-semibold" style={{ color: isFollowing ? "#475569" : "#FFFFFF" }}>
+                {buttonLabel}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      );
+    });
+  };
+
   return (
     <View className="flex-1 bg-[#F6F7F8]">
       <View
@@ -212,22 +327,7 @@ export function FollowersFollowingScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#27BB97"]}
-            tintColor="#27BB97"
-            progressViewOffset={topBarHeight}
-          />
-        }
-        contentContainerStyle={{
-          paddingTop: topBarHeight,
-          paddingBottom: 84 + bottomNavPadding,
-        }}
-      >
+      <View className="flex-1" style={{ paddingTop: topBarHeight, paddingBottom: 84 + bottomNavPadding }}>
         <View className="border-b border-slate-100 bg-white">
           <View className="flex-row">
             {[
@@ -268,97 +368,40 @@ export function FollowersFollowingScreen() {
           </View>
         </View>
 
-        <View className="gap-2 px-4">
-          {isLoading ? (
-            <View className="items-center py-16">
-              <ActivityIndicator size="large" color="#27BB97" />
-              <Text className="mt-3 text-[14px] text-slate-500">Loading...</Text>
-            </View>
-          ) : null}
+        <ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          bounces={false}
+          decelerationRate="fast"
+          onMomentumScrollEnd={handlePagerScrollEnd}
+          style={{ flex: 1 }}
+        >
+          {(["followers", "following"] as const).map((tab) => {
+            const users = tab === "followers" ? visibleFollowers : visibleFollowing;
 
-          {!isLoading && visibleUsers.length === 0 ? (
-            <View className="items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10">
-              <MaterialIcons name="group-off" size={30} color="#94A3B8" />
-              <Text className="mt-3 text-[16px] font-semibold text-[#161D1A]">
-                {activeTab === "followers" ? "No followers yet" : "Not following anyone yet"}
-              </Text>
-              <Text className="mt-1 text-center text-[13px] leading-5 text-slate-500">
-                {searchQuery.trim()
-                  ? "Try a different name search."
-                  : activeTab === "followers"
-                    ? "People who follow you will appear here."
-                    : "Profiles you follow will appear here."}
-              </Text>
-            </View>
-          ) : null}
-
-          {!isLoading
-            ? visibleUsers.map((user) => {
-            const isFollowing =
-              activeTab === "following" ? true : !!followState[user.id];
-            const isPending = pendingUserId === user.id;
-            const buttonLabel =
-              activeTab === "followers" && !isFollowing
-                ? "Follow back"
-                : isFollowing
-                  ? "Unfollow"
-                  : "Follow";
             return (
-              <View
-                key={user.id}
-                className="flex-row items-center justify-between rounded-xl border border-transparent px-3 py-3"
-                style={{ backgroundColor: "transparent" }}
+              <ScrollView
+                key={tab}
+                style={{ width: SCREEN_WIDTH }}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={["#27BB97"]}
+                    tintColor="#27BB97"
+                  />
+                }
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 8 }}
               >
-                <Pressable
-                  onPress={() => router.push({ pathname: "/seller-public-profile", params: { userId: user.id } })}
-                  className="flex-1 flex-row items-center gap-3"
-                  style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
-                >
-                  <View className="h-12 w-12 overflow-hidden rounded-full border border-slate-100 bg-slate-200">
-                    <Image source={user.profileImageUrl || defaultAvatar} contentFit="cover" className="h-full w-full" />
-                  </View>
-                  <View>
-                    <View className="flex-row items-center gap-1">
-                      <Text className="text-[18px] font-semibold text-[#161D1A]">{user.name}</Text>
-                      {user.provider === "google" ? (
-                        <MaterialIcons name="verified" size={18} color="#27BB97" />
-                      ) : null}
-                    </View>
-                    <Text className="text-[12px] font-medium text-slate-500">{formatFollowMeta(user)}</Text>
-                  </View>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => void toggleFollow(user)}
-                  disabled={isPending}
-                  className="min-w-[96px] items-center justify-center rounded-full px-5 py-2"
-                  style={({ pressed }) => ({
-                    backgroundColor: isFollowing ? "#FFFFFF" : "#27BB97",
-                    borderWidth: isFollowing ? 1 : 0,
-                    borderColor: isFollowing ? "#E2E8F0" : "transparent",
-                    opacity: pressed || isPending ? 0.75 : 1,
-                  })}
-                >
-                  {isPending ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={isFollowing ? "#475569" : "#FFFFFF"}
-                    />
-                  ) : (
-                    <Text
-                      className="text-[12px] font-semibold"
-                      style={{ color: isFollowing ? "#475569" : "#FFFFFF" }}
-                    >
-                      {buttonLabel}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
+                {renderUserList(tab, users)}
+              </ScrollView>
             );
-          })
-            : null}
-        </View>
-      </ScrollView>
+          })}
+        </ScrollView>
+      </View>
 
       <FloatingBottomNav activeTabId="profile" onTabPress={handleBottomTabPress} />
     </View>

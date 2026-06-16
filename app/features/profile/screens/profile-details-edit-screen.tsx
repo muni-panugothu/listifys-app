@@ -6,18 +6,19 @@ import {
   ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { KeyboardFormScroll } from "@/components/keyboard-form-scroll";
+
 import { ProfileAvatarImage } from "@/components/profile-avatar-image";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { uploadProfileImage } from "@/features/auth/services/auth-api";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -25,6 +26,7 @@ import {
   setAuthUser,
   updateUserProfile,
 } from "@/store/slices/auth-slice";
+import { showAuthGate } from "@/store/slices/auth-gate-slice";
 import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
 import { setLocationDirect, setProfileFallbackLocation, selectLocationLabel } from "@/store/slices/location-slice";
 import { saveStoredLocation } from "@/lib/location-service";
@@ -109,7 +111,12 @@ export function ProfileDetailsEditScreen() {
   useEffect(() => {
     if (!sessionHydrated) return;
     if (!isAuthenticated) {
-      router.replace("/sign-in" as Href);
+      dispatch(showAuthGate({ action: "profile", redirectTo: "/profile-details-edit" }));
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)/dashboard-home" as Href);
+      }
       return;
     }
     if (!user) {
@@ -193,7 +200,6 @@ export function ProfileDetailsEditScreen() {
       if (location.trim()) {
         dispatch(setProfileFallbackLocation(location.trim()));
       }
-      showSuccessToast("Saved", "Your profile was updated.");
       handleBack();
     } else {
       showErrorToast("Error", (result.payload as string) || "Failed to update profile");
@@ -279,7 +285,7 @@ export function ProfileDetailsEditScreen() {
         // Upload already succeeded; ignore refresh errors
       }
 
-      showSuccessToast("Photo updated", "Your profile picture was saved.");
+
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message : "Could not upload image";
@@ -320,7 +326,7 @@ export function ProfileDetailsEditScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
+      <KeyboardFormScroll
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -537,7 +543,7 @@ export function ProfileDetailsEditScreen() {
             </View>
           </FormCard>
         </View>
-      </ScrollView>
+      </KeyboardFormScroll>
 
       <View
         style={{

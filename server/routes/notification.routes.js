@@ -24,6 +24,9 @@ router.post("/track", notificationController.trackEvent);
 // POST /api/notifications/fcm-token — register device FCM token for push
 router.post("/fcm-token", notificationController.registerFcmToken);
 
+// DELETE /api/notifications/fcm-token — clear device FCM token (turn push off)
+router.delete("/fcm-token", notificationController.unregisterFcmToken);
+
 // DELETE /api/notifications/all — delete all notifications
 router.delete("/all", notificationController.deleteAllNotifications);
 

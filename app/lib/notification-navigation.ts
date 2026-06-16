@@ -10,6 +10,14 @@ function metaString(
   return String(v);
 }
 
+/** Build a route to the listing detail screen for a product thread / notification. */
+export function getListingDetailHref(
+  listingType: string,
+  listingId: string,
+): Href | null {
+  return listingDetailHref(listingType, listingId);
+}
+
 function listingDetailHref(
   listingType: string,
   listingId: string,

@@ -2,14 +2,13 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { type ReactNode } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { KeyboardFormScroll } from "@/components/keyboard-form-scroll";
 
 import { SellStepIndicator } from "@/components/sell-step-indicator";
 import { APP_SCREEN_BG } from "@/constants/theme";
@@ -34,10 +33,12 @@ type SellFlowLayoutProps = {
 
 export function SellSectionCard({
   title,
+  required,
   children,
   className,
 }: {
   title?: string;
+  required?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -49,6 +50,9 @@ export function SellSectionCard({
           style={{ fontFamily: ListifyFonts.semiBold, color: "#9CA3AF" }}
         >
           {title}
+          {required ? (
+            <Text style={{ color: "#EF4444" }}> *</Text>
+          ) : null}
         </Text>
       ) : null}
       <View
@@ -122,23 +126,16 @@ export function SellFlowLayout({
         {rightAction ? <View className="ml-2">{rightAction}</View> : null}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardFormScroll
+        bottomOffset={showFooter ? footerBottomPad + 72 : 24}
         keyboardVerticalOffset={insets.top}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+        }}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingBottom: 24,
-          }}
-        >
-          <SellStepIndicator currentStep={step} />
-          {children}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <SellStepIndicator currentStep={step} />
+        {children}
+      </KeyboardFormScroll>
 
       {showFooter ? (
         <View

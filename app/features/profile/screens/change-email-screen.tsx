@@ -20,17 +20,18 @@ import {
   ActivityIndicator,
   Keyboard,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { KeyboardFormScroll } from "@/components/keyboard-form-scroll";
+
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
-import { requestEmailChange, verifyEmailChange } from "@/features/auth/services/auth-api";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { requestEmailChange, verifyEmailChange, AuthApiError } from "@/features/auth/services/auth-api";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile, setAuthUser } from "@/store/slices/auth-slice";
 
@@ -39,6 +40,43 @@ const TEXT_PRIMARY = "#1A1A1A";
 const TEXT_MUTED = "#6B7280";
 const OTP_EXPIRE_SECS = 300; // 5 minutes
 const RESEND_COOLDOWN_SECS = 60;
+
+function formatEmailChangeError(error: unknown): { title: string; message: string } {
+  if (error instanceof AuthApiError) {
+    if (error.status === 409) {
+      return {
+        title: "Email already in use",
+        message: "This email address is already registered. Please use a different email.",
+      };
+    }
+    if (error.status === 429) {
+      return {
+        title: "Too many attempts",
+        message: error.message || "Please wait before requesting another code.",
+      };
+    }
+    if (error.status === 503) {
+      return {
+        title: "Email delivery failed",
+        message: error.message || "We couldn't send a verification code. Please try again in a moment.",
+      };
+    }
+    if (error.status === 400 && error.message) {
+      return { title: "Invalid email", message: error.message };
+    }
+    if (error.message && error.message !== "Server error.") {
+      return { title: "Error", message: error.message };
+    }
+    if (error.status === 500) {
+      return {
+        title: "Something went wrong",
+        message: "We couldn't complete your request. Please try again in a moment.",
+      };
+    }
+  }
+  const msg = error instanceof Error ? error.message : "Please try again.";
+  return { title: "Error", message: msg };
+}
 
 // ── Countdown hook ────────────────────────────────────────────────────────────
 function useCountdown(initial: number) {
@@ -155,8 +193,8 @@ export function ChangeEmailScreen() {
       expireTimer.start(res.expiresIn ?? OTP_EXPIRE_SECS);
       resendTimer.start(RESEND_COOLDOWN_SECS);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to send OTP. Please try again.";
-      showErrorToast("Error", msg);
+      const { title, message } = formatEmailChangeError(e);
+      showErrorToast(title, message);
     } finally {
       setLoading(false);
     }
@@ -175,7 +213,6 @@ export function ChangeEmailScreen() {
         dispatch(setAuthUser({ ...user, email: res.email }));
       }
       await dispatch(fetchProfile());
-      showSuccessToast("Email updated", "Your email address has been changed successfully.");
       handleBack();
     } catch (e: unknown) {
       const err = e as { message?: string; attemptsRemaining?: number };
@@ -197,9 +234,9 @@ export function ChangeEmailScreen() {
       setAttemptsLeft(5);
       expireTimer.start(res.expiresIn ?? OTP_EXPIRE_SECS);
       resendTimer.start(RESEND_COOLDOWN_SECS);
-      showSuccessToast("OTP resent", "A new code has been sent to your email.");
     } catch (e: unknown) {
-      showErrorToast("Failed", e instanceof Error ? e.message : "Could not resend OTP.");
+      const { title, message } = formatEmailChangeError(e);
+      showErrorToast(title, message);
     } finally {
       setLoading(false);
     }
@@ -239,7 +276,7 @@ export function ChangeEmailScreen() {
         </Text>
       </View>
 
-      <ScrollView
+      <KeyboardFormScroll
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -445,7 +482,7 @@ export function ChangeEmailScreen() {
             A security alert will be sent to your current email address. If you didn't request this change, please secure your account immediately.
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardFormScroll>
     </View>
   );
 }

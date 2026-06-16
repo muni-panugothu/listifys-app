@@ -3,6 +3,7 @@
  * Shows the product image, title, price, status, and offer badge.
  * Appears as a sticky section header inside the chat FlatList.
  */
+import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "@/lib/nativewind-interop";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
 import type { ProductThread } from "@/features/messaging/services/chat-api";
@@ -15,8 +16,10 @@ const ACTIVE = "#10B981";
 
 type Props = {
   thread:      ProductThread;
-  isExpanded:  boolean;
-  onToggle:    () => void;
+  isExpanded?: boolean;
+  onToggle?:    () => void;
+  /** Navigate to listing detail when the banner is tapped. */
+  onPress?:     () => void;
 };
 
 const OFFER_BADGES: Record<string, { label: string; color: string }> = {
@@ -31,7 +34,7 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function ProductThreadSection({ thread, isExpanded, onToggle }: Props) {
+export function ProductThreadSection({ thread, isExpanded = true, onToggle, onPress }: Props) {
   const product    = thread.product;
   const isSold     = thread.status === "sold" || thread.status === "closed";
   const statusColor = isSold ? SOLD : ACTIVE;
@@ -47,7 +50,7 @@ export function ProductThreadSection({ thread, isExpanded, onToggle }: Props) {
 
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={onPress ?? onToggle}
       style={({ pressed }) => ({
         flexDirection:    "row",
         alignItems:       "center",
@@ -94,7 +97,7 @@ export function ProductThreadSection({ thread, isExpanded, onToggle }: Props) {
         {/* Title row */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <Text
-            style={{ fontFamily: ListifyFonts.semibold, fontSize: 14, color: "#111827", flexShrink: 1 }}
+            style={{ fontFamily: ListifyFonts.semiBold, fontSize: 14, color: "#111827", flexShrink: 1 }}
             numberOfLines={1}
           >
             {product.title || "Product"}
@@ -118,7 +121,7 @@ export function ProductThreadSection({ thread, isExpanded, onToggle }: Props) {
         {/* Price + date */}
         <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 8 }}>
           {product.price != null && (
-            <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 13, color: "#374151" }}>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: "#374151" }}>
               {product.currency}{product.price.toLocaleString("en-IN")}
             </Text>
           )}
@@ -139,15 +142,15 @@ export function ProductThreadSection({ thread, isExpanded, onToggle }: Props) {
               alignSelf:       "flex-start",
             }}
           >
-            <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 11, color: offerBadge.color }}>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 11, color: offerBadge.color }}>
               {offerBadge.label}
             </Text>
           </View>
         )}
       </View>
 
-      {/* Expand chevron */}
-      <Text style={{ fontSize: 16, color: "#9CA3AF" }}>{isExpanded ? "▲" : "▼"}</Text>
+      {/* Open indicator */}
+      <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
     </Pressable>
   );
 }

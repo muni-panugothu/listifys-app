@@ -150,6 +150,8 @@ export type PostFormState = {
   // Submission
   isSubmitting: boolean;
   submitError: string | null;
+  /** When set, post-ad step 2/3 operate in edit mode for this listing id. */
+  editListingId: string | null;
 };
 
 const initialState: PostFormState = {
@@ -279,6 +281,7 @@ const initialState: PostFormState = {
   locationLng: null,
   isSubmitting: false,
   submitError: null,
+  editListingId: null,
 };
 
 const postFormSlice = createSlice({
@@ -695,6 +698,12 @@ const postFormSlice = createSlice({
       state.locationLat = action.payload?.lat ?? null;
       state.locationLng = action.payload?.lng ?? null;
     },
+    setEditListingId(state, action: PayloadAction<string | null>) {
+      state.editListingId = action.payload;
+    },
+    hydratePostForm(state, action: PayloadAction<Partial<PostFormState>>) {
+      return { ...initialState, ...action.payload };
+    },
     resetPostForm() {
       return initialState;
     },
@@ -834,6 +843,8 @@ export const {
   setSubmitting,
   setSubmitError,
   setListingCoords,
+  setEditListingId,
+  hydratePostForm,
   resetPostForm,
 } = postFormSlice.actions;
 

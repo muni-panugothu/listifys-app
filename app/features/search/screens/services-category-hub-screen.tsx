@@ -33,6 +33,7 @@ import {
   selectLocationCoords,
   selectLocationLabel,
   selectLocationSource,
+  selectCanShowDistanceOnCards,
 } from "@/store/slices/location-slice";
 import { FloatingBottomNav } from "@/components/floating-bottom-nav";
 import { useTabNavigation } from "@/lib/use-tab-navigation";

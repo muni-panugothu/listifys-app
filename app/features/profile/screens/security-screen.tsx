@@ -18,7 +18,8 @@ import {
 } from "@/features/auth/services/auth-api";
 import { ListifyFonts } from "@/constants/typography";
 import { Image } from "@/lib/nativewind-interop";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
+import { useProtectedNavigation } from "@/lib/use-protected-navigation";
 import { useAppSelector } from "@/store/hooks";
 
 const googleLogo =
@@ -27,6 +28,7 @@ const BIOMETRIC_STORAGE_KEY = "@listify/biometric_login_enabled";
 
 export function SecurityScreen() {
   const router = useRouter();
+  const { navigateProtected } = useProtectedNavigation();
   const [preferences, setPreferences] = useState<SettingsPreferences | null>(null);
   const [biometric, setBiometric] = useState(true);
   const [savingKey, setSavingKey] = useState<"twoFactorAuth" | "biometric" | null>(null);
@@ -111,7 +113,6 @@ export function SecurityScreen() {
         onPress: async () => {
           try {
             await logoutAllDevices();
-            showSuccessToast("Done", "Signed out from all devices.");
           } catch (e: unknown) {
             showErrorToast("Error", e instanceof Error ? e.message : "Failed");
           }
@@ -130,12 +131,7 @@ export function SecurityScreen() {
       label: "Strong password",
       ok: hasPasswordSet,
       status: hasPasswordSet ? "Done" : "Set up",
-    },
-    {
-      label: "Recovery phone",
-      ok: hasPhone,
-      status: hasPhone ? (phoneVerified ? "Verified" : "Pending") : "Add",
-    },
+    }
   ];
 
   return (
@@ -186,72 +182,8 @@ export function SecurityScreen() {
               : "Update your login credentials"
           }
           type="navigate"
-          onPress={() => router.push("/change-password" as Href)}
+          onPress={() => navigateProtected("/change-password" as Href, "profile")}
         />
-        <SettingsMenuRow
-          icon="verified-user"
-          iconBg="rgba(59,130,246,0.12)"
-          iconColor="#3B82F6"
-          label="Two-factor authentication"
-          subtitle={twoFaEnabled ? "Currently on" : "Currently off"}
-          type="toggle"
-          value={twoFaEnabled}
-          onToggle={(value) => void updateTwoFactorPreference(value)}
-          disabled={savingKey !== null}
-          showDivider
-        />
-        <SettingsMenuRow
-          icon="fingerprint"
-          iconBg="rgba(139,92,246,0.12)"
-          iconColor="#8B5CF6"
-          label="Biometric login"
-          subtitle={biometric ? "Enabled on this device" : "Disabled"}
-          type="toggle"
-          value={biometric}
-          onToggle={(value) => void updateBiometricPreference(value)}
-          disabled={savingKey !== null}
-        />
-      </ProfileSectionCard>
-
-      <ProfileSectionCard title="Recovery phone">
-        <View className="px-4 py-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-3">
-              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(39,187,151,0.12)]">
-                <MaterialIcons name="phone-android" size={22} color="#27BB97" />
-              </View>
-              <View>
-                <Text
-                  className="text-[15px] text-[#1A1A1A]"
-                  style={{ fontFamily: ListifyFonts.semiBold }}
-                >
-                  {maskedPhone}
-                </Text>
-                <Text
-                  className="mt-0.5 text-[12px] text-[#9CA3AF]"
-                  style={{ fontFamily: ListifyFonts.regular }}
-                >
-                  {hasPhone
-                    ? phoneVerified
-                      ? "Verified recovery phone"
-                      : "Verification pending"
-                    : "No recovery phone added"}
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => router.push("/change-phone" as Href)}
-              className="rounded-full border border-[#27BB97] px-4 py-2"
-            >
-              <Text
-                className="text-[12px] text-[#27BB97]"
-                style={{ fontFamily: ListifyFonts.semiBold }}
-              >
-                {hasPhone ? "Update" : "Add"}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
       </ProfileSectionCard>
 
       <ProfileSectionCard title="Connected accounts">
@@ -278,19 +210,6 @@ export function SecurityScreen() {
           </Text>
         </View>
       </ProfileSectionCard>
-
-      <Pressable
-        onPress={handleSignOutAll}
-        className="items-center py-3"
-        style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
-      >
-        <Text
-          className="text-[14px] text-red-600"
-          style={{ fontFamily: ListifyFonts.semiBold }}
-        >
-          Sign out from all devices
-        </Text>
-      </Pressable>
     </ProfileSubScreenLayout>
   );
 }

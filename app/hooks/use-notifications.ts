@@ -13,7 +13,7 @@
  *
  * Call this once inside AppLayout (authenticated scope only).
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import notifee, { EventType } from '@notifee/react-native';
 // Lazy-load to avoid crash when google-services.json is missing.
 let messaging: (() => any) | null = null;
@@ -22,9 +22,15 @@ import { useAppSelector } from '@/store/hooks';
 import { store } from '@/store';
 import { incomingCallReceived } from '@/store/slices/call-slice';
 import {
+  deleteFCMToken,
   getFCMToken,
   subscribeTokenRefresh,
 } from '@/lib/notifications/token-manager';
+import {
+  getInMemoryPushEnabled,
+  hydratePushEnabledCache,
+  subscribePushEnabledChange,
+} from '@/lib/notifications/push-preference';
 import { registerFCMToken } from '@/features/calling/services/call-socket-service';
 import {
   displayRichNotification,
@@ -38,9 +44,35 @@ export function useNotifications() {
   const sessionHydrated  = useAppSelector((s) => s.auth.sessionHydrated);
   const enabled          = isAuthenticated && sessionHydrated;
 
+  // Local mirror of the "Push notifications" master switch (settings screen).
+  // Hydrated from AsyncStorage on first mount, updated live via the
+  // preference event bus, and consumed below to skip FCM token registration
+  // when the user has opted out.
+  const [pushEnabled, setPushEnabled] = useState<boolean>(() => getInMemoryPushEnabled());
+
+  useEffect(() => {
+    let active = true;
+    hydratePushEnabledCache().then((value) => {
+      if (active) setPushEnabled(value);
+    });
+    const unsub = subscribePushEnabledChange((value) => {
+      if (active) setPushEnabled(value);
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, []);
+
   // ── Token registration ────────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled) return;
+    // Master switch off → never mint or register a token. If a token was
+    // somehow already cached, delete it so the device cannot receive pushes.
+    if (!pushEnabled) {
+      void deleteFCMToken();
+      return;
+    }
 
     let unsubRefresh: (() => void) | undefined;
 
@@ -53,7 +85,7 @@ export function useNotifications() {
     });
 
     return () => unsubRefresh?.();
-  }, [enabled]);
+  }, [enabled, pushEnabled]);
 
   // ── Notifee foreground event handler ─────────────────────────────────────
   useEffect(() => {
@@ -151,6 +183,7 @@ export function useNotifications() {
   // notifications when the socket is briefly unavailable.
   useEffect(() => {
     if (!enabled) return;
+    if (!pushEnabled) return;
     if (!messaging) return;
 
     try {
@@ -186,7 +219,7 @@ export function useNotifications() {
       // Firebase not yet initialised — foreground message handler not registered
       return undefined;
     }
-  }, [enabled]);
+  }, [enabled, pushEnabled]);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

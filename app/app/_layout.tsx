@@ -1,5 +1,6 @@
 import { AuthGateBottomSheet } from "@/features/auth/components/auth-gate-bottom-sheet";
 import { TopSaveToast } from "@/components/top-save-toast";
+import { AppMessageModal } from "@/components/app-message-modal";
 import { PageTransitionLoader } from "@/components/page-transition-loader";
 import { NetworkStatusLayer } from "@/lib/network-status-layer";
 import { subscribeToasts, type AppToastPayload } from "@/lib/toast";
@@ -13,9 +14,12 @@ import { subscribeRouteTransitions, type Href, Stack, useRouter } from "@/lib/sa
 import { usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
+import "react-native-gesture-handler";
 import "react-native-reanimated";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
 
 import { ListifyFonts } from "@/constants/typography";
@@ -38,15 +42,19 @@ try { registerBackgroundCallHandler(); } catch (e) {
 
 export default function RootLayout() {
   return (
-    <Provider store={store}>
-      <TypographyProvider>
-        <LocaleProvider>
-          <NotificationProvider>
-            <AppLayout />
-          </NotificationProvider>
-        </LocaleProvider>
-      </TypographyProvider>
-    </Provider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Provider store={store}>
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent preserveEdgeToEdge>
+          <TypographyProvider>
+            <LocaleProvider>
+              <NotificationProvider>
+                <AppLayout />
+              </NotificationProvider>
+            </LocaleProvider>
+          </TypographyProvider>
+        </KeyboardProvider>
+      </Provider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -74,12 +82,14 @@ const SKIP_LOADER_PATHS = new Set([
   '/listing-draft-saved',
   '/location-picker',
   '/change-password',
+  '/search-results-entity-tabs',
+  '/my-listings-active',
   '/outgoing-call',
   '/incoming-call',
   '/active-call',
 ]);
 
-const LOADER_FAILSAFE_MS = 1800;
+const LOADER_FAILSAFE_MS = 1200;
 
 function AppLayout() {
   const colorScheme = useColorScheme();
@@ -428,6 +438,7 @@ function AppLayout() {
             onHidden={() => setToastVisible(false)}
           />
         ) : null}
+        <AppMessageModal />
         {/* Page-transition loading overlay (Zepto / OLX style) */}
         <PageTransitionLoader visible={pageLoading} />
         {/* Global real-time network status banner (offline / slow / back-online) */}

@@ -26,6 +26,8 @@ type ListingItemsGridCardProps = {
   distanceLabel?: string;
   createdAt?: string | null;
   isSaved?: boolean;
+  /** Horizontal scroll rows — same card height, tight 2-line title slot */
+  layout?: "default" | "carousel";
   onPress: () => void;
   onToggleSave?: () => void;
 };
@@ -46,6 +48,13 @@ const priceTextBase = {
   ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
 } as const;
 
+const CAROUSEL_TITLE_LINE_HEIGHT = 20;
+const CAROUSEL_TITLE_HEIGHT = CAROUSEL_TITLE_LINE_HEIGHT * 2;
+
+export function getListingGridCarouselHeight(width: number) {
+  return width + 12 + CAROUSEL_TITLE_HEIGHT + 10 + 24 + 16;
+}
+
 export function ListingItemsGridCard({
   title,
   subtitle,
@@ -57,10 +66,13 @@ export function ListingItemsGridCard({
   distanceLabel,
   createdAt,
   isSaved = false,
+  layout = "default",
   onPress,
   onToggleSave,
 }: ListingItemsGridCardProps) {
   const imageSize = width;
+  const isCarousel = layout === "carousel";
+  const cardHeight = isCarousel ? getListingGridCarouselHeight(width) : undefined;
   const savedProgress = useSharedValue(isSaved ? 1 : 0);
 
   useEffect(() => {
@@ -100,6 +112,7 @@ export function ListingItemsGridCard({
       className="bg-white px-3.5 pb-4"
       style={{
         width,
+        ...(cardHeight != null ? { height: cardHeight } : null),
         borderRadius: 24,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
@@ -163,6 +176,8 @@ export function ListingItemsGridCard({
         style={{
           fontFamily: ListifyFonts.medium,
           color: "#1A1A1A",
+          lineHeight: isCarousel ? CAROUSEL_TITLE_LINE_HEIGHT : undefined,
+          minHeight: isCarousel ? CAROUSEL_TITLE_HEIGHT : undefined,
           ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
         }}
         numberOfLines={2}
@@ -186,7 +201,7 @@ export function ListingItemsGridCard({
           style={priceTextBase}
           adjustsFontSizeToFit
           minimumFontScale={0.72}
-          numberOfLines={2}
+          numberOfLines={isCarousel ? 1 : 2}
         >
           {formatPrice(price, currency, isoCountryCode)}
         </Text>

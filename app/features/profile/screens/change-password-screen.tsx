@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { changePassword, setupPassword } from "@/features/auth/services/auth-api";
-import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchProfile } from "@/store/slices/auth-slice";
 
@@ -67,11 +67,9 @@ export function ChangePasswordScreen() {
       if (isGoogleOnly) {
         await setupPassword(newPassword);
         dispatch(fetchProfile());
-        showSuccessToast("Success", "Password created successfully! You can now sign in with email and password too.");
         handleBack();
       } else {
         const result = await changePassword(currentPassword, newPassword);
-        showSuccessToast("Success", result.message || "Password changed successfully.");
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");

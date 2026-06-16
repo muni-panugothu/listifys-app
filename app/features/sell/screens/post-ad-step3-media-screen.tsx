@@ -23,6 +23,7 @@ import {
 import {
   checkImageModeration,
   createListing,
+  updateListing,
   uploadListingImages,
 } from "@/features/listing/services/listing-api";
 import { Image } from "@/lib/nativewind-interop";
@@ -32,9 +33,11 @@ import { PhoneInputWithCountry } from "@/components/phone-input-with-country";
 import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
 import { useLocale } from "@/providers/locale-provider";
 import { getMileageUnitForCountry } from "@/lib/listing-distance";
+import { getCurrencyCodeFromCountry } from "@/lib/currency";
 import { validateListingContactPhone } from "@/lib/phone-validation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { refreshDeviceLocation, selectLocationCoords, setLocationDirect } from "@/store/slices/location-slice";
+import { showAuthGate } from "@/store/slices/auth-gate-slice";
 import {
   addImageUri,
   removeImageUri,
@@ -43,6 +46,7 @@ import {
   setLocation,
   setPhone,
   setCurrency,
+  setMileageUnit,
   setSubmitError,
   setSubmitting,
   setUploadedImageUrls,
@@ -73,6 +77,20 @@ const MODERATION_CATEGORY_SHORT: Record<string, string> = {
   weapon_web: "Weapon",
   hate_symbol: "Hate symbol",
 };
+
+const POST_AD_RETURN_PATH = "/post-ad-step3-media";
+
+function isAuthFailureMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("login") ||
+    normalized.includes("log in") ||
+    normalized.includes("sign in") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("authentication") ||
+    normalized.includes("not authenticated")
+  );
+}
 
 export function PostAdStep3MediaScreen() {
   const router = useRouter();
@@ -117,11 +135,14 @@ export function PostAdStep3MediaScreen() {
     skinType, shade, volume, ingredients, expiryDate,
     batteryRequired, playMode, characterTheme,
     priceUnit, serviceArea, serviceMode, responseTime,
-    imageUris, phone, currency, locationLat, locationLng, isSubmitting,
+    imageUris, phone, currency, locationLat, locationLng, isSubmitting, editListingId,
   } = useAppSelector((s) => s.postForm);
+
+  const isEditMode = Boolean(editListingId);
 
   const locationStatus = useAppSelector((s) => s.location.status);
   const locationCoords = useAppSelector(selectLocationCoords);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const globalLocationLabel = useAppSelector((s) => s.location.label);
   const globalLocationSource = useAppSelector((s) => s.location.source);
 
@@ -143,9 +164,9 @@ export function PostAdStep3MediaScreen() {
   );
 
   // Sync listing location whenever the app-wide location changes (also runs on mount).
-  // This keeps the item-location input in step 3 in sync with whatever the user
-  // has selected in the global location picker.
+  // Skip in edit mode — keep the listing's saved location.
   useEffect(() => {
+    if (isEditMode) return;
     if (
       globalLocationSource !== null &&
       globalLocationLabel &&
@@ -157,7 +178,7 @@ export function PostAdStep3MediaScreen() {
         dispatch(setListingCoords({ lat: locationCoords.lat, lng: locationCoords.lng }));
       }
     }
-  }, [dispatch, globalLocationLabel, globalLocationSource, locationCoords.lat, locationCoords.lng]);
+  }, [dispatch, globalLocationLabel, globalLocationSource, isEditMode, locationCoords.lat, locationCoords.lng]);
 
   // Sync phone code + ISO with locale (updates when location changes globally)
   useEffect(() => {
@@ -197,7 +218,10 @@ export function PostAdStep3MediaScreen() {
       if (result.isoCountryCode) {
         setOverridePhoneCode(null);
         setOverridePhoneIso(null);
-        dispatch(setCurrency(""));
+        dispatch(setCurrency(getCurrencyCodeFromCountry(result.isoCountryCode)));
+        if (category === "vehicles") {
+          dispatch(setMileageUnit(getMileageUnitForCountry(result.isoCountryCode)));
+        }
       }
     } catch {
       showErrorToast(
@@ -278,11 +302,20 @@ export function PostAdStep3MediaScreen() {
       showErrorToast("Location required", "Please enter a location (at least 2 characters).");
       return;
     }
-    if (phone && !phoneValidation.isValid) {
+    if (!phone?.trim()) {
+      showErrorToast("Phone required", "Please enter your contact phone number.");
+      return;
+    }
+    if (!phoneValidation.isValid) {
       showErrorToast(
         "Invalid contact number",
         phoneValidation.message ?? "Enter a valid phone number for the selected listing country.",
       );
+      return;
+    }
+
+    if (!isAuthenticated) {
+      dispatch(showAuthGate({ action: "sell", redirectTo: POST_AD_RETURN_PATH }));
       return;
     }
 
@@ -332,19 +365,25 @@ export function PostAdStep3MediaScreen() {
     dispatch(setSubmitError(null));
 
     try {
-      // 1. Upload images to S3 — moderation already ran live at pick time
-      const uploadResult = await uploadListingImages(category, imageUris);
-      const imageUrls = uploadResult.images ?? [];
-      dispatch(setUploadedImageUrls(imageUrls));
+      const isRemoteImageUri = (uri: string) => /^https?:\/\//i.test(uri);
+      const remoteImageUris = imageUris.filter(isRemoteImageUri);
+      const localImageUris = imageUris.filter((uri) => !isRemoteImageUri(uri));
 
-      console.log("[PostAd] uploadResult keys:", Object.keys(uploadResult));
-      console.log("[PostAd] imageUrls count:", imageUrls.length, imageUrls);
+      let imageUrls: string[] = [];
+      if (localImageUris.length > 0) {
+        const uploadResult = await uploadListingImages(category, localImageUris);
+        imageUrls = uploadResult.images ?? [];
+        dispatch(setUploadedImageUrls(imageUrls));
 
-      if (imageUrls.length === 0) {
-        throw new Error("Image upload succeeded but no URLs were returned. Please try again.");
+        if (imageUrls.length === 0) {
+          throw new Error("Image upload succeeded but no URLs were returned. Please try again.");
+        }
       }
 
-      // 2. Create listing
+      const allImageUrls = [...remoteImageUris, ...imageUrls];
+      if (allImageUrls.length === 0) {
+        throw new Error("Please keep at least one photo on the listing.");
+      }
       const categoryConfig = CATEGORY_MAP[category];
 
       // Resolve the category name to send to the server
@@ -369,8 +408,8 @@ export function PostAdStep3MediaScreen() {
         ...(currency ? { currency } : {}),
         category: serverCategory,
         subcategory,
-        images: imageUrls,
-        imageUrls,
+        images: allImageUrls,
+        imageUrls: allImageUrls,
         location,
         ...(locationIso ? { countryCode: locationIso.toUpperCase() } : {}),
         ...(phoneValidation.e164Phone ? { phone: phoneValidation.e164Phone } : {}),
@@ -618,10 +657,15 @@ export function PostAdStep3MediaScreen() {
         if (responseTime) listingBody.turnaroundTime = responseTime;
       }
 
-      console.log("[PostAd] createListing body:", JSON.stringify(listingBody));
+      if (isEditMode && editListingId) {
+        await updateListing(category, editListingId, listingBody);
+        dispatch(setSubmitting(false));
+        dispatch(resetPostForm());
+        router.replace("/my-listings-active" as Href);
+        return;
+      }
+
       const result = await createListing(category, listingBody);
-      console.log("[PostAd] createListing result keys:", Object.keys(result));
-      console.log("[PostAd] createListing success:", (result as Record<string, unknown>).success);
 
       dispatch(setSubmitting(false));
       dispatch(resetPostForm());
@@ -641,7 +685,7 @@ export function PostAdStep3MediaScreen() {
           title: listing?.title ?? title,
           price: String(listing?.price ?? price),
           location: listing?.location ?? location,
-          image: imageUrls[0] ?? listing?.images?.[0] ?? "",
+          image: allImageUrls[0] ?? listing?.images?.[0] ?? "",
           category: categoryConfig?.name ?? category,
           currency,
         },
@@ -661,6 +705,10 @@ export function PostAdStep3MediaScreen() {
         err instanceof Error ? err.message : "Failed to post listing";
       dispatch(setSubmitError(message));
       dispatch(setSubmitting(false));
+      if (!isAuthenticated || isAuthFailureMessage(message)) {
+        dispatch(showAuthGate({ action: "sell", redirectTo: POST_AD_RETURN_PATH }));
+        return;
+      }
       showErrorToast("Error", message);
     }
   };
@@ -668,15 +716,17 @@ export function PostAdStep3MediaScreen() {
   return (
     <SellFlowLayout
       step={3}
-      title="Photos & publish"
-      subtitle="Images, location & contact"
+      title={isEditMode ? "Photos & location" : "Photos & publish"}
+      subtitle={isEditMode ? "Update images, location & contact" : "Images, location & contact"}
       onBack={handleBack}
-      primaryLabel="Post ad"
+      footerLabel={isEditMode ? "Editing" : undefined}
+      footerMeta={isEditMode ? (CATEGORY_MAP[category]?.name ?? category) : undefined}
+      primaryLabel={isEditMode ? "Update listing" : "Post ad"}
       onPrimaryPress={handleSubmit}
       primaryDisabled={isSubmitting || imageUris.some((u) => imageScanMap[u]?.status === "scanning")}
       primaryLoading={isSubmitting}
     >
-      <SellSectionCard title="Photos">
+      <SellSectionCard title="Photos" required>
         <View className="px-4 py-4">
           <View className="mb-3 flex-row items-center justify-between">
             <Text
@@ -806,7 +856,7 @@ export function PostAdStep3MediaScreen() {
         </View>
       </SellSectionCard>
 
-      <SellSectionCard title="Item location">
+      <SellSectionCard title="Item location" required>
         <View className="px-4 py-4">
           {/* Google Places Autocomplete */}
           <GooglePlacesInput
@@ -820,7 +870,10 @@ export function PostAdStep3MediaScreen() {
       if (result.isoCountryCode) {
         setOverridePhoneCode(null);
         setOverridePhoneIso(null);
-        dispatch(setCurrency(""));
+        dispatch(setCurrency(getCurrencyCodeFromCountry(result.isoCountryCode)));
+        if (category === "vehicles") {
+          dispatch(setMileageUnit(getMileageUnitForCountry(result.isoCountryCode)));
+        }
       }
               dispatch(
                 setLocationDirect({
@@ -860,7 +913,7 @@ export function PostAdStep3MediaScreen() {
         </View>
       </SellSectionCard>
 
-      <SellSectionCard title="Contact">
+      <SellSectionCard title="Contact" required>
         <View className="px-4 py-4">
           <PhoneInputWithCountry
             phoneCode={activePhoneCode}

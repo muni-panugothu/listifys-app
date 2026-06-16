@@ -1,6 +1,6 @@
 import { type Href, useRouter } from "@/lib/safe-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 
 import {
@@ -14,12 +14,27 @@ import {
   updateSettingsPreferences,
 } from "@/features/auth/services/auth-api";
 import { ListifyFonts } from "@/constants/typography";
-import { showErrorToast } from "@/lib/toast";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import {
+  hydratePushEnabledCache,
+  setCachedPushEnabled,
+} from "@/lib/notifications/push-preference";
+import {
+  unregisterFCMTokenFromServer,
+  registerFCMTokenWithServer,
+} from "@/lib/notifications/register-fcm-server";
+import {
+  deleteFCMToken,
+  getFCMToken,
+} from "@/lib/notifications/token-manager";
+import { useProtectedNavigation } from "@/lib/use-protected-navigation";
 import { useAppSelector } from "@/store/hooks";
 
 export function SettingsScreen() {
   const router = useRouter();
   const user = useAppSelector((s) => s.auth.user);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const { navigateProtected } = useProtectedNavigation();
 
   const [preferences, setPreferences] = useState<SettingsPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +45,9 @@ export function SettingsScreen() {
     try {
       const response = await getSettingsPreferences();
       setPreferences(response.preferences);
+      // Sync server preference into the local cache so the next app start
+      // makes the right decision before any network round-trip.
+      await setCachedPushEnabled(response.preferences.pushNotifications);
     } catch (error) {
       showErrorToast(
         "Settings",
@@ -40,11 +58,43 @@ export function SettingsScreen() {
     }
   }, []);
 
+  // Hydrate the in-memory cache once so the toggle reflects the persisted
+  // value even while the server preference is being fetched.
+  useEffect(() => {
+    void hydratePushEnabledCache();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadPreferences();
     }, [loadPreferences]),
   );
+
+  /** Side-effects required to make the master push toggle actually stop FCM. */
+  const applyPushPreference = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      // Best effort: request permission, mint a fresh token, register it.
+      // If permission was denied at OS level this returns null and the user
+      // will need to enable notifications in their OS settings — we surface
+      // a soft hint without blocking the toggle state.
+      const token = await getFCMToken();
+      if (token) {
+        await registerFCMTokenWithServer(token);
+      } else {
+        showErrorToast(
+          "Enable system notifications",
+          "Allow notifications for Listify in your device settings to receive pushes.",
+        );
+      }
+      return;
+    }
+
+    // OFF: server-side delete first (guarantees no further pushes regardless
+    // of client state), then invalidate the device token so even cached
+    // server records can't reach this install.
+    await unregisterFCMTokenFromServer();
+    await deleteFCMToken();
+  }, []);
 
   const updatePreference = useCallback(
     async <K extends keyof SettingsPreferences>(key: K, value: SettingsPreferences[K]) => {
@@ -55,11 +105,28 @@ export function SettingsScreen() {
       setPreferences(next);
       setSavingKey(key);
 
+      if (key === "pushNotifications") {
+        await setCachedPushEnabled(Boolean(value));
+      }
+
       try {
         const response = await updateSettingsPreferences({ [key]: value });
         setPreferences(response.preferences);
+
+        if (key === "pushNotifications") {
+          await setCachedPushEnabled(response.preferences.pushNotifications);
+          await applyPushPreference(response.preferences.pushNotifications);
+          showSuccessToast(
+            response.preferences.pushNotifications
+              ? "Push notifications enabled"
+              : "Push notifications turned off",
+          );
+        }
       } catch (error) {
         setPreferences(previous);
+        if (key === "pushNotifications") {
+          await setCachedPushEnabled(previous.pushNotifications);
+        }
         showErrorToast(
           "Settings",
           error instanceof Error ? error.message : "Failed to update settings.",
@@ -68,10 +135,14 @@ export function SettingsScreen() {
         setSavingKey(null);
       }
     },
-    [preferences],
+    [applyPushPreference, preferences],
   );
 
   const push = (route: string) => router.push(route as Href);
+
+  const pushProtected = (route: string, action: "profile" | "general" = "profile") => {
+    navigateProtected(route as Href, action);
+  };
 
   return (
     <ProfileSubScreenLayout title="Settings">
@@ -82,7 +153,7 @@ export function SettingsScreen() {
           iconColor="#27BB97"
           label="Edit profile"
           type="navigate"
-          onPress={() => push("/profile-details-edit")}
+          onPress={() => pushProtected("/profile-details-edit")}
         />
         <SettingsMenuRow
           icon="lock-reset"
@@ -95,7 +166,7 @@ export function SettingsScreen() {
               : "Update your login password"
           }
           type="navigate"
-          onPress={() => push("/change-password")}
+          onPress={() => pushProtected("/change-password")}
           showDivider
         />
         <SettingsMenuRow
@@ -111,27 +182,23 @@ export function SettingsScreen() {
 
       <ProfileSectionCard title="Notifications">
         <SettingsMenuRow
-          icon="notifications-active"
-          iconBg="rgba(59,130,246,0.12)"
-          iconColor="#3B82F6"
+          icon={preferences?.pushNotifications === false ? "notifications-off" : "notifications-active"}
+          iconBg={
+            preferences?.pushNotifications === false
+              ? "rgba(148,163,184,0.18)"
+              : "rgba(59,130,246,0.12)"
+          }
+          iconColor={preferences?.pushNotifications === false ? "#94A3B8" : "#3B82F6"}
           label="Push notifications"
-          subtitle="Orders, messages, and activity"
+          subtitle={
+            preferences?.pushNotifications === false
+              ? "Off — you won't receive any pushes"
+              : "Orders, messages, and activity"
+          }
           type="toggle"
           value={preferences?.pushNotifications ?? true}
           onToggle={(value) => void updatePreference("pushNotifications", value)}
           disabled={loading || savingKey === "pushNotifications"}
-        />
-        <SettingsMenuRow
-          icon="mail"
-          iconBg="rgba(244,63,156,0.12)"
-          iconColor="#F472B6"
-          label="Email updates"
-          subtitle="News and marketplace updates"
-          type="toggle"
-          value={preferences?.marketingEmails ?? false}
-          onToggle={(value) => void updatePreference("marketingEmails", value)}
-          disabled={loading || savingKey === "marketingEmails"}
-          showDivider
         />
       </ProfileSectionCard>
 
@@ -202,13 +269,19 @@ export function SettingsScreen() {
             className="rounded-lg bg-[#F6F7F8] px-2.5 py-1 text-[12px] text-[#6B7280]"
             style={{ fontFamily: ListifyFonts.semiBold }}
           >
-            2.4.1
+            1.0.0
           </Text>
         </View>
       </ProfileSectionCard>
 
       <Pressable
-        onPress={() => router.push("/logout-modal" as Href)}
+        onPress={() => {
+          if (isAuthenticated) {
+            router.push("/logout-modal" as Href);
+            return;
+          }
+          navigateProtected("/(tabs)/dashboard-home" as Href, "profile");
+        }}
         className="mt-2 h-14 items-center justify-center rounded-2xl border border-red-100 bg-white"
         style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
       >
@@ -216,7 +289,7 @@ export function SettingsScreen() {
           className="text-[16px] text-red-600"
           style={{ fontFamily: ListifyFonts.semiBold }}
         >
-          Sign out
+          {isAuthenticated ? "Sign out" : "Sign in"}
         </Text>
       </Pressable>
     </ProfileSubScreenLayout>

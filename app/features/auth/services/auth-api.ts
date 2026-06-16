@@ -1075,6 +1075,67 @@ export function toggleFollowUser(userId: string) {
   }>(`/api/auth/follow/${encodeURIComponent(userId)}`, { method: "POST" });
 }
 
+export type SellerReviewItem = {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  reviewer: {
+    id?: string;
+    name: string;
+    profileImageUrl: string | null;
+  };
+};
+
+export type SellerReviewsResponse = {
+  success: boolean;
+  reviews: SellerReviewItem[];
+  averageRating: number;
+  reviewsCount: number;
+};
+
+export function fetchSellerReviews(sellerId: string) {
+  return requestJson<SellerReviewsResponse>(
+    `/api/auth/seller/${encodeURIComponent(sellerId)}/reviews`,
+  ).then((response) => ({
+    ...response,
+    averageRating: response.averageRating ?? 0,
+    reviewsCount: response.reviewsCount ?? 0,
+    reviews: (response.reviews ?? []).map((review) => ({
+      ...review,
+      reviewer: {
+        ...review.reviewer,
+        profileImageUrl: toAbsoluteUrl(review.reviewer?.profileImageUrl),
+      },
+    })),
+  }));
+}
+
+export function submitSellerReview(
+  sellerId: string,
+  data: { rating: number; comment: string },
+) {
+  return requestJson<{
+    success: boolean;
+    review: SellerReviewItem;
+    averageRating: number;
+    reviewsCount: number;
+  }>(`/api/auth/seller/${encodeURIComponent(sellerId)}/reviews`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteSellerReview(sellerId: string) {
+  return requestJson<{
+    success: boolean;
+    averageRating: number;
+    reviewsCount: number;
+  }>(`/api/auth/seller/${encodeURIComponent(sellerId)}/reviews`, {
+    method: "DELETE",
+  });
+}
+
 export type SettingsPreferences = {
   emailNotifications: boolean;
   pushNotifications: boolean;
@@ -1176,6 +1237,20 @@ export function markNotificationRead(notificationId: string) {
   return requestJson<{ success: boolean }>(
     `/api/notifications/${encodeURIComponent(notificationId)}/read`,
     { method: "PUT" },
+  );
+}
+
+export function deleteNotification(notificationId: string) {
+  return requestJson<{ success: boolean }>(
+    `/api/notifications/${encodeURIComponent(notificationId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function deleteAllNotifications() {
+  return requestJson<{ success: boolean; deletedCount?: number }>(
+    "/api/notifications/all",
+    { method: "DELETE" },
   );
 }
 

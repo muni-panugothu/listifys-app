@@ -22,27 +22,38 @@
  *   └─ Input bar (disabled when thread is closed) ─────────────────┘
  */
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "@/lib/safe-router";
+import { useLocalSearchParams, useRouter, type Href } from "@/lib/safe-router";
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Dimensions, FlatList, Keyboard,
-  KeyboardAvoidingView, Platform, Pressable, ScrollView,
+  ActivityIndicator, FlatList,
+  Pressable, ScrollView,
   Text, TextInput, View, Modal, Alert,
+  type ScrollViewProps,
 } from "react-native";
+import {
+  KeyboardGestureArea,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
+import {
+  ChatKeyboardScrollView,
+  useKeyboardStickyOffset,
+} from "@/components/chat-keyboard-scroll-view";
+import { validateOfferAmount, parseListedPrice } from "@/lib/offer-validation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
 import { normalizeListingChatParams } from "@/lib/listing-chat";
+import { getListingDetailHref } from "@/lib/notification-navigation";
 import { showErrorToast } from "@/lib/toast";
 import {
-  getOrCreateConversation, listThreads, getThreadMessages,
+  getOrCreateConversation, getConversation, listThreads, getThreadMessages,
   sendMessageApi, markThreadRead, markConversationRead,
   makeOffer, acceptOffer, declineOffer, closeThread,
-  type ProductThread, type ChatMessage, type Conversation,
+  type ProductThread, type ChatMessage, type Conversation, type ChatParticipant,
 } from "@/features/messaging/services/chat-api";
 import { ProductThreadSection } from "@/features/messaging/components/product-thread-section";
 import { OfferCard } from "@/features/messaging/components/offer-card";
@@ -92,6 +103,33 @@ function senderId(m: ChatMessage) {
 }
 function isFromMe(m: ChatMessage, uid?: string) { return senderId(m) === uid; }
 
+function participantId(participant?: ChatParticipant | string | null): string {
+  if (!participant) return "";
+  if (typeof participant === "string") return participant;
+  return String(participant.id ?? participant._id ?? "");
+}
+
+function findOtherParticipant(
+  participants: ChatParticipant[] | undefined,
+  currentUserId?: string,
+): ChatParticipant | null {
+  if (!participants?.length) return null;
+  const me = String(currentUserId ?? "");
+  return (
+    participants.find((p) => {
+      const pid = participantId(p);
+      return pid && pid !== me;
+    }) ?? null
+  );
+}
+
+function profileImageFromParticipant(
+  participant?: ChatParticipant | string | null,
+): string | null {
+  if (!participant || typeof participant === "string") return null;
+  return participant.profileImageUrl ?? null;
+}
+
 export function ChatConversationScreen() {
   const router  = useRouter();
   const rawParams = useLocalSearchParams<Record<string, string | string[] | undefined>>();
@@ -114,36 +152,26 @@ export function ChatConversationScreen() {
   const [typingUser,  setTypingUser]     = useState<string | null>(null);
 
   const [offerInput,  setOfferInput]     = useState("");
+  const [offerError,  setOfferError]     = useState("");
   const [offerModal,  setOfferModal]     = useState(false);
 
   const flatRef    = useRef<FlatList>(null);
   const typingRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const footerPad  = Math.max(insets.bottom, 10);
+  const stickyOffset = useKeyboardStickyOffset();
   const canSend    = messageText.trim().length > 0 && !!activeThread && activeThread.status === "active";
   const isSeller   = activeThread ? String((activeThread.seller as any)?.id ?? activeThread.seller) === user?.id : false;
 
-  const [androidKbPad, setAndroidKbPad] = useState(0);
+  const renderChatScrollComponent = useCallback(
+    (props: ScrollViewProps) => <ChatKeyboardScrollView {...props} />,
+    [],
+  );
 
   // ── Keyboard ───────────────────────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
   }, []);
-
-  useEffect(() => {
-    const sub = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", scrollToBottom);
-    return () => sub.remove();
-  }, [scrollToBottom]);
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const show = Keyboard.addListener("keyboardDidShow", (e) => {
-      setAndroidKbPad(Math.max(0, Dimensions.get("window").height - e.endCoordinates.screenY));
-      scrollToBottom();
-    });
-    const hide = Keyboard.addListener("keyboardDidHide", () => setAndroidKbPad(0));
-    return () => { show.remove(); hide.remove(); };
-  }, [scrollToBottom]);
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -169,30 +197,13 @@ export function ChatConversationScreen() {
           convId           = res.conversation._id;
           bootstrapThread  = res.thread;
           setConversation(res.conversation);
+        } else if (convId) {
+          const convRes = await getConversation(convId);
+          if (cancelled) return;
+          setConversation(convRes.conversation);
         }
 
         if (!convId) return;
-
-        if (!conversation) {
-          setConversation({
-            _id: convId,
-            participants: [],
-            listing: params.productId ? {
-              listingId: params.productId,
-              listingType: params.productType || undefined,
-              listingTitle: params.productTitle || undefined,
-              listingPrice: params.productPrice ? Number(params.productPrice) : undefined,
-              listingImage: params.productImage ?? undefined,
-              currency: params.currency || "₹",
-            } : null,
-            threadCount: 0,
-            activeThreadCount: 0,
-            lastMessage: null,
-            unreadCount: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          } as Conversation);
-        }
 
         // 2. Load all threads
         const threadsRes = await listThreads(convId, "all");
@@ -394,7 +405,13 @@ export function ChatConversationScreen() {
   const handleMakeOffer = useCallback(async () => {
     if (!activeThread || !conversation) return;
     const amount = parseFloat(offerInput.replace(/[^\d.]/g, ""));
-    if (!amount || amount <= 0) { Alert.alert("Invalid Amount", "Enter a valid offer amount."); return; }
+    const listedPrice = parseListedPrice(activeThread.product?.price);
+    const validation = validateOfferAmount(amount, listedPrice);
+    if (!validation.valid) {
+      setOfferError(validation.error);
+      return;
+    }
+    setOfferError("");
     setOfferModal(false);
     try {
       const res = await makeOffer(activeThread._id, amount);
@@ -536,11 +553,72 @@ export function ChatConversationScreen() {
 
   // ── Contact name ───────────────────────────────────────────────────────────
   const contactName = useMemo(() => {
-    if (typeof params.name === "string") return params.name;
-    if (!conversation) return "Chat";
-    const other = conversation.participants.find((p) => p.id !== user?.id);
+    if (typeof params.name === "string" && params.name.trim()) return params.name;
+    const other = findOtherParticipant(conversation?.participants, user?.id);
     return other?.name ?? "Chat";
-  }, [params.name, conversation, user]);
+  }, [params.name, conversation?.participants, user?.id]);
+
+  const contactUserId = useMemo(() => {
+    const other = findOtherParticipant(conversation?.participants, user?.id);
+    if (other) return participantId(other);
+    if (params.recipientId) return params.recipientId;
+    if (params.sellerId) return params.sellerId;
+    return null;
+  }, [conversation?.participants, params.recipientId, params.sellerId, user?.id]);
+
+  const contactProfileImage = useMemo(() => {
+    if (params.contactImage) return params.contactImage;
+
+    const other = findOtherParticipant(conversation?.participants, user?.id);
+    const fromConversation = profileImageFromParticipant(other);
+    if (fromConversation) return fromConversation;
+
+    if (activeThread && user?.id) {
+      const sellerId = participantId(activeThread.seller);
+      const buyerId = participantId(activeThread.buyer);
+      const otherParticipant =
+        String(user.id) === sellerId ? activeThread.buyer : activeThread.seller;
+      const fromThread = profileImageFromParticipant(otherParticipant);
+      if (fromThread) return fromThread;
+    }
+
+    return null;
+  }, [activeThread, conversation?.participants, params.contactImage, user?.id]);
+
+  const contactAvatarUri = useMemo(
+    () => resolveAbsoluteMediaUrl(contactProfileImage),
+    [contactProfileImage],
+  );
+
+  const navigateToSellerProfile = useCallback(() => {
+    if (!contactUserId) {
+      showErrorToast("Profile unavailable", "Could not open this seller's profile.");
+      return;
+    }
+    router.push({
+      pathname: "/seller-public-profile",
+      params: {
+        sellerId: contactUserId,
+        sellerName: contactName,
+        ...(contactProfileImage ? { sellerImage: contactProfileImage } : {}),
+      },
+    } as Href);
+  }, [contactName, contactProfileImage, contactUserId, router]);
+
+  const navigateToListingDetail = useCallback((thread: ProductThread) => {
+    const productId = thread.product?.productId;
+    const productType = thread.product?.productType;
+    if (!productId || !productType) {
+      showErrorToast("Listing unavailable", "Product details are missing for this thread.");
+      return;
+    }
+    const href = getListingDetailHref(productType, productId);
+    if (!href) {
+      showErrorToast("Listing unavailable", "Could not open this listing.");
+      return;
+    }
+    router.push(href);
+  }, [router]);
 
   if (loading) {
     return (
@@ -550,16 +628,8 @@ export function ChatConversationScreen() {
     );
   }
 
-  const inputBottomPad = Platform.OS === "android"
-    ? androidKbPad > 0 ? androidKbPad : footerPad
-    : footerPad;
-
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: CHAT_BG }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 0}
-    >
+    <View style={{ flex: 1, backgroundColor: CHAT_BG }}>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View
         style={{
@@ -577,17 +647,31 @@ export function ChatConversationScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <MaterialIcons name="arrow-back" size={24} color={TEXT_DARK} />
         </Pressable>
-        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: BRAND + "22", alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 16, color: BRAND }}>
-            {contactName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 15, color: TEXT_DARK }} numberOfLines={1}>{contactName}</Text>
-          {isTyping && typingUser && (
-            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: BRAND }}>typing…</Text>
-          )}
-        </View>
+        <Pressable
+          onPress={navigateToSellerProfile}
+          hitSlop={8}
+          style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
+        >
+          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: BRAND + "22", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            {contactAvatarUri ? (
+              <Image
+                source={contactAvatarUri}
+                contentFit="cover"
+                style={{ width: 38, height: 38 }}
+              />
+            ) : (
+              <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 16, color: BRAND }}>
+                {contactName.charAt(0).toUpperCase()}
+              </Text>
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 15, color: TEXT_DARK }} numberOfLines={1}>{contactName}</Text>
+            {isTyping && typingUser && (
+              <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: BRAND }}>typing…</Text>
+            )}
+          </View>
+        </Pressable>
         <Pressable
           onPress={() => {
             if (!conversation) return;
@@ -616,6 +700,7 @@ export function ChatConversationScreen() {
               <Pressable
                 key={t._id}
                 onPress={() => openThread(t, conversation?._id)}
+                onLongPress={() => navigateToListingDetail(t)}
                 style={{
                   paddingHorizontal: 12,
                   paddingVertical:   6,
@@ -631,7 +716,7 @@ export function ChatConversationScreen() {
                 {isSold && <Text style={{ fontSize: 10 }}>🔒</Text>}
                 <Text
                   style={{
-                    fontFamily: ListifyFonts.semibold,
+                    fontFamily: ListifyFonts.semiBold,
                     fontSize:   12,
                     color:      isActive ? "#fff" : isSold ? "#9CA3AF" : TEXT_DARK,
                   }}
@@ -649,64 +734,72 @@ export function ChatConversationScreen() {
       {activeThread && (
         <ProductThreadSection
           thread={activeThread}
-          isExpanded={true}
-          onToggle={() => {}}
+          onPress={() => navigateToListingDetail(activeThread)}
         />
       )}
 
-      {/* ── Messages ────────────────────────────────────────────────────────── */}
-      <FlatList
-        ref={flatRef}
-        data={messages}
-        keyExtractor={(m) => m._id}
-        renderItem={renderMessage}
-        contentContainerStyle={{ paddingVertical: 12, paddingBottom: 4 }}
-        onContentSizeChange={scrollToBottom}
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", paddingTop: 40 }}>
-            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: TEXT_MUTED }}>
-              {activeThread ? "Send the first message!" : "Select a product thread above"}
+      {/* ── Messages + composer ─────────────────────────────────────────────── */}
+      <KeyboardGestureArea
+        interpolator="ios"
+        style={{ flex: 1 }}
+        textInputNativeID="chat-composer-input"
+      >
+        <FlatList
+          ref={flatRef}
+          style={{ flex: 1 }}
+          data={messages}
+          keyExtractor={(m) => m._id}
+          renderItem={renderMessage}
+          renderScrollComponent={renderChatScrollComponent}
+          contentContainerStyle={{ paddingVertical: 12, paddingBottom: 4 }}
+          onContentSizeChange={scrollToBottom}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", paddingTop: 40 }}>
+              <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: TEXT_MUTED }}>
+                {activeThread ? "Send the first message!" : "Select a product thread above"}
+              </Text>
+            </View>
+          }
+          ListFooterComponent={
+            isTyping ? (
+              <View style={{ alignItems: "flex-start", marginHorizontal: 12, marginBottom: 6 }}>
+                <View style={{ backgroundColor: INCOMING_BG, borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 8 }}>
+                  <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: TEXT_MUTED, letterSpacing: 4 }}>•••</Text>
+                </View>
+              </View>
+            ) : null
+          }
+        />
+
+        {/* ── Closed banner ───────────────────────────────────────────────────── */}
+        {isClosed && (
+          <View style={{ backgroundColor: "#FEF2F2", paddingVertical: 10, paddingHorizontal: 16, alignItems: "center" }}>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: "#EF4444" }}>
+              🔒 Conversation Closed{activeThread?.closedReason === "sold" ? " — Product Sold" : ""}
+            </Text>
+            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+              Message history is preserved
             </Text>
           </View>
-        }
-        ListFooterComponent={
-          isTyping ? (
-            <View style={{ alignItems: "flex-start", marginHorizontal: 12, marginBottom: 6 }}>
-              <View style={{ backgroundColor: INCOMING_BG, borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 8 }}>
-                <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: TEXT_MUTED, letterSpacing: 4 }}>•••</Text>
-              </View>
-            </View>
-          ) : null
-        }
-      />
+        )}
 
-      {/* ── Closed banner ───────────────────────────────────────────────────── */}
-      {isClosed && (
-        <View style={{ backgroundColor: "#FEF2F2", paddingVertical: 10, paddingHorizontal: 16, alignItems: "center" }}>
-          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 13, color: "#EF4444" }}>
-            🔒 Conversation Closed{activeThread?.closedReason === "sold" ? " — Product Sold" : ""}
-          </Text>
-          <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
-            Message history is preserved
-          </Text>
-        </View>
-      )}
-
-      {/* ── Input bar ────────────────────────────────────────────────────────── */}
-      {!isClosed && (
-        <View
-          style={{
-            flexDirection:    "row",
-            alignItems:       "flex-end",
-            paddingHorizontal: 12,
-            paddingTop:        8,
-            paddingBottom:     inputBottomPad,
-            backgroundColor:  BAR_BG,
-            borderTopWidth:   1,
-            borderTopColor:   "#E5E7EB",
-            gap:              8,
-          }}
-        >
+        {/* ── Input bar ────────────────────────────────────────────────────────── */}
+        {!isClosed && (
+          <KeyboardStickyView offset={stickyOffset}>
+            <View
+              style={{
+                flexDirection:    "row",
+                alignItems:       "flex-end",
+                paddingHorizontal: 12,
+                paddingTop:        8,
+                paddingBottom:     footerPad,
+                backgroundColor:  BAR_BG,
+                borderTopWidth:   1,
+                borderTopColor:   "#E5E7EB",
+                gap:              8,
+              }}
+            >
           {/* Offer button (buyer only) */}
           {!isSeller && activeThread?.status === "active" && activeThread.offerStatus === "none" && (
             <Pressable
@@ -719,6 +812,7 @@ export function ChatConversationScreen() {
 
           {/* Text input */}
           <TextInput
+            nativeID="chat-composer-input"
             style={{
               flex:              1,
               minHeight:         40,
@@ -735,6 +829,7 @@ export function ChatConversationScreen() {
             placeholderTextColor={TEXT_MUTED}
             value={messageText}
             onChangeText={handleTextChange}
+            onFocus={scrollToBottom}
             multiline
             returnKeyType="default"
           />
@@ -757,62 +852,69 @@ export function ChatConversationScreen() {
               : <MaterialIcons name="send" size={20} color={canSend ? "#fff" : "#9CA3AF"} />
             }
           </Pressable>
-        </View>
-      )}
+          </View>
+          </KeyboardStickyView>
+        )}
+      </KeyboardGestureArea>
 
       {/* ── Offer modal ──────────────────────────────────────────────────────── */}
       <Modal visible={offerModal} transparent animationType="slide" onRequestClose={() => setOfferModal(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setOfferModal(false)} />
-        <View
-          style={{
-            backgroundColor: "#fff",
-            borderTopLeftRadius:  20,
-            borderTopRightRadius: 20,
-            padding:              24,
-            paddingBottom:        insets.bottom + 24,
-          }}
-        >
-          <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 18, color: TEXT_DARK, marginBottom: 4 }}>Make an Offer</Text>
-          {activeThread?.product?.title && (
-            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 13, color: TEXT_MUTED, marginBottom: 16 }}>
-              for {activeThread.product.title}
-              {activeThread.product.price != null
-                ? ` (Listed: ${activeThread.product.currency}${activeThread.product.price.toLocaleString("en-IN")})`
-                : ""}
-            </Text>
-          )}
-          <TextInput
-            style={{
-              borderWidth:       1,
-              borderColor:       "#D1D5DB",
-              borderRadius:      12,
-              paddingHorizontal: 16,
-              paddingVertical:   12,
-              fontFamily:        ListifyFonts.semibold,
-              fontSize:          18,
-              color:             TEXT_DARK,
-              marginBottom:      16,
-            }}
-            placeholder={`₹ Your offer amount`}
-            placeholderTextColor={TEXT_MUTED}
-            keyboardType="numeric"
-            value={offerInput}
-            onChangeText={setOfferInput}
-            autoFocus
-          />
-          <Pressable
-            onPress={handleMakeOffer}
-            style={({ pressed }) => ({
-              backgroundColor: pressed ? "#059669" : BRAND,
-              borderRadius:    12,
-              paddingVertical: 14,
-              alignItems:      "center",
-            })}
-          >
-            <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 16, color: "#fff" }}>Send Offer</Text>
-          </Pressable>
+        <View style={{ flex: 1 }}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setOfferModal(false)} />
+          <KeyboardStickyView offset={stickyOffset}>
+            <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: Math.max(insets.bottom, 16) }}>
+              <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 18, color: TEXT_DARK, marginBottom: 4 }}>Make an Offer</Text>
+              {activeThread?.product?.title && (
+                <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 13, color: TEXT_MUTED, marginBottom: 16 }}>
+                  for {activeThread.product.title}
+                  {activeThread.product.price != null
+                    ? ` (Listed: ${activeThread.product.currency}${activeThread.product.price.toLocaleString("en-IN")})`
+                    : ""}
+                </Text>
+              )}
+              <TextInput
+                style={{
+                  borderWidth:       1,
+                  borderColor:       offerError ? "#DC2626" : "#D1D5DB",
+                  borderRadius:      12,
+                  paddingHorizontal: 16,
+                  paddingVertical:   12,
+                  fontFamily:        ListifyFonts.semiBold,
+                  fontSize:          18,
+                  color:             TEXT_DARK,
+                  marginBottom:      8,
+                }}
+                placeholder={`₹ Your offer amount`}
+                placeholderTextColor={TEXT_MUTED}
+                keyboardType="numeric"
+                value={offerInput}
+                onChangeText={(val) => {
+                  setOfferInput(val);
+                  setOfferError("");
+                }}
+                autoFocus
+              />
+              {offerError ? (
+                <Text style={{ fontFamily: ListifyFonts.medium, fontSize: 13, color: "#DC2626", marginBottom: 12 }}>
+                  {offerError}
+                </Text>
+              ) : null}
+              <Pressable
+                onPress={handleMakeOffer}
+                style={({ pressed }) => ({
+                  backgroundColor: pressed ? "#059669" : BRAND,
+                  borderRadius:    12,
+                  paddingVertical: 14,
+                  alignItems:      "center",
+                  marginTop:       offerError ? 0 : 8,
+                })}
+              >
+                <Text style={{ fontFamily: ListifyFonts.bold, fontSize: 16, color: "#fff" }}>Send Offer</Text>
+              </Pressable>
+            </View>
+          </KeyboardStickyView>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

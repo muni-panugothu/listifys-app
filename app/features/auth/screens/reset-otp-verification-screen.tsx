@@ -4,7 +4,6 @@ import { type Href, useRouter } from "@/lib/safe-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Pressable,
     ScrollView,
@@ -14,6 +13,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAvoidingView } from "react-native";
 
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";

@@ -15,17 +15,26 @@ const ProductThread = require('../models/product-thread.model');
 const Message       = require('../models/message.model');
 const User          = require('../models/user.model');
 const { encrypt, decrypt, isEncryptionEnabled } = require('./encryption.service');
+const s3Service = require('./s3.service');
 const { logger } = require('../utils/logger');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const safeDecrypt = (v) => { try { return decrypt(v || ''); } catch { return v || ''; } };
 
+const resolveProfileImageUrl = (u) => {
+  const raw = u?.profileImage || u?.googleProfileImage || u?.avatar || null;
+  return s3Service.toProxyUrl(raw) || null;
+};
+
 const formatUser = (u) => {
   if (!u) return null;
+  if (typeof u === 'string') {
+    return { id: String(u), name: 'User', profileImageUrl: null };
+  }
   return {
-    id:              u._id,
+    id:              String(u._id ?? u.id),
     name:            u.name,
-    profileImageUrl: u.profileImage || u.googleProfileImage || u.avatar || null,
+    profileImageUrl: resolveProfileImageUrl(u),
     provider:        u.provider,
   };
 };
@@ -138,19 +147,20 @@ exports.getOrCreateProductThread = async ({
     {
       $setOnInsert: {
         conversation: conversationId,
-        product: {
-          productId,
-          productType,
-          title:    productTitle || null,
-          price:    productPrice != null ? Number(productPrice) : null,
-          image:    productImage || null,
-          currency: currency || '₹',
-        },
         seller:    sellerId,
         buyer:     buyerId,
         status:    'active',
         startedAt: new Date(),
         unreadCounts: new Map([[String(sellerId), 0], [String(buyerId), 0]]),
+      },
+      // Refresh product snapshot on every open (use dotted paths only — never mix with whole `product` object)
+      $set: {
+        'product.productId':   productId,
+        'product.productType': productType,
+        'product.title':       productTitle || null,
+        'product.price':       productPrice != null ? Number(productPrice) : null,
+        'product.image':       productImage || null,
+        'product.currency':    currency || '₹',
       },
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
@@ -203,7 +213,14 @@ exports.getThreads = async (conversationId, userId, { statusFilter } = {}) => {
     .sort({ lastMessageAt: -1 })
     .populate('seller', 'name profileImage googleProfileImage avatar provider')
     .populate('buyer',  'name profileImage googleProfileImage avatar provider')
-    .lean();
+    .lean()
+    .then((threads) =>
+      threads.map((thread) => ({
+        ...thread,
+        seller: formatUser(thread.seller),
+        buyer:  formatUser(thread.buyer),
+      })),
+    );
 };
 
 /**
@@ -505,6 +522,25 @@ exports.makeOffer = async ({ threadId, buyerId, amount, currency = '₹' }) => {
   }
   if (!amount || amount <= 0) {
     throw Object.assign(new Error('Offer amount must be positive'), { statusCode: 400 });
+  }
+
+  const listedPrice = Math.round(Number(thread.product?.price) || 0);
+  const amountInt = Math.round(Number(amount));
+  if (listedPrice > 0) {
+    const minOffer = Math.floor(listedPrice * 0.8);
+    const maxOffer = Math.ceil(listedPrice * 1.2);
+    if (amountInt < minOffer) {
+      throw Object.assign(
+        new Error(`Amount is too low. Offer must be between ${minOffer.toLocaleString('en-IN')} and ${maxOffer.toLocaleString('en-IN')}.`),
+        { statusCode: 400 },
+      );
+    }
+    if (amountInt > maxOffer) {
+      throw Object.assign(
+        new Error(`Amount is too high. Offer must be between ${minOffer.toLocaleString('en-IN')} and ${maxOffer.toLocaleString('en-IN')}.`),
+        { statusCode: 400 },
+      );
+    }
   }
 
   // Update thread offer state

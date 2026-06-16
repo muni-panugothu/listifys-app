@@ -131,6 +131,31 @@ exports.getConversations = async (req, res) => {
   }
 };
 
+exports.getConversation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { conversationId } = req.params;
+    if (!isValidId(conversationId)) {
+      return res.status(400).json({ success: false, message: 'Invalid conversationId' });
+    }
+    const conversation = await Conversation.findOne({ _id: conversationId, participants: userId })
+      .populate('participants', 'name profileImage googleProfileImage avatar provider')
+      .populate({ path: 'lastMessage', select: 'content attachments sender createdAt productThread messageType' });
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation not found' });
+    }
+    setNoCacheHeaders(res);
+    return res.status(200).json({
+      success: true,
+      conversation: chatService.formatConversation(conversation, userId),
+      encrypted: isEncryptionEnabled(),
+    });
+  } catch (err) {
+    logger.error('[chat] getConversation', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to fetch conversation' });
+  }
+};
+
 // ── PRODUCT THREADS ───────────────────────────────────────────────────────────
 
 exports.getOrCreateThread = async (req, res) => {

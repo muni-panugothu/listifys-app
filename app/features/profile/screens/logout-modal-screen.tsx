@@ -6,7 +6,6 @@ import { useNavigation } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 
 import { logoutFromServer } from "@/features/auth/services/auth-api";
-import { showSuccessToast } from "@/lib/toast";
 import { useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/slices/auth-slice";
 
@@ -24,7 +23,6 @@ export function LogoutModalScreen() {
       /* proceed with local logout even if server call fails */
     }
     await dispatch(logout());
-    showSuccessToast("Success", "Logged out successfully");
     setLoading(false);
     // Reset the entire navigation stack to only the onboarding screen so no
     // authenticated routes remain accessible via the back gesture/button.

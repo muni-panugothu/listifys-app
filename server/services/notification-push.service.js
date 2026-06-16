@@ -164,8 +164,13 @@ async function dispatchPushToUser(userId, payload, { transactional = true, force
       .select('fcmToken preferences')
       .lean();
     if (!user?.fcmToken) return false;
+
+    // Master switch: if the user has disabled push notifications, never send.
+    // `forceEngagement` may bypass engagement-specific gating below, but it
+    // can NEVER override the master push preference — the user opted out.
+    if (!prefEnabled(user.preferences, 'pushNotifications')) return false;
+
     if (!forceEngagement) {
-      if (!prefEnabled(user.preferences, 'pushNotifications')) return false;
       if (!transactional && !prefEnabled(user.preferences, 'engagementNotifications')) return false;
     }
 

@@ -108,6 +108,27 @@ export async function getCachedToken(): Promise<string | null> {
 }
 
 /**
+ * Delete the FCM token from this device + clear the local cache.
+ * Forces the next `getFCMToken()` call to mint a brand-new token, which
+ * guarantees any old token cannot receive pushes once the user re-enables
+ * notifications.
+ */
+export async function deleteFCMToken(): Promise<void> {
+  try {
+    if (messaging) {
+      await messaging().deleteToken().catch(() => {});
+    }
+  } catch {
+    // Best effort — the native token may not exist (Expo Go, etc.)
+  }
+  try {
+    await AsyncStorage.removeItem(TOKEN_CACHE_KEY);
+  } catch {
+    // Storage failure is not fatal — server-side delete still gates pushes.
+  }
+}
+
+/**
  * Subscribe to FCM token-refresh events.
  * When the token changes the new token is cached and the callback is invoked.
  * Returns an unsubscribe function — call it in useEffect cleanup.

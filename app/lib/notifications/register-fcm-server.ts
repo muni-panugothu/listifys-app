@@ -36,3 +36,26 @@ export async function registerFCMTokenWithServer(fcmToken: string): Promise<void
     // Socket optional — REST registration is enough for push tests
   }
 }
+
+/**
+ * Clear the FCM token from the server so no further pushes can be delivered.
+ * Called when the user turns OFF push notifications in settings.
+ */
+export async function unregisterFCMTokenFromServer(): Promise<boolean> {
+  try {
+    await requestJson<{ success: boolean }>("/api/notifications/fcm-token", {
+      method: "DELETE",
+    });
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.info("[FCM] Token cleared on server");
+    }
+    return true;
+  } catch (error) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn("[FCM] Token clear failed:", error);
+    }
+    return false;
+  }
+}

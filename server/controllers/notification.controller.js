@@ -219,6 +219,27 @@ exports.registerFcmToken = async (req, res) => {
   }
 };
 
+// ==================== UNREGISTER FCM TOKEN ====================
+// Clears the user's device token so absolutely no FCM pushes can be delivered.
+// Called when a user turns OFF push notifications in settings.
+exports.unregisterFcmToken = async (req, res) => {
+  try {
+    const User = require('../models/user.model');
+    await User.updateOne(
+      { _id: req.user.id },
+      { $unset: { fcmToken: '' } },
+    );
+
+    logger.info('[FCM] Device token cleared', { userId: req.user.id });
+
+    setNoCacheHeaders(res);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Unregister FCM token error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to unregister FCM token' });
+  }
+};
+
 // ==================== CREATE NOTIFICATION (internal helper) ====================
 exports.createNotification = async ({ recipient, sender, type, message, metadata = {}, allowSelf = false }) => {
   try {

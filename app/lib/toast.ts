@@ -1,3 +1,5 @@
+import { showErrorModal } from "@/lib/message-modal";
+
 export type AppToastType = "success" | "error" | "info";
 
 export type AppToastPayload = {
@@ -35,12 +37,11 @@ export function showSuccessToast(title: string, message?: string) {
 }
 
 export function showErrorToast(title: string, message?: string) {
-  // Callers pass "" to suppress the toast (e.g. user cancelled Google sign-in).
+  // Callers pass "" to suppress feedback (e.g. user cancelled Google sign-in).
   if (message !== undefined && message.trim().length === 0) {
     return;
   }
-  const normalized = normalizeToastText(title, message);
-  emitToast({ type: "error", ...normalized });
+  showErrorModal(title, message);
 }
 
 export function showInfoToast(title: string, message?: string) {

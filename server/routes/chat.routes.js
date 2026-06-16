@@ -44,6 +44,7 @@ router.use(protect);
 // ── Conversations ──────────────────────────────────────────────────────────────
 router.post("/conversations",                          ctrl.getOrCreateConversation);
 router.get("/conversations",                           ctrl.getConversations);
+router.get("/conversations/:conversationId",           ctrl.getConversation);
 
 // ── Product Threads ───────────────────────────────────────────────────────────
 router.post("/conversations/:conversationId/threads",  ctrl.getOrCreateThread);

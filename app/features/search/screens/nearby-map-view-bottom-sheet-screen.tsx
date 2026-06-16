@@ -24,7 +24,7 @@ import { useAppSelector } from "@/store/hooks";
 import { selectLocationCoords, selectIsoCountryCode } from "@/store/slices/location-slice";
 import { fetchNearbyListings, type NearbyListingsResponse } from "@/features/listing/services/listing-api";
 import { formatPrice } from "@/lib/currency";
-import { formatDistance } from "@/lib/listing-distance";
+import { formatDistance, formatRadiusLabel } from "@/lib/listing-distance";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -214,12 +214,14 @@ export function NearbyMapViewBottomSheetScreen() {
 
   const handleBottomTabPress = useTabNavigation();
 
+  const radiusLabel = formatRadiusLabel(NEARBY_RADIUS, isoCountryCode);
+
   const subtitleText = useMemo(() => {
     if (locationCoords.lat == null) return "Enable location to see nearby items";
     if (loading && listings.length === 0) return "Loading...";
-    if (totalCount === 0) return `No listings found within ${NEARBY_RADIUS} km`;
-    return `${totalCount} item${totalCount !== 1 ? "s" : ""} within ${NEARBY_RADIUS} km`;
-  }, [locationCoords.lat, loading, listings.length, totalCount]);
+    if (totalCount === 0) return `No listings found within ${radiusLabel}`;
+    return `${totalCount} item${totalCount !== 1 ? "s" : ""} within ${radiusLabel}`;
+  }, [locationCoords.lat, loading, listings.length, radiusLabel, totalCount]);
 
   return (
     <View className="flex-1 bg-[#F6F7F8]">
@@ -407,7 +409,7 @@ export function NearbyMapViewBottomSheetScreen() {
                 <Text className="mt-1 text-center text-[12px] text-[#6C7A74]">
                   {locationCoords.lat == null
                     ? "Set your location to see items near you"
-                    : `No listings found within ${NEARBY_RADIUS} km of your location`}
+                    : `No listings found within ${radiusLabel} of your location`}
                 </Text>
               </View>
             ) : (
@@ -416,7 +418,7 @@ export function NearbyMapViewBottomSheetScreen() {
                   const firstImage = item.images?.[0];
                   const distanceText =
                     item.distance != null
-                      ? formatDistance(item.distance, item.countryCode ?? isoCountryCode) ?? ""
+                      ? formatDistance(item.distance, isoCountryCode) ?? ""
                       : "";
                   const locationText = item.location ?? "";
                   const priceDisplay = formatPrice(item.price, item.currency, item.countryCode ?? isoCountryCode);

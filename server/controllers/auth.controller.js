@@ -17,6 +17,8 @@ const securityNotificationService = require("../services/security-notification.s
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const redis = require("../config/redis");
+const SellerReview = require("../models/seller-review.model");
+const { countUserListings } = require("../utils/listing-models");
 const { invalidateAuthCache } = require("../middleware/auth.middleware");
 
 // ── RabbitMQ Producers (non-blocking async side-effects) ───────────────────────
@@ -1686,29 +1688,8 @@ exports.getProfile = async (req, res) => {
       });
     }
 
-    const listingModels = [
-      require("../models/electronics.model"),
-      require("../models/vehicle.model"),
-      require("../models/mobile.model"),
-      require("../models/job.model"),
-      require("../models/furniture.model"),
-      require("../models/toy.model"),
-      require("../models/fashion.model"),
-      require("../models/sports.model"),
-      require("../models/collectible.model"),
-      require("../models/pet.model"),
-      require("../models/service.model"),
-      require("../models/book.model"),
-      require("../models/beauty.model"),
-      require("../models/other.model"),
-      require("../models/forsale.model"),
-      require("../models/event.model"),
-      require("../models/property.model"),
-      require("../models/takecare.model"),
-    ];
-
     // Only run the queries that are actually needed
-    const [passwordProbeUser, followData, ...listingCountResults] = await Promise.all([
+    const [passwordProbeUser, followData, listingsCountResult] = await Promise.all([
       // hasPassword — only needed when metadata cache is cold
       cachedMeta
         ? Promise.resolve(null)
@@ -1724,11 +1705,7 @@ exports.getProfile = async (req, res) => {
             }},
           ]),
       // listing counts — only needed when counts cache is cold
-      ...(cachedCounts
-        ? []
-        : listingModels.map((Model) =>
-            Model.countDocuments({ seller: user._id, status: "active" })
-          )),
+      cachedCounts ? Promise.resolve(null) : countUserListings(user._id),
     ]);
 
     // ── Build / restore profile metadata ──────────────────────────────────
@@ -1776,7 +1753,7 @@ exports.getProfile = async (req, res) => {
     if (!cachedCounts) {
       const followersCount = followData?.[0]?.followersCount || 0;
       const followingCount = followData?.[0]?.followingCount || 0;
-      const listingsCount  = listingCountResults.reduce((sum, c) => sum + (c || 0), 0);
+      const listingsCount  = listingsCountResult || 0;
       countsData = { followersCount, followingCount, listingsCount };
       await writeJsonCache(countsKey, countsData, 60); // 60-second TTL
     }
@@ -3212,32 +3189,22 @@ exports.getSellerProfile = async (req, res) => {
     );
 
     // Count seller's listings across ALL categories
-    const listingModels = [
-      require("../models/electronics.model"),
-      require("../models/vehicle.model"),
-      require("../models/mobile.model"),
-      require("../models/job.model"),
-      require("../models/furniture.model"),
-      require("../models/toy.model"),
-      require("../models/fashion.model"),
-      require("../models/sports.model"),
-      require("../models/collectible.model"),
-      require("../models/pet.model"),
-      require("../models/book.model"),
-      require("../models/beauty.model"),
-      require("../models/other.model"),
-      require("../models/forsale.model"),
-      require("../models/event.model"),
-      require("../models/property.model"),
-      require("../models/takecare.model"),
-    ];
+    const totalListings = await countUserListings(sellerId);
 
-    const counts = await Promise.all(
-      listingModels.map((Model) =>
-        Model.countDocuments({ seller: sellerId, status: "active" })
-      )
-    );
-    const totalListings = counts.reduce((sum, c) => sum + c, 0);
+    const reviewStats = await SellerReview.aggregate([
+      { $match: { seller: new mongoose.Types.ObjectId(sellerId), status: "published" } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          reviewsCount: { $sum: 1 },
+        },
+      },
+    ]);
+    const averageRating = reviewStats[0]?.averageRating
+      ? Math.round(reviewStats[0].averageRating * 10) / 10
+      : 0;
+    const reviewsCount = reviewStats[0]?.reviewsCount || 0;
 
     const profileImageUrl = seller.getProfileImage ? seller.getProfileImage() : 
       (seller.profileImage || seller.googleProfileImage || seller.avatar || null);
@@ -3257,11 +3224,177 @@ exports.getSellerProfile = async (req, res) => {
         followersCount,
         followingCount,
         listingsCount: totalListings,
+        averageRating,
+        reviewsCount,
       },
     });
   } catch (error) {
     logger.error("Get seller profile error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch seller profile" });
+  }
+};
+
+// ==================== SELLER REVIEWS ====================
+
+exports.getSellerReviews = async (req, res) => {
+  try {
+    const sellerId = req.params.userId;
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    const reviews = await SellerReview.find({ seller: sellerId, status: "published" })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate("reviewer", "name profileImage googleProfileImage avatar")
+      .lean();
+
+    const reviewStats = await SellerReview.aggregate([
+      { $match: { seller: new mongoose.Types.ObjectId(sellerId), status: "published" } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          reviewsCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      averageRating: reviewStats[0]?.averageRating
+        ? Math.round(reviewStats[0].averageRating * 10) / 10
+        : 0,
+      reviewsCount: reviewStats[0]?.reviewsCount || 0,
+      reviews: reviews.map((review) => ({
+        id: review._id,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        reviewer: {
+          id: review.reviewer?._id,
+          name: review.reviewer?.name || "Member",
+          profileImageUrl: review.reviewer
+            ? getResolvedProfileImage(review.reviewer)
+            : null,
+        },
+      })),
+    });
+  } catch (error) {
+    logger.error("Get seller reviews error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch seller reviews" });
+  }
+};
+
+exports.createSellerReview = async (req, res) => {
+  try {
+    const sellerId = req.params.userId;
+    const reviewerId = req.user._id || req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+    if (String(sellerId) === String(reviewerId)) {
+      return res.status(400).json({ success: false, message: "You cannot review yourself" });
+    }
+
+    const rating = Number(req.body.rating);
+    const comment = String(req.body.comment || "").trim();
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: "Rating must be between 1 and 5" });
+    }
+    if (comment.length < 10) {
+      return res.status(400).json({ success: false, message: "Review must be at least 10 characters" });
+    }
+
+    const sellerExists = await User.exists({ _id: sellerId });
+    if (!sellerExists) {
+      return res.status(404).json({ success: false, message: "Seller not found" });
+    }
+
+    const review = await SellerReview.findOneAndUpdate(
+      { seller: sellerId, reviewer: reviewerId },
+      { rating, comment, status: "published" },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).populate("reviewer", "name profileImage googleProfileImage avatar");
+
+    const reviewStats = await SellerReview.aggregate([
+      { $match: { seller: new mongoose.Types.ObjectId(sellerId), status: "published" } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          reviewsCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.status(201).json({
+      success: true,
+      averageRating: reviewStats[0]?.averageRating
+        ? Math.round(reviewStats[0].averageRating * 10) / 10
+        : 0,
+      reviewsCount: reviewStats[0]?.reviewsCount || 0,
+      review: {
+        id: review._id,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        reviewer: {
+          id: review.reviewer?._id,
+          name: review.reviewer?.name || "Member",
+          profileImageUrl: review.reviewer
+            ? getResolvedProfileImage(review.reviewer)
+            : null,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Create seller review error:", error);
+    res.status(500).json({ success: false, message: "Failed to submit review" });
+  }
+};
+
+exports.deleteSellerReview = async (req, res) => {
+  try {
+    const sellerId = req.params.userId;
+    const reviewerId = req.user._id || req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    const deleted = await SellerReview.findOneAndDelete({
+      seller: sellerId,
+      reviewer: reviewerId,
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+
+    const reviewStats = await SellerReview.aggregate([
+      { $match: { seller: new mongoose.Types.ObjectId(sellerId), status: "published" } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          reviewsCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      averageRating: reviewStats[0]?.averageRating
+        ? Math.round(reviewStats[0].averageRating * 10) / 10
+        : 0,
+      reviewsCount: reviewStats[0]?.reviewsCount || 0,
+    });
+  } catch (error) {
+    logger.error("Delete seller review error:", error);
+    res.status(500).json({ success: false, message: "Failed to delete review" });
   }
 };
 
@@ -3878,19 +4011,22 @@ exports.requestEmailChange = async (req, res) => {
 
     const conflict = await User.findOne({ email: normalised, _id: { $ne: userId } });
     if (conflict) {
-      return res.status(409).json({ success: false, message: "This email address is already in use by another account." });
+      return res.status(409).json({ success: false, message: "This email address is already in use. Please use a different email." });
     }
 
     // Rate-gate: 3 OTPs per 10 min per user
     const rateLimitKey = `email_change_otp:${userId}`;
-    const hits = await redis.incr(rateLimitKey);
-    if (hits === 1) await redis.expire(rateLimitKey, 600);
-    if (hits > 3) {
-      const ttl = await redis.ttl(rateLimitKey);
-      return res.status(429).json({ success: false, message: "Too many OTP requests. Please wait before trying again.", retryAfter: ttl > 0 ? ttl : 600, code: "RATE_LIMITED" });
+    try {
+      const hits = await redis.incr(rateLimitKey);
+      if (hits === 1) await redis.expire(rateLimitKey, 600);
+      if (hits > 3) {
+        const ttl = await redis.ttl(rateLimitKey);
+        return res.status(429).json({ success: false, message: "Too many OTP requests. Please wait before trying again.", retryAfter: ttl > 0 ? ttl : 600, code: "RATE_LIMITED" });
+      }
+    } catch (rateErr) {
+      logger.warn("requestEmailChange rate-limit skipped", { error: rateErr.message });
     }
 
-    // CSPRNG — crypto.randomInt is backed by the OS CSPRNG, unlike Math.random()
     const otp = OTPGenerator.generateOTP();
     // HMAC-SHA-256 with server secret: an offline attacker who reads the DB
     // cannot brute-force the 6-digit OTP without knowing the secret key.
@@ -3905,7 +4041,21 @@ exports.requestEmailChange = async (req, res) => {
       pendingEmailChange: { email: normalised, otpHash, expiresAt, attempts: 0, requestedAt: new Date() },
     });
 
-    await EmailService.sendEmailChangeOTP(normalised, user.name || "there", otp);
+    try {
+      await EmailService.sendEmailChangeOTP(normalised, user.name || "there", otp);
+    } catch (emailErr) {
+      logger.error("requestEmailChange email delivery failed", { error: emailErr.message, newEmail: normalised });
+      if (process.env.NODE_ENV !== "production") {
+        logger.info("[email_change] DEV OTP (email delivery failed)", { email: normalised, otp });
+      } else {
+        await User.findByIdAndUpdate(userId, { $unset: { pendingEmailChange: 1 } });
+        return res.status(503).json({
+          success: false,
+          message: "We couldn't send a verification code to that email address. Please try again in a moment.",
+          code: "EMAIL_DELIVERY_FAILED",
+        });
+      }
+    }
 
     if (user.email) {
       void EmailService.sendEmailChangeAlert(user.email, user.name || "there", normalised, req.ip, Date.now());
