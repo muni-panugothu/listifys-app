@@ -42,16 +42,19 @@ export function MyListingManageCard({
         elevation: 2,
       }}
     >
-      <View className="relative h-44 w-full">
+      <View
+        className="relative w-full bg-[#F6F7F8]"
+        style={{ aspectRatio: 4 / 3 }}
+      >
         {listing.images?.[0] ? (
           <Image
             source={listing.images[0]}
-            contentFit="cover"
+            contentFit="contain"
             className="h-full w-full"
             style={dimmed ? { opacity: 0.55 } : undefined}
           />
         ) : (
-          <View className="h-full w-full items-center justify-center bg-[#F6F7F8]">
+          <View className="h-full w-full items-center justify-center">
             <MaterialIcons name="image" size={40} color="#D1D5DB" />
           </View>
         )}

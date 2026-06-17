@@ -326,13 +326,9 @@ export function NotificationsCenterScreen() {
   // Real-time via socket
   useEffect(() => {
     if (!user) return;
-    try {
-      connectSocket();
-    } catch {
-      return;
-    }
-    const socket = getSocket();
-    if (!socket) return;
+
+    let cancelled = false;
+    let socketInstance: ReturnType<typeof getSocket> = null;
 
     const handleNewNotification = (data: {
       _id?: string;
@@ -375,9 +371,21 @@ export function NotificationsCenterScreen() {
       });
     };
 
-    socket.on("notification:new", handleNewNotification);
+    void connectSocket()
+      .then((connected) => {
+        if (cancelled) return;
+        socketInstance = connected;
+        connected.on("notification:new", handleNewNotification);
+      })
+      .catch(() => {
+        // Non-fatal — notifications still load via REST
+      });
+
     return () => {
-      socket.off("notification:new", handleNewNotification);
+      cancelled = true;
+      if (socketInstance) {
+        socketInstance.off("notification:new", handleNewNotification);
+      }
     };
   }, [user]);
 

@@ -259,7 +259,7 @@ export function SearchResultsEntityTabsScreen() {
   const [appliedQuery, setAppliedQuery] = useState(() => parseQueryParam(params.q));
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [pagination, setPagination] = useState<SearchPagination | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [saveToastVisible, setSaveToastVisible] = useState(false);
@@ -290,7 +290,7 @@ export function SearchResultsEntityTabsScreen() {
 
       if (opts?.isRefresh) {
         setRefreshing(true);
-      } else if (!isBrowse) {
+      } else {
         setLoading(true);
       }
 
@@ -320,7 +320,6 @@ export function SearchResultsEntityTabsScreen() {
                   pages: 1,
                   limit: 50,
                 });
-                setLoading(false);
               }
             } catch {
               // ignore cache read errors

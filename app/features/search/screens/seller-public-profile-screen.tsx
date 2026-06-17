@@ -482,7 +482,7 @@ export function SellerPublicProfileScreen() {
           className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
           style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
         >
-          <MaterialIcons name="arrow-back-ios" size={18} color="#1A1A1A" />
+          <MaterialIcons name="arrow-back-ios" size={18} color="#1A1A1A" style={{marginLeft: 6}}/>
         </Pressable>
       </View>
 

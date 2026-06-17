@@ -710,7 +710,7 @@ export function PostAdStep2DetailsScreen() {
           {/* Property Listing Type */}
           {isProperty && (
             <View className="mb-6">
-              <Label text="Listing Type" />
+              <Label text="Listing Type" required />
               <View className="rounded-xl bg-[#F3F4F6] p-1 flex-row">
                 {["Properties", "Rentals"].map((t) => (
                   <Pressable
@@ -829,20 +829,20 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Experience" />
+                  <Label text="Experience" required />
                   <IconField icon="trending-up" value={experience} onChangeText={(v) => dispatch(setExperience(v))} placeholder="e.g. 3 years" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Service Area" />
+                  <Label text="Service Area" required />
                   <IconField icon="location-on" value={serviceArea} onChangeText={(v) => dispatch(setServiceArea(v))} placeholder="e.g. 10 km radius" />
                 </View>
               </View>
               <View className="mb-6">
-                <LabelPill text="Price Unit" />
+                <LabelPill text="Price Unit" required />
                 <PillRow options={SERVICE_PRICE_UNIT_OPTIONS} value={priceUnit} onSelect={(v) => dispatch(setPriceUnit(v))} />
               </View>
               <View className="mb-6">
-                <LabelPill text="Service Mode" />
+                <LabelPill text="Service Mode" required />
                 <PillRow options={SERVICE_MODE_OPTIONS} value={serviceMode} onSelect={(v) => dispatch(setServiceMode(v))} />
               </View>
               <View className="mb-6">
@@ -863,20 +863,20 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Bedrooms" />
+                  <Label text="Bedrooms" required />
                   <IconField icon="bed" value={bedrooms} onChangeText={(v) => dispatch(setBedrooms(v))} placeholder="0" numeric />
                 </View>
                 <View className="flex-1">
-                  <Label text="Bathrooms" />
+                  <Label text="Bathrooms" required />
                   <IconField icon="bathtub" value={bathrooms} onChangeText={(v) => dispatch(setBathrooms(v))} placeholder="0" numeric />
                 </View>
               </View>
               <View className="mb-6">
-                <Label text="Area (sq.ft)" />
+                <Label text="Area (sq.ft)" required />
                 <IconField icon="square-foot" value={squareFeet} onChangeText={(v) => dispatch(setSquareFeet(v))} placeholder="e.g. 1200" numeric />
               </View>
               <View className="mb-6">
-                <LabelPill text="Furnishing" />
+                <LabelPill text="Furnishing" required />
                 <PillRow options={FURNISHING_OPTIONS} value={furnishing} onSelect={(v) => dispatch(setFurnishing(v))} />
               </View>
               <View className="mb-6">
@@ -921,11 +921,11 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Brand" />
+                  <Label text="Brand" required />
                   <IconField icon="branding-watermark" value={brand} onChangeText={(v) => dispatch(setBrand(v))} placeholder="e.g. Samsung" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Model" />
+                  <Label text="Model" required />
                   <IconField icon="info-outline" value={productModel} onChangeText={(v) => dispatch(setModel(v))} placeholder="e.g. Galaxy S24" />
                 </View>
               </View>
@@ -1001,11 +1001,11 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Brand" />
+                  <Label text="Brand" required />
                   <IconField icon="branding-watermark" value={brand} onChangeText={(v) => dispatch(setBrand(v))} placeholder="e.g. Honda" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Model" />
+                  <Label text="Model" required />
                   <IconField icon="info-outline" value={productModel} onChangeText={(v) => dispatch(setModel(v))} placeholder="e.g. City" />
                 </View>
               </View>
@@ -1017,7 +1017,7 @@ export function PostAdStep2DetailsScreen() {
                   </View>
                   <View className="mb-6 flex-row gap-4">
                     <View className="flex-1">
-                      <Label text="Year" />
+                      <Label text="Year" required />
                       <IconField icon="date-range" value={year} onChangeText={(v) => dispatch(setYear(v))} placeholder="e.g. 2022" numeric maxLength={4} />
                     </View>
                     <View className="flex-1">
@@ -1034,17 +1034,17 @@ export function PostAdStep2DetailsScreen() {
                     </View>
                   </View>
                   <View className="mb-6">
-                    <LabelPill text="Fuel Type" />
+                    <LabelPill text="Fuel Type" required />
                     <PillRow options={isCar ? FUEL_OPTIONS : BIKE_FUEL_OPTIONS} value={fuelType} onSelect={(v) => dispatch(setFuelType(v))} />
                   </View>
                   {isCar && (
                     <View className="mb-6">
-                      <LabelPill text="Transmission" />
+                      <LabelPill text="Transmission" required />
                       <PillRow options={TRANSMISSION_OPTIONS} value={transmission} onSelect={(v) => dispatch(setTransmission(v))} />
                     </View>
                   )}
                   <View className="mb-6">
-                    <LabelPill text="Ownership" />
+                    <LabelPill text="Ownership" required />
                     <PillRow options={OWNERSHIP_OPTIONS} value={ownership} onSelect={(v) => dispatch(setOwnership(v))} />
                   </View>
                   <View className="mb-6">
@@ -1102,7 +1102,7 @@ export function PostAdStep2DetailsScreen() {
           {isJob && (
             <>
               <View className="mb-6">
-                <Label text="Company Name" />
+                <Label text="Company Name" required />
                 <IconField icon="business" value={companyName} onChangeText={(v) => dispatch(setCompanyName(v))} placeholder="e.g. Infosys" />
               </View>
               <View className="mb-6">
@@ -1115,7 +1115,7 @@ export function PostAdStep2DetailsScreen() {
               </View>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Experience" />
+                  <Label text="Experience" required />
                   <IconField icon="trending-up" value={experience} onChangeText={(v) => dispatch(setExperience(v))} placeholder="e.g. 2-4 years" />
                 </View>
                 <View className="flex-1">
@@ -1124,11 +1124,11 @@ export function PostAdStep2DetailsScreen() {
                 </View>
               </View>
               <View className="mb-6">
-                <LabelPill text="Job Type" />
+                <LabelPill text="Job Type" required />
                 <PillRow options={EMPLOYMENT_TYPE_OPTIONS} value={employmentType} onSelect={(v) => dispatch(setEmploymentType(v))} />
               </View>
               <View className="mb-6">
-                <LabelPill text="Work Mode" />
+                <LabelPill text="Work Mode" required />
                 <PillRow options={WORK_MODE_OPTIONS} value={workMode} onSelect={(v) => dispatch(setWorkMode(v))} />
               </View>
               <View className="mb-6 flex-row gap-4">
@@ -1195,20 +1195,20 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Event Date" />
+                  <Label text="Event Date" required />
                   <IconField icon="event" value={eventDate} onChangeText={(v) => dispatch(setEventDate(v))} placeholder="e.g. 25 Dec 2025" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Event Time" />
+                  <Label text="Event Time" required />
                   <IconField icon="access-time" value={eventTime} onChangeText={(v) => dispatch(setEventTime(v))} placeholder="e.g. 7:00 PM" />
                 </View>
               </View>
               <View className="mb-6">
-                <Label text="Organizer" />
+                <Label text="Organizer" required />
                 <IconField icon="person" value={organizer} onChangeText={(v) => dispatch(setOrganizer(v))} placeholder="e.g. EventBrite Inc." />
               </View>
               <View className="mb-6">
-                <Label text="Venue" />
+                <Label text="Venue" required />
                 <IconField icon="place" value={venue} onChangeText={(v) => dispatch(setVenue(v))} placeholder="e.g. HICC, Hyderabad" />
               </View>
               <View className="mb-6 flex-row gap-4">
@@ -1235,17 +1235,17 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Brand" />
+                  <Label text="Brand" required />
                   <IconField icon="branding-watermark" value={brand} onChangeText={(v) => dispatch(setBrand(v))} placeholder="e.g. Apple" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Model" />
+                  <Label text="Model" required />
                   <IconField icon="info-outline" value={productModel} onChangeText={(v) => dispatch(setModel(v))} placeholder="e.g. iPhone 15" />
                 </View>
               </View>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Storage" />
+                  <Label text="Storage" required />
                   <IconField icon="sd-storage" value={storage} onChangeText={(v) => dispatch(setStorage(v))} placeholder="e.g. 128 GB" />
                 </View>
                 <View className="flex-1">
@@ -1281,7 +1281,7 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Material" />
+                  <Label text="Material" required />
                   <IconField icon="layers" value={material} onChangeText={(v) => dispatch(setMaterial(v))} placeholder="e.g. Teak Wood" />
                 </View>
                 <View className="flex-1">
@@ -1321,12 +1321,12 @@ export function PostAdStep2DetailsScreen() {
                   <IconField icon="branding-watermark" value={brand} onChangeText={(v) => dispatch(setBrand(v))} placeholder="e.g. Nike" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Size" />
+                  <Label text="Size" required />
                   <IconField icon="straighten" value={size} onChangeText={(v) => dispatch(setSize(v))} placeholder="e.g. M / 42" />
                 </View>
               </View>
               <View className="mb-6">
-                <LabelPill text="Gender" />
+                <LabelPill text="Gender" required />
                 <PillRow options={FASHION_GENDER_OPTIONS} value={gender} onSelect={(v) => dispatch(setGender(v))} />
               </View>
               <View className="mb-6 flex-row gap-4">
@@ -1358,7 +1358,7 @@ export function PostAdStep2DetailsScreen() {
                 </View>
               </View>
               <View className="mb-6">
-                <LabelPill text="Sport Type" />
+                <LabelPill text="Sport Type" required />
                 <PillRow options={SPORT_TYPE_OPTIONS} value={sportType} onSelect={(v) => dispatch(setSportType(v))} />
               </View>
               <View className="mb-6 flex-row gap-4">
@@ -1431,20 +1431,20 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Breed" />
+                  <Label text="Breed" required />
                   <IconField icon="pets" value={breed} onChangeText={(v) => dispatch(setBreed(v))} placeholder="e.g. Golden Retriever" />
                 </View>
                 <View className="flex-1">
-                  <Label text="Age" />
+                  <Label text="Age" required />
                   <IconField icon="cake" value={petAge} onChangeText={(v) => dispatch(setPetAge(v))} placeholder="e.g. 2 years" />
                 </View>
               </View>
               <View className="mb-6">
-                <LabelPill text="Gender" />
+                <LabelPill text="Gender" required />
                 <PillRow options={PET_GENDER_OPTIONS} value={gender} onSelect={(v) => dispatch(setGender(v))} />
               </View>
               <View className="mb-6">
-                <LabelPill text="Vaccinated" />
+                <LabelPill text="Vaccinated" required />
                 <PillRow options={VACCINATED_OPTIONS} value={vaccinated} onSelect={(v) => dispatch(setVaccinated(v))} />
               </View>
               <View className="mb-6">
@@ -1471,7 +1471,7 @@ export function PostAdStep2DetailsScreen() {
             <>
               <View className="mb-6 flex-row gap-4">
                 <View className="flex-1">
-                  <Label text="Author" />
+                  <Label text="Author" required />
                   <IconField icon="person" value={author} onChangeText={(v) => dispatch(setAuthor(v))} placeholder="e.g. J.K. Rowling" />
                 </View>
                 <View className="flex-1">

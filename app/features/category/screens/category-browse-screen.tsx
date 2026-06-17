@@ -151,6 +151,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const [selectedSubcategory, setSelectedSubcategory] = useState("All");
   const [activeSort, setActiveSort] = useState<string>("relevance");
   const [listings, setListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [voiceVisible, setVoiceVisible] = useState(false);
   const [selectedDateIndex, setSelectedDateIndex] = useState(0);
@@ -173,6 +174,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
   const stickyOffset = headerHeight + eventsTitleHeight + datePickerHeight + categoryTabsHeight;
 
   const loadListings = useCallback(async () => {
+    setLoading(true);
     try {
       const hasCoords = hasLocationCoords;
 
@@ -213,6 +215,8 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
       }
     } catch {
       setListings((prev) => (prev.length > 0 ? prev : []));
+    } finally {
+      setLoading(false);
     }
   }, [
     appliedSearch,
@@ -582,7 +586,7 @@ export function CategoryBrowseScreen({ categorySlug }: CategoryBrowseScreenProps
           </ScrollView>
         ) : null}
 
-        {refreshing && displayListings.length === 0 ? (
+        {(loading || refreshing) && displayListings.length === 0 ? (
           <View className="items-center py-20">
             <ActivityIndicator size="large" color={BRAND} />
             <Text className="mt-3 text-[14px]" style={ListifyTypography.label}>

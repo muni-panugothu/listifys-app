@@ -122,13 +122,13 @@ export function ListingItemsGridCard({
       }}
     >
       <View
-        className="overflow-hidden rounded-2xl"
+        className="overflow-hidden rounded-2xl bg-[#F3F4F6]"
         style={{ height: imageSize, width: imageSize, alignSelf: "center" }}
       >
         {image ? (
           <Image
             source={image}
-            contentFit="cover"
+            contentFit="contain"
             cachePolicy="memory-disk"
             recyclingKey={image}
             transition={120}
@@ -138,7 +138,7 @@ export function ListingItemsGridCard({
             }}
           />
         ) : (
-          <View className="h-full w-full items-center justify-center bg-[#F3F4F6]">
+          <View className="h-full w-full items-center justify-center">
             <MaterialIcons name="image" size={36} color="#D1D5DB" />
           </View>
         )}

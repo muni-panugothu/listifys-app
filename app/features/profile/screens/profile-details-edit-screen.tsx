@@ -28,8 +28,8 @@ import {
 } from "@/store/slices/auth-slice";
 import { showAuthGate } from "@/store/slices/auth-gate-slice";
 import { GooglePlacesInput, type PlacesSelectResult } from "@/components/google-places-input";
-import { setLocationDirect, setProfileFallbackLocation, selectLocationLabel } from "@/store/slices/location-slice";
-import { saveStoredLocation } from "@/lib/location-service";
+import { clearLocation, setLocationDirect, setProfileFallbackLocation, selectLocationLabel } from "@/store/slices/location-slice";
+import { LOCATION_STORAGE_KEY, saveStoredLocation } from "@/lib/location-service";
 import { useLocale, CALLING_CODE } from "@/providers/locale-provider";
 import { selectLocationCoords } from "@/store/slices/location-slice";
 
@@ -182,10 +182,11 @@ export function ProfileDetailsEditScreen() {
   };
 
   const handleSave = async () => {
+    const trimmedLocation = location.trim();
     const result = await dispatch(
       updateUserProfile({
         name: fullName,
-        address: location,
+        address: trimmedLocation,
         bio,
         dateOfBirth,
         gender,
@@ -195,10 +196,15 @@ export function ProfileDetailsEditScreen() {
       // Sync the location text back to the Redux location slice so the home
       // feed, post form, and any other consumer that reads selectLocationLabel
       // reflects the profile's address immediately.
-      // setProfileFallbackLocation is a no-op when the user already has a
-      // GPS or manually-picked location (it never overrides those).
-      if (location.trim()) {
-        dispatch(setProfileFallbackLocation(location.trim()));
+      if (trimmedLocation) {
+        // setProfileFallbackLocation is a no-op when the user already has a
+        // GPS or manually-picked location (it never overrides those).
+        dispatch(setProfileFallbackLocation(trimmedLocation));
+      } else {
+        // User cleared their address — wipe the global location slice and the
+        // persisted location so the app no longer shows the stale value.
+        dispatch(clearLocation());
+        await AsyncStorage.removeItem(LOCATION_STORAGE_KEY).catch(() => {});
       }
       handleBack();
     } else {

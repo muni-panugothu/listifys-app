@@ -6,6 +6,7 @@ import {
   hasLocationPermission,
   loadStoredLocation,
   LOCATION_AUTO_REFRESH_MS,
+  LOCATION_STORAGE_KEY,
   requestLocationPermission,
   saveStoredLocation,
   type StoredAppLocation,
@@ -81,18 +82,29 @@ export const refreshDeviceLocation = createAsyncThunk(
         return stored;
       }
 
+      // If the OS no longer grants location, drop any stale GPS cache so we
+      // don't keep showing the user's previous location after they've revoked
+      // the permission. Manual entries above are preserved on purpose.
+      const permitted = await hasLocationPermission();
+      if (!permitted) {
+        if (stored?.source === "gps") {
+          try {
+            const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+            await AsyncStorage.removeItem(LOCATION_STORAGE_KEY);
+          } catch {
+            // best-effort
+          }
+        }
+        return rejectWithValue("PERMISSION_DENIED");
+      }
+
       if (
-        !force &&
         stored?.source === "gps" &&
         stored.updatedAt &&
+        !force &&
         Date.now() - stored.updatedAt < LOCATION_AUTO_REFRESH_MS
       ) {
         return stored;
-      }
-
-      const permitted = await hasLocationPermission();
-      if (!permitted) {
-        return rejectWithValue("PERMISSION_DENIED");
       }
 
       const loc = (getState() as RootState).location;
@@ -191,6 +203,16 @@ const locationSlice = createSlice({
       state.source = "profile";
       state.status = "ready";
     },
+    /** Wipe the user's chosen location and clear all derived coords/country. */
+    clearLocation(state) {
+      state.label = initialState.label;
+      state.lat = null;
+      state.lng = null;
+      state.isoCountryCode = null;
+      state.source = null;
+      state.status = "ready";
+      state.error = null;
+    },
     /** Directly set location from an autocomplete selection (no async needed). */
     setLocationDirect(
       state,
@@ -248,8 +270,19 @@ const locationSlice = createSlice({
         applyStored(state, action.payload);
       })
       .addCase(refreshDeviceLocation.rejected, (state, action) => {
+        const reason = (action.payload as string) ?? "Location unavailable";
+        // When the OS denies/revokes permission, drop any cached GPS coords so
+        // the app no longer claims the user is at a stale location. Manual
+        // and profile-set locations are preserved.
+        if (reason === "PERMISSION_DENIED" && state.source === "gps") {
+          state.label = initialState.label;
+          state.lat = null;
+          state.lng = null;
+          state.isoCountryCode = null;
+          state.source = null;
+        }
         state.status = state.lat != null ? "ready" : "error";
-        state.error = (action.payload as string) ?? "Location unavailable";
+        state.error = reason;
       })
 
       .addCase(setLocationFromSearch.pending, (state) => {
@@ -293,7 +326,7 @@ const locationSlice = createSlice({
   },
 });
 
-export const { setProfileFallbackLocation, setLocationDirect } = locationSlice.actions;
+export const { setProfileFallbackLocation, setLocationDirect, clearLocation } = locationSlice.actions;
 
 export const selectLocationLabel = (state: RootState) => {
   if (state.location.status === "loading" && !state.location.hydrated) {
