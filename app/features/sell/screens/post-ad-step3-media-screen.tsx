@@ -231,57 +231,79 @@ export function PostAdStep3MediaScreen() {
     }
   };
 
+  const processNewImages = async (newUris: string[]) => {
+    if (newUris.length === 0) return;
+
+    for (const uri of newUris) {
+      dispatch(addImageUri(uri));
+    }
+
+    setImageScanMap((prev) => ({
+      ...(prev ?? {}),
+      ...Object.fromEntries(newUris.map((u) => [u, { status: "scanning" } as ImageScanResult])),
+    }));
+
+    try {
+      const modResult = await checkImageModeration(newUris);
+      setImageScanMap((prev) => {
+        const next = { ...(prev ?? {}) };
+        const results = Array.isArray(modResult?.results) ? modResult.results : [];
+        newUris.forEach((uri, i) => {
+          const r = results[i];
+          if (r) {
+            next[uri] = {
+              status: r.decision === "block" ? "blocked" : r.decision === "review" ? "review" : "allowed",
+              category: r.category,
+            };
+          } else {
+            next[uri] = { status: "allowed" };
+          }
+        });
+        return next;
+      });
+    } catch {
+      setImageScanMap((prev) => ({
+        ...(prev ?? {}),
+        ...Object.fromEntries(newUris.map((u) => [u, { status: "allowed" } as ImageScanResult])),
+      }));
+    }
+  };
+
   const pickImages = async () => {
+    const remaining = 6 - imageUris.length;
+    if (remaining <= 0) return;
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsMultipleSelection: true,
-      selectionLimit: 6 - imageUris.length,
+      selectionLimit: remaining,
       quality: 0.8,
     });
 
     if (!result.canceled) {
-      const newUris = result.assets.map((a) => a.uri);
+      await processNewImages(result.assets.map((a) => a.uri));
+    }
+  };
 
-      // Add to Redux state first so thumbnails appear immediately.
-      for (const uri of newUris) {
-        dispatch(addImageUri(uri));
-      }
+  const takePhoto = async () => {
+    if (imageUris.length >= 6) return;
 
-      // Mark as scanning straight away so the overlay shows on each thumbnail.
-      setImageScanMap((prev) => ({
-        ...(prev ?? {}),
-        ...Object.fromEntries(newUris.map((u) => [u, { status: "scanning" } as ImageScanResult])),
-      }));
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showErrorToast(
+        "Camera permission required",
+        "Allow camera access in settings to take listing photos.",
+      );
+      return;
+    }
 
-      // Run Vision API moderation in the background.
-      try {
-        const modResult = await checkImageModeration(newUris);
-        setImageScanMap((prev) => {
-          // Guard against undefined prev (Hermes throws on { ...undefined })
-          const next = { ...(prev ?? {}) };
-          // Guard against unexpected API response shape
-          const results = Array.isArray(modResult?.results) ? modResult.results : [];
-          newUris.forEach((uri, i) => {
-            const r = results[i];
-            if (r) {
-              next[uri] = {
-                status: r.decision === "block" ? "blocked" : r.decision === "review" ? "review" : "allowed",
-                category: r.category,
-              };
-            } else {
-              // No result for this index — fail open.
-              next[uri] = { status: "allowed" };
-            }
-          });
-          return next;
-        });
-      } catch {
-        // API unreachable — fail open so uploads aren't permanently broken.
-        setImageScanMap((prev) => ({
-          ...(prev ?? {}),
-          ...Object.fromEntries(newUris.map((u) => [u, { status: "allowed" } as ImageScanResult])),
-        }));
-      }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      await processNewImages(result.assets.map((a) => a.uri));
     }
   };
 
@@ -745,19 +767,34 @@ export function PostAdStep3MediaScreen() {
 
           <View className="flex-row flex-wrap gap-3">
             {imageUris.length < 6 ? (
-              <Pressable
-                onPress={pickImages}
-                className="items-center justify-center rounded-2xl border-2 border-dashed border-[#E5E7EB] bg-[#F9FAFB]"
-                style={{ width: 96, height: 96 }}
-              >
-                <MaterialIcons name="add-a-photo" size={26} color="#9CA3AF" />
-                <Text
-                  className="mt-1 text-[10px] text-[#6B7280]"
-                  style={{ fontFamily: ListifyFonts.medium }}
+              <>
+                <Pressable
+                  onPress={takePhoto}
+                  className="items-center justify-center rounded-2xl border-2 border-dashed border-[#E5E7EB] bg-[#F9FAFB]"
+                  style={{ width: 96, height: 96 }}
                 >
-                  Add
-                </Text>
-              </Pressable>
+                  <MaterialIcons name="photo-camera" size={26} color="#9CA3AF" />
+                  <Text
+                    className="mt-1 text-[10px] text-[#6B7280]"
+                    style={{ fontFamily: ListifyFonts.medium }}
+                  >
+                    Camera
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={pickImages}
+                  className="items-center justify-center rounded-2xl border-2 border-dashed border-[#E5E7EB] bg-[#F9FAFB]"
+                  style={{ width: 96, height: 96 }}
+                >
+                  <MaterialIcons name="photo-library" size={26} color="#9CA3AF" />
+                  <Text
+                    className="mt-1 text-[10px] text-[#6B7280]"
+                    style={{ fontFamily: ListifyFonts.medium }}
+                  >
+                    Gallery
+                  </Text>
+                </Pressable>
+              </>
             ) : null}
 
             {imageUris.map((uri, idx) => {

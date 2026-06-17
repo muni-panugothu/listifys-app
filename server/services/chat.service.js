@@ -13,6 +13,7 @@ const mongoose = require('mongoose');
 const Conversation  = require('../models/conversation.model');
 const ProductThread = require('../models/product-thread.model');
 const Message       = require('../models/message.model');
+const Notification  = require('../models/notification.model');
 const User          = require('../models/user.model');
 const { encrypt, decrypt, isEncryptionEnabled } = require('./encryption.service');
 const s3Service = require('./s3.service');
@@ -621,8 +622,27 @@ exports.respondToOffer = async ({ threadId, sellerId, accept }) => {
 // MARK AS READ
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Mark in-app notifications tied to a conversation as read (message/offer types). */
+async function markConversationNotificationsRead(userId, conversationId) {
+  const convId = String(conversationId);
+  const orConditions = [{ 'metadata.conversationId': convId }];
+  if (mongoose.Types.ObjectId.isValid(convId)) {
+    orConditions.push({ 'metadata.conversationId': new mongoose.Types.ObjectId(convId) });
+  }
+  const result = await Notification.updateMany(
+    {
+      recipient: userId,
+      read: false,
+      type: { $in: ['message', 'offer', 'offer_received', 'offer_accepted', 'offer_rejected'] },
+      $or: orConditions,
+    },
+    { $set: { read: true } },
+  );
+  return result.modifiedCount ?? 0;
+}
+
 exports.markThreadRead = async (conversationId, threadId, userId) => {
-  const [, threadUpdate] = await Promise.all([
+  const [, , , notificationsMarked] = await Promise.all([
     // Clear conversation-level unread
     Conversation.updateOne(
       { _id: conversationId, participants: userId },
@@ -643,12 +663,13 @@ exports.markThreadRead = async (conversationId, threadId, userId) => {
       },
       { $addToSet: { readBy: userId }, $set: { status: 'read' } },
     ),
+    markConversationNotificationsRead(userId, conversationId),
   ]);
-  return threadUpdate;
+  return { notificationsMarked };
 };
 
 exports.markConversationRead = async (conversationId, userId) => {
-  await Promise.all([
+  const [, , , notificationsMarked] = await Promise.all([
     Conversation.updateOne(
       { _id: conversationId, participants: userId },
       { $set: { [`unreadCounts.${userId}`]: 0 } },
@@ -665,5 +686,7 @@ exports.markConversationRead = async (conversationId, userId) => {
       },
       { $addToSet: { readBy: userId }, $set: { status: 'read' } },
     ),
+    markConversationNotificationsRead(userId, conversationId),
   ]);
+  return { notificationsMarked };
 };

@@ -77,38 +77,8 @@ const handleMessagePersisted = async (payload) => {
     }
   } catch { /* Non-fatal */ }
 
-  // 3. Persist in-app notification via mongoose (if the sender is not the recipient)
-  if (senderId !== recipientId) {
-    try {
-      const mongoose = require('mongoose');
-      const Notification = mongoose.models.Notification;
-      if (Notification) {
-        const notification = await Notification.create({
-          recipient:  recipientId,
-          sender:     senderId,
-          type:       'message',
-          message:    preview || 'You have a new message',
-          metadata:   { conversationId, messageId, preview: preview || '' },
-        });
-
-        // Emit notification badge
-        const io = getSocket();
-        if (io && notification) {
-          io.to(`user:${recipientId}`).emit('notification:new', {
-            _id:       notification._id,
-            type:      'message',
-            message:   preview || 'You have a new message',
-            sender:    senderId,
-            senderName,
-            metadata:  { conversationId, messageId },
-            createdAt: notification.createdAt,
-          });
-        }
-      }
-    } catch (err) {
-      logger.error('[ChatConsumer] Failed to create notification', { error: err.message });
-    }
-  }
+  // In-app notification + FCM are handled synchronously in chat.controller.js
+  // (createNotification + pushNotifyRecipient). Do NOT duplicate here.
 
   logger.debug('[ChatConsumer] message_persisted handled', { messageId, recipientId });
 };

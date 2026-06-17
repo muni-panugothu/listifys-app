@@ -304,9 +304,12 @@ exports.markAsRead = async (req, res) => {
     const userId = req.user.id;
     const { conversationId } = req.params;
     if (!isValidId(conversationId)) return res.status(400).json({ success: false, message: 'Invalid conversationId' });
-    await chatService.markConversationRead(conversationId, userId);
+    const { notificationsMarked } = await chatService.markConversationRead(conversationId, userId);
+    if (notificationsMarked > 0) {
+      emitToUser(userId, 'notification:unread_adjust', { delta: -notificationsMarked });
+    }
     setNoCacheHeaders(res);
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, notificationsMarked });
   } catch (err) { return res.status(500).json({ success: false, message: 'Failed to mark as read' }); }
 };
 
@@ -317,9 +320,12 @@ exports.markThreadRead = async (req, res) => {
     if (!isValidId(threadId)) return res.status(400).json({ success: false, message: 'Invalid threadId' });
     const thread = await ProductThread.findById(threadId).select('conversation').lean();
     if (!thread) return res.status(404).json({ success: false, message: 'Thread not found' });
-    await chatService.markThreadRead(String(thread.conversation), threadId, userId);
+    const { notificationsMarked } = await chatService.markThreadRead(String(thread.conversation), threadId, userId);
+    if (notificationsMarked > 0) {
+      emitToUser(userId, 'notification:unread_adjust', { delta: -notificationsMarked });
+    }
     setNoCacheHeaders(res);
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, notificationsMarked });
   } catch (err) { return res.status(500).json({ success: false, message: 'Failed to mark as read' }); }
 };
 

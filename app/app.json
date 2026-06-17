@@ -13,7 +13,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Listify uses your location to show nearby listings and distances.",
         "NSMicrophoneUsageDescription": "Listify needs microphone access for voice search.",
-        "NSSpeechRecognitionUsageDescription": "Listify uses speech recognition to search for listings by voice."
+        "NSSpeechRecognitionUsageDescription": "Listify uses speech recognition to search for listings by voice.",
+        "NSCameraUsageDescription": "Listify uses your camera to take photos for your listings.",
+        "NSPhotoLibraryUsageDescription": "Listify uses your photo library so you can add images to listings."
       }
     },
     "android": {
@@ -29,6 +31,7 @@
       "package": "com.listifys.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -80,6 +83,13 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Listify uses your location to show nearby listings and distances."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Listify uses your photo library so you can add images to listings.",
+          "cameraPermission": "Listify uses your camera to take photos for your listings."
         }
       ],
       "expo-font"

@@ -218,12 +218,18 @@ export function sendMessageApi(
 
 /** Mark conversation as read */
 export function markConversationRead(conversationId: string) {
-  return requestJson<{ success: boolean }>(`/api/chat/conversations/${conversationId}/read`, { method: "PUT" });
+  return requestJson<{ success: boolean; notificationsMarked?: number }>(
+    `/api/chat/conversations/${conversationId}/read`,
+    { method: "PUT" },
+  );
 }
 
 /** Mark a single thread as read */
 export function markThreadRead(threadId: string) {
-  return requestJson<{ success: boolean }>(`/api/chat/threads/${threadId}/read`, { method: "PUT" });
+  return requestJson<{ success: boolean; notificationsMarked?: number }>(
+    `/api/chat/threads/${threadId}/read`,
+    { method: "PUT" },
+  );
 }
 
 /** Search messages in a conversation */

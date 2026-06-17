@@ -1,8 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "@/lib/safe-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -166,39 +166,34 @@ function NotificationRow({
     "You have a new notification on Listify.";
   const timeLabel = formatRelativeTime(item.createdAt);
   const swipeRef = useRef<Swipeable>(null);
+  const [rowHeight, setRowHeight] = useState(0);
 
-  const renderRightActions = (
-    _progress: Animated.AnimatedInterpolation<number>,
-    dragX: Animated.AnimatedInterpolation<number>,
-  ) => {
-    const translateX = dragX.interpolate({
-      inputRange: [-80, 0],
-      outputRange: [0, 80],
-      extrapolate: "clamp",
-    });
-
-    return (
-      <Animated.View style={{ transform: [{ translateX }] }}>
-        <Pressable
-          onPress={() => {
-            swipeRef.current?.close();
-            onDelete();
-          }}
-          style={{
-            width: 80,
-            marginLeft: 8,
-            borderRadius: 12,
-            backgroundColor: "#EF4444",
-            alignItems: "center",
-            justifyContent: "center",
-            alignSelf: "stretch",
-          }}
-        >
-          <MaterialIcons name="delete-outline" size={26} color="#FFFFFF" />
-        </Pressable>
-      </Animated.View>
-    );
-  };
+  const renderRightActions = () => (
+    <View
+      style={{
+        width: 72,
+        marginLeft: 8,
+        height: rowHeight > 0 ? rowHeight : undefined,
+        justifyContent: "center",
+      }}
+    >
+      <Pressable
+        onPress={() => {
+          swipeRef.current?.close();
+          onDelete();
+        }}
+        style={{
+          flex: 1,
+          borderRadius: 12,
+          backgroundColor: "#EF4444",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <MaterialIcons name="delete-outline" size={26} color="#FFFFFF" />
+      </Pressable>
+    </View>
+  );
 
   return (
     <Swipeable
@@ -207,12 +202,17 @@ function NotificationRow({
       overshootRight={false}
       friction={2}
       rightThreshold={40}
+      containerStyle={{ marginBottom: 4 }}
     >
-      <Pressable
-        onPress={onPress}
-        className="flex-row items-start bg-white py-3.5"
-        style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+      <View
+        onLayout={(e) => setRowHeight(e.nativeEvent.layout.height)}
+        style={{ backgroundColor: "#FFFFFF" }}
       >
+        <Pressable
+          onPress={onPress}
+          className="flex-row items-start py-3.5"
+          style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+        >
         <View
           className="h-12 w-12 items-center justify-center rounded-xl"
           style={{ backgroundColor: "#1A1A1A" }}
@@ -256,7 +256,8 @@ function NotificationRow({
         ) : (
           <View className="ml-2 w-2.5" />
         )}
-      </Pressable>
+        </Pressable>
+      </View>
     </Swipeable>
   );
 }
@@ -315,6 +316,12 @@ export function NotificationsCenterScreen() {
   useEffect(() => {
     void loadNotifications();
   }, [loadNotifications]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadNotifications();
+    }, [loadNotifications]),
+  );
 
   // Real-time via socket
   useEffect(() => {

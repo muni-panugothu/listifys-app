@@ -49,6 +49,7 @@ import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
 import { normalizeListingChatParams } from "@/lib/listing-chat";
 import { getListingDetailHref } from "@/lib/notification-navigation";
 import { showErrorToast } from "@/lib/toast";
+import { adjustNotificationUnread } from "@/lib/notification-unread-bus";
 import {
   getOrCreateConversation, getConversation, listThreads, getThreadMessages,
   sendMessageApi, markThreadRead, markConversationRead,
@@ -102,6 +103,11 @@ function senderId(m: ChatMessage) {
   return typeof m.sender === "string" ? m.sender : (m.sender as any)?.id ?? (m.sender as any)?._id ?? "";
 }
 function isFromMe(m: ChatMessage, uid?: string) { return senderId(m) === uid; }
+
+function syncNotificationBadge(res: { notificationsMarked?: number }) {
+  const marked = res.notificationsMarked ?? 0;
+  if (marked > 0) adjustNotificationUnread(-marked);
+}
 
 function participantId(participant?: ChatParticipant | string | null): string {
   if (!participant) return "";
@@ -262,7 +268,7 @@ export function ChatConversationScreen() {
       const res = await getThreadMessages(thread._id, 1, 50);
       setMessages(sortChron(res.messages));
       if (animate) scrollToBottom();
-      markThreadRead(thread._id).catch(() => {});
+      markThreadRead(thread._id).then(syncNotificationBadge).catch(() => {});
     } catch (e) {
       showErrorToast(
         "Chat Error",
@@ -347,7 +353,7 @@ export function ChatConversationScreen() {
       const convId = conversation?._id ?? params.conversationId;
       if (convId) {
         leaveConversation(convId);
-        markConversationRead(convId).catch(() => {});
+        markConversationRead(convId).then(syncNotificationBadge).catch(() => {});
       }
       if (activeThread) leaveThread(activeThread._id);
       dispatch(setActiveConversation(null));
