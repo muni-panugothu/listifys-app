@@ -145,10 +145,17 @@ function getExpoDevHost() {
   return undefined;
 }
 
+function trimUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
 function getConfiguredApiBaseUrl(): string | undefined {
-  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
-  const fromExtra = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)
-    ?.apiBaseUrl?.trim();
+  const fromEnv = trimUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
+  const fromExtra = trimUrl(
+    (Constants.expoConfig?.extra as { apiBaseUrl?: unknown } | undefined)?.apiBaseUrl,
+  );
   const value = fromEnv || fromExtra;
   return value ? value.replace(/\/$/, "") : undefined;
 }
@@ -210,8 +217,7 @@ function isAndroidPhysicalDevice(): boolean {
 function getCandidateApiBaseUrls() {
   const candidates: string[] = [];
   const add = (value?: string | null, { prepend = false } = {}) => {
-    if (!value) return;
-    const normalized = value.trim().replace(/\/$/, "");
+    const normalized = trimUrl(value)?.replace(/\/$/, "");
     if (!normalized) return;
     if (candidates.includes(normalized)) return;
     if (prepend) {

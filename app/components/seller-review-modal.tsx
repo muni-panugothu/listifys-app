@@ -8,7 +8,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
+import {
+  KeyboardAwareScrollView,
+  KeyboardStickyView,
+} from "@/lib/safe-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useKeyboardStickyOffset } from "@/components/chat-keyboard-scroll-view";

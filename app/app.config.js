@@ -22,6 +22,8 @@ const androidClientId =
 const iosClientId =
   process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() || null;
 
+const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || undefined;
+
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
   ...appJson.expo,
@@ -33,9 +35,11 @@ module.exports = {
       iosClientId,
       packageName: GOOGLE_OAUTH_FALLBACK.packageName,
     },
-    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || null,
+    ...(apiBaseUrl ? { apiBaseUrl } : {}),
   },
   plugins: [
+    "@react-native-firebase/app",
+    "@react-native-firebase/messaging",
     ...((appJson.expo.plugins || []).map((plugin) => {
     if (plugin === "@react-native-google-signin/google-signin") {
       const clientIdForScheme = iosClientId || webClientId;

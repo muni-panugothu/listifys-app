@@ -66,7 +66,7 @@ async function main() {
   console.log('Firebase Admin project:', projectId);
   console.log('App google-services.json project should match: listifys');
 
-  await sendRichNotification(token, {
+  const result = await sendRichNotification(token, {
     notificationId: `test_${Date.now()}`,
     type: 'engagement_digest',
     title: '✅ Listifys push test',
@@ -76,7 +76,14 @@ async function main() {
     groupKey: 'promotions',
   });
 
-  console.log('Test push sent. Check your phone (foreground + background).');
+  if (!result?.success) {
+    console.error('FCM send failed:', result?.error || 'unknown');
+    console.error('Code:', result?.code || 'n/a');
+    console.error('Check server Firebase credentials match app project "listifys" (582870381419).');
+    process.exit(1);
+  }
+
+  console.log('Test push sent successfully. Message ID:', result.messageId);
   if (mongoose.connection.readyState === 1) await mongoose.disconnect();
 }
 

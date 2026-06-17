@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { type ScrollViewProps } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "@/lib/safe-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type KeyboardFormScrollProps = ScrollViewProps & {

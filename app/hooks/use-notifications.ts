@@ -4,20 +4,16 @@
  * Wires up:
  *  1. FCM token registration + refresh subscription
  *  2. Notifee foreground event handler
- *       - PRESS          → deep-link + analytics
- *       - ACTION_PRESS   → CTA route + analytics
- *       - DISMISSED      → analytics
- *  3. FCM foreground message handler (fires when app is in foreground and
- *     a data push arrives — the socket usually beats it, but this is the
- *     reliable fallback for promotional / silent pushes)
+ *  3. FCM foreground message handler
  *
- * Call this once inside AppLayout (authenticated scope only).
+ * Call this once inside NotificationProvider (authenticated scope only).
  */
 import { useEffect, useState } from 'react';
 import notifee, { EventType } from '@notifee/react-native';
 // Lazy-load to avoid crash when google-services.json is missing.
 let messaging: (() => any) | null = null;
 try { messaging = require('@react-native-firebase/messaging').default; } catch {}
+import { getSettingsPreferences } from '@/features/auth/services/auth-api';
 import { useAppSelector } from '@/store/hooks';
 import { store } from '@/store';
 import { incomingCallReceived } from '@/store/slices/call-slice';
@@ -27,8 +23,9 @@ import {
   subscribeTokenRefresh,
 } from '@/lib/notifications/token-manager';
 import {
-  getInMemoryPushEnabled,
+  getCachedPushEnabled,
   hydratePushEnabledCache,
+  setCachedPushEnabled,
   subscribePushEnabledChange,
 } from '@/lib/notifications/push-preference';
 import { registerFCMToken } from '@/features/calling/services/call-socket-service';
@@ -44,31 +41,47 @@ export function useNotifications() {
   const sessionHydrated  = useAppSelector((s) => s.auth.sessionHydrated);
   const enabled          = isAuthenticated && sessionHydrated;
 
-  // Local mirror of the "Push notifications" master switch (settings screen).
-  // Hydrated from AsyncStorage on first mount, updated live via the
-  // preference event bus, and consumed below to skip FCM token registration
-  // when the user has opted out.
-  const [pushEnabled, setPushEnabled] = useState<boolean>(() => getInMemoryPushEnabled());
+  // null = still loading preference; avoids registering a token before we know
+  // whether the user opted out of push notifications.
+  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     let active = true;
-    hydratePushEnabledCache().then((value) => {
-      if (active) setPushEnabled(value);
-    });
+
+    const loadPreference = async () => {
+      await hydratePushEnabledCache();
+
+      if (!enabled) {
+        if (active) setPushEnabled(false);
+        return;
+      }
+
+      try {
+        const response = await getSettingsPreferences();
+        await setCachedPushEnabled(response.preferences.pushNotifications);
+        if (active) setPushEnabled(response.preferences.pushNotifications);
+      } catch {
+        const cached = await getCachedPushEnabled();
+        if (active) setPushEnabled(cached);
+      }
+    };
+
+    void loadPreference();
+
     const unsub = subscribePushEnabledChange((value) => {
       if (active) setPushEnabled(value);
     });
+
     return () => {
       active = false;
       unsub();
     };
-  }, []);
+  }, [enabled]);
 
   // ── Token registration ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!enabled) return;
-    // Master switch off → never mint or register a token. If a token was
-    // somehow already cached, delete it so the device cannot receive pushes.
+    if (!enabled || pushEnabled === null) return;
+
     if (!pushEnabled) {
       void deleteFCMToken();
       return;
@@ -97,7 +110,6 @@ export function useNotifications() {
 
       const notifId = detail.notification?.id;
 
-      // ── Notification body tapped ──────────────────────────────────────────
       if (
         type === EventType.PRESS ||
         (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'default')
@@ -114,7 +126,6 @@ export function useNotifications() {
         return;
       }
 
-      // ── CTA action button tapped ──────────────────────────────────────────
       if (type === EventType.ACTION_PRESS) {
         const actionId = detail.pressAction?.id ?? '';
         if (data.notificationId) {
@@ -127,7 +138,6 @@ export function useNotifications() {
         }
         if (notifId) notifee.cancelNotification(notifId).catch(() => {});
 
-        // Incoming call actions
         if (data.type === 'incoming_call') {
           if (actionId === 'accept') {
             store.dispatch(
@@ -142,11 +152,9 @@ export function useNotifications() {
             );
             navigateFromNotification({ ...data, route: '/incoming-call' });
           }
-          // reject → do nothing, call will time out server-side
           return;
         }
 
-        // Generic CTA: route from action definition
         if (actionId !== 'reject') {
           const actions: Array<{ id: string; route?: string; params?: Record<string,string> }> =
             safeParseJSON(data.actions) ?? [];
@@ -164,7 +172,6 @@ export function useNotifications() {
         return;
       }
 
-      // ── Notification dismissed ────────────────────────────────────────────
       if (type === EventType.DISMISSED) {
         if (data.notificationId) {
           trackNotificationEvent({
@@ -178,51 +185,43 @@ export function useNotifications() {
   }, [enabled]);
 
   // ── FCM foreground message handler ───────────────────────────────────────
-  // The socket covers call + chat events when connected.
-  // This handler covers promotional pushes and acts as a backup for call
-  // notifications when the socket is briefly unavailable.
   useEffect(() => {
-    if (!enabled) return;
-    if (!pushEnabled) return;
+    if (!enabled || pushEnabled !== true) return;
     if (!messaging) return;
 
     try {
       return messaging().onMessage(async (remoteMessage: any) => {
-      const data = remoteMessage.data as Record<string, string> | undefined;
-      if (!data) return;
+        const data = remoteMessage.data as Record<string, string> | undefined;
+        if (!data) return;
 
-      const callStatus = store.getState().call.status;
+        const callStatus = store.getState().call.status;
 
-      if (data.type === 'incoming_call') {
-        // If socket already handled it, skip duplicate
-        if (callStatus === 'incoming' || callStatus === 'active') return;
-        store.dispatch(
-          incomingCallReceived({
-            callId:          data.callId       ?? '',
-            remoteUserId:    data.from         ?? '',
-            remoteUserName:  data.callerName   ?? 'Unknown',
-            remoteUserPhoto: data.callerPhoto  ?? '',
-            callType:        (data.callType as 'audio' | 'video') ?? 'audio',
-            offer:           safeParseOffer(data.offer),
-          })
-        );
-        navigateFromNotification({ ...data, route: '/incoming-call' } as RichNotificationPayload);
-        return;
-      }
+        if (data.type === 'incoming_call') {
+          if (callStatus === 'incoming' || callStatus === 'active') return;
+          store.dispatch(
+            incomingCallReceived({
+              callId:          data.callId       ?? '',
+              remoteUserId:    data.from         ?? '',
+              remoteUserName:  data.callerName   ?? 'Unknown',
+              remoteUserPhoto: data.callerPhoto  ?? '',
+              callType:        (data.callType as 'audio' | 'video') ?? 'audio',
+              offer:           safeParseOffer(data.offer),
+            })
+          );
+          navigateFromNotification({ ...data, route: '/incoming-call' } as RichNotificationPayload);
+          return;
+        }
 
-      // Show all other types as visible notifications (e.g., promotions)
-      if (data.type !== 'silent') {
-        await displayRichNotification(data);
-      }
-    });
-    } catch (_e) {
-      // Firebase not yet initialised — foreground message handler not registered
+        if (data.type !== 'silent') {
+          await displayRichNotification(data);
+        }
+      });
+    } catch {
       return undefined;
     }
   }, [enabled, pushEnabled]);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function safeParseOffer(raw: string | undefined): object {
   try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }

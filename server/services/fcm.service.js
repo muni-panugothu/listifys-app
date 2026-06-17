@@ -16,10 +16,54 @@
  * (or FIREBASE_SERVICE_ACCOUNT_PATH) in .env.
  */
 const { logger } = require('../utils/logger');
+const fs = require('fs');
 const path = require('path');
+
+const DEFAULT_SERVICE_ACCOUNT_PATH = path.resolve(__dirname, '../config/firebase-service-account.json');
 
 let admin = null;
 let messaging = null;
+
+function resolveServiceAccountPath() {
+  const configured = process.env.FIREBASE_SERVICE_ACCOUNT_PATH?.trim();
+  if (configured) {
+    return path.isAbsolute(configured)
+      ? configured
+      : path.resolve(__dirname, '..', configured);
+  }
+  if (fs.existsSync(DEFAULT_SERVICE_ACCOUNT_PATH)) {
+    return DEFAULT_SERVICE_ACCOUNT_PATH;
+  }
+  return null;
+}
+
+function isInvalidTokenError(err) {
+  const code = err?.code || err?.errorInfo?.code || '';
+  return (
+    code === 'messaging/invalid-registration-token' ||
+    code === 'messaging/registration-token-not-registered'
+  );
+}
+
+async function clearInvalidFcmToken(fcmToken) {
+  if (!fcmToken) return;
+  try {
+    const User = require('../models/user.model');
+    await User.updateMany({ fcmToken }, { $unset: { fcmToken: '' } });
+    logger.info('[FCM] Cleared invalid device token from user record');
+  } catch (err) {
+    logger.warn('[FCM] Failed to clear invalid token', { error: err.message });
+  }
+}
+
+function isFirebaseConfigured() {
+  return Boolean(
+    resolveServiceAccountPath() ||
+    (process.env.FIREBASE_PRIVATE_KEY &&
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL),
+  );
+}
 
 function getAdmin() {
   if (admin) return admin;
@@ -27,7 +71,6 @@ function getAdmin() {
   try {
     admin = require('firebase-admin');
 
-    // Already initialized (e.g., imported twice)
     if (admin.apps.length > 0) {
       messaging = admin.messaging();
       return admin;
@@ -35,17 +78,12 @@ function getAdmin() {
 
     let credential;
     let projectId;
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      // Load from JSON file
-      const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH.trim();
-      const resolvedPath = path.isAbsolute(configuredPath)
-        ? configuredPath
-        : path.resolve(__dirname, '..', configuredPath);
-      const serviceAccount = require(resolvedPath);
+    const serviceAccountPath = resolveServiceAccountPath();
+    if (serviceAccountPath) {
+      const serviceAccount = require(serviceAccountPath);
       projectId = serviceAccount.project_id;
       credential = admin.credential.cert(serviceAccount);
     } else if (process.env.FIREBASE_PRIVATE_KEY) {
-      // Load from individual env vars
       credential = admin.credential.cert({
         projectId:   process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -123,8 +161,12 @@ async function sendRichNotification(fcmToken, {
   imageUrl, iconUrl, route, params,
   actions, groupKey, sound, extra = {},
 }) {
-  if (!getAdmin() || !messaging) return;
-  if (!fcmToken || !title || !body) return;
+  if (!getAdmin() || !messaging) {
+    return { success: false, error: 'firebase_not_configured' };
+  }
+  if (!fcmToken || !title || !body) {
+    return { success: false, error: 'invalid_payload' };
+  }
 
   const data = stringifyData({
     type:           type           || 'general',
@@ -141,15 +183,20 @@ async function sendRichNotification(fcmToken, {
   });
 
   try {
-    await messaging.send({
+    const messageId = await messaging.send({
       token: fcmToken,
       data,
       android: { priority: 'high' },
       apns:    { headers: { 'apns-priority': '5' } },
     });
-    logger.debug('[FCM] Rich notification sent', { type, notificationId });
+    logger.debug('[FCM] Rich notification sent', { type, notificationId, messageId });
+    return { success: true, messageId };
   } catch (err) {
     logger.warn('[FCM] sendRichNotification failed', { error: err.message, type });
+    if (isInvalidTokenError(err)) {
+      await clearInvalidFcmToken(fcmToken);
+    }
+    return { success: false, error: err.message, code: err.code };
   }
 }
 
@@ -336,6 +383,7 @@ async function sendEngagementNotification(fcmToken, {
 }
 
 module.exports = {
+  isFirebaseConfigured,
   sendCallNotification,
   sendRichNotification,
   sendMulticast,

@@ -17,11 +17,13 @@ export async function registerFCMTokenWithServer(fcmToken: string): Promise<void
       // eslint-disable-next-line no-console
       console.info("[FCM] Token saved on server (REST)");
     }
+    return true;
   } catch (error) {
     if (__DEV__) {
       // eslint-disable-next-line no-console
       console.warn("[FCM] REST token register failed:", error);
     }
+    return false;
   }
 
   try {

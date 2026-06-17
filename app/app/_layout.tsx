@@ -19,7 +19,7 @@ import "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { KeyboardProvider } from "react-native-keyboard-controller";
+import { KeyboardProvider } from "@/lib/safe-keyboard-controller";
 import "../global.css";
 
 import { ListifyFonts } from "@/constants/typography";
@@ -30,13 +30,13 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { logout } from "@/store/slices/auth-slice";
 import { store } from "@/store";
-import { registerBackgroundCallHandler } from "@/lib/firebase-messaging";
+import { bootstrapNotifications } from "@/providers/notification-provider";
 import { NotificationProvider } from "@/providers/notification-provider";
 import { connectSocket, getSocket, disconnectSocket } from "@/features/messaging/services/socket-service";
 
 // Register FCM background handler before any component renders (module-level)
 // Wrapped in try/catch — fails gracefully if google-services.json is missing.
-try { registerBackgroundCallHandler(); } catch (e) {
+try { bootstrapNotifications(); } catch (e) {
   console.warn('[Firebase] Background handler not registered:', e);
 }
 
@@ -180,6 +180,10 @@ function AppLayout() {
       .then(async () => {
         const { attachCallListeners } = await import('@/features/calling/services/call-socket-service');
         attachCallListeners();
+        const { getCachedPushEnabled } = await import('@/lib/notifications/push-preference');
+        const pushOn = await getCachedPushEnabled();
+        if (!pushOn) return;
+
         const { getCachedToken } = await import('@/lib/notifications/token-manager');
         const { registerFCMToken } = await import('@/features/calling/services/call-socket-service');
         const cached = await getCachedToken();

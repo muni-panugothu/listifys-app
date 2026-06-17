@@ -5,7 +5,6 @@ import { ActivityIndicator, Image, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { configureGoogleSignIn } from "@/lib/google-sign-in";
-import { getFCMToken } from "@/lib/firebase-messaging";
 import { useAppDispatch } from "@/store/hooks";
 import { store } from "@/store";
 import { getAccessToken, getRefreshToken, restoreTokens } from "@/features/auth/services/auth-api";
@@ -28,7 +27,6 @@ export function SplashScreen() {
         await dispatch(checkOnboarding());
         const sessionResult = await dispatch(restoreSession());
         await configureGoogleSignIn().catch(() => {});
-        await getFCMToken().catch(() => null);
 
         if (cancelled) return;
 

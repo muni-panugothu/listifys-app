@@ -1,21 +1,29 @@
 import React, { forwardRef } from "react";
-import { KeyboardChatScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  KeyboardChatScrollView as BaseKeyboardChatScrollView,
+} from "@/lib/safe-keyboard-controller";
 import type { ScrollViewProps } from "react-native";
-import type { KeyboardChatScrollViewProps } from "react-native-keyboard-controller";
 
 const INPUT_MARGIN = 8;
 
+type ChatScrollProps = ScrollViewProps & {
+  offset?: number;
+  automaticallyAdjustContentInsets?: boolean;
+  contentInsetAdjustmentBehavior?: string;
+  keyboardDismissMode?: ScrollViewProps["keyboardDismissMode"];
+};
+
 /** Scroll wrapper for chat FlatList — keeps messages aligned with the keyboard. */
 export const ChatKeyboardScrollView = forwardRef<
-  React.ElementRef<typeof KeyboardChatScrollView>,
-  ScrollViewProps & KeyboardChatScrollViewProps
+  React.ElementRef<typeof BaseKeyboardChatScrollView>,
+  ChatScrollProps
 >((props, ref) => {
   const { bottom } = useSafeAreaInsets();
 
   return (
-    <KeyboardChatScrollView
+    <BaseKeyboardChatScrollView
       ref={ref}
       automaticallyAdjustContentInsets={false}
       contentInsetAdjustmentBehavior="never"
@@ -28,8 +36,4 @@ export const ChatKeyboardScrollView = forwardRef<
 
 ChatKeyboardScrollView.displayName = "ChatKeyboardScrollView";
 
-/** Offset for KeyboardStickyView so the composer sits flush on the keyboard. */
-export function useKeyboardStickyOffset() {
-  const { bottom } = useSafeAreaInsets();
-  return { closed: 0, opened: Math.max(bottom - INPUT_MARGIN, 0) } as const;
-}
+export { useKeyboardStickyOffset } from "@/hooks/use-keyboard-sticky-offset";

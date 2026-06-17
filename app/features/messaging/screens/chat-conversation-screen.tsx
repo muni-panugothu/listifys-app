@@ -35,7 +35,7 @@ import {
 import {
   KeyboardGestureArea,
   KeyboardStickyView,
-} from "react-native-keyboard-controller";
+} from "@/lib/safe-keyboard-controller";
 import {
   ChatKeyboardScrollView,
   useKeyboardStickyOffset,
