@@ -114,14 +114,17 @@ function buildFcmPayload({
       groupKey = type === 'price_drop' ? 'price_alerts' : 'listings';
       actions = [{ id: 'open_listing', title: '👀 View listing' }];
       break;
-    case 'follow':
+    case 'follow': {
+      const followerId = String(metadata.followerId || metadata.senderId || '');
       route = '/seller-public-profile';
       params = {
-        sellerId: String(metadata.followerId || metadata.senderId || ''),
+        sellerId: followerId,
         sellerName: senderName || '',
       };
       groupKey = 'social';
+      actions = [{ id: 'view_profile', title: '👤 View profile' }];
       break;
+    }
     case 'engagement_digest':
     case 're_engagement':
     case 'promotion':

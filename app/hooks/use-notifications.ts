@@ -3,65 +3,64 @@
  *
  * Wires up:
  *  1. FCM token registration + refresh subscription
- *  2. Notifee foreground event handler
- *  3. FCM foreground message handler
+ *  2. FCM foreground message handler
  *
- * Call this once inside NotificationProvider (authenticated scope only).
+ * Notifee tap handling lives in NotificationProvider (always active).
  */
-import { useEffect, useState } from 'react';
-import notifee, { EventType } from '@notifee/react-native';
+import { useEffect, useState } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 // Lazy-load to avoid crash when google-services.json is missing.
 let messaging: (() => any) | null = null;
-try { messaging = require('@react-native-firebase/messaging').default; } catch {}
-import { getSettingsPreferences } from '@/features/auth/services/auth-api';
-import { useAppSelector } from '@/store/hooks';
-import { store } from '@/store';
-import { incomingCallReceived } from '@/store/slices/call-slice';
+try {
+  messaging = require("@react-native-firebase/messaging").default;
+} catch {
+  /* Expo Go */
+}
+import { getSettingsPreferences } from "@/features/auth/services/auth-api";
+import { useAppSelector } from "@/store/hooks";
+import { store } from "@/store";
+import { incomingCallReceived } from "@/store/slices/call-slice";
 import {
   deleteFCMToken,
-  getFCMToken,
   subscribeTokenRefresh,
-} from '@/lib/notifications/token-manager';
+} from "@/lib/notifications/token-manager";
 import {
-  getCachedPushEnabled,
   hydratePushEnabledCache,
   setCachedPushEnabled,
   subscribePushEnabledChange,
-} from '@/lib/notifications/push-preference';
-import { registerFCMToken } from '@/features/calling/services/call-socket-service';
-import {
-  displayRichNotification,
-} from '@/lib/notifications/notification-service';
-import { navigateFromNotification } from '@/lib/notifications/deep-link-handler';
-import { trackNotificationEvent } from '@/lib/notifications/analytics';
-import type { RichNotificationPayload } from '@/lib/notifications/types';
+} from "@/lib/notifications/push-preference";
+import { syncFcmTokenWithServer } from "@/lib/notifications/sync-fcm-token";
+import { displayRichNotification } from "@/lib/notifications/notification-service";
+import { navigateFromNotification } from "@/lib/notifications/deep-link-handler";
+import type { RichNotificationPayload } from "@/lib/notifications/types";
 
 export function useNotifications() {
-  const isAuthenticated  = useAppSelector((s) => s.auth.isAuthenticated);
-  const sessionHydrated  = useAppSelector((s) => s.auth.sessionHydrated);
-  const enabled          = isAuthenticated && sessionHydrated;
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const sessionHydrated = useAppSelector((s) => s.auth.sessionHydrated);
+  const enabled = isAuthenticated && sessionHydrated;
 
-  // null = still loading preference; avoids registering a token before we know
-  // whether the user opted out of push notifications.
+  // null = still loading; use cached default quickly so token sync is not blocked.
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     let active = true;
 
     const loadPreference = async () => {
-      await hydratePushEnabledCache();
+      const cached = await hydratePushEnabledCache();
 
       if (!enabled) {
         if (active) setPushEnabled(false);
         return;
       }
 
+      // Don't wait for the server — register with cached preference first.
+      if (active) setPushEnabled(cached);
+
       try {
         const response = await getSettingsPreferences();
         await setCachedPushEnabled(response.preferences.pushNotifications);
         if (active) setPushEnabled(response.preferences.pushNotifications);
       } catch {
-        const cached = await getCachedPushEnabled();
         if (active) setPushEnabled(cached);
       }
     };
@@ -87,102 +86,24 @@ export function useNotifications() {
       return;
     }
 
-    let unsubRefresh: (() => void) | undefined;
+    void syncFcmTokenWithServer({ force: true });
 
-    getFCMToken().then((token) => {
-      if (token) void registerFCMToken(token);
+    const unsubRefresh = subscribeTokenRefresh(() => {
+      void syncFcmTokenWithServer({ force: true });
     });
 
-    unsubRefresh = subscribeTokenRefresh((newToken) => {
-      void registerFCMToken(newToken);
-    });
+    const onAppState = (state: AppStateStatus) => {
+      if (state === "active") {
+        void syncFcmTokenWithServer();
+      }
+    };
+    const appStateSub = AppState.addEventListener("change", onAppState);
 
-    return () => unsubRefresh?.();
+    return () => {
+      unsubRefresh();
+      appStateSub.remove();
+    };
   }, [enabled, pushEnabled]);
-
-  // ── Notifee foreground event handler ─────────────────────────────────────
-  useEffect(() => {
-    if (!enabled) return;
-
-    return notifee.onForegroundEvent(({ type, detail }) => {
-      const data = detail.notification?.data as RichNotificationPayload | undefined;
-      if (!data) return;
-
-      const notifId = detail.notification?.id;
-
-      if (
-        type === EventType.PRESS ||
-        (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'default')
-      ) {
-        if (data.notificationId) {
-          trackNotificationEvent({
-            notificationId: data.notificationId,
-            event:          'clicked',
-            timestamp:      Date.now(),
-          }).catch(() => {});
-        }
-        if (notifId) notifee.cancelNotification(notifId).catch(() => {});
-        navigateFromNotification(data);
-        return;
-      }
-
-      if (type === EventType.ACTION_PRESS) {
-        const actionId = detail.pressAction?.id ?? '';
-        if (data.notificationId) {
-          trackNotificationEvent({
-            notificationId: data.notificationId,
-            event:          'action_clicked',
-            actionId,
-            timestamp:      Date.now(),
-          }).catch(() => {});
-        }
-        if (notifId) notifee.cancelNotification(notifId).catch(() => {});
-
-        if (data.type === 'incoming_call') {
-          if (actionId === 'accept') {
-            store.dispatch(
-              incomingCallReceived({
-                callId:          data.callId       ?? '',
-                remoteUserId:    data.from         ?? '',
-                remoteUserName:  data.callerName   ?? 'Unknown',
-                remoteUserPhoto: data.callerPhoto  ?? '',
-                callType:        (data.callType as 'audio' | 'video') ?? 'audio',
-                offer:           safeParseOffer(data.offer),
-              })
-            );
-            navigateFromNotification({ ...data, route: '/incoming-call' });
-          }
-          return;
-        }
-
-        if (actionId !== 'reject') {
-          const actions: Array<{ id: string; route?: string; params?: Record<string,string> }> =
-            safeParseJSON(data.actions) ?? [];
-          const action = actions.find((a) => a.id === actionId);
-          if (action?.route) {
-            navigateFromNotification({
-              ...data,
-              route:  action.route,
-              params: action.params ? JSON.stringify(action.params) : undefined,
-            });
-          } else {
-            navigateFromNotification(data);
-          }
-        }
-        return;
-      }
-
-      if (type === EventType.DISMISSED) {
-        if (data.notificationId) {
-          trackNotificationEvent({
-            notificationId: data.notificationId,
-            event:          'dismissed',
-            timestamp:      Date.now(),
-          }).catch(() => {});
-        }
-      }
-    });
-  }, [enabled]);
 
   // ── FCM foreground message handler ───────────────────────────────────────
   useEffect(() => {
@@ -196,23 +117,23 @@ export function useNotifications() {
 
         const callStatus = store.getState().call.status;
 
-        if (data.type === 'incoming_call') {
-          if (callStatus === 'incoming' || callStatus === 'active') return;
+        if (data.type === "incoming_call") {
+          if (callStatus === "incoming" || callStatus === "active") return;
           store.dispatch(
             incomingCallReceived({
-              callId:          data.callId       ?? '',
-              remoteUserId:    data.from         ?? '',
-              remoteUserName:  data.callerName   ?? 'Unknown',
-              remoteUserPhoto: data.callerPhoto  ?? '',
-              callType:        (data.callType as 'audio' | 'video') ?? 'audio',
-              offer:           safeParseOffer(data.offer),
-            })
+              callId: data.callId ?? "",
+              remoteUserId: data.from ?? "",
+              remoteUserName: data.callerName ?? "Unknown",
+              remoteUserPhoto: data.callerPhoto ?? "",
+              callType: (data.callType as "audio" | "video") ?? "audio",
+              offer: safeParseOffer(data.offer),
+            }),
           );
-          navigateFromNotification({ ...data, route: '/incoming-call' } as RichNotificationPayload);
+          navigateFromNotification({ ...data, route: "/incoming-call" } as RichNotificationPayload);
           return;
         }
 
-        if (data.type !== 'silent') {
+        if (data.type !== "silent") {
           await displayRichNotification(data);
         }
       });
@@ -223,9 +144,9 @@ export function useNotifications() {
 }
 
 function safeParseOffer(raw: string | undefined): object {
-  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
-}
-
-function safeParseJSON<T>(raw: string | undefined): T | null {
-  try { return raw ? JSON.parse(raw) as T : null; } catch { return null; }
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 }

@@ -164,6 +164,11 @@ exports.trackEvent = async (req, res) => {
       return res.status(400).json({ success: false, message: "notificationId and event are required" });
     }
 
+    // FCM-only pushes use synthetic ids (msg_*, offer_*) — skip DB analytics update.
+    if (!mongoose.Types.ObjectId.isValid(notificationId)) {
+      return res.status(200).json({ success: true, skipped: true });
+    }
+
     const ts = timestamp ? new Date(timestamp) : new Date();
 
     const update = {};

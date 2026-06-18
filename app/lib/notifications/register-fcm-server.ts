@@ -1,12 +1,37 @@
 import { requestJson } from "@/features/auth/services/auth-api";
 import { connectSocket, getSocket } from "@/features/messaging/services/socket-service";
 
+async function registerViaSocket(fcmToken: string): Promise<boolean> {
+  try {
+    const socket = getSocket();
+    if (socket?.connected) {
+      socket.emit("call:update-fcm-token", { fcmToken });
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.info("[FCM] Token sent via socket");
+      }
+      return true;
+    }
+    const connected = await connectSocket();
+    if (connected?.connected) {
+      connected.emit("call:update-fcm-token", { fcmToken });
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.info("[FCM] Token sent via socket (after connect)");
+      }
+      return true;
+    }
+  } catch {
+    // Socket is optional — REST is preferred.
+  }
+  return false;
+}
+
 /**
  * Persist FCM token on the server (REST + socket fallback).
- * REST is reliable; socket duplicates for call wake-up paths.
  */
-export async function registerFCMTokenWithServer(fcmToken: string): Promise<void> {
-  if (!fcmToken) return;
+export async function registerFCMTokenWithServer(fcmToken: string): Promise<boolean> {
+  if (!fcmToken) return false;
 
   try {
     await requestJson<{ success: boolean }>("/api/notifications/fcm-token", {
@@ -21,27 +46,15 @@ export async function registerFCMTokenWithServer(fcmToken: string): Promise<void
   } catch (error) {
     if (__DEV__) {
       // eslint-disable-next-line no-console
-      console.warn("[FCM] REST token register failed:", error);
+      console.warn("[FCM] REST token register failed, trying socket:", error);
     }
-    return false;
   }
 
-  try {
-    const socket = getSocket();
-    if (socket?.connected) {
-      socket.emit("call:update-fcm-token", { fcmToken });
-      return;
-    }
-    const connected = await connectSocket();
-    connected?.emit("call:update-fcm-token", { fcmToken });
-  } catch {
-    // Socket optional — REST registration is enough for push tests
-  }
+  return registerViaSocket(fcmToken);
 }
 
 /**
  * Clear the FCM token from the server so no further pushes can be delivered.
- * Called when the user turns OFF push notifications in settings.
  */
 export async function unregisterFCMTokenFromServer(): Promise<boolean> {
   try {

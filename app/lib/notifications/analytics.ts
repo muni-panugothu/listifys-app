@@ -11,6 +11,7 @@
  *   dismissed     — user swiped away
  */
 import type { NotificationAnalyticsPayload } from './types';
+import { isPersistedNotificationId } from '@/lib/notifications/notification-id';
 import { readStoredTokens } from '@/lib/secure-auth-storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -19,6 +20,7 @@ export async function trackNotificationEvent(
   payload: NotificationAnalyticsPayload
 ): Promise<void> {
   if (!API_BASE || !payload.notificationId) return;
+  if (!isPersistedNotificationId(payload.notificationId)) return;
 
   try {
     const tokens = await readStoredTokens();

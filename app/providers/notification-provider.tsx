@@ -13,23 +13,18 @@
 import { useEffect, type ReactNode } from 'react';
 // Lazy-load native Firebase/Notifee modules to avoid crashing in Expo Go
 let notifee: any = null;
-let EventType: any = {};
 let messaging: any = null;
 try {
   const notifeeMod = require('@notifee/react-native');
   notifee = notifeeMod.default;
-  EventType = notifeeMod.EventType;
   messaging = require('@react-native-firebase/messaging').default;
 } catch {
   // Expo Go — native modules unavailable
 }
-import { store } from '@/store';
-import { incomingCallReceived } from '@/store/slices/call-slice';
-import { router } from 'expo-router';
+import { displayRichNotification, registerIOSCategories } from '@/lib/notifications/notification-service';
 import { createAllChannels } from '@/lib/notifications/channels';
-import { registerIOSCategories, displayRichNotification } from '@/lib/notifications/notification-service';
 import { navigateFromNotification } from '@/lib/notifications/deep-link-handler';
-import { trackNotificationEvent } from '@/lib/notifications/analytics';
+import { handleNotificationInteraction } from '@/lib/notifications/notification-interaction';
 import { useNotifications } from '@/hooks/use-notifications';
 import type { RichNotificationPayload } from '@/lib/notifications/types';
 
@@ -44,80 +39,54 @@ import type { RichNotificationPayload } from '@/lib/notifications/types';
 export function bootstrapNotifications(): void {
   if (!messaging || !notifee) return; // Expo Go guard
 
-  // ── FCM: background / quit state handler ─────────────────────────────────
   messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
     const data = remoteMessage.data as Record<string, string> | undefined;
     if (!data) return;
 
-    // incoming_call is handled by full-screen Notifee notification
     if (data.type === 'incoming_call') {
       await displayRichNotification(data);
       return;
     }
-    // silent — no visible notification
     if (data.type === 'silent') return;
 
-    // all other types: show rich notification
     await displayRichNotification(data);
   });
 
-  // ── Notifee: background / quit state event handler ────────────────────────
   notifee.onBackgroundEvent(async ({ type, detail }) => {
-    const data = detail.notification?.data as RichNotificationPayload | undefined;
-    if (!data) return;
+    const data = (detail.notification?.data ?? {}) as RichNotificationPayload;
 
-    const notifId = detail.notification?.id;
-    if (notifId) await notifee.cancelNotification(notifId).catch(() => {});
-
-    // ── Incoming call actions ────────────────────────────────────────────────
-    if (data.type === 'incoming_call') {
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'reject') {
-        // Rejected — nothing to do; server-side will time out the call
-        return;
-      }
-      // Accept or body press → dispatch + navigate
-      store.dispatch(
-        incomingCallReceived({
-          callId:          data.callId       ?? '',
-          remoteUserId:    data.from         ?? '',
-          remoteUserName:  data.callerName   ?? 'Unknown',
-          remoteUserPhoto: data.callerPhoto  ?? '',
-          callType:        (data.callType as 'audio' | 'video') ?? 'audio',
-          offer:           safeParseOffer(data.offer),
-        })
-      );
-      router.push('/incoming-call');
-      return;
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.info('[Notifications] Background event', {
+        type,
+        id: detail.notification?.id,
+        actionId: detail.pressAction?.id,
+      });
     }
 
-    // ── Generic press / CTA ──────────────────────────────────────────────────
-    if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
-      const actionId = detail.pressAction?.id;
-      if (data.notificationId) {
-        await trackNotificationEvent({
-          notificationId: data.notificationId,
-          event:          type === EventType.ACTION_PRESS ? 'action_clicked' : 'clicked',
-          actionId,
-          timestamp:      Date.now(),
-        });
-      }
+    await handleNotificationInteraction(type, data, {
+      notifId: detail.notification?.id,
+      actionId: detail.pressAction?.id,
+    });
+  });
 
-      if (actionId && actionId !== 'default') {
-        // Find the matching action's route
-        const actions: Array<{ id: string; route?: string; params?: Record<string,string> }> =
-          safeParseJSON(data.actions) ?? [];
-        const action = actions.find((a) => a.id === actionId);
-        if (action?.route) {
-          navigateFromNotification({
-            ...data,
-            route:  action.route,
-            params: action.params ? JSON.stringify(action.params) : undefined,
-          });
-          return;
-        }
-      }
-      navigateFromNotification(data);
+  notifee.onForegroundEvent(({ type, detail }) => {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.info('[Notifications] Foreground event (bootstrap)', {
+        type,
+        id: detail.notification?.id,
+        actionId: detail.pressAction?.id,
+        dataKeys: Object.keys(detail.notification?.data ?? {}),
+      });
     }
+
+    const data = (detail.notification?.data ?? {}) as RichNotificationPayload;
+
+    void handleNotificationInteraction(type, data, {
+      notifId: detail.notification?.id,
+      actionId: detail.pressAction?.id,
+    });
   });
 }
 
@@ -130,58 +99,29 @@ interface NotificationProviderProps {
 }
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
-  // Attach the useNotifications hook (token, foreground events, FCM foreground)
   useNotifications();
 
-  // ── One-time setup: channels + iOS categories ─────────────────────────────
   useEffect(() => {
     createAllChannels().catch(() => {});
     registerIOSCategories().catch(() => {});
   }, []);
 
-  // ── App opened from notification (quit state) ─────────────────────────────
-  // FCM: getInitialNotification fires when the app was completely killed and
-  // the user tapped a notification to open it.
+  // FCM background tap (backup when notification opened from system tray).
   useEffect(() => {
     if (!messaging) return;
     try {
-      messaging()
-        .getInitialNotification()
-        .then((remoteMessage: any) => {
-          if (!remoteMessage?.data) return;
-          const data = remoteMessage.data as Record<string, string>;
-          if (data.type !== 'incoming_call' && data.type !== 'silent') {
-            navigateFromNotification(data as RichNotificationPayload);
-          }
-        })
-        .catch(() => {});
-    } catch (_e) {
-      // Firebase not yet initialised by the native layer — skip quit-state routing
+      const unsub = messaging().onNotificationOpenedApp((remoteMessage: any) => {
+        if (!remoteMessage?.data) return;
+        const data = remoteMessage.data as RichNotificationPayload;
+        if (data.type !== 'incoming_call' && data.type !== 'silent') {
+          navigateFromNotification(data);
+        }
+      });
+      return unsub;
+    } catch {
+      return undefined;
     }
   }, []);
 
-  // Notifee: getInitialNotification fires when app was killed and user tapped
-  // a Notifee-displayed notification (e.g., a scheduled or call notification).
-  useEffect(() => {
-    if (!notifee) return;
-    notifee
-      .getInitialNotification()
-      .then((initial) => {
-        if (!initial?.notification?.data) return;
-        const data = initial.notification.data as RichNotificationPayload;
-        navigateFromNotification(data);
-      })
-      .catch(() => {});
-  }, []);
-
   return <>{children}</>;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function safeParseOffer(raw: string | undefined): object {
-  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
-}
-
-function safeParseJSON<T>(raw: string | undefined): T | null {
-  try { return raw ? JSON.parse(raw) as T : null; } catch { return null; }
 }

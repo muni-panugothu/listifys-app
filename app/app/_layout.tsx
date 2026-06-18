@@ -30,15 +30,9 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { logout } from "@/store/slices/auth-slice";
 import { store } from "@/store";
-import { bootstrapNotifications } from "@/providers/notification-provider";
 import { NotificationProvider } from "@/providers/notification-provider";
+import { NotificationNavigationHost } from "@/components/notification-navigation-host";
 import { connectSocket, getSocket, disconnectSocket } from "@/features/messaging/services/socket-service";
-
-// Register FCM background handler before any component renders (module-level)
-// Wrapped in try/catch — fails gracefully if google-services.json is missing.
-try { bootstrapNotifications(); } catch (e) {
-  console.warn('[Firebase] Background handler not registered:', e);
-}
 
 export default function RootLayout() {
   return (
@@ -180,14 +174,8 @@ function AppLayout() {
       .then(async () => {
         const { attachCallListeners } = await import('@/features/calling/services/call-socket-service');
         attachCallListeners();
-        const { getCachedPushEnabled } = await import('@/lib/notifications/push-preference');
-        const pushOn = await getCachedPushEnabled();
-        if (!pushOn) return;
-
-        const { getCachedToken } = await import('@/lib/notifications/token-manager');
-        const { registerFCMToken } = await import('@/features/calling/services/call-socket-service');
-        const cached = await getCachedToken();
-        if (cached) void registerFCMToken(cached);
+        const { syncFcmTokenWithServer } = await import('@/lib/notifications/sync-fcm-token');
+        void syncFcmTokenWithServer({ force: true });
       })
       .catch(() => {});
   }, [sessionHydrated, isAuthenticated]);
@@ -425,6 +413,7 @@ function AppLayout() {
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
         </Stack>
+        <NotificationNavigationHost />
         <AuthGateBottomSheet
           visible={visible}
           onClose={handleCloseAuthGate}

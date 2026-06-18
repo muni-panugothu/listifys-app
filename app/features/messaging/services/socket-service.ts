@@ -55,119 +55,59 @@ async function waitForSocketConnection(instance: Socket) {
   });
 }
 
-function isAuthConnectError(message: string) {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("authentication failed") ||
-    lower.includes("authentication required") ||
-    lower.includes("jwt expired") ||
-    lower.includes("invalid token") ||
-    lower.includes("user not found")
-  );
-}
-
-async function ensureFreshAccessToken(): Promise<string | null> {
-  if (!getAccessToken()) {
-    await restoreTokens();
-  }
-  let token = getAccessToken();
-  if (!token) {
-    await refreshAccessToken();
-    token = getAccessToken();
-  }
-  return token;
-}
-
-async function connectWithAuthRetry(): Promise<Socket> {
-  let token = await ensureFreshAccessToken();
-  if (!token) {
-    throw new Error("No access token available for Socket.IO");
-  }
-
-  if (socket) {
-    socket.auth = { token };
-    if (!socket.connected) {
-      socket.connect();
-    }
-    try {
-      return await waitForSocketConnection(socket);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!isAuthConnectError(message)) throw err;
-
-      const refreshed = await refreshAccessToken();
-      token = refreshed ? getAccessToken() : null;
-      if (!token) throw err;
-
-      socket.auth = { token };
-      socket.disconnect();
-      socket.connect();
-      return await waitForSocketConnection(socket);
-    }
-  }
-
-  socket = io(getAuthApiBaseUrl(), {
-    auth: { token },
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 10000,
-    timeout: 20000,
-  });
-
-  socket.on("connect", () => {
-    // eslint-disable-next-line no-console
-    console.log("[Socket] Connected:", socket?.id);
-    rejoinActiveRooms();
-  });
-
-  socket.on("connect_error", async (err) => {
-    // eslint-disable-next-line no-console
-    console.warn("[Socket] Connect error:", err.message);
-
-    // One-shot token refresh on auth failure (expired JWT, etc.)
-    if (!isAuthConnectError(err.message) || !socket) return;
-
-    try {
-      const refreshed = await refreshAccessToken();
-      const nextToken = refreshed ? getAccessToken() : null;
-      if (!nextToken || socket.auth?.token === nextToken) return;
-
-      socket.auth = { token: nextToken };
-      socket.connect();
-    } catch {
-      // ignore — reconnect loop will retry
-    }
-  });
-
-  socket.on("disconnect", (reason) => {
-    // eslint-disable-next-line no-console
-    console.log("[Socket] Disconnected:", reason);
-  });
-
-  try {
-    return await waitForSocketConnection(socket);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!isAuthConnectError(message) || !socket) throw err;
-
-    const refreshed = await refreshAccessToken();
-    token = refreshed ? getAccessToken() : null;
-    if (!token) throw err;
-
-    socket.auth = { token };
-    socket.disconnect();
-    socket.connect();
-    return await waitForSocketConnection(socket);
-  }
-}
-
 export async function connectSocket(): Promise<Socket> {
   if (socket?.connected) return socket;
   if (connectPromise) return connectPromise;
 
-  connectPromise = connectWithAuthRetry().finally(() => {
+  connectPromise = (async () => {
+    if (!getAccessToken()) {
+      await restoreTokens();
+    }
+    let token = getAccessToken();
+    if (!token) {
+      await refreshAccessToken();
+      token = getAccessToken();
+    }
+    if (!token) {
+      throw new Error("No access token available for Socket.IO");
+    }
+
+    if (socket) {
+      socket.auth = { token };
+      if (!socket.connected) {
+        socket.connect();
+      }
+      return await waitForSocketConnection(socket);
+    }
+
+    socket = io(getAuthApiBaseUrl(), {
+      auth: { token },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 20000,
+    });
+
+    socket.on("connect", () => {
+      // eslint-disable-next-line no-console
+      console.log("[Socket] Connected:", socket?.id);
+      rejoinActiveRooms();
+    });
+
+    socket.on("connect_error", (err) => {
+      // eslint-disable-next-line no-console
+      console.warn("[Socket] Connect error:", err.message);
+    });
+
+    socket.on("disconnect", (reason) => {
+      // eslint-disable-next-line no-console
+      console.log("[Socket] Disconnected:", reason);
+    });
+
+    return await waitForSocketConnection(socket);
+  })().finally(() => {
     connectPromise = null;
   });
 

@@ -16,9 +16,10 @@ import { adjustNotificationUnread } from "@/lib/notification-unread-bus";
 import { APP_SCREEN_BG } from "@/constants/theme";
 import { ListifyFonts } from "@/constants/typography";
 import {
-  getNotificationRoute,
   normalizeNotification,
 } from "@/lib/notification-navigation";
+import { navigateFromNotification } from "@/lib/notifications/deep-link-handler";
+import { notificationItemToPayload } from "@/lib/notifications/payload-normalizer";
 import {
   type NotificationItem,
   getNotifications,
@@ -406,12 +407,10 @@ export function NotificationsCenterScreen() {
         prev.map((x) => (x._id === item._id ? { ...x, read: true } : x)),
       );
 
-      const route = getNotificationRoute(item);
-      if (route) {
-        router.push(route);
-      }
+      const route = notificationItemToPayload(item);
+      navigateFromNotification(route);
     },
-    [router],
+    [],
   );
 
   const handleItemDelete = useCallback(async (item: NotificationItem) => {

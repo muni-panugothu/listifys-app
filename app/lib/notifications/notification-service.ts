@@ -22,19 +22,64 @@ import { Platform } from 'react-native';
 import type { RichNotificationPayload, NotificationAction } from './types';
 import { channelForType, CHANNEL } from './channels';
 import { trackNotificationEvent } from './analytics';
+import { isPersistedNotificationId } from './notification-id';
+import { getHrefForNotificationPayload } from './deep-link-handler';
+import { hrefToDeepLink } from './notification-deeplink';
+import { cacheNotificationPayload } from './notification-payload-cache';
 
 // ── Small icon (must exist as a vector drawable in android/app/src/main/res/drawable)
 const SMALL_ICON = 'ic_notification';
 
-// ── Light colour (ARGB) ───────────────────────────────────────────────────────
-const LIGHT_COLOUR = 0xff4f46e5; // indigo-600 — change to your brand colour
+// ── Light + accent colour (Notifee requires a hex string, not an ARGB int) ─────
+const LIGHT_COLOUR = '#4f46e5'; // indigo-600 — change to your brand colour
+
+/** Notifee requires every data value to be a non-empty string. */
+function toNotifeeData(payload: RichNotificationPayload): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value == null || value === '') continue;
+    out[key] = String(value);
+  }
+  return out;
+}
+
+/** Build iOS config without undefined fields (Notifee rejects undefined attachments). */
+function buildIosConfig(
+  payload: RichNotificationPayload,
+  options?: { categoryId?: string; imageUrl?: string },
+) {
+  if (Platform.OS !== 'ios') return undefined;
+
+  const { sound, badge, type } = payload;
+  const imageUrl = options?.imageUrl ?? payload.imageUrl;
+  const ios: {
+    sound?: string;
+    badgeCount?: number;
+    categoryId?: string;
+    attachments?: IOSNotificationAttachment[];
+  } = {
+    sound: sound ?? 'default',
+    categoryId: options?.categoryId ?? type,
+  };
+
+  if (badge) {
+    const count = parseInt(badge, 10);
+    if (!Number.isNaN(count)) ios.badgeCount = count;
+  }
+
+  if (imageUrl) {
+    ios.attachments = [{ url: imageUrl, typeHint: 'public.image' }];
+  }
+
+  return ios;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // displayRichNotification
 // Called from: background message handler, foreground message handler
 // ─────────────────────────────────────────────────────────────────────────────
 export async function displayRichNotification(
-  data: Record<string, string>
+  data: Record<string, string>,
 ): Promise<void> {
   const payload = data as unknown as RichNotificationPayload;
   const { type, title, body } = payload;
@@ -52,7 +97,7 @@ export async function displayRichNotification(
 
 // ── Standard rich notification (all types except call) ───────────────────────
 async function displayStandardNotification(
-  payload: RichNotificationPayload
+  payload: RichNotificationPayload,
 ): Promise<void> {
   const {
     notificationId,
@@ -64,11 +109,22 @@ async function displayStandardNotification(
     actions: actionsJson,
     groupKey,
     sound,
-    badge,
   } = payload;
 
   const channelId = channelForType(type ?? 'general');
-  const notifId   = notificationId ?? String(Date.now());
+  const notifId = notificationId ?? String(Date.now());
+  const notifData = toNotifeeData(payload);
+  const deepLink = (() => {
+    const href = getHrefForNotificationPayload(payload);
+    return href ? hrefToDeepLink(href) : undefined;
+  })();
+  const defaultPressAction = {
+    id: 'default',
+    launchActivity: 'default' as const,
+    ...(deepLink ? { link: deepLink } : {}),
+  };
+
+  void cacheNotificationPayload(notifId, payload);
 
   // ── Parse CTA action buttons ─────────────────────────────────────────────
   let parsedActions: NotificationAction[] = [];
@@ -77,85 +133,108 @@ async function displayStandardNotification(
   } catch { /* ignore */ }
 
   const androidActions: AndroidAction[] = parsedActions.map((a) => ({
-    title:       a.title,
-    pressAction: { id: a.id, launchActivity: 'default' },
+    title: a.title,
+    pressAction: {
+      id: a.id,
+      launchActivity: 'default',
+      ...(deepLink ? { link: deepLink } : {}),
+    },
   }));
 
   // ── Android-specific config ───────────────────────────────────────────────
   const android: AndroidNotification = {
     channelId,
-    smallIcon:   SMALL_ICON,
-    color:       '#4f46e5',
-    importance:  AndroidImportance.HIGH,
-    visibility:  AndroidVisibility.PRIVATE,
-    groupId:     groupKey,
+    smallIcon: SMALL_ICON,
+    color: LIGHT_COLOUR,
+    importance: AndroidImportance.HIGH,
+    visibility: AndroidVisibility.PRIVATE,
+    ...(groupKey ? { groupId: groupKey } : {}),
     groupSummary: false,
-    sound:       sound ?? 'default',
-    vibrationPattern: [0, 300, 150, 300],
-    lights:      [LIGHT_COLOUR, 300, 300],
-    pressAction: { id: 'default', launchActivity: 'default' },
-    actions:     androidActions,
-
-    // Big picture style when imageUrl is provided, else big text
+    sound: sound ?? 'default',
+    vibrationPattern: [300, 150, 300, 150],
+    pressAction: defaultPressAction,
+    actions: androidActions,
     style: imageUrl
       ? {
-          type:       AndroidStyle.BIGPICTURE,
-          picture:    imageUrl,
-          largeIcon:  imageUrl,
-          // Android shows the body as the summary text when expanded
-          summary:    body,
+          type: AndroidStyle.BIGPICTURE,
+          picture: imageUrl,
+          largeIcon: imageUrl,
+          summary: body,
         }
       : {
           type: AndroidStyle.BIGTEXT,
           text: body,
         },
-
-    // Person avatar (large icon) shown in messaging-style notifications
-    ...(iconUrl
-      ? { largeIcon: iconUrl }
-      : {}),
+    ...(iconUrl ? { largeIcon: iconUrl } : {}),
   };
+
+  const ios = buildIosConfig(payload, { imageUrl });
 
   // ── Post a summary notification when groupKey is set (collapsed count) ───
   if (groupKey) {
+    try {
+      await notifee.displayNotification({
+        id: `grp_${groupKey}`,
+        title,
+        body: 'New notifications',
+        data: notifData,
+        ...(ios ? { ios } : {}),
+        android: {
+          channelId,
+          smallIcon: SMALL_ICON,
+          groupId: groupKey,
+        groupSummary: true,
+        importance: AndroidImportance.LOW,
+        pressAction: defaultPressAction,
+        },
+      });
+    } catch (err) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn('[Notifications] Group summary display failed:', err);
+      }
+    }
+  }
+
+  // ── Display the notification ──────────────────────────────────────────────
+  try {
     await notifee.displayNotification({
-      id:    `grp_${groupKey}`,
+      id: notifId,
       title,
-      body:  'New notifications',
+      body,
+      data: notifData,
+      ...(ios ? { ios } : {}),
+      android,
+    });
+  } catch (err) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn('[Notifications] Rich display failed, using fallback:', err);
+    }
+    await notifee.displayNotification({
+      id: notifId,
+      title,
+      body,
+      data: notifData,
       android: {
         channelId,
-        smallIcon:    SMALL_ICON,
-        groupId:      groupKey,
-        groupSummary: true,
-        importance:   AndroidImportance.LOW,
-        pressAction:  { id: 'default', launchActivity: 'default' },
+        smallIcon: SMALL_ICON,
+        importance: AndroidImportance.HIGH,
+        pressAction: { id: 'default', launchActivity: 'default' },
       },
     });
   }
 
-  // ── Display the notification ──────────────────────────────────────────────
-  await notifee.displayNotification({
-    id:    notifId,
-    title,
-    body,
-    data:  payload as unknown as Record<string, string>,
-    ios: {
-      sound:      sound ?? 'default',
-      badgeCount: badge ? parseInt(badge, 10) : undefined,
-      // Register the notification category so iOS shows action buttons
-      categoryId: type,
-      attachments: imageUrl
-        ? ([{ url: imageUrl, typeHint: 'public.image' }] as IOSNotificationAttachment[])
-        : undefined,
-    },
-    android,
-  });
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.info('[Notifications] Displayed', { type, notifId, conversationId: payload.conversationId, deepLink });
+  }
 
   // Fire-and-forget analytics
-  if (notificationId) {
+  if (notificationId && isPersistedNotificationId(notificationId)) {
     trackNotificationEvent({
       notificationId,
-      event:     'shown',
+      event: 'shown',
       timestamp: Date.now(),
     }).catch(() => {});
   }
@@ -163,41 +242,40 @@ async function displayStandardNotification(
 
 // ── WhatsApp/full-screen incoming call notification ───────────────────────────
 async function displayCallNotification(
-  payload: RichNotificationPayload
+  payload: RichNotificationPayload,
 ): Promise<void> {
   const { notificationId, callerName, callerPhoto, callType } = payload;
 
   const channelId = CHANNEL.CALLS;
-  const title     = `📞 ${callerName ?? 'Unknown'} is calling`;
-  const body      = callType === 'video' ? 'Incoming video call' : 'Incoming audio call';
-  const notifId   = notificationId ?? `call_${Date.now()}`;
+  const title = `📞 ${callerName ?? 'Unknown'} is calling`;
+  const body = callType === 'video' ? 'Incoming video call' : 'Incoming audio call';
+  const notifId = notificationId ?? `call_${Date.now()}`;
+  const notifData = toNotifeeData(payload);
+  const ios = buildIosConfig(payload, { categoryId: 'incoming_call' });
 
   await notifee.displayNotification({
-    id:    notifId,
+    id: notifId,
     title,
     body,
-    data:  payload as unknown as Record<string, string>,
-    ios: {
-      sound:      'default',
-      categoryId: 'incoming_call',
-    },
+    data: notifData,
+    ...(ios ? { ios } : {}),
     android: {
       channelId,
-      smallIcon:   SMALL_ICON,
-      importance:  AndroidImportance.HIGH,
-      visibility:  AndroidVisibility.PUBLIC,
-      category:    AndroidCategory.CALL,
-      sound:       'default',
-      vibrationPattern: [0, 500, 200, 500, 200, 500],
+      smallIcon: SMALL_ICON,
+      importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PUBLIC,
+      category: AndroidCategory.CALL,
+      sound: 'default',
+      vibrationPattern: [500, 200, 500, 200, 500, 200],
       pressAction: { id: 'default', launchActivity: 'default' },
       fullScreenAction: { id: 'default', launchActivity: 'default' },
       actions: [
         {
-          title:       '✅ Accept',
+          title: '✅ Accept',
           pressAction: { id: 'accept', launchActivity: 'default' },
         },
         {
-          title:       '❌ Reject',
+          title: '❌ Reject',
           pressAction: { id: 'reject' },
         },
       ],
@@ -221,7 +299,7 @@ export async function registerIOSCategories(): Promise<void> {
     {
       id: 'offer_received',
       actions: [
-        { id: 'view_offer',  title: '👀 View Offer' },
+        { id: 'view_offer', title: '👀 View Offer' },
         { id: 'add_to_cart', title: '🛒 Add to Cart' },
       ],
     },

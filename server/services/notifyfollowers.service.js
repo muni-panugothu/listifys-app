@@ -26,7 +26,13 @@ async function notifyFollowersOfNewListing(sellerId, listing, listingType) {
       : seller.name || seller.email?.split("@")[0] || "Someone";
 
     const listingImage = listing.images?.[0] || listing.image || listing.thumbnail || null;
+    const priceLabel =
+      listing.price != null && !Number.isNaN(Number(listing.price))
+        ? `${listing.currency || "₹"}${Number(listing.price).toLocaleString("en-IN")}`
+        : null;
     const message = `${sellerName} posted: "${listing.title}"`;
+    // Premium-style push body: title + price (like OLX/OfferUp "seller you follow" alerts).
+    const pushBody = priceLabel ? `${listing.title} · ${priceLabel}` : listing.title || message;
     const io = getIO();
 
     const notificationPromises = seller.followers.map(async (followerId) => {
@@ -50,8 +56,8 @@ async function notifyFollowersOfNewListing(sellerId, listing, listingType) {
           notificationId: notification._id,
           recipientId: followerId,
           notifType: "new_listing",
-          title: `New from ${sellerName}`,
-          message: listing.title || message,
+          title: `🆕 New from ${sellerName}`,
+          message: pushBody,
           imageUrl: listingImage,
           iconUrl: seller.profileImage || seller.googleProfileImage || seller.avatar || null,
           metadata: {

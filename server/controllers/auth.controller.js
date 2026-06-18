@@ -11,6 +11,8 @@ const TwilioService = require("../services/twilio.service");
 const TwilioVerify = require("../services/twilio-verify.service");
 const passwordSecurity = require("../utils/passwordSecurity");
 const { createNotification } = require("./notification.controller");
+const { dispatchInAppNotificationPush } = require("../services/notification-push.service");
+const { getIO } = require("../config/socket");
 const deviceService = require("../services/device.service");
 const s3Service = require("../services/s3.service");
 const securityNotificationService = require("../services/security-notification.service");
@@ -3038,13 +3040,62 @@ exports.toggleFollow = async (req, res) => {
       ]);
       isFollowingNow = true;
 
-      const currentUser = await User.findById(currentOid).select("name").lean();
-      await createNotification({
+      const currentUser = await User.findById(currentOid)
+        .select("name firstName lastName profileImage googleProfileImage avatar")
+        .lean();
+      const followerName = currentUser?.firstName
+        ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
+        : currentUser?.name || "Someone";
+      const followerAvatar =
+        currentUser?.profileImage ||
+        currentUser?.googleProfileImage ||
+        currentUser?.avatar ||
+        null;
+      const followMessage = `${followerName} started following you`;
+
+      const notification = await createNotification({
         recipient: targetUserId,
         sender: currentUserId,
         type: "follow",
-        message: `${currentUser?.name || "Someone"} started following you`,
+        message: followMessage,
+        metadata: { followerId: currentUserId, senderName: followerName },
       });
+
+      // Real-time in-app delivery + FCM push (fire-and-forget, never blocks the response).
+      if (notification) {
+        dispatchInAppNotificationPush({
+          notificationId: notification._id,
+          recipientId: targetUserId,
+          notifType: "follow",
+          title: "New follower",
+          message: followMessage,
+          iconUrl: followerAvatar,
+          senderName: followerName,
+          metadata: { followerId: currentUserId, senderName: followerName },
+        }).catch(() => {});
+
+        try {
+          const io = getIO();
+          if (io) {
+            io.to(`user:${targetUserId}`).emit("notification:new", {
+              _id: notification._id,
+              type: "follow",
+              message: followMessage,
+              read: false,
+              createdAt: notification.createdAt,
+              metadata: { followerId: currentUserId, senderName: followerName },
+              sender: {
+                _id: currentUserId,
+                name: followerName,
+                profileImage: followerAvatar,
+                profileImageUrl: followerAvatar,
+              },
+            });
+          }
+        } catch {
+          /* socket optional */
+        }
+      }
     }
 
     const counts = await User.aggregate([

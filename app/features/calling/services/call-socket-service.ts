@@ -32,9 +32,9 @@ function getConnectedOrConnecting(): Socket | null {
 }
 
 /** Register FCM token with server so it can wake device for offline calls */
-export async function registerFCMToken(fcmToken: string) {
-  const { registerFCMTokenWithServer } = await import("@/lib/notifications/register-fcm-server");
-  await registerFCMTokenWithServer(fcmToken);
+export async function registerFCMToken(_fcmToken: string) {
+  const { syncFcmTokenWithServer } = await import("@/lib/notifications/sync-fcm-token");
+  await syncFcmTokenWithServer({ force: true });
 }
 
 /** Start an outgoing call. Returns the callId assigned by server. */

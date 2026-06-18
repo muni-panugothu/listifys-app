@@ -35,24 +35,34 @@ const emitToUser = (userId, event, data) => {
   try { getIO().to(`user:${userId}`).emit(event, data); } catch (_) {}
 };
 
-const pushNotifyRecipient = async ({ recipientId, senderId, senderName, conversationId, threadId, productTitle, preview, type = 'message' }) => {
+const pushNotifyRecipient = async ({ recipientId, senderId, senderName, conversationId, threadId, productTitle, productImage, preview, type = 'message', notificationId }) => {
   const recipient = await User.findById(recipientId).select('fcmToken').lean();
   if (!recipient?.fcmToken) return;
-  const title = type === 'offer'
-    ? `${senderName} made an offer on ${productTitle || 'a product'}`
+  const isOffer = type === 'offer' || type === 'offer_received';
+  const notifType = isOffer ? 'offer_received' : 'message';
+  const title = isOffer
+    ? `💰 ${senderName} made an offer${productTitle ? ` on ${productTitle}` : ''}`
     : `${senderName} sent a message${productTitle ? ` regarding ${productTitle}` : ''}`;
+  const pushId = notificationId
+    ? String(notificationId)
+    : `${isOffer ? 'offer' : 'msg'}_${conversationId}_${Date.now()}`;
   await sendRichNotification(recipient.fcmToken, {
-    notificationId: `msg_${conversationId}_${Date.now()}`,
-    type,
+    notificationId: pushId,
+    type: notifType,
     title,
     body: preview || 'Tap to open chat',
     route: '/chat-conversation',
     params: {
       conversationId: String(conversationId),
       ...(threadId ? { threadId: String(threadId) } : {}),
+      recipientId: String(senderId),
+      name: senderName || '',
     },
+    ...(productImage ? { imageUrl: productImage } : {}),
     groupKey: 'messages',
-    actions: [{ id: 'reply', title: '💬 Reply' }],
+    actions: isOffer
+      ? [{ id: 'view_offer', title: '👀 View offer' }, { id: 'reply', title: '💬 Reply' }]
+      : [{ id: 'reply', title: '💬 Reply' }],
     extra: {
       conversationId: String(conversationId),
       threadId: String(threadId || ''),
@@ -61,6 +71,68 @@ const pushNotifyRecipient = async ({ recipientId, senderId, senderName, conversa
       senderName,
     },
   }).catch(() => {});
+};
+
+/**
+ * Notify the buyer when the seller accepts or declines their offer.
+ * Sends an in-app notification (DB + socket) and an FCM push.
+ */
+const notifyOfferResult = async ({ thread, sellerId, accepted }) => {
+  const buyerId = String(thread.buyer);
+  const currency = thread.activeOffer?.currency || '₹';
+  const amount = Number(thread.activeOffer?.amount || 0);
+  const productTitle = thread.product?.title || 'your offer';
+  const notifType = accepted ? 'offer_accepted' : 'offer_rejected';
+  const amountLabel = amount ? ` of ${currency}${amount.toLocaleString('en-IN')}` : '';
+  const message = accepted
+    ? `Your offer${amountLabel} on "${productTitle}" was accepted 🎉`
+    : `Your offer${amountLabel} on "${productTitle}" was declined`;
+
+  const seller = await User.findById(sellerId).select('name').lean();
+  const metadata = {
+    conversationId: String(thread.conversation),
+    threadId: String(thread._id),
+    listingId: thread.product?.productId ? String(thread.product.productId) : undefined,
+    listingType: thread.product?.productType,
+  };
+
+  createNotification({ recipient: buyerId, sender: sellerId, type: notifType, message, metadata })
+    .then((n) => {
+      if (n) {
+        emitToUser(buyerId, 'notification:new', {
+          _id: n._id, type: notifType, message, read: false,
+          sender: { id: sellerId, name: seller?.name }, metadata: n.metadata, createdAt: n.createdAt,
+        });
+      }
+
+      User.findById(buyerId).select('fcmToken').lean().then((recipient) => {
+        if (!recipient?.fcmToken) return;
+        sendRichNotification(recipient.fcmToken, {
+          notificationId: n?._id ? String(n._id) : `offerresult_${thread._id}_${Date.now()}`,
+          type: notifType,
+          title: accepted ? '✅ Offer accepted' : '❌ Offer declined',
+          body: message,
+          route: '/chat-conversation',
+          params: {
+            conversationId: String(thread.conversation),
+            threadId: String(thread._id),
+            recipientId: String(sellerId),
+            name: seller?.name || '',
+          },
+          ...(thread.product?.image ? { imageUrl: thread.product.image } : {}),
+          groupKey: 'messages',
+          actions: [{ id: 'open_chat', title: '💬 Open chat' }],
+          extra: {
+            conversationId: String(thread.conversation),
+            threadId: String(thread._id),
+            senderId: String(sellerId),
+            senderName: seller?.name || '',
+            ...(metadata.listingId ? { listingId: metadata.listingId, listingType: metadata.listingType } : {}),
+          },
+        }).catch(() => {});
+      }).catch(() => {});
+    })
+    .catch(() => {});
 };
 
 // ── CONVERSATIONS ─────────────────────────────────────────────────────────────
@@ -266,10 +338,33 @@ exports.sendMessage = async (req, res) => {
       const pidStr = String(pid);
       if (pidStr === String(userId)) continue;
       emitToUser(pidStr, 'chat:conversation_update', { conversationId: String(conversationId), threadId: String(threadId), lastMessage: { content: (plainContent || '').slice(0, 80) || 'Attachment', sender: userId, createdAt: message.createdAt }, senderName });
-      createNotification({ recipient: pidStr, sender: userId, type: 'message', message: `${senderName} sent a message regarding ${thread.product?.title || 'a product'}`, metadata: { conversationId: String(conversationId), threadId: String(threadId) } })
-        .then((n) => { if (n) emitToUser(pidStr, 'notification:new', { _id: n._id, type: 'message', message: n.message, sender: { id: userId, name: senderName }, metadata: n.metadata, createdAt: n.createdAt }); })
-        .catch(() => {});
-      pushNotifyRecipient({ recipientId: pidStr, senderId: userId, senderName, conversationId, threadId, productTitle: thread.product?.title, preview: (plainContent || '').slice(0, 80) || 'Sent an attachment' }).catch(() => {});
+      createNotification({ recipient: pidStr, sender: userId, type: 'message', message: `${senderName} sent a message regarding ${thread.product?.title || 'a product'}`, metadata: { conversationId: String(conversationId), threadId: String(threadId), senderId: userId, senderName } })
+        .then((n) => {
+          if (n) {
+            emitToUser(pidStr, 'notification:new', { _id: n._id, type: 'message', message: n.message, sender: { id: userId, name: senderName }, metadata: n.metadata, createdAt: n.createdAt });
+          }
+          pushNotifyRecipient({
+            recipientId: pidStr,
+            senderId: userId,
+            senderName,
+            conversationId,
+            threadId,
+            productTitle: thread.product?.title,
+            preview: (plainContent || '').slice(0, 80) || 'Sent an attachment',
+            notificationId: n?._id,
+          }).catch(() => {});
+        })
+        .catch(() => {
+          pushNotifyRecipient({
+            recipientId: pidStr,
+            senderId: userId,
+            senderName,
+            conversationId,
+            threadId,
+            productTitle: thread.product?.title,
+            preview: (plainContent || '').slice(0, 80) || 'Sent an attachment',
+          }).catch(() => {});
+        });
       publishMessagePersisted({ messageId: String(message._id), conversationId: String(conversationId), threadId: String(threadId), senderId: String(userId), recipientId: pidStr, senderName, preview: (plainContent || '').slice(0, 80) || 'Attachment', productTitle: thread.product?.title || '' }).catch(() => {});
     }
     setNoCacheHeaders(res);
@@ -388,10 +483,37 @@ exports.makeOffer = async (req, res) => {
     const formattedMsg = chatService.formatMessage(message, userId);
     emitToConversation(String(thread.conversation), 'chat:offer', { threadId: String(thread._id), message: formattedMsg, offerStatus: thread.offerStatus, activeOffer: thread.activeOffer });
     const buyer = await User.findById(userId).select('name').lean();
-    createNotification({ recipient: String(thread.seller), sender: userId, type: 'offer', message: plainLabel, metadata: { conversationId: String(thread.conversation), threadId: String(thread._id), offerAmount: amount } })
-      .then((n) => { if (n) emitToUser(String(thread.seller), 'notification:new', { _id: n._id, type: 'offer', message: n.message, sender: { id: userId, name: buyer?.name }, metadata: n.metadata, createdAt: n.createdAt }); })
-      .catch(() => {});
-    pushNotifyRecipient({ recipientId: String(thread.seller), senderId: userId, senderName: buyer?.name || 'Buyer', conversationId: String(thread.conversation), threadId: String(thread._id), productTitle: thread.product?.title, preview: plainLabel, type: 'offer' }).catch(() => {});
+    createNotification({ recipient: String(thread.seller), sender: userId, type: 'offer_received', message: plainLabel, metadata: { conversationId: String(thread.conversation), threadId: String(thread._id), offerAmount: amount, listingId: thread.product?.productId ? String(thread.product.productId) : undefined, listingType: thread.product?.productType, senderId: userId, senderName: buyer?.name } })
+      .then((n) => {
+        if (n) {
+          emitToUser(String(thread.seller), 'notification:new', { _id: n._id, type: 'offer_received', message: plainLabel, read: false, sender: { id: userId, name: buyer?.name }, metadata: n.metadata, createdAt: n.createdAt });
+        }
+        pushNotifyRecipient({
+          recipientId: String(thread.seller),
+          senderId: userId,
+          senderName: buyer?.name || 'Buyer',
+          conversationId: String(thread.conversation),
+          threadId: String(thread._id),
+          productTitle: thread.product?.title,
+          productImage: thread.product?.image,
+          preview: plainLabel,
+          type: 'offer',
+          notificationId: n?._id,
+        }).catch(() => {});
+      })
+      .catch(() => {
+        pushNotifyRecipient({
+          recipientId: String(thread.seller),
+          senderId: userId,
+          senderName: buyer?.name || 'Buyer',
+          conversationId: String(thread.conversation),
+          threadId: String(thread._id),
+          productTitle: thread.product?.title,
+          productImage: thread.product?.image,
+          preview: plainLabel,
+          type: 'offer',
+        }).catch(() => {});
+      });
     publishOfferEvent({ type: 'offer.made', threadId: String(thread._id), buyerId: userId, sellerId: String(thread.seller), amount, currency: currency || '₹', productTitle: thread.product?.title }).catch(() => {});
     return res.status(200).json({ success: true, thread, message: formattedMsg });
   } catch (err) {
@@ -408,6 +530,7 @@ exports.acceptOffer = async (req, res) => {
     const { thread, message } = await chatService.respondToOffer({ threadId, sellerId: userId, accept: true });
     const formattedMsg = chatService.formatMessage(message, userId);
     emitToConversation(String(thread.conversation), 'chat:offer_update', { threadId: String(thread._id), message: formattedMsg, offerStatus: thread.offerStatus, accepted: true });
+    notifyOfferResult({ thread, sellerId: userId, accepted: true }).catch(() => {});
     publishOfferEvent({ type: 'offer.accepted', threadId: String(thread._id), sellerId: userId, buyerId: String(thread.buyer), amount: thread.activeOffer?.amount }).catch(() => {});
     return res.status(200).json({ success: true, thread, message: formattedMsg });
   } catch (err) { return res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Failed to accept offer' }); }
@@ -421,6 +544,7 @@ exports.declineOffer = async (req, res) => {
     const { thread, message } = await chatService.respondToOffer({ threadId, sellerId: userId, accept: false });
     const formattedMsg = chatService.formatMessage(message, userId);
     emitToConversation(String(thread.conversation), 'chat:offer_update', { threadId: String(thread._id), message: formattedMsg, offerStatus: thread.offerStatus, accepted: false });
+    notifyOfferResult({ thread, sellerId: userId, accepted: false }).catch(() => {});
     publishOfferEvent({ type: 'offer.declined', threadId: String(thread._id), sellerId: userId, buyerId: String(thread.buyer) }).catch(() => {});
     return res.status(200).json({ success: true, thread, message: formattedMsg });
   } catch (err) { return res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Failed to decline offer' }); }

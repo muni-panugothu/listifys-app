@@ -8,7 +8,13 @@
  */
 // Lazy-load to avoid crash when google-services.json is missing.
 let messaging: any = null;
-try { messaging = require('@react-native-firebase/messaging').default; } catch {}
+try {
+  messaging = require("@react-native-firebase/messaging").default;
+  // Ensure the default Firebase app is initialized before getToken().
+  require("@react-native-firebase/app");
+} catch {
+  /* native Firebase unavailable (Expo Go) */
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PermissionsAndroid, Platform } from 'react-native';
 import type { PermissionStatus } from './types';

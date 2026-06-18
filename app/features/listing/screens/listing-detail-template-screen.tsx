@@ -12,7 +12,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   Text,
   TextInput,
   View,
@@ -352,29 +351,6 @@ export function ListingDetailTemplateScreen() {
     }
   }, [listing, offerAmount, sendingOffer, categorySlug, closeOfferSheet, listedPrice]);
 
-  const handleShareListing = useCallback(async () => {
-    if (!listing) return;
-    const lines: string[] = [];
-    if (listing.title) lines.push(listing.title);
-    if (listing.price != null) {
-      lines.push(
-        formatPrice(listing.price, listing.currency, listing.countryCode ?? isoCountryCode),
-      );
-    }
-    if (listing.location) lines.push(`📍 ${listing.location}`);
-    if (listing.images?.[0]) lines.push(listing.images[0]);
-    lines.push("");
-    lines.push(`Find this on Listify: listify://listing/${categorySlug}/${listing._id}`);
-    try {
-      await Share.share({
-        message: lines.join("\n"),
-        title: listing.title ?? "Check out this listing on Listify",
-      });
-    } catch {
-      // user dismissed
-    }
-  }, [categorySlug, isoCountryCode, listing]);
-
   const handleMakeOffer = useCallback(() => {
     if (!listing) return;
     if (isOwnListing(listing, user?.id)) {
@@ -606,15 +582,12 @@ export function ListingDetailTemplateScreen() {
 
   return (
     <View className="flex-1 bg-[#F6F7F8]">
-      {/* Top bar — back + share + save */}
+      {/* Top bar — back only */}
       <View
-        className="z-50 flex-row items-center justify-between border-b border-[#F0F0F0] bg-white px-4"
+        className="z-50 flex-row items-center border-b border-[#F0F0F0] bg-white px-4"
         style={{ paddingTop: insets.top, height: headerHeight }}
       >
         <HeaderIconButton icon="arrow-back" onPress={() => router.back()} />
-        <View className="flex-row items-center gap-2">
-          <HeaderIconButton icon="share" onPress={handleShareListing} />
-        </View>
       </View>
 
       <ScrollView
