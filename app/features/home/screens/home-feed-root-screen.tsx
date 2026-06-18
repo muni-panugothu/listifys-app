@@ -1,7 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { type Href, useFocusEffect, useRouter } from "@/lib/safe-router";
-import * as Location from "expo-location";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AppState,
@@ -42,8 +41,8 @@ import { useLocale } from "@/providers/locale-provider";
 import { filterOutOwnListings } from "@/lib/is-own-listing";
 import { resolveListingDistanceKm, getListingDistanceLabel } from "@/lib/listing-distance";
 import {
+  ensureDeviceLocationAccess,
   extractCityFromLocationLabel,
-  requestLocationPermission,
 } from "@/lib/location-service";
 import { getCategoryHref } from "@/lib/navigate-to-category";
 import { useTabNavigation } from "@/lib/use-tab-navigation";
@@ -53,6 +52,7 @@ import { showAuthGate } from "@/store/slices/auth-gate-slice";
 import {
   hydrateAppLocation,
   refreshDeviceLocation,
+  useCurrentDeviceLocation,
   selectLocationCoords,
   selectLocationLabel,
   selectIsoCountryCode,
@@ -195,7 +195,7 @@ export function HomeFeedRootScreen() {
             countryCode: effectiveCountryCode ?? undefined,
           };
         } else {
-          // No location picked — show listings from all countries (price tags only).
+          // No location picked � show listings from all countries (price tags only).
           feedParams = { limit: 12 };
         }
         const res = await fetchHomeFeed(feedParams);
@@ -244,22 +244,25 @@ export function HomeFeedRootScreen() {
     }
   }, [dispatch, user?.address]);
 
-  // Ask for location only after the user reaches the home feed (login or skip) — not on install.
+  // Ask for location only after the user reaches the home feed (login or skip) � not on install.
   useEffect(() => {
     if (!sessionHydrated || !locationHydrated || locationPromptAttempted.current) return;
 
     locationPromptAttempted.current = true;
 
     const askAndRefreshLocation = async () => {
-      const existing = await Location.getForegroundPermissionsAsync();
-      if (existing.status === Location.PermissionStatus.GRANTED) {
-        void dispatch(refreshDeviceLocation({ force: true }));
+      const access = await ensureDeviceLocationAccess();
+      if (!access.ok) {
+        if (access.reason === "permission_denied") {
+          void dispatch(refreshDeviceLocation({ force: true }));
+        }
         return;
       }
 
-      const granted = await requestLocationPermission();
-      if (granted) {
-        void dispatch(refreshDeviceLocation({ force: true }));
+      try {
+        await dispatch(useCurrentDeviceLocation()).unwrap();
+      } catch {
+        // GPS timeout or services off.
       }
     };
 
@@ -717,7 +720,7 @@ export function HomeFeedRootScreen() {
           </View>
         </View> */}
 
-        {/* Fresh recommendations — hidden when offline (cached content only) */}
+        {/* Fresh recommendations � hidden when offline (cached content only) */}
         {!isOffline ? (
         <View className="mb-6 mt-5">
           <View className="mb-4 flex-row items-center justify-between px-4">
@@ -785,7 +788,7 @@ export function HomeFeedRootScreen() {
         </View>
         ) : null}
 
-        {/* Offline notice — shown instead of fresh/recent sections */}
+        {/* Offline notice � shown instead of fresh/recent sections */}
         {isOffline ? (
           <View className="mx-4 mb-6 mt-5 flex-row items-center gap-3 rounded-2xl border border-[#1E3A34] bg-[#10231D] px-4 py-4">
             <MaterialIcons name="cloud-off" size={22} color="#6EE7C7" />
@@ -796,7 +799,7 @@ export function HomeFeedRootScreen() {
           </View>
         ) : null}
 
-        {/* Recently viewed — hidden when offline */}
+        {/* Recently viewed � hidden when offline */}
         {!isOffline ? (
         <View className="mb-8">
           <View className="mb-4 px-4">

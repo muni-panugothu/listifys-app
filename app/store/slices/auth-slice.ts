@@ -46,6 +46,7 @@ type AuthState = {
   // Forgot password flow
   resetEmail: string | null;
   resetToken: string | null;
+  resetDevOtp: string | null;
 };
 
 const initialState: AuthState = {
@@ -58,6 +59,7 @@ const initialState: AuthState = {
   registrationPhone: null,
   resetEmail: null,
   resetToken: null,
+  resetDevOtp: null,
 };
 
 const normalizeStoredUser = (user: AuthUser | null): AuthUser | null => {
@@ -434,6 +436,7 @@ const authSlice = createSlice({
     clearResetFlow(state) {
       state.resetEmail = null;
       state.resetToken = null;
+      state.resetDevOtp = null;
       AsyncStorage.removeItem(FLOW_STATE_KEY);
     },
     clearRegistrationEmail(state) {
@@ -567,6 +570,8 @@ const authSlice = createSlice({
       .addCase(forgotPassword.fulfilled, (state, action) => {
         state.status = "succeeded";
         state.resetEmail = action.payload.email ?? null;
+        state.resetDevOtp =
+          "devOtp" in action.payload ? (action.payload.devOtp ?? null) : null;
         state.error = null;
         AsyncStorage.setItem(FLOW_STATE_KEY, JSON.stringify({ resetEmail: action.payload.email }));
       })
@@ -602,6 +607,7 @@ const authSlice = createSlice({
         state.status = "succeeded";
         state.resetEmail = null;
         state.resetToken = null;
+        state.resetDevOtp = null;
         state.error = null;
         AsyncStorage.removeItem(FLOW_STATE_KEY);
       })

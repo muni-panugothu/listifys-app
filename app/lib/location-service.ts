@@ -293,18 +293,60 @@ export async function prepareLocationServices(): Promise<boolean> {
   return false;
 }
 
+/** OS foreground permission only — does not enable device GPS services. */
 export async function requestLocationPermission(): Promise<boolean> {
   const current = await Location.getForegroundPermissionsAsync();
-  const permission =
-    current.status === Location.PermissionStatus.GRANTED
-      ? current
-      : await Location.requestForegroundPermissionsAsync();
-
-  if (permission.status !== Location.PermissionStatus.GRANTED) {
-    return false;
+  if (current.status === Location.PermissionStatus.GRANTED) {
+    return true;
   }
 
-  return prepareLocationServices();
+  const permission = await Location.requestForegroundPermissionsAsync();
+  return permission.status === Location.PermissionStatus.GRANTED;
+}
+
+export type LocationAccessResult =
+  | { ok: true }
+  | { ok: false; reason: "permission_denied" | "services_disabled" };
+
+/**
+ * Full device-location readiness flow (matches location-picker):
+ * Android GPS toggle → OS permission → verify services are on.
+ */
+export async function ensureDeviceLocationAccess(): Promise<LocationAccessResult> {
+  if (Platform.OS === "android") {
+    const servicesEnabled = await Location.hasServicesEnabledAsync();
+    if (!servicesEnabled) {
+      try {
+        await Location.enableNetworkProviderAsync();
+      } catch {
+        // User dismissed the system "Turn on device location" dialog.
+      }
+
+      const nowEnabled = await Location.hasServicesEnabledAsync();
+      if (!nowEnabled) {
+        return { ok: false, reason: "services_disabled" };
+      }
+    }
+  }
+
+  const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+  if (status !== Location.PermissionStatus.GRANTED) {
+    if (status === Location.PermissionStatus.DENIED && !canAskAgain) {
+      return { ok: false, reason: "permission_denied" };
+    }
+
+    const requested = await Location.requestForegroundPermissionsAsync();
+    if (requested.status !== Location.PermissionStatus.GRANTED) {
+      return { ok: false, reason: "permission_denied" };
+    }
+  }
+
+  const servicesReady = await prepareLocationServices();
+  if (!servicesReady) {
+    return { ok: false, reason: "services_disabled" };
+  }
+
+  return { ok: true };
 }
 
 export async function hasLocationPermission(): Promise<boolean> {

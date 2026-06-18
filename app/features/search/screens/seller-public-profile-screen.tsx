@@ -614,38 +614,63 @@ export function SellerPublicProfileScreen() {
                 className="mt-4 flex-row items-center"
                 style={{ width: "100%", gap: 10 }}
               >
-                <Pressable
-                  onPress={handleToggleFollow}
-                  disabled={followLoading}
-                  style={({ pressed }) => ({
-                    flex: 1,
-                    height: 48,
-                    borderRadius: 14,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: following ? "#E8F8F4" : BRAND_GREEN,
-                    borderWidth: following ? 2 : 0,
-                    borderColor: BRAND_GREEN,
-                    opacity: pressed || followLoading ? 0.85 : 1,
-                  })}
-                >
-                  {followLoading ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={following ? BRAND_GREEN : "#FFFFFF"}
-                    />
-                  ) : (
+                {!isOwnProfile ? (
+                  <Pressable
+                    onPress={handleToggleFollow}
+                    disabled={followLoading}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      height: 48,
+                      borderRadius: 14,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: following ? "#E8F8F4" : BRAND_GREEN,
+                      borderWidth: following ? 2 : 0,
+                      borderColor: BRAND_GREEN,
+                      opacity: pressed || followLoading ? 0.85 : 1,
+                    })}
+                  >
+                    {followLoading ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={following ? BRAND_GREEN : "#FFFFFF"}
+                      />
+                    ) : (
+                      <Text
+                        style={{
+                          fontFamily: ListifyFonts.semiBold,
+                          fontSize: 16,
+                          color: following ? BRAND_GREEN : "#FFFFFF",
+                        }}
+                      >
+                        {following ? "Following" : "Follow"}
+                      </Text>
+                    )}
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => router.push("/profile-details-edit" as Href)}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      height: 48,
+                      borderRadius: 14,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: BRAND_GREEN,
+                      opacity: pressed ? 0.88 : 1,
+                    })}
+                  >
                     <Text
                       style={{
                         fontFamily: ListifyFonts.semiBold,
                         fontSize: 16,
-                        color: following ? BRAND_GREEN : "#FFFFFF",
+                        color: "#FFFFFF",
                       }}
                     >
-                      {following ? "Following" : "Follow"}
+                      Edit profile
                     </Text>
-                  )}
-                </Pressable>
+                  </Pressable>
+                )}
 
                 {!isOwnProfile ? (
                   <Pressable

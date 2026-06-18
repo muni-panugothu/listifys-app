@@ -2,12 +2,12 @@ import { createAsyncThunk, createSelector, createSlice } from "@reduxjs/toolkit"
 
 import {
   detectDeviceLocation,
+  ensureDeviceLocationAccess,
   geocodeSearchQuery,
   hasLocationPermission,
   loadStoredLocation,
   LOCATION_AUTO_REFRESH_MS,
   LOCATION_STORAGE_KEY,
-  requestLocationPermission,
   saveStoredLocation,
   type StoredAppLocation,
 } from "@/lib/location-service";
@@ -53,7 +53,26 @@ export const hydrateAppLocation = createAsyncThunk(
   "location/hydrate",
   async (_, { getState }) => {
     const stored = await loadStoredLocation();
-    if (stored) return stored;
+    const permitted = await hasLocationPermission();
+
+    if (stored) {
+      // Manual picks are always honoured. GPS / legacy caches are dropped when
+      // the user has denied location (e.g. tapped "No thanks" on the prompt).
+      if (stored.source === "manual") {
+        return stored;
+      }
+
+      if (!permitted) {
+        try {
+          const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+          await AsyncStorage.removeItem(LOCATION_STORAGE_KEY);
+        } catch {
+          // best-effort
+        }
+      } else if (stored.source === "gps" || stored.lat != null) {
+        return stored;
+      }
+    }
 
     const user = (getState() as RootState).auth.user;
     const profileAddress = user?.address?.trim();
@@ -157,12 +176,13 @@ export const useCurrentDeviceLocation = createAsyncThunk(
   "location/useCurrent",
   async (_, { getState, rejectWithValue }) => {
     try {
-      let permitted = await hasLocationPermission();
-      if (!permitted) {
-        permitted = await requestLocationPermission();
-      }
-      if (!permitted) {
-        return rejectWithValue("PERMISSION_DENIED");
+      const access = await ensureDeviceLocationAccess();
+      if (!access.ok) {
+        return rejectWithValue(
+          access.reason === "permission_denied"
+            ? "PERMISSION_DENIED"
+            : "SERVICES_DISABLED",
+        );
       }
 
       const stored = await loadStoredLocation();
@@ -188,6 +208,15 @@ export const useCurrentDeviceLocation = createAsyncThunk(
     }
   },
 );
+
+function clearGpsCoords(state: LocationState) {
+  if (state.source === "manual") return;
+  state.label = initialState.label;
+  state.lat = null;
+  state.lng = null;
+  state.isoCountryCode = null;
+  state.source = null;
+}
 
 const locationSlice = createSlice({
   name: "location",
@@ -254,6 +283,7 @@ const locationSlice = createSlice({
           state.status = "ready";
           state.error = null;
         } else {
+          clearGpsCoords(state);
           state.status = "ready";
         }
       })
@@ -274,12 +304,8 @@ const locationSlice = createSlice({
         // When the OS denies/revokes permission, drop any cached GPS coords so
         // the app no longer claims the user is at a stale location. Manual
         // and profile-set locations are preserved.
-        if (reason === "PERMISSION_DENIED" && state.source === "gps") {
-          state.label = initialState.label;
-          state.lat = null;
-          state.lng = null;
-          state.isoCountryCode = null;
-          state.source = null;
+        if (reason === "PERMISSION_DENIED") {
+          clearGpsCoords(state);
         }
         state.status = state.lat != null ? "ready" : "error";
         state.error = reason;
@@ -305,8 +331,12 @@ const locationSlice = createSlice({
         applyStored(state, action.payload);
       })
       .addCase(useCurrentDeviceLocation.rejected, (state, action) => {
+        const reason = (action.payload as string) ?? "Location unavailable";
+        if (reason === "PERMISSION_DENIED") {
+          clearGpsCoords(state);
+        }
         state.status = state.lat != null ? "ready" : "error";
-        state.error = (action.payload as string) ?? "Location unavailable";
+        state.error = reason;
       })
       // When user logs out, wipe their location so a guest/new login
       // starts fresh with no location filter (shows all-countries data).

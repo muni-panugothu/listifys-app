@@ -6,7 +6,7 @@ export default function MyListingsExpiredRoute() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <MyListingsScreen initialTab="Expired" />
+      <MyListingsScreen />
     </>
   );
 }

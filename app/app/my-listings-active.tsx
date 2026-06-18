@@ -6,7 +6,7 @@ export default function MyListingsActiveRoute() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <MyListingsScreen initialTab="Active" />
+      <MyListingsScreen />
     </>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native";
 
+import { resendForgotPasswordOtp } from "@/features/auth/services/auth-api";
 import { showErrorToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearError, resendResetOtp, verifyResetOtp } from "@/store/slices/auth-slice";
@@ -26,7 +27,7 @@ export function ResetOtpVerificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const { status, error, resetEmail, resetToken } = useAppSelector((s) => s.auth);
+  const { status, error, resetEmail, resetToken, resetDevOtp } = useAppSelector((s) => s.auth);
   const [otpDigits, setOtpDigits] = useState<string[]>(
     Array(RESET_OTP_LENGTH).fill(""),
   );
@@ -38,10 +39,15 @@ export function ResetOtpVerificationScreen() {
   const isLoading = status === "loading";
 
   useEffect(() => {
+    if (!resetDevOtp || resetDevOtp.length !== RESET_OTP_LENGTH) return;
+    setOtpDigits(resetDevOtp.split(""));
+  }, [resetDevOtp]);
+
+  useEffect(() => {
     if (resetToken) {
       router.push("/new-password" as Href);
     }
-  }, [resetToken]);
+  }, [resetToken, router]);
 
   useEffect(() => {
     if (error) {
@@ -86,10 +92,19 @@ export function ResetOtpVerificationScreen() {
 
   const handleResend = () => {
     if (!resetEmail) return;
-    dispatch(resendResetOtp({ email: resetEmail }));
-    setOtpDigits(Array(RESET_OTP_LENGTH).fill(""));
-    setSecondsRemaining(INITIAL_TIMER);
-    inputRefs.current[0]?.focus();
+    void resendForgotPasswordOtp(resetEmail)
+      .then((res) => {
+        if (res.devOtp && res.devOtp.length === RESET_OTP_LENGTH) {
+          setOtpDigits(res.devOtp.split(""));
+        } else {
+          setOtpDigits(Array(RESET_OTP_LENGTH).fill(""));
+        }
+        setSecondsRemaining(INITIAL_TIMER);
+        inputRefs.current[0]?.focus();
+      })
+      .catch(() => {
+        showErrorToast("Error", "Could not resend code. Please try again.");
+      });
   };
 
   const handleVerify = () => {
@@ -164,6 +179,11 @@ export function ResetOtpVerificationScreen() {
               <Text className="max-w-70 text-center text-[14px] leading-5 text-[#3C4A44]">
                 A 6-digit code has been sent to your email
               </Text>
+              {resetDevOtp ? (
+                <Text className="mt-2 text-center text-[13px] text-amber-800">
+                  Dev mode: email could not be delivered. Your code is {resetDevOtp}
+                </Text>
+              ) : null}
             </View>
 
             <View className="w-full gap-6">

@@ -458,7 +458,34 @@ export async function deleteListing(
   categorySlug: CategorySlug,
   id: string,
 ): Promise<{ success: boolean; message: string }> {
-  const result = await apiRequest<{ success: boolean; message: string }>(`${categoryApiBase(categorySlug)}/${id}`, { method: "DELETE" });
+  const result = await apiRequest<{ success: boolean; message: string }>(
+    `/api/feed/listings/${categorySlug}/${id}`,
+    { method: "DELETE" },
+  );
+  invalidateCache(cacheKeys.listingDetail(categorySlug, id));
+  invalidateCache(`list:${categorySlug}`);
+  invalidateCache("feed:");
+  invalidateCache("my-listings");
+  return result;
+}
+
+// ── Mark Listing Status (sold / inactive / active) ────────────────────────────
+//
+// Unified across every category. The server picks the closest status the
+// underlying model supports (services → "inactive", everything else → "sold").
+export async function markListingStatus(
+  categorySlug: CategorySlug,
+  id: string,
+  status: "sold" | "inactive" | "active",
+): Promise<{ success: boolean; message: string; listing?: { _id: string; status: string } }> {
+  const result = await apiRequest<{
+    success: boolean;
+    message: string;
+    listing?: { _id: string; status: string };
+  }>(`/api/feed/listings/${categorySlug}/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
   invalidateCache(cacheKeys.listingDetail(categorySlug, id));
   invalidateCache(`list:${categorySlug}`);
   invalidateCache("feed:");

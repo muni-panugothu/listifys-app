@@ -168,6 +168,84 @@ exports.deleteAccount = async (req, res) => {
 
     logger.info(`[AccountDeletion] Starting deletion for user ${userId}`);
 
+    // --- 0. Close all active chat threads (read-only for other party) ---
+    try {
+      const ProductThread = require("../models/product-thread.model");
+      const Message = require("../models/message.model");
+      const Conversation = require("../models/conversation.model");
+      const { getIO } = require("../config/socket");
+
+      const activeThreads = await ProductThread.find({
+        $or: [{ seller: userId }, { buyer: userId }],
+        status: "active",
+      }).lean();
+
+      if (activeThreads.length > 0) {
+        const now = new Date();
+        await ProductThread.updateMany(
+          { _id: { $in: activeThreads.map((t) => t._id) } },
+          {
+            $set: {
+              status: "closed",
+              closedReason: "deleted",
+              closedAt: now,
+            },
+          },
+        );
+
+        const convCounts = {};
+        for (const t of activeThreads) {
+          const cid = String(t.conversation);
+          convCounts[cid] = (convCounts[cid] || 0) + 1;
+        }
+        await Promise.all(
+          Object.entries(convCounts).map(([cid, count]) =>
+            Conversation.updateOne(
+              { _id: cid },
+              { $inc: { activeThreadCount: -count } },
+            ),
+          ),
+        );
+
+        const systemMsgs = await Message.insertMany(
+          activeThreads.map((t) => ({
+            conversation: t.conversation,
+            productThread: t._id,
+            sender: userId,
+            content: "This account was deleted. Conversation is read-only.",
+            messageType: "system",
+            readBy: [userId],
+            status: "sent",
+          })),
+        );
+
+        await Promise.all(
+          activeThreads.map((t, i) =>
+            Conversation.updateOne(
+              { _id: t.conversation },
+              { $set: { lastMessage: systemMsgs[i]._id } },
+            ),
+          ),
+        );
+
+        try {
+          const io = getIO();
+          for (const t of activeThreads) {
+            io.to(`conversation:${t.conversation}`).emit("thread:closed", {
+              threadId: String(t._id),
+              status: "closed",
+              closedReason: "deleted",
+              closedAt: now,
+            });
+          }
+        } catch {
+          // socket optional
+        }
+      }
+    } catch (threadErr) {
+      logger.error("[AccountDeletion] thread close error:", threadErr);
+    }
+
     // --- 1. Collect all listings with images for S3 cleanup ---
     const listingModels = [
       { model: Electronics, name: "electronics" },
@@ -299,6 +377,14 @@ exports.deleteAccount = async (req, res) => {
     res.clearCookie("accessToken", cookieOptions);
     res.clearCookie("refreshToken", cookieOptions);
     res.clearCookie("__fgp", cookieOptions);
+
+    // --- 10. Force-disconnect all active sessions via socket ---
+    try {
+      const { forceLogoutUser } = require("../config/socket");
+      forceLogoutUser(userId.toString());
+    } catch {
+      // optional
+    }
 
     // --- 11. Delete the user document ---
     await User.findByIdAndDelete(userId);

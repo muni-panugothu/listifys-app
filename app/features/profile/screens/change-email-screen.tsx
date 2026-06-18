@@ -170,6 +170,7 @@ export function ChangeEmailScreen() {
   const [otp, setOtp] = useState("");
   const [attemptsLeft, setAttemptsLeft] = useState(5);
   const [loading, setLoading] = useState(false);
+  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
 
   const expireTimer = useCountdown(OTP_EXPIRE_SECS);
   const resendTimer = useCountdown(RESEND_COOLDOWN_SECS);
@@ -189,6 +190,10 @@ export function ChangeEmailScreen() {
     try {
       const res = await requestEmailChange(email);
       setMaskedEmail(res.maskedEmail ?? email);
+      if (res.devOtp) {
+        setOtp(res.devOtp);
+        setDevOtpHint(res.devOtp);
+      }
       setStep("otp");
       expireTimer.start(res.expiresIn ?? OTP_EXPIRE_SECS);
       resendTimer.start(RESEND_COOLDOWN_SECS);
@@ -230,7 +235,12 @@ export function ChangeEmailScreen() {
     try {
       const res = await requestEmailChange(newEmail.trim().toLowerCase());
       setMaskedEmail(res.maskedEmail ?? newEmail);
-      setOtp("");
+      if (res.devOtp) {
+        setOtp(res.devOtp);
+        setDevOtpHint(res.devOtp);
+      } else {
+        setOtp("");
+      }
       setAttemptsLeft(5);
       expireTimer.start(res.expiresIn ?? OTP_EXPIRE_SECS);
       resendTimer.start(RESEND_COOLDOWN_SECS);
@@ -420,6 +430,29 @@ export function ChangeEmailScreen() {
 
             {/* OTP boxes */}
             <OtpInput value={otp} onChange={setOtp} />
+
+            {devOtpHint ? (
+              <View
+                style={{
+                  marginBottom: 12,
+                  borderRadius: 12,
+                  backgroundColor: "#FFFBEB",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    textAlign: "center",
+                    fontSize: 13,
+                    fontFamily: ListifyFonts.medium,
+                    color: "#92400E",
+                  }}
+                >
+                  Dev mode: email could not be delivered. Your code is {devOtpHint}
+                </Text>
+              </View>
+            ) : null}
 
             {/* Attempt counter */}
             {attemptsLeft < 5 && (

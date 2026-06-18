@@ -14,6 +14,7 @@ import { subscribeRouteTransitions, type Href, Stack, useRouter } from "@/lib/sa
 import { usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as Location from "expo-location";
 import "react-native-gesture-handler";
 import "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -29,6 +30,7 @@ import { TypographyProvider } from "@/providers/typography-provider";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { hideAuthGate } from "@/store/slices/auth-gate-slice";
 import { logout } from "@/store/slices/auth-slice";
+import { hydrateAppLocation } from "@/store/slices/location-slice";
 import { store } from "@/store";
 import { NotificationProvider } from "@/providers/notification-provider";
 import { NotificationNavigationHost } from "@/components/notification-navigation-host";
@@ -163,6 +165,20 @@ function AppLayout() {
   useEffect(() => {
     void initOfflineQueue();
   }, []);
+
+  // Restore saved location and prompt for OS permission early (like notifications).
+  useEffect(() => {
+    if (!sessionHydrated) return;
+
+    void dispatch(hydrateAppLocation());
+
+    void (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === Location.PermissionStatus.UNDETERMINED) {
+        await Location.requestForegroundPermissionsAsync();
+      }
+    })();
+  }, [dispatch, sessionHydrated]);
 
   // ── Attach call socket listeners after session hydration ─────────────────
   // We wait for sessionHydrated + isAuthenticated so the socket connects with

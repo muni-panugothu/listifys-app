@@ -709,7 +709,7 @@ export function verifyPhoneOtp(phone: string, otp: string, name?: string) {
 }
 
 export function initiateForgotPassword(email: string) {
-  return requestJson<{ success: boolean; message?: string; email?: string }>(
+  return requestJson<{ success: boolean; message?: string; email?: string; devOtp?: string }>(
     "/api/auth/forgot-password/initiate",
     {
       method: "POST",
@@ -729,7 +729,7 @@ export function verifyForgotPasswordOtp(email: string, otp: string) {
 }
 
 export function resendForgotPasswordOtp(email: string) {
-  return requestJson<{ success: boolean; message?: string }>(
+  return requestJson<{ success: boolean; message?: string; devOtp?: string }>(
     "/api/auth/forgot-password/resend-otp",
     {
       method: "POST",
@@ -969,7 +969,13 @@ export function verifyRecoveryPhoneOTP(phone: string, otp: string) {
 // ── Primary email change (OTP-verified) ──────────────────────────────────────
 
 export function requestEmailChange(email: string) {
-  return requestJson<{ success: boolean; message?: string; maskedEmail?: string; expiresIn?: number }>(
+  return requestJson<{
+    success: boolean;
+    message?: string;
+    maskedEmail?: string;
+    expiresIn?: number;
+    devOtp?: string;
+  }>(
     "/api/auth/email/change-request",
     { method: "POST", body: JSON.stringify({ email }) },
   );
@@ -1166,6 +1172,19 @@ export function updateSettingsPreferences(preferences: Partial<SettingsPreferenc
     method: "PUT",
     body: JSON.stringify(preferences),
   });
+}
+
+export function deleteAccount(body: {
+  confirmation: string;
+  password?: string;
+}) {
+  return requestJson<{ success: boolean; message?: string }>(
+    "/api/settings/delete-account",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 export function getLoginHistory() {

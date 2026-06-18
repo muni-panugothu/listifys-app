@@ -56,12 +56,135 @@ function createTransporter() {
   });
 }
 
-// Returns a "from" address that is always the authenticated Gmail account.
-// Gmail SMTP rewrites a mismatched "from" domain which can trigger spam filters;
-// using the real sender address avoids this.
+// Use EMAIL_FROM when set (required for Brevo/SendGrid verified senders).
+// Falls back to the authenticated SMTP user for plain Gmail setups.
 function getSenderAddress() {
+  const from = process.env.EMAIL_FROM?.trim();
+  if (from) return from;
+
   const user = process.env.EMAIL_USER;
   return `"Listifys" <${user}>`;
+}
+
+/** Deep link into the mobile app (not the beta website). */
+function getAppDeepLink(path = "") {
+  const scheme = (process.env.APP_DEEP_LINK_SCHEME || "listifyapp").replace(/:$/, "");
+  const normalizedPath = String(path).replace(/^\//, "");
+  return normalizedPath ? `${scheme}://${normalizedPath}` : `${scheme}://`;
+}
+
+function getAppSignInUrl() {
+  return process.env.APP_SIGN_IN_URL?.trim() || getAppDeepLink("sign-in");
+}
+
+function getAppHomeUrl() {
+  return process.env.APP_HOME_URL?.trim() || getAppDeepLink("");
+}
+
+function parseSenderAddress(raw) {
+  const from = raw.trim();
+  const quoted = from.match(/^"([^"]+)"\s*<([^>]+)>$/);
+  if (quoted) return { name: quoted[1], email: quoted[2] };
+  const plain = from.match(/^([^<]+?)\s*<([^>]+)>$/);
+  if (plain) return { name: plain[1].trim(), email: plain[2].trim() };
+  return { name: "Listifys", email: from };
+}
+
+/** Send via Brevo HTTP API (preferred) or SMTP when no API key is configured. */
+async function sendTransactionalEmail({ to, subject, html }) {
+  const brevoKey = process.env.BREVO_API_KEY?.trim();
+  if (brevoKey) {
+    const sender = parseSenderAddress(getSenderAddress());
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": brevoKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender,
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Brevo API error ${response.status}: ${body}`);
+    }
+
+    const data = await response.json();
+    return { success: true, messageId: data.messageId, relay: "brevo-api" };
+  }
+
+  const transporter = createTransporter();
+  const result = await transporter.sendMail({
+    from: getSenderAddress(),
+    to,
+    subject,
+    html,
+  });
+  return {
+    success: true,
+    messageId: result.messageId,
+    relay: process.env.SMTP_HOST || "smtp.gmail.com",
+  };
+}
+
+/** Verify SMTP on startup — logs a clear error when relay credentials are wrong. */
+async function verifyEmailTransport() {
+  const brevoKey = process.env.BREVO_API_KEY?.trim();
+  if (brevoKey) {
+    try {
+      const response = await fetch("https://api.brevo.com/v3/account", {
+        headers: { "api-key": brevoKey, accept: "application/json" },
+      });
+      if (response.ok) {
+        logger.info("Email transport ready", {
+          relay: "brevo-api",
+          from: getSenderAddress(),
+        });
+        return { ok: true };
+      }
+      const body = await response.text();
+      throw new Error(`Brevo API ${response.status}: ${body}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("Brevo API verification failed — OTP emails will not deliver", {
+        error: message,
+        hint: "Create an API key at Brevo → SMTP & API → API Keys, and verify EMAIL_FROM sender",
+      });
+      return { ok: false, reason: message };
+    }
+  }
+
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+    logger.warn(
+      "Email not configured — OTP emails will fail. Set BREVO_API_KEY or EMAIL_USER/EMAIL_PASSWORD in server/.env",
+    );
+    return { ok: false, reason: "missing_credentials" };
+  }
+
+  const relay = process.env.SMTP_HOST || "smtp.gmail.com";
+
+  try {
+    const transporter = createTransporter();
+    await transporter.verify();
+    logger.info("Email transport ready", { relay, from: getSenderAddress() });
+    return { ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("Email transport verification failed — OTP/password emails will not deliver", {
+      relay,
+      error: message,
+      hint: process.env.SMTP_HOST
+        ? "SMTP blocked on this network — set BREVO_API_KEY for HTTP delivery (see server/.env.example)"
+        : "Gmail SMTP is blocked on many hosts — set BREVO_API_KEY or SMTP_HOST (see server/.env.example)",
+    });
+    return { ok: false, reason: message };
+  }
 }
 
 // OTP Email Template
@@ -199,23 +322,19 @@ function getOTPEmailTemplate(username, otpCode) {
 // Send OTP Email - REAL EMAILS ONLY
 async function sendOTPEmail(email, username, otp) {
   try {
-    // OTP value intentionally NOT logged (security)
+    logger.info('Sending OTP email', { to: email });
 
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: getSenderAddress(),
+    const result = await sendTransactionalEmail({
       to: email,
       subject: "Your Listifys Verification Code",
       html: getOTPEmailTemplate(username, otp),
-    };
+    });
 
-    // OTP intentionally NOT logged
-    logger.info('Sending OTP email', { to: email });
-
-    const result = await transporter.sendMail(mailOptions);
-
-    logger.info('OTP email sent successfully', { messageId: result.messageId });
+    logger.info('OTP email sent successfully', {
+      messageId: result.messageId,
+      relay: result.relay,
+      from: getSenderAddress(),
+    });
 
     return {
       success: true,
@@ -228,7 +347,7 @@ async function sendOTPEmail(email, username, otp) {
       error.message.includes("Invalid login") ||
       error.message.includes("Authentication failed")
     ) {
-      logger.error('Gmail authentication failed — check EMAIL_USER and App Password config');
+      logger.error('Email authentication failed — check BREVO_API_KEY or SMTP credentials');
     }
 
     throw error;
@@ -390,19 +509,17 @@ async function sendForgotPasswordOTPEmail(email, username, otp) {
   try {
     logger.info('Sending forgot password OTP email', { to: email });
 
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: getSenderAddress(),
+    const result = await sendTransactionalEmail({
       to: email,
       subject: "Password Reset OTP - Listifys",
       html: getForgotPasswordOTPTemplate(username, otp),
-    };
+    });
 
-    // OTP intentionally NOT logged
-    const result = await transporter.sendMail(mailOptions);
-
-    logger.info('Forgot password OTP email sent', { messageId: result.messageId });
+    logger.info('Forgot password OTP email sent', {
+      messageId: result.messageId,
+      relay: result.relay,
+      from: getSenderAddress(),
+    });
 
     return {
       success: true,
@@ -415,7 +532,7 @@ async function sendForgotPasswordOTPEmail(email, username, otp) {
       error.message.includes("Invalid login") ||
       error.message.includes("Authentication failed")
     ) {
-      logger.error('Gmail authentication failed — check EMAIL_USER and App Password config');
+      logger.error('Email authentication failed — check BREVO_API_KEY or SMTP credentials');
     }
 
     throw error;
@@ -427,10 +544,7 @@ async function sendPasswordResetSuccessEmail(email, username) {
   try {
     logger.info('Sending password reset success email', { to: email });
 
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: getSenderAddress(),
+    const result = await sendTransactionalEmail({
       to: email,
       subject: "Password Reset Successful - Listifys",
       html: `
@@ -521,9 +635,12 @@ async function sendPasswordResetSuccessEmail(email, username) {
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.CLIENT_URL || "http://localhost:5173"}/signin" style="display: inline-block; background: #27bb97; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
-                Login to Your Account
+              <a href="${getAppSignInUrl()}" style="display: inline-block; background: #27bb97; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+                Open Listifys App
               </a>
+              <p style="font-size: 13px; color: #888; margin-top: 14px;">
+                Tap to open the Listifys mobile app and sign in with your new password.
+              </p>
             </div>
           </div>
           <div class="footer">
@@ -534,11 +651,9 @@ async function sendPasswordResetSuccessEmail(email, username) {
       </body>
       </html>
       `,
-    };
+    });
 
-    const result = await transporter.sendMail(mailOptions);
-
-    logger.info('Password reset success email sent', { to: email });
+    logger.info('Password reset success email sent', { to: email, messageId: result.messageId });
 
     return {
       success: true,
@@ -555,7 +670,6 @@ async function sendLoginNotificationEmail(email, username, loginDetails = {}) {
   try {
     logger.info('Sending login notification email', { to: email });
 
-    const transporter = createTransporter();
     const loginTime = loginDetails.time
       ? new Date(loginDetails.time).toLocaleString("en-US", {
           weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -570,11 +684,7 @@ async function sendLoginNotificationEmail(email, username, loginDetails = {}) {
       ? `${loginDetails.location.city}, ${loginDetails.location.region || ""} ${loginDetails.location.country}`
       : "Unknown location";
 
-    const mailOptions = {
-      from: getSenderAddress(),
-      to: email,
-      subject: "New Login to Your Listifys Account",
-      html: `
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -696,11 +806,14 @@ async function sendLoginNotificationEmail(email, username, loginDetails = {}) {
         </div>
       </body>
       </html>
-      `,
-    };
+      `;
 
-    const result = await transporter.sendMail(mailOptions);
-    logger.info('Login notification email sent', { to: email, messageId: result.messageId });
+    const result = await sendTransactionalEmail({
+      to: email,
+      subject: "New Login to Your Listifys Account",
+      html,
+    });
+    logger.info('Login notification email sent', { to: email, messageId: result.messageId, relay: result.relay });
 
     return { success: true, messageId: result.messageId };
   } catch (error) {
@@ -949,17 +1062,16 @@ async function sendOfferNotificationEmail({ sellerEmail, sellerName, buyerName, 
 
     logger.info('Sending offer notification email', { to: sellerEmail, productTitle });
 
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: getSenderAddress(),
+    const result = await sendTransactionalEmail({
       to: sellerEmail,
       subject: `💰 New Offer on "${productTitle}" - Listifys`,
       html: getOfferEmailTemplate({ sellerName, buyerName, productTitle, listingPrice, offerPrice, productImage, chatUrl }),
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    logger.info('Offer notification email sent', { to: sellerEmail, messageId: result.messageId });
+    });
+    logger.info('Offer notification email sent', {
+      to: sellerEmail,
+      messageId: result.messageId,
+      relay: result.relay,
+    });
 
     return { success: true, messageId: result.messageId };
   } catch (error) {
@@ -974,13 +1086,8 @@ async function sendOfferNotificationEmail({ sellerEmail, sellerName, buyerName, 
 async function sendWelcomeEmail(email, username) {
   try {
     logger.info('Sending welcome email', { to: email });
-    const transporter = createTransporter();
 
-    const mailOptions = {
-      from: getSenderAddress(),
-      to: email,
-      subject: '🎉 Welcome to Listifys — You\'re In!',
-      html: `
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -1024,7 +1131,7 @@ async function sendWelcomeEmail(email, username) {
             </div>
 
             <div style="text-align:center;margin:32px 0">
-              <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}" class="cta-btn">Explore Listifys →</a>
+              <a href="${getAppHomeUrl()}" class="cta-btn">Open Listifys App →</a>
             </div>
           </div>
           <div class="footer">
@@ -1034,11 +1141,14 @@ async function sendWelcomeEmail(email, username) {
         </div>
       </body>
       </html>
-      `,
-    };
+      `;
 
-    const result = await transporter.sendMail(mailOptions);
-    logger.info('Welcome email sent', { to: email, messageId: result.messageId });
+    const result = await sendTransactionalEmail({
+      to: email,
+      subject: "🎉 Welcome to Listifys — You're In!",
+      html,
+    });
+    logger.info('Welcome email sent', { to: email, messageId: result.messageId, relay: result.relay });
     return { success: true, messageId: result.messageId };
   } catch (error) {
     logger.error('Error sending welcome email', { error: error.message });
@@ -1126,22 +1236,23 @@ function getAccountActionTemplate(username, action) {
 
 async function sendAccountActionEmail(email, username, action) {
   try {
-    const transporter = createTransporter();
     const titles = {
       banned: "Your Listifys Account Has Been Banned",
       suspended: "Your Listifys Account Has Been Suspended",
       active: "Your Listifys Account Has Been Reactivated",
     };
 
-    const mailOptions = {
-      from: `"Listifys" <${process.env.EMAIL_USER}>`,
+    const result = await sendTransactionalEmail({
       to: email,
       subject: titles[action] || `Listifys Account Update`,
       html: getAccountActionTemplate(username, action),
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    logger.info('Account action email sent', { to: email, action, messageId: result.messageId });
+    });
+    logger.info('Account action email sent', {
+      to: email,
+      action,
+      messageId: result.messageId,
+      relay: result.relay,
+    });
     return { success: true, messageId: result.messageId };
   } catch (error) {
     logger.error('Error sending account action email', { error: error.message, action });
@@ -1234,9 +1345,7 @@ function getEmailChangeAlertTemplate(username, oldEmail, newEmail, ipAddress, ti
 }
 
 async function sendEmailChangeOTP(newEmail, username, otp) {
-  const transporter = createTransporter();
-  await transporter.sendMail({
-    from: getSenderAddress(),
+  await sendTransactionalEmail({
     to: newEmail,
     subject: 'Listifys — Verify your new email address',
     html: getEmailChangeOTPTemplate(username, otp, newEmail),
@@ -1246,9 +1355,7 @@ async function sendEmailChangeOTP(newEmail, username, otp) {
 
 async function sendEmailChangeAlert(oldEmail, username, newEmail, ipAddress, timestamp) {
   try {
-    const transporter = createTransporter();
-    await transporter.sendMail({
-      from: getSenderAddress(),
+    await sendTransactionalEmail({
       to: oldEmail,
       subject: 'Listifys — Email change requested on your account',
       html: getEmailChangeAlertTemplate(username, oldEmail, newEmail, ipAddress, timestamp),
@@ -1262,6 +1369,7 @@ async function sendEmailChangeAlert(oldEmail, username, newEmail, ipAddress, tim
 
 module.exports = {
   sendOTPEmail,
+  verifyEmailTransport,
   sendForgotPasswordOTPEmail,
   sendPasswordResetSuccessEmail,
   sendLoginNotificationEmail,

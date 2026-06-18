@@ -314,6 +314,20 @@ export function ChatConversationScreen() {
       }
       dispatch(threadClosed({ threadId: d.threadId, conversationId: conversation?._id ?? "", status: d.status, closedReason: d.closedReason }));
     };
+    const onThreadReopened = (d: { threadId: string; status: string }) => {
+      setThreads((prev) =>
+        prev.map((t) =>
+          t._id === d.threadId
+            ? { ...t, status: "active" as const, closedReason: null, closedAt: null }
+            : t,
+        ),
+      );
+      if (activeThread?._id === d.threadId) {
+        setActiveThreadSt((prev) =>
+          prev ? { ...prev, status: "active", closedReason: null, closedAt: null } : prev,
+        );
+      }
+    };
     const onOfferUpdate = (d: { threadId: string; message: ChatMessage; offerStatus: string; accepted: boolean }) => {
       if (d.threadId === activeThread?._id) {
         setMessages((prev) => {
@@ -330,6 +344,7 @@ export function ChatConversationScreen() {
     socket.on("chat:offer",        (d) => { onOfferUpdate({ ...d, accepted: false }); });
     socket.on("chat:offer_update", onOfferUpdate);
     socket.on("thread:closed",     onThreadClosed);
+    socket.on("thread:reopened",   onThreadReopened);
     socket.on("thread:typing:start", onTypingStart);
     socket.on("thread:typing:stop",  onTypingStop);
     socket.on("typing:start",      onTypingStart);
@@ -340,6 +355,7 @@ export function ChatConversationScreen() {
       socket.off("chat:offer",        onOfferUpdate as any);
       socket.off("chat:offer_update", onOfferUpdate);
       socket.off("thread:closed",     onThreadClosed);
+      socket.off("thread:reopened",   onThreadReopened);
       socket.off("thread:typing:start", onTypingStart);
       socket.off("thread:typing:stop",  onTypingStop);
       socket.off("typing:start",      onTypingStart);
@@ -782,7 +798,12 @@ export function ChatConversationScreen() {
         {isClosed && (
           <View style={{ backgroundColor: "#FEF2F2", paddingVertical: 10, paddingHorizontal: 16, alignItems: "center" }}>
             <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: "#EF4444" }}>
-              🔒 Conversation Closed{activeThread?.closedReason === "sold" ? " — Product Sold" : ""}
+              🔒 Conversation Closed
+              {activeThread?.closedReason === "sold"
+                ? " — Product Sold"
+                : activeThread?.closedReason === "deleted"
+                  ? " — Listing Removed"
+                  : ""}
             </Text>
             <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
               Message history is preserved

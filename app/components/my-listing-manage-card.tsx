@@ -1,5 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
 import { ListingTimeBadge } from "@/components/listing-time-badge";
 import { ListifyFonts } from "@/constants/typography";
@@ -15,6 +15,11 @@ type MyListingManageCardProps = {
   onPress: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onMarkSold?: () => void;
+  onReactivate?: () => void;
+  markSoldLabel?: string;
+  reactivateLabel?: string;
+  actionLoading?: boolean;
   dimmed?: boolean;
   showActions?: boolean;
 };
@@ -27,6 +32,11 @@ export function MyListingManageCard({
   onPress,
   onEdit,
   onDelete,
+  onMarkSold,
+  onReactivate,
+  markSoldLabel = "Mark sold",
+  reactivateLabel = "Relist",
+  actionLoading = false,
   dimmed = false,
   showActions = true,
 }: MyListingManageCardProps) {
@@ -40,6 +50,7 @@ export function MyListingManageCard({
         shadowOpacity: 0.04,
         shadowRadius: 8,
         elevation: 2,
+        opacity: actionLoading ? 0.85 : 1,
       }}
     >
       <View
@@ -70,6 +81,11 @@ export function MyListingManageCard({
             {statusLabel}
           </Text>
         </View>
+        {actionLoading ? (
+          <View className="absolute inset-0 items-center justify-center bg-black/25">
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </View>
+        ) : null}
       </View>
 
       <View className="p-4">
@@ -117,37 +133,83 @@ export function MyListingManageCard({
           </View>
         </View>
         {showActions ? (
-        <View className="mt-4 flex-row gap-3 border-t border-[#F0F0F0] pt-3">
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onEdit();
-            }}
-            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-[rgba(39,187,151,0.1)] py-2.5"
-          >
-            <MaterialIcons name="edit" size={18} color="#27BB97" />
-            <Text
-              className="text-[13px] text-[#27BB97]"
-              style={{ fontFamily: ListifyFonts.semiBold }}
+        <View className="mt-4 gap-2 border-t border-[#F0F0F0] pt-3">
+          {onReactivate ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onReactivate();
+              }}
+              disabled={actionLoading}
+              className="flex-row items-center justify-center gap-1.5 rounded-xl bg-[#27BB97] py-2.5"
             >
-              Edit
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onDelete();
-            }}
-            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-red-50 py-2.5"
-          >
-            <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
-            <Text
-              className="text-[13px] text-red-500"
-              style={{ fontFamily: ListifyFonts.semiBold }}
+              <MaterialIcons name="refresh" size={18} color="#FFFFFF" />
+              <Text
+                className="text-[13px] text-white"
+                style={{ fontFamily: ListifyFonts.semiBold }}
+              >
+                {reactivateLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+          {onMarkSold ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onMarkSold();
+              }}
+              disabled={actionLoading}
+              className="flex-row items-center justify-center gap-1.5 rounded-xl bg-[#27BB97] py-2.5"
             >
-              Delete
-            </Text>
-          </Pressable>
+              <MaterialIcons name="check-circle" size={18} color="#FFFFFF" />
+              <Text
+                className="text-[13px] text-white"
+                style={{ fontFamily: ListifyFonts.semiBold }}
+              >
+                {markSoldLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+          {(onEdit || onDelete) ? (
+          <View className="flex-row gap-3">
+            {onEdit ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onEdit();
+              }}
+              disabled={actionLoading}
+              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-[rgba(39,187,151,0.1)] py-2.5"
+            >
+              <MaterialIcons name="edit" size={18} color="#27BB97" />
+              <Text
+                className="text-[13px] text-[#27BB97]"
+                style={{ fontFamily: ListifyFonts.semiBold }}
+              >
+                Edit
+              </Text>
+            </Pressable>
+            ) : null}
+            {onDelete ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onDelete();
+              }}
+              disabled={actionLoading}
+              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-red-50 py-2.5"
+            >
+              <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
+              <Text
+                className="text-[13px] text-red-500"
+                style={{ fontFamily: ListifyFonts.semiBold }}
+              >
+                Delete
+              </Text>
+            </Pressable>
+            ) : null}
+          </View>
+          ) : null}
         </View>
         ) : null}
       </View>

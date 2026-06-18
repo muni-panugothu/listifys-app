@@ -177,6 +177,16 @@ export function SettingsScreen() {
           subtitle="Reset via email OTP"
           type="navigate"
           onPress={() => push("/forgot-password")}
+          showDivider
+        />
+        <SettingsMenuRow
+          icon="delete-forever"
+          iconBg="rgba(239,68,68,0.12)"
+          iconColor="#EF4444"
+          label="Delete account"
+          subtitle="Permanently remove your account and data"
+          type="navigate"
+          onPress={() => pushProtected("/delete-account")}
         />
       </ProfileSectionCard>
 

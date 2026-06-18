@@ -50,7 +50,7 @@ const productThreadSchema = new mongoose.Schema(
     },
     closedReason: {
       type:    String,
-      enum:    ['sold', 'expired', 'user_closed', null],
+      enum:    ['sold', 'expired', 'user_closed', 'deleted', null],
       default: null,
     },
     startedAt:     { type: Date, default: Date.now },

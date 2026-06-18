@@ -339,6 +339,179 @@ router.get("/my-listings", require("../middleware/auth.middleware").protect, asy
   }
 });
 
+// ── PATCH /api/feed/listings/:category/:id/status ─────────────────────────
+// Unified "mark as sold / inactive / re-activate" endpoint.
+router.patch(
+  "/listings/:category/:id/status",
+  require("../middleware/auth.middleware").protect,
+  async (req, res) => {
+    try {
+      const { category, id } = req.params;
+      const userId = req.user._id;
+      const {
+        closeThreadsForListing,
+        reopenThreadsForListing,
+        invalidateListingCaches,
+      } = require("../services/listing-thread-lifecycle.service");
+
+      const Model = CATEGORY_MODELS[category];
+      if (!Model) {
+        return res.status(400).json({ success: false, message: "Unknown category" });
+      }
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: "Invalid listing ID" });
+      }
+
+      const requestedStatus = String(req.body?.status || "sold").toLowerCase();
+      const allowed = Model.schema.path("status")?.enumValues || [];
+      let nextStatus = requestedStatus;
+      if (!allowed.includes(nextStatus)) {
+        const map = {
+          sold: ["sold", "inactive", "rented"],
+          inactive: ["inactive", "sold"],
+          active: ["active"],
+        };
+        const candidates = map[requestedStatus] || [requestedStatus];
+        nextStatus = candidates.find((c) => allowed.includes(c));
+        if (!nextStatus) {
+          return res.status(400).json({
+            success: false,
+            message: `Status "${requestedStatus}" not supported for ${category}`,
+          });
+        }
+      }
+
+      const listing = await Model.findById(id);
+      if (!listing) {
+        return res.status(404).json({ success: false, message: "Listing not found" });
+      }
+
+      const ownerField = category === "services" ? "userId" : "seller";
+      const ownerId = listing[ownerField]?.toString();
+      if (!ownerId || ownerId !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized to update this listing",
+        });
+      }
+
+      listing.status = nextStatus;
+      await listing.save();
+
+      if (nextStatus === "active") {
+        void reopenThreadsForListing({
+          listingId: listing._id,
+          category,
+          userId,
+        }).catch((err) => {
+          logger.error("[feed] reopen threads error", { error: err.message });
+        });
+      } else {
+        const msg =
+          nextStatus === "inactive"
+            ? "Service marked as inactive. Conversation closed."
+            : "Product marked as sold. Conversation closed.";
+        void closeThreadsForListing({
+          listingId: listing._id,
+          category,
+          userId,
+          reason: "sold",
+          systemMessage: msg,
+        }).catch((err) => {
+          logger.error("[feed] close threads error", { error: err.message });
+        });
+      }
+
+      invalidateListingCaches(category, id);
+
+      return res.status(200).json({
+        success: true,
+        message: `Listing marked as ${nextStatus}`,
+        listing: { _id: listing._id, status: listing.status },
+      });
+    } catch (err) {
+      logger.error("Feed update-status error", { error: err.message });
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to update listing status" });
+    }
+  },
+);
+
+// ── DELETE /api/feed/listings/:category/:id ───────────────────────────────
+// Fast unified delete — closes chats as read-only, removes listing from feeds.
+router.delete(
+  "/listings/:category/:id",
+  require("../middleware/auth.middleware").protect,
+  async (req, res) => {
+    try {
+      const { category, id } = req.params;
+      const userId = req.user._id;
+      const {
+        closeThreadsForListing,
+        invalidateListingCaches,
+      } = require("../services/listing-thread-lifecycle.service");
+
+      const Model = CATEGORY_MODELS[category];
+      if (!Model) {
+        return res.status(400).json({ success: false, message: "Unknown category" });
+      }
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: "Invalid listing ID" });
+      }
+
+      const listing = await Model.findById(id);
+      if (!listing) {
+        return res.status(404).json({ success: false, message: "Listing not found" });
+      }
+
+      const ownerField = category === "services" ? "userId" : "seller";
+      const ownerId = listing[ownerField]?.toString();
+      if (!ownerId || ownerId !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized to delete this listing",
+        });
+      }
+
+      const imageUrls = Array.isArray(listing.images) ? [...listing.images] : [];
+      await Model.findByIdAndDelete(id);
+
+      void closeThreadsForListing({
+        listingId: listing._id,
+        category,
+        userId,
+        reason: "deleted",
+        systemMessage: "This listing was removed. Conversation is read-only.",
+      }).catch((err) => {
+        logger.error("[feed] delete close threads error", { error: err.message });
+      });
+
+      invalidateListingCaches(category, id);
+
+      // Background image cleanup (non-blocking)
+      if (imageUrls.length > 0) {
+        try {
+          const { publishImageCleanup } = require("../queues/producers/listing.producer");
+          publishImageCleanup({ imageUrls }).catch(() => {});
+        } catch {
+          // optional queue
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Listing deleted successfully",
+      });
+    } catch (err) {
+      logger.error("Feed delete listing error", { error: err.message });
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to delete listing" });
+    }
+  },
+);
+
 // ── GET /api/feed/saved — all saved listings across every category ──
 router.get("/saved", require("../middleware/auth.middleware").protect, async (req, res) => {
   try {

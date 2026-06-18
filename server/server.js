@@ -22,6 +22,26 @@ require("dotenv").config(
 );
 const { logger, flushLogs } = require('./utils/logger');
 
+// Warn when Windows/shell env vars override .env (causes mixed email senders).
+if (resolvedEnvPath && fs.existsSync(resolvedEnvPath)) {
+  const parsed = require("dotenv").parse(fs.readFileSync(resolvedEnvPath));
+  for (const key of ["EMAIL_USER", "EMAIL_FROM", "EMAIL_PASSWORD", "BREVO_API_KEY"]) {
+    const fileValue = parsed[key]?.trim();
+    const activeValue = process.env[key]?.trim();
+    if (fileValue && activeValue && fileValue !== activeValue) {
+      const mask = (v) =>
+        key.includes("PASSWORD") || key.includes("API_KEY")
+          ? "(hidden)"
+          : v.replace(/(.{2}).*(@.*)/, "$1***$2");
+      logger.warn(`Shell environment overrides server/.env for ${key}`, {
+        envFile: mask(fileValue),
+        active: mask(activeValue),
+        hint: "Remove duplicate from Windows Environment Variables, then restart the server",
+      });
+    }
+  }
+}
+
 logger.info('Environment loaded', {
   envFile: resolvedEnvPath || '(none found — using process env)',
   NODE_ENV: process.env.NODE_ENV,
@@ -526,6 +546,8 @@ httpServer.on('error', (err) => {
 
 const server = dbReadyPromise.then(() => httpServer.listen(PORT, "0.0.0.0", () => {
   logger.info('Server started', { port: PORT, env: process.env.NODE_ENV, host: "0.0.0.0" });
+
+  void require('./services/email.service').verifyEmailTransport().catch(() => {});
 
   // Initialize write-back view counter service
   const viewCounter = require('./services/viewcount.service');

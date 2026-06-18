@@ -2159,12 +2159,17 @@ exports.initiateForgotPassword = async (req, res) => {
       userAgent: req.get('user-agent'),
     }).catch(() => {});
 
-    res.status(200).json({
+    const { isDevOtpExposed } = require("../utils/devOtp");
+    const response = {
       success: true,
       message: "Password reset OTP sent to your email",
       email: email,
       expiresIn: 600,
-    });
+    };
+    if (isDevOtpExposed()) {
+      response.devOtp = otp;
+    }
+    res.status(200).json(response);
   } catch (error) {
     logger.error("❌ Forgot password initiation error:", error);
     res.status(500).json({
@@ -2357,6 +2362,7 @@ exports.resendForgotPasswordOTP = async (req, res) => {
       success: true,
       message: "New OTP sent to your email.",
       email,
+      ...(require("../utils/devOtp").isDevOtpExposed() ? { devOtp: otp } : {}),
     });
   } catch (error) {
     logger.error("❌ Resend forgot password OTP error:", error);
@@ -4092,34 +4098,43 @@ exports.requestEmailChange = async (req, res) => {
       pendingEmailChange: { email: normalised, otpHash, expiresAt, attempts: 0, requestedAt: new Date() },
     });
 
-    try {
-      await EmailService.sendEmailChangeOTP(normalised, user.name || "there", otp);
-    } catch (emailErr) {
-      logger.error("requestEmailChange email delivery failed", { error: emailErr.message, newEmail: normalised });
-      if (process.env.NODE_ENV !== "production") {
+    const { isDevOtpExposed } = require("../utils/devOtp");
+
+    // Send email in background — don't block the HTTP response on SMTP timeouts.
+    void EmailService.sendEmailChangeOTP(normalised, user.name || "there", otp).catch((emailErr) => {
+      logger.error("requestEmailChange email delivery failed", {
+        error: emailErr.message,
+        newEmail: normalised,
+      });
+      if (isDevOtpExposed()) {
         logger.info("[email_change] DEV OTP (email delivery failed)", { email: normalised, otp });
-      } else {
-        await User.findByIdAndUpdate(userId, { $unset: { pendingEmailChange: 1 } });
-        return res.status(503).json({
-          success: false,
-          message: "We couldn't send a verification code to that email address. Please try again in a moment.",
-          code: "EMAIL_DELIVERY_FAILED",
-        });
       }
-    }
+    });
 
     if (user.email) {
-      void EmailService.sendEmailChangeAlert(user.email, user.name || "there", normalised, req.ip, Date.now());
+      void EmailService.sendEmailChangeAlert(
+        user.email,
+        user.name || "there",
+        normalised,
+        req.ip,
+        Date.now(),
+      ).catch((alertErr) => {
+        logger.warn("Email-change alert failed (non-fatal)", { error: alertErr.message });
+      });
     }
 
     logger.info("[email_change] OTP sent", { userId, newEmail: normalised });
 
-    res.status(200).json({
+    const payload = {
       success: true,
       message: "A 6-digit verification code has been sent to your new email address.",
       maskedEmail: normalised.replace(/^(.{2}).+(@.+)$/, "$1****$2"),
       expiresIn: 300,
-    });
+    };
+    if (isDevOtpExposed()) {
+      payload.devOtp = otp;
+    }
+    res.status(200).json(payload);
   } catch (error) {
     logger.error("requestEmailChange error:", error);
     res.status(500).json({ success: false, message: "Server error." });
