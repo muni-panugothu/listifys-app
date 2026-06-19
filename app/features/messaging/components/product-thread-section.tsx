@@ -6,7 +6,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "@/lib/nativewind-interop";
 import { resolveAbsoluteMediaUrl } from "@/features/auth/services/auth-api";
-import type { ProductThread } from "@/features/messaging/services/chat-api";
+import type { ProductThread, ChatParticipant } from "@/features/messaging/services/chat-api";
 import { ListifyFonts } from "@/constants/typography";
 import { Text, View, Pressable } from "react-native";
 
@@ -16,17 +16,13 @@ const ACTIVE = "#10B981";
 
 type Props = {
   thread:      ProductThread;
+  /** Current user id — used to label the listing as "Posted by me" vs.
+   *  "Posted by <seller>". Pass undefined if not signed in. */
+  currentUserId?: string;
   isExpanded?: boolean;
   onToggle?:    () => void;
   /** Navigate to listing detail when the banner is tapped. */
   onPress?:     () => void;
-};
-
-const OFFER_BADGES: Record<string, { label: string; color: string }> = {
-  pending:   { label: "Offer Pending",   color: "#F59E0B" },
-  accepted:  { label: "Offer Accepted",  color: BRAND },
-  declined:  { label: "Offer Declined",  color: SOLD },
-  countered: { label: "Counter Offer",   color: "#3B82F6" },
 };
 
 function formatDate(dateStr: string) {
@@ -34,7 +30,18 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function ProductThreadSection({ thread, isExpanded = true, onToggle, onPress }: Props) {
+function participantIdOf(p: ChatParticipant | string | null | undefined): string {
+  if (!p) return "";
+  if (typeof p === "string") return p;
+  return String(p.id ?? p._id ?? "");
+}
+
+function sellerNameOf(seller: ChatParticipant | string | null | undefined): string {
+  if (!seller || typeof seller === "string") return "the seller";
+  return seller.name || "the seller";
+}
+
+export function ProductThreadSection({ thread, currentUserId, isExpanded = true, onToggle, onPress }: Props) {
   const product    = thread.product;
   const isSold     = thread.status === "sold" || thread.status === "closed";
   const statusColor = isSold ? SOLD : ACTIVE;
@@ -42,7 +49,14 @@ export function ProductThreadSection({ thread, isExpanded = true, onToggle, onPr
     ? (thread.closedReason === "sold" ? "SOLD" : "CLOSED")
     : "ACTIVE";
 
-  const offerBadge = thread.offerStatus !== "none" ? OFFER_BADGES[thread.offerStatus] : null;
+  // "Posted by me" if the current user is the seller of this thread, otherwise
+  // "Posted by <seller name>". Falls back to a generic label when we can't
+  // identify either side (e.g. signed-out preview).
+  const sellerId = participantIdOf(thread.seller);
+  const postedByMe = !!currentUserId && sellerId === currentUserId;
+  const postedByLabel = postedByMe
+    ? "Posted by me"
+    : `Posted by ${sellerNameOf(thread.seller)}`;
 
   const imageUrl = product.image
     ? resolveAbsoluteMediaUrl(product.image) ?? undefined
@@ -118,35 +132,24 @@ export function ProductThreadSection({ thread, isExpanded = true, onToggle, onPr
           </View>
         </View>
 
-        {/* Price + date */}
-        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 8 }}>
+        {/* Price + posted-by */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 8, flexWrap: "wrap" }}>
           {product.price != null && (
             <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: "#374151" }}>
               {product.currency}{product.price.toLocaleString("en-IN")}
             </Text>
           )}
-          <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 11, color: "#9CA3AF" }}>
-            Started {formatDate(thread.startedAt)}
+          <Text
+            style={{
+              fontFamily: ListifyFonts.regular,
+              fontSize: 11,
+              color: postedByMe ? BRAND : "#6B7280",
+            }}
+            numberOfLines={1}
+          >
+            {postedByLabel}
           </Text>
         </View>
-
-        {/* Offer badge */}
-        {offerBadge && (
-          <View
-            style={{
-              marginTop:       4,
-              backgroundColor: offerBadge.color + "15",
-              borderRadius:    4,
-              paddingHorizontal: 6,
-              paddingVertical:   2,
-              alignSelf:       "flex-start",
-            }}
-          >
-            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 11, color: offerBadge.color }}>
-              {offerBadge.label}
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* Open indicator */}

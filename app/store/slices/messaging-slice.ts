@@ -118,10 +118,22 @@ const messagingSlice = createSlice({
     ) {
       const { threadId, message, conversationId } = action.payload;
 
-      // Prepend to messages map
+      // Prepend to messages map. Three dedup paths:
+      //  1. Same server _id           → ignore (already in list).
+      //  2. Same clientMessageId      → reconcile the optimistic bubble in place.
+      //  3. Neither                   → append at the bottom.
       const existing = state.messages[threadId] ?? [];
-      const alreadyExists = existing.some((m) => m._id === message._id);
-      if (!alreadyExists) {
+      const byId = existing.findIndex((m) => m._id === message._id);
+      if (byId >= 0) {
+        state.messages[threadId][byId] = { ...existing[byId], ...message };
+      } else if (message.clientMessageId) {
+        const byCmid = existing.findIndex((m) => m.clientMessageId && m.clientMessageId === message.clientMessageId);
+        if (byCmid >= 0) {
+          state.messages[threadId][byCmid] = { ...existing[byCmid], ...message };
+        } else {
+          state.messages[threadId] = [...existing, message];
+        }
+      } else {
         state.messages[threadId] = [...existing, message];
       }
 
@@ -217,18 +229,161 @@ const messagingSlice = createSlice({
       }
     },
 
-    // Replace optimistic message with confirmed server message
+    // Replace optimistic message with confirmed server message. We look up by
+    // `tempId` first (legacy callers), then by `clientMessageId` (preferred —
+    // survives socket echoes arriving before the HTTP response).
     confirmMessage(
       state,
       action: PayloadAction<{ threadId: string; tempId: string; message: ChatMessage }>,
     ) {
       const { threadId, tempId, message } = action.payload;
       const msgs = state.messages[threadId] ?? [];
-      const idx  = msgs.findIndex((m) => m._id === tempId);
+
+      let idx = msgs.findIndex((m) => m._id === tempId);
+      if (idx < 0 && message.clientMessageId) {
+        idx = msgs.findIndex((m) => m.clientMessageId === message.clientMessageId);
+      }
+      if (idx < 0) {
+        idx = msgs.findIndex((m) => m._id === message._id);
+      }
+
       if (idx >= 0) {
-        state.messages[threadId][idx] = message;
+        // Preserve any locally-known fields the server doesn't echo (none today,
+        // but this protects future additions like upload progress).
+        state.messages[threadId][idx] = { ...msgs[idx], ...message };
       } else {
         state.messages[threadId] = [...msgs, message];
+      }
+    },
+
+    // Apply a delivery/read status update from a single `message:status` event.
+    // Status only ever moves forward: sent → delivered → read.
+    updateMessageStatus(
+      state,
+      action: PayloadAction<{
+        threadId: string;
+        messageId: string;
+        status: ChatMessage["status"];
+        deliveredAt?: string | null;
+        readAt?: string | null;
+      }>,
+    ) {
+      const { threadId, messageId, status, deliveredAt, readAt } = action.payload;
+      const msgs = state.messages[threadId];
+      if (!msgs) return;
+      const idx = msgs.findIndex((m) => m._id === messageId);
+      if (idx < 0) return;
+      const current = msgs[idx];
+      const rank: Record<string, number> = { sending: 0, sent: 1, delivered: 2, read: 3 };
+      if (rank[status] >= rank[current.status]) {
+        state.messages[threadId][idx] = {
+          ...current,
+          status,
+          ...(deliveredAt ? { deliveredAt } : {}),
+          ...(readAt ? { readAt } : {}),
+        };
+      }
+    },
+
+    // Apply a batched `message:status:batch` event. Cheaper than dispatching N
+    // updateMessageStatus actions when WhatsApp-style "delivered when opening
+    // app" fires for a long thread.
+    updateMessageStatusBatch(
+      state,
+      action: PayloadAction<{
+        threadId: string | null;
+        status: ChatMessage["status"];
+        messageIds: string[];
+        at?: string | null;
+      }>,
+    ) {
+      const { threadId, status, messageIds, at } = action.payload;
+      const rank: Record<string, number> = { sending: 0, sent: 1, delivered: 2, read: 3 };
+      const ids = new Set(messageIds);
+
+      const targets = threadId
+        ? [threadId]
+        : Object.keys(state.messages);
+
+      for (const tId of targets) {
+        const msgs = state.messages[tId];
+        if (!msgs) continue;
+        for (let i = 0; i < msgs.length; i += 1) {
+          if (!ids.has(msgs[i]._id)) continue;
+          if (rank[status] < rank[msgs[i].status]) continue;
+          msgs[i] = {
+            ...msgs[i],
+            status,
+            ...(status === "delivered" && at ? { deliveredAt: at } : {}),
+            ...(status === "read" && at ? { readAt: at, deliveredAt: msgs[i].deliveredAt || at } : {}),
+          };
+        }
+      }
+    },
+
+    // ── Deletes ────────────────────────────────────────────────────────────
+    // "Delete for everyone" — message stays in the array but is tomb-stoned
+    // so existing pagination / counts don't shift. Bubble re-renders as the
+    // "This message was deleted" placeholder.
+    messageDeletedForEveryone(
+      state,
+      action: PayloadAction<{ threadId: string; messageId: string }>,
+    ) {
+      const { threadId, messageId } = action.payload;
+      const msgs = state.messages[threadId];
+      if (!msgs) return;
+      const idx = msgs.findIndex((m) => m._id === messageId);
+      if (idx < 0) return;
+      msgs[idx] = {
+        ...msgs[idx],
+        deletedForEveryone: true,
+        content: "",
+        attachments: [],
+        messageType: msgs[idx].messageType === "offer" ? "offer" : "text",
+      };
+    },
+
+    // "Delete for me" — drop the message from the visible list for this user.
+    // Other participants still see it.
+    messageDeletedForMe(
+      state,
+      action: PayloadAction<{ threadId: string; messageId: string }>,
+    ) {
+      const { threadId, messageId } = action.payload;
+      const msgs = state.messages[threadId];
+      if (!msgs) return;
+      state.messages[threadId] = msgs.filter((m) => m._id !== messageId);
+    },
+
+    // Catch-up: apply a list of (messageId, status, timestamps) entries that
+    // came back from `message:catchup:request`.
+    applyStatusCatchup(
+      state,
+      action: PayloadAction<{
+        threadId: string;
+        updates: Array<{
+          messageId: string;
+          status: ChatMessage["status"];
+          deliveredAt: string | null;
+          readAt: string | null;
+        }>;
+      }>,
+    ) {
+      const { threadId, updates } = action.payload;
+      const msgs = state.messages[threadId];
+      if (!msgs || updates.length === 0) return;
+      const rank: Record<string, number> = { sending: 0, sent: 1, delivered: 2, read: 3 };
+      const byId = new Map(updates.map((u) => [u.messageId, u]));
+      for (let i = 0; i < msgs.length; i += 1) {
+        const u = byId.get(msgs[i]._id);
+        if (!u) continue;
+        if (rank[u.status] < rank[msgs[i].status]) continue;
+        msgs[i] = {
+          ...msgs[i],
+          status: u.status,
+          ...(u.deliveredAt ? { deliveredAt: u.deliveredAt } : {}),
+          ...(u.readAt ? { readAt: u.readAt } : {}),
+        };
       }
     },
 
@@ -305,6 +460,11 @@ export const {
   setOfferModalThread,
   optimisticMessage,
   confirmMessage,
+  updateMessageStatus,
+  updateMessageStatusBatch,
+  applyStatusCatchup,
+  messageDeletedForEveryone,
+  messageDeletedForMe,
   resetMessaging,
 } = messagingSlice.actions;
 

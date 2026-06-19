@@ -1,6 +1,18 @@
 /**
  * OfferCard — rendered inside a product thread when messageType === "offer".
- * Shows the offer amount, status badge, and Accept/Decline buttons (for seller).
+ *
+ * Looks like a regular message bubble (matching WhatsApp's "structured" message
+ * style) — the body is the server's pre-formatted multi-line text:
+ *
+ *   📋 Offer for: Bracelet
+ *
+ *   💰 Listed Price: ₹600
+ *   🏷️ My Offer: ₹500
+ *
+ *   Hi, I'm interested in this item and would like to offer ₹500. Please …
+ *
+ * The seller sees Accept / Decline buttons appended below when the offer is
+ * still pending and the thread is active.
  */
 import { Text, View, Pressable } from "react-native";
 import type { ChatMessage, ProductThread } from "@/features/messaging/services/chat-api";
@@ -10,11 +22,13 @@ const BRAND   = "#27BB97";
 const SOLD    = "#EF4444";
 const PENDING = "#F59E0B";
 const ACCENT  = "#3B82F6";
+const TEXT_DARK = "#1A1A1A";
 
 type Props = {
   message: ChatMessage;
   thread:  ProductThread;
   isSeller: boolean;
+  fromMe: boolean;
   onAccept?: () => void;
   onDecline?: () => void;
 };
@@ -26,103 +40,89 @@ const STATUS_COLORS: Record<string, string> = {
   countered: ACCENT,
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending:  "Pending",
-  accepted: "Accepted ✓",
-  declined: "Declined",
-  countered: "Counter-offer",
-};
+// Legacy server messages (pre-format-update) only have a one-liner like
+// "Buyer offered ₹500". We upgrade those on the fly so the UI is consistent
+// regardless of when the message was sent.
+function buildBody(message: ChatMessage, thread: ProductThread): string {
+  const raw = (message.content || "").trim();
+  if (raw.includes("📋 Offer for")) return raw;
 
-export function OfferCard({ message, thread, isSeller, onAccept, onDecline }: Props) {
-  const offer   = message.offerData;
-  if (!offer) return null;
+  const currency = message.offerData?.currency || thread.product?.currency || "₹";
+  const amount = Number(message.offerData?.amount || 0);
+  const listedPrice = Number(thread.product?.price || 0);
+  const productTitle = thread.product?.title || "this item";
 
-  const status  = offer.status ?? "pending";
-  const amount  = offer.amount != null
-    ? `${offer.currency || "₹"}${offer.amount.toLocaleString("en-IN")}`
-    : "";
+  const amountLabel = amount > 0
+    ? `${currency}${Math.round(amount).toLocaleString("en-IN")}`
+    : `${currency}—`;
+  const listedLabel = listedPrice > 0
+    ? `${currency}${Math.round(listedPrice).toLocaleString("en-IN")}`
+    : null;
 
-  const color  = STATUS_COLORS[status] ?? PENDING;
-  const label  = STATUS_LABELS[status] ?? status;
+  if (message.offerData?.status === "accepted") {
+    return `✅ Offer accepted\n\n${productTitle} — ${amountLabel}`;
+  }
+  if (message.offerData?.status === "declined") {
+    return `❌ Offer declined\n\n${productTitle} — ${amountLabel}`;
+  }
+
+  return [
+    `📋 Offer for: ${productTitle}`,
+    "",
+    ...(listedLabel ? [`💰 Listed Price: ${listedLabel}`] : []),
+    `🏷️ My Offer: ${amountLabel}`,
+    "",
+    `Hi, I'm interested in this item and would like to offer ${amountLabel}. Please let me know if this works for you!`,
+  ].join("\n");
+}
+
+export function OfferCard({ message, thread, isSeller, fromMe, onAccept, onDecline }: Props) {
+  const status      = message.offerData?.status ?? "pending";
+  const accentColor = STATUS_COLORS[status] ?? PENDING;
   const showActions = isSeller && status === "pending" && thread.status === "active";
+
+  const body = buildBody(message, thread);
 
   return (
     <View
       style={{
-        borderRadius: 12,
-        borderWidth:  1,
-        borderColor:  color,
-        backgroundColor: "#FAFAFA",
-        padding:      14,
-        marginVertical: 4,
-        maxWidth:     280,
+        backgroundColor: "#FFFBEB",
+        borderRadius: 16,
+        borderBottomRightRadius: fromMe ? 4 : 16,
+        borderBottomLeftRadius:  fromMe ? 16 : 4,
+        borderWidth: 1,
+        borderColor: accentColor + "55",
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        maxWidth: 300,
       }}
     >
-      {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-        <Text style={{ fontSize: 18, marginRight: 6 }}>💰</Text>
-        <Text
-          style={{
-            fontFamily: ListifyFonts.semibold,
-            fontSize: 13,
-            color: "#374151",
-          }}
-        >
-          Offer
-        </Text>
-        <View
-          style={{
-            marginLeft: "auto",
-            backgroundColor: color + "20",
-            borderRadius:    6,
-            paddingHorizontal: 8,
-            paddingVertical:   2,
-          }}
-        >
-          <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 11, color }}>{label}</Text>
-        </View>
-      </View>
-
-      {/* Amount */}
       <Text
         style={{
-          fontFamily: ListifyFonts.bold,
-          fontSize:   22,
-          color:      "#111827",
-          marginBottom: 4,
+          fontFamily: ListifyFonts.regular,
+          fontSize: 14,
+          color: TEXT_DARK,
+          lineHeight: 20,
         }}
       >
-        {amount}
+        {body}
       </Text>
 
-      {/* Product name */}
-      {thread.product?.title ? (
-        <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 12, color: "#6B7280", marginBottom: 8 }}>
-          {thread.product.title}
-          {thread.product.price != null ? (
-            <Text style={{ color: "#9CA3AF" }}>
-              {" "}(Listed: {thread.product.currency}{thread.product.price.toLocaleString("en-IN")})
-            </Text>
-          ) : null}
-        </Text>
-      ) : null}
-
-      {/* Actions (seller only, while pending) */}
       {showActions && (
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
           <Pressable
             onPress={onDecline}
             style={({ pressed }) => ({
               flex: 1,
               alignItems: "center",
-              paddingVertical: 8,
-              borderRadius: 8,
+              paddingVertical: 9,
+              borderRadius: 10,
               borderWidth: 1,
               borderColor: SOLD,
               backgroundColor: pressed ? "#FEE2E2" : "#FFF5F5",
             })}
           >
-            <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 13, color: SOLD }}>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: SOLD }}>
               Decline
             </Text>
           </Pressable>
@@ -131,12 +131,12 @@ export function OfferCard({ message, thread, isSeller, onAccept, onDecline }: Pr
             style={({ pressed }) => ({
               flex: 1,
               alignItems: "center",
-              paddingVertical: 8,
-              borderRadius: 8,
+              paddingVertical: 9,
+              borderRadius: 10,
               backgroundColor: pressed ? "#059669" : BRAND,
             })}
           >
-            <Text style={{ fontFamily: ListifyFonts.semibold, fontSize: 13, color: "#FFF" }}>
+            <Text style={{ fontFamily: ListifyFonts.semiBold, fontSize: 13, color: "#FFF" }}>
               Accept
             </Text>
           </Pressable>

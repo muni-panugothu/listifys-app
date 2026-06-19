@@ -22,14 +22,36 @@
  *   └─ Input bar (disabled when thread is closed) ─────────────────┘
  */
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+
+// Resolved lazily so the screen still loads if `expo-clipboard` hasn't been
+// installed yet (e.g. fresh checkout before `npm install`). The Copy action
+// degrades gracefully when it's missing.
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    const mod = require("expo-clipboard");
+    if (mod?.setStringAsync) {
+      await mod.setStringAsync(text);
+      return true;
+    }
+    if (mod?.setString) {
+      mod.setString(text);
+      return true;
+    }
+  } catch {
+    // expo-clipboard not installed yet — handled by caller.
+  }
+  return false;
+}
 import { useLocalSearchParams, useRouter, type Href } from "@/lib/safe-router";
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, FlatList,
+  ActivityIndicator, FlatList, Platform,
   Pressable, ScrollView,
   Text, TextInput, View, Modal, Alert,
+  type NativeScrollEvent, type NativeSyntheticEvent,
   type ScrollViewProps,
 } from "react-native";
 import {
@@ -54,13 +76,29 @@ import {
   getOrCreateConversation, getConversation, listThreads, getThreadMessages,
   sendMessageApi, markThreadRead, markConversationRead,
   makeOffer, acceptOffer, declineOffer, closeThread,
+  generateClientMessageId,
+  uploadChatAttachment,
+  deleteMessageForMe as deleteMessageForMeApi,
+  deleteMessageForEveryone as deleteMessageForEveryoneApi,
   type ProductThread, type ChatMessage, type Conversation, type ChatParticipant,
+  type ChatAttachment,
 } from "@/features/messaging/services/chat-api";
 import { ProductThreadSection } from "@/features/messaging/components/product-thread-section";
 import { OfferCard } from "@/features/messaging/components/offer-card";
+import { MessageAttachmentView } from "@/features/messaging/components/message-attachment-view";
+import { RepliedMessagePreview } from "@/features/messaging/components/replied-message-preview";
+import { ReplyPreviewBar } from "@/features/messaging/components/reply-preview-bar";
+import { AttachmentPickerSheet, type LocalAttachment } from "@/features/messaging/components/attachment-picker-sheet";
+import { EmojiPickerSheet } from "@/features/messaging/components/emoji-picker-sheet";
+import {
+  useVoiceRecording, VoiceMicButton, VoiceRecordingBar,
+  type RecordedVoiceNote,
+} from "@/features/messaging/components/voice-recorder";
+import { MessageActionsSheet, type MessageAction } from "@/features/messaging/components/message-actions-sheet";
 import {
   connectSocket, joinConversation, leaveConversation, joinThread, leaveThread,
-  emitTypingStart, emitTypingStop, emitMessageDelivered, getSocket,
+  emitTypingStart, emitTypingStop, emitMessagesDelivered, requestStatusCatchup, getSocket,
+  type StatusCatchupUpdate,
 } from "@/features/messaging/services/socket-service";
 import { Image } from "@/lib/nativewind-interop";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -68,6 +106,7 @@ import {
   incomingMessage, threadClosed, offerUpdated,
   setActiveConversation, setActiveThread,
   optimisticMessage, confirmMessage,
+  messageDeletedForEveryone, messageDeletedForMe,
 } from "@/store/slices/messaging-slice";
 import { outgoingCallStarted } from "@/store/slices/call-slice";
 
@@ -104,6 +143,23 @@ function senderId(m: ChatMessage) {
 }
 function isFromMe(m: ChatMessage, uid?: string) { return senderId(m) === uid; }
 
+// Status precedence — same as the slice. Used to guarantee ticks only move
+// forward (sending → sent → delivered → read) even if events arrive out of order.
+const STATUS_RANK: Record<string, number> = { sending: 0, sent: 1, delivered: 2, read: 3 };
+function mergeStatus(
+  msg: ChatMessage,
+  next: ChatMessage["status"],
+  at?: string | null,
+): ChatMessage {
+  if (STATUS_RANK[next] < STATUS_RANK[msg.status]) return msg;
+  return {
+    ...msg,
+    status: next,
+    ...(next === "delivered" && at ? { deliveredAt: at } : {}),
+    ...(next === "read" && at ? { readAt: at, deliveredAt: msg.deliveredAt || at } : {}),
+  };
+}
+
 function syncNotificationBadge(res: { notificationsMarked?: number }) {
   const marked = res.notificationsMarked ?? 0;
   if (marked > 0) adjustNotificationUnread(-marked);
@@ -129,11 +185,53 @@ function findOtherParticipant(
   );
 }
 
+function inferAttachmentKind(mimeType: string): ChatAttachment["type"] {
+  const mt = mimeType.toLowerCase();
+  if (mt.includes("video")) return "video";
+  if (mt.includes("audio")) return "audio";
+  if (mt.includes("image")) return "image";
+  return "document";
+}
+
+function inferMessageType(kind: ChatAttachment["type"]): ChatMessage["messageType"] {
+  if (kind === "video") return "video";
+  if (kind === "audio") return "audio";
+  if (kind === "image") return "image";
+  if (kind === "document") return "document";
+  return "text";
+}
+
 function profileImageFromParticipant(
   participant?: ChatParticipant | string | null,
 ): string | null {
   if (!participant || typeof participant === "string") return null;
   return participant.profileImageUrl ?? null;
+}
+
+// WhatsApp-style status tick. Renders one of:
+//   sending   → small clock icon (request in flight)
+//   sent      → single grey check
+//   delivered → double grey check
+//   read      → double brand-colour check
+function MessageStatusTick({ status }: { status: ChatMessage["status"] }) {
+  if (status === "sending") {
+    return (
+      <MaterialIcons name="access-time" size={12} color={TEXT_MUTED} />
+    );
+  }
+  if (status === "sent") {
+    return (
+      <MaterialIcons name="check" size={14} color={TEXT_MUTED} />
+    );
+  }
+  // delivered or read — both show double-check, only colour differs.
+  return (
+    <MaterialIcons
+      name="done-all"
+      size={14}
+      color={status === "read" ? BRAND : TEXT_MUTED}
+    />
+  );
 }
 
 export function ChatConversationScreen() {
@@ -161,8 +259,22 @@ export function ChatConversationScreen() {
   const [offerError,  setOfferError]     = useState("");
   const [offerModal,  setOfferModal]     = useState(false);
 
+  // ── WhatsApp-style features state ───────────────────────────────────────────
+  // The message we're currently replying to (null = no reply context).
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  // Open/close state for the three composer sheets.
+  const [attachmentSheet, setAttachmentSheet] = useState(false);
+  const [emojiSheet,      setEmojiSheet]      = useState(false);
+  // Long-press → MessageActionsSheet target (null = closed).
+  const [actionTarget,    setActionTarget]    = useState<ChatMessage | null>(null);
+  // Briefly halo a bubble after the user taps a reply snippet that jumps to it.
+  const [highlightedId,   setHighlightedId]   = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const flatRef    = useRef<FlatList>(null);
+  const inputRef   = useRef<TextInput>(null);
   const typingRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNearBottomRef = useRef(true);
 
   const footerPad  = Math.max(insets.bottom, 10);
   const stickyOffset = useKeyboardStickyOffset();
@@ -174,9 +286,18 @@ export function ChatConversationScreen() {
     [],
   );
 
-  // ── Keyboard ───────────────────────────────────────────────────────────────
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
+  // ── Keyboard / scroll ─────────────────────────────────────────────────────
+  const scrollToBottom = useCallback((force = false) => {
+    if (!force && !isNearBottomRef.current) return;
+    requestAnimationFrame(() => {
+      flatRef.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
+  const handleListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    isNearBottomRef.current = distanceFromBottom < 150;
   }, []);
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
@@ -284,15 +405,92 @@ export function ChatConversationScreen() {
 
     const onMsg = (data: ChatMessage & { threadId?: string }) => {
       if (!conversation) return;
+      const threadId = data.threadId ?? data.productThread ?? "";
       if (data.productThread === activeThread?._id || data.threadId === activeThread?._id) {
         setMessages((prev) => {
-          const all = dedup([...prev, data]);
-          return sortChron(all);
+          // If this is the server echo of a message *we* just sent, the
+          // optimistic bubble has the same clientMessageId — reconcile it in
+          // place instead of appending a duplicate.
+          let next = prev;
+          if (data.clientMessageId) {
+            const i = prev.findIndex((m) => m.clientMessageId === data.clientMessageId);
+            if (i >= 0) {
+              next = [...prev];
+              next[i] = { ...prev[i], ...data, status: data.status || prev[i].status };
+              return sortChron(next);
+            }
+          }
+          return sortChron(dedup([...next, data]));
         });
         scrollToBottom();
-        emitMessageDelivered(data._id, conversation._id);
+
+        // Only ack delivery for messages from other users. Batched: the
+        // socket-service coalesces all calls within ~250ms into one emit.
+        if (senderId(data) !== user?.id) {
+          emitMessagesDelivered(conversation._id, threadId || null, [data._id]);
+        }
       }
-      dispatch(incomingMessage({ threadId: data.threadId ?? data.productThread ?? "", message: data, conversationId: conversation._id }));
+      dispatch(incomingMessage({ threadId, message: data, conversationId: conversation._id }));
+    };
+
+    // ── Status updates (single + batched) ────────────────────────────────────
+    // Sender side: server tells us "your message is now delivered/read".
+    const applyStatusToLocal = (
+      messageIds: string[],
+      status: ChatMessage["status"],
+      at?: string | null,
+    ) => {
+      if (messageIds.length === 0) return;
+      const ids = new Set(messageIds);
+      setMessages((prev) => {
+        let mutated = false;
+        const next = prev.map((m) => {
+          if (!ids.has(m._id)) return m;
+          const merged = mergeStatus(m, status, at);
+          if (merged !== m) mutated = true;
+          return merged;
+        });
+        return mutated ? next : prev;
+      });
+    };
+
+    const onMessageStatus = (data: {
+      messageId: string;
+      conversationId?: string;
+      threadId?: string;
+      status: ChatMessage["status"];
+      at?: string | null;
+    }) => {
+      if (!data?.messageId || !data?.status) return;
+      applyStatusToLocal([data.messageId], data.status, data.at);
+    };
+
+    const onMessageStatusBatch = (data: {
+      conversationId?: string;
+      threadId?: string;
+      status: ChatMessage["status"] | "catchup";
+      messageIds?: string[];
+      updates?: StatusCatchupUpdate[];
+      at?: string | null;
+    }) => {
+      if (data?.status === "catchup" && Array.isArray(data.updates)) {
+        setMessages((prev) => {
+          const byId = new Map(data.updates!.map((u) => [u.messageId, u]));
+          let mutated = false;
+          const next = prev.map((m) => {
+            const u = byId.get(m._id);
+            if (!u) return m;
+            const merged = mergeStatus(m, u.status, u.readAt ?? u.deliveredAt ?? null);
+            if (merged !== m) mutated = true;
+            return merged;
+          });
+          return mutated ? next : prev;
+        });
+        return;
+      }
+      if (Array.isArray(data.messageIds) && data.status) {
+        applyStatusToLocal(data.messageIds, data.status as ChatMessage["status"], data.at);
+      }
     };
 
     const onTypingStart = (d: { threadId?: string; userId: string; userName: string }) => {
@@ -340,28 +538,46 @@ export function ChatConversationScreen() {
       dispatch(offerUpdated({ threadId: d.threadId, conversationId: conversation?._id ?? "", offerStatus: d.offerStatus, accepted: d.accepted, message: d.message }));
     };
 
-    socket.on("chat:message",      onMsg);
-    socket.on("chat:offer",        (d) => { onOfferUpdate({ ...d, accepted: false }); });
-    socket.on("chat:offer_update", onOfferUpdate);
-    socket.on("thread:closed",     onThreadClosed);
-    socket.on("thread:reopened",   onThreadReopened);
-    socket.on("thread:typing:start", onTypingStart);
-    socket.on("thread:typing:stop",  onTypingStop);
-    socket.on("typing:start",      onTypingStart);
-    socket.on("typing:stop",       onTypingStop);
+    // "Delete for everyone" broadcast — tomb-stone the bubble locally.
+    const onMessageDeleted = (d: { messageId: string; conversationId: string; threadId?: string }) => {
+      const targetThread = d.threadId || activeThread?._id;
+      if (!targetThread) return;
+      setMessages((prev) => prev.map((m) => (
+        m._id === d.messageId
+          ? { ...m, deletedForEveryone: true, content: "", attachments: [], messageType: m.messageType === "offer" ? "offer" : "text" }
+          : m
+      )));
+      dispatch(messageDeletedForEveryone({ threadId: targetThread, messageId: d.messageId }));
+    };
+
+    socket.on("chat:message",         onMsg);
+    socket.on("chat:offer",           (d) => { onOfferUpdate({ ...d, accepted: false }); });
+    socket.on("chat:offer_update",    onOfferUpdate);
+    socket.on("chat:message_deleted", onMessageDeleted);
+    socket.on("thread:closed",        onThreadClosed);
+    socket.on("thread:reopened",      onThreadReopened);
+    socket.on("thread:typing:start",  onTypingStart);
+    socket.on("thread:typing:stop",   onTypingStop);
+    socket.on("typing:start",         onTypingStart);
+    socket.on("typing:stop",          onTypingStop);
+    socket.on("message:status",        onMessageStatus);
+    socket.on("message:status:batch",  onMessageStatusBatch);
 
     return () => {
-      socket.off("chat:message",      onMsg);
-      socket.off("chat:offer",        onOfferUpdate as any);
-      socket.off("chat:offer_update", onOfferUpdate);
-      socket.off("thread:closed",     onThreadClosed);
-      socket.off("thread:reopened",   onThreadReopened);
-      socket.off("thread:typing:start", onTypingStart);
-      socket.off("thread:typing:stop",  onTypingStop);
-      socket.off("typing:start",      onTypingStart);
-      socket.off("typing:stop",       onTypingStop);
+      socket.off("chat:message",         onMsg);
+      socket.off("chat:offer",           onOfferUpdate as any);
+      socket.off("chat:offer_update",    onOfferUpdate);
+      socket.off("chat:message_deleted", onMessageDeleted);
+      socket.off("thread:closed",        onThreadClosed);
+      socket.off("thread:reopened",      onThreadReopened);
+      socket.off("thread:typing:start",  onTypingStart);
+      socket.off("thread:typing:stop",   onTypingStop);
+      socket.off("typing:start",         onTypingStart);
+      socket.off("typing:stop",          onTypingStop);
+      socket.off("message:status",        onMessageStatus);
+      socket.off("message:status:batch",  onMessageStatusBatch);
     };
-  }, [conversation, activeThread, dispatch, scrollToBottom]);
+  }, [conversation, activeThread, dispatch, scrollToBottom, user?.id]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -377,40 +593,406 @@ export function ChatConversationScreen() {
     };
   }, [activeThread, conversation, dispatch, params.conversationId]);
 
+  // ── Status catch-up ────────────────────────────────────────────────────────
+  // After opening a thread (or reconnecting) we may have missed
+  // `message:status` events for messages *we* sent while the socket was down.
+  // Ask the server for the canonical status of every in-flight one.
+  useEffect(() => {
+    const threadId = activeThread?._id;
+    if (!threadId) return;
+
+    let cancelled = false;
+
+    const runCatchup = async () => {
+      try {
+        const res = await requestStatusCatchup(threadId);
+        if (cancelled || !res.ok || !res.updates || res.updates.length === 0) return;
+        const byId = new Map(res.updates.map((u) => [u.messageId, u]));
+        setMessages((prev) => {
+          let mutated = false;
+          const next = prev.map((m) => {
+            const u = byId.get(m._id);
+            if (!u) return m;
+            const merged = mergeStatus(m, u.status, u.readAt ?? u.deliveredAt ?? null);
+            if (merged !== m) mutated = true;
+            return merged;
+          });
+          return mutated ? next : prev;
+        });
+      } catch {
+        // Catch-up is best-effort. Next `message:status` event will reconcile.
+      }
+    };
+
+    // Run once on thread open.
+    void runCatchup();
+
+    // …and again every time the socket reconnects.
+    const socket = getSocket();
+    if (!socket) return;
+    const onReconnect = () => { void runCatchup(); };
+    socket.on("connect", onReconnect);
+    return () => {
+      cancelled = true;
+      socket.off("connect", onReconnect);
+    };
+  }, [activeThread?._id]);
+
   // ── Send message ───────────────────────────────────────────────────────────
-  const handleSend = useCallback(async () => {
+  // Single send path used by text, media (after upload), and voice notes.
+  // Optimistically appends a temp bubble, fires the API call, then reconciles
+  // by `clientMessageId` so a racy socket echo doesn't duplicate the bubble.
+  const sendComposedMessage = useCallback(async (opts: {
+    text: string;
+    attachments?: ChatAttachment[];
+    replyToId?: string;
+    optimisticAttachments?: ChatAttachment[]; // shown in temp bubble before server echo
+  }) => {
     const convId = conversation?._id ?? params.conversationId;
-    if (!canSend || !activeThread || !convId) return;
-    const text = messageText.trim();
-    setMessageText("");
+    if (!activeThread || !convId) return;
+    const text       = opts.text.trim();
+    const attachments = opts.attachments ?? [];
+
+    if (!text && attachments.length === 0) return;
+    if (activeThread.status !== "active") return;
+
     setSending(true);
 
-    const tempId  = `temp-${Date.now()}`;
+    const clientMessageId = generateClientMessageId();
+    const tempId  = `temp-${clientMessageId}`;
     const tempMsg: ChatMessage = {
-      _id: tempId, conversation: convId, productThread: activeThread._id,
-      sender: user?.id ?? "", content: text, messageType: "text",
-      status: "sent", createdAt: new Date().toISOString(),
+      _id: tempId,
+      conversation: convId,
+      productThread: activeThread._id,
+      sender: user?.id ?? "",
+      content: text,
+      attachments: opts.optimisticAttachments ?? attachments,
+      messageType: attachments[0]?.type?.includes("audio") ? "audio"
+        : attachments[0]?.type?.includes("video") ? "video"
+        : attachments[0]?.type?.includes("image") ? "image"
+        : attachments.length > 0 ? "document"
+        : "text",
+      status: "sending",
+      clientMessageId,
+      createdAt: new Date().toISOString(),
     };
     setMessages((prev) => sortChron([...prev, tempMsg]));
-    scrollToBottom();
+    scrollToBottom(true);
 
     try {
-      const res = await sendMessageApi(convId, { content: text, threadId: activeThread._id });
+      const res = await sendMessageApi(convId, {
+        content:  text,
+        threadId: activeThread._id,
+        clientMessageId,
+        ...(opts.replyToId ? { replyTo: opts.replyToId } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
+      });
+
       setMessages((prev) => {
-        const filtered = prev.filter((m) => m._id !== tempId);
-        return sortChron([...filtered, res.message]);
+        const i = prev.findIndex(
+          (m) => m._id === tempId || (m.clientMessageId && m.clientMessageId === res.message.clientMessageId),
+        );
+        if (i < 0) return sortChron([...prev, res.message]);
+        const next = [...prev];
+        next[i] = { ...prev[i], ...res.message };
+        return sortChron(next);
       });
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
-      setMessageText(text);
       showErrorToast(
         "Message Failed",
         e instanceof Error ? e.message : "Could not send your message.",
       );
+      throw e;
     } finally {
       setSending(false);
     }
-  }, [canSend, activeThread, conversation, messageText, params.conversationId, user, scrollToBottom]);
+  }, [activeThread, conversation, params.conversationId, scrollToBottom, user]);
+
+  const handleSend = useCallback(async () => {
+    if (!canSend || !activeThread) return;
+    const text = messageText.trim();
+    setMessageText("");
+    const pendingReply = replyTo;
+    setReplyTo(null);
+    // Keep the keyboard open after send — avoids the composer jumping down.
+    inputRef.current?.focus();
+    try {
+      await sendComposedMessage({
+        text,
+        replyToId: pendingReply?._id,
+      });
+    } catch {
+      setMessageText(text);
+      setReplyTo(pendingReply);
+    }
+  }, [canSend, activeThread, messageText, replyTo, sendComposedMessage]);
+
+  // ── Attachment / voice / emoji / actions handlers ──────────────────────────
+  const handleAttachmentsPicked = useCallback(async (locals: LocalAttachment[]) => {
+    const convId = conversation?._id ?? params.conversationId;
+    if (!convId || !activeThread || locals.length === 0) return;
+
+    const pendingReply = replyTo;
+    setReplyTo(null);
+
+    for (const local of locals) {
+      const clientMessageId = generateClientMessageId();
+      const tempId = `temp-${clientMessageId}`;
+      const attType = inferAttachmentKind(local.mimeType);
+      const optimisticAtt: ChatAttachment = {
+        name:     local.name,
+        url:      local.uri,
+        key:      "",
+        mimeType: local.mimeType,
+        size:     local.size ?? 0,
+        type:     attType,
+      };
+
+      const tempMsg: ChatMessage = {
+        _id:           tempId,
+        conversation:  convId,
+        productThread: activeThread._id,
+        sender:        user?.id ?? "",
+        content:       "",
+        attachments:   [optimisticAtt],
+        messageType:   inferMessageType(attType),
+        status:        "sending",
+        clientMessageId,
+        createdAt:     new Date().toISOString(),
+        ...(pendingReply ? { replyTo: pendingReply._id } : {}),
+      };
+
+      setMessages((prev) => sortChron([...prev, tempMsg]));
+      scrollToBottom(true);
+
+      try {
+        const uploaded = await uploadChatAttachment(convId, {
+          uri:      local.uri,
+          name:     local.name,
+          mimeType: local.mimeType,
+          size:     local.size,
+        });
+        const res = await sendMessageApi(convId, {
+          content: "",
+          threadId: activeThread._id,
+          clientMessageId,
+          attachments: [uploaded],
+          ...(pendingReply ? { replyTo: pendingReply._id } : {}),
+        });
+        setMessages((prev) => {
+          const i = prev.findIndex(
+            (m) => m._id === tempId || (m.clientMessageId && m.clientMessageId === res.message.clientMessageId),
+          );
+          if (i < 0) return sortChron([...prev, res.message]);
+          const next = [...prev];
+          next[i] = { ...prev[i], ...res.message };
+          return sortChron(next);
+        });
+      } catch (e) {
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
+        showErrorToast(
+          "Upload Failed",
+          e instanceof Error ? e.message : `Could not send ${local.name}.`,
+        );
+      }
+    }
+  }, [activeThread, conversation, params.conversationId, replyTo, scrollToBottom, user?.id]);
+
+  const handleVoiceNote = useCallback(async (note: RecordedVoiceNote) => {
+    const convId = conversation?._id ?? params.conversationId;
+    if (!convId || !activeThread) return;
+
+    const pendingReply = replyTo;
+    setReplyTo(null);
+
+    const clientMessageId = generateClientMessageId();
+    const tempId = `temp-${clientMessageId}`;
+    const optimisticAtt: ChatAttachment = {
+      name:     note.name,
+      url:      note.uri,
+      key:      "",
+      mimeType: note.mimeType,
+      size:     note.size ?? 0,
+      type:     "audio",
+    };
+
+    const tempMsg: ChatMessage = {
+      _id:           tempId,
+      conversation:  convId,
+      productThread: activeThread._id,
+      sender:        user?.id ?? "",
+      content:       "",
+      attachments:   [optimisticAtt],
+      messageType:   "audio",
+      status:        "sending",
+      clientMessageId,
+      createdAt:     new Date().toISOString(),
+      ...(pendingReply ? { replyTo: pendingReply._id } : {}),
+    };
+
+    setMessages((prev) => sortChron([...prev, tempMsg]));
+    scrollToBottom(true);
+
+    try {
+      const uploaded = await uploadChatAttachment(convId, {
+        uri:      note.uri,
+        name:     note.name,
+        mimeType: note.mimeType,
+        size:     note.size,
+      });
+      const res = await sendMessageApi(convId, {
+        content: "",
+        threadId: activeThread._id,
+        clientMessageId,
+        attachments: [{ ...uploaded, type: "audio" }],
+        ...(pendingReply ? { replyTo: pendingReply._id } : {}),
+      });
+      setMessages((prev) => {
+        const i = prev.findIndex(
+          (m) => m._id === tempId || (m.clientMessageId && m.clientMessageId === res.message.clientMessageId),
+        );
+        if (i < 0) return sortChron([...prev, res.message]);
+        const next = [...prev];
+        next[i] = { ...prev[i], ...res.message };
+        return sortChron(next);
+      });
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      showErrorToast(
+        "Voice Message Failed",
+        e instanceof Error ? e.message : "Could not send voice message.",
+      );
+    }
+  }, [activeThread, conversation, params.conversationId, replyTo, scrollToBottom, user?.id]);
+
+  const handleEmojiPick = useCallback((emoji: string) => {
+    setMessageText((prev) => prev + emoji);
+  }, []);
+
+  // Single voice-recording lifecycle. The hook owns the recorder + PanResponder;
+  // we just consume its state to swap composer UI while keeping the mic
+  // mounted (so the active gesture isn't lost when the recording bar appears).
+  const voice = useVoiceRecording({
+    onSend: handleVoiceNote,
+    disabled: activeThread?.status !== "active",
+  });
+
+  // Hold-to-show actions on a chat bubble.
+  const handleLongPressMessage = useCallback((msg: ChatMessage) => {
+    if (msg.deletedForEveryone) return;
+    if (msg.messageType === "system") return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setActionTarget(msg);
+  }, []);
+
+  const handleDeleteForMeAction = useCallback(async (msg: ChatMessage) => {
+    const convId = conversation?._id ?? params.conversationId;
+    if (!convId) return;
+    // Optimistic remove; rollback on failure.
+    setMessages((prev) => prev.filter((m) => m._id !== msg._id));
+    if (activeThread?._id) {
+      dispatch(messageDeletedForMe({ threadId: activeThread._id, messageId: msg._id }));
+    }
+    try {
+      await deleteMessageForMeApi(convId, msg._id);
+    } catch (e) {
+      setMessages((prev) => sortChron([...prev, msg]));
+      showErrorToast("Delete Failed", e instanceof Error ? e.message : "Could not delete the message.");
+    }
+  }, [activeThread, conversation, params.conversationId, dispatch]);
+
+  const handleDeleteForEveryoneAction = useCallback(async (msg: ChatMessage) => {
+    const convId = conversation?._id ?? params.conversationId;
+    if (!convId) return;
+
+    const previousState = msg;
+    // Optimistic tombstone.
+    setMessages((prev) => prev.map((m) => (
+      m._id === msg._id
+        ? { ...m, deletedForEveryone: true, content: "", attachments: [], messageType: "text" }
+        : m
+    )));
+    if (activeThread?._id) {
+      dispatch(messageDeletedForEveryone({ threadId: activeThread._id, messageId: msg._id }));
+    }
+    try {
+      await deleteMessageForEveryoneApi(convId, msg._id);
+    } catch (e) {
+      // Roll back — restore the original message.
+      setMessages((prev) => prev.map((m) => (m._id === msg._id ? previousState : m)));
+      showErrorToast(
+        "Delete Failed",
+        e instanceof Error ? e.message : "Could not delete for everyone (older than 2 hours?).",
+      );
+    }
+  }, [activeThread, conversation, params.conversationId, dispatch]);
+
+  const handleActionSelect = useCallback(async (action: MessageAction) => {
+    const msg = actionTarget;
+    setActionTarget(null);
+    if (!msg) return;
+
+    if (action === "reply") {
+      setReplyTo(msg);
+      // Focus the input so the keyboard pops up — matches WhatsApp.
+      setTimeout(() => inputRef.current?.focus(), 50);
+      return;
+    }
+    if (action === "copy") {
+      const ok = await copyToClipboard(msg.content || "");
+      if (!ok) {
+        showErrorToast("Copy unavailable", "Clipboard module isn't ready. Try restarting the app.");
+      }
+      return;
+    }
+    if (action === "deleteForMe") {
+      Alert.alert(
+        "Delete message?",
+        "This message will be removed from your device.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: () => void handleDeleteForMeAction(msg) },
+        ],
+      );
+      return;
+    }
+    if (action === "deleteForEveryone") {
+      Alert.alert(
+        "Delete for everyone?",
+        "This message will be removed for everyone in the chat.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete for everyone", style: "destructive", onPress: () => void handleDeleteForEveryoneAction(msg) },
+        ],
+      );
+      return;
+    }
+  }, [actionTarget, handleDeleteForMeAction, handleDeleteForEveryoneAction]);
+
+  // Jump-to-message when the user taps a reply snippet inside a bubble.
+  // The FlatList's scrollToIndex can throw if the target row hasn't been
+  // measured yet (because it's outside the viewport); we catch that path with
+  // `onScrollToIndexFailed`, scroll roughly to its offset, then re-try.
+  const handleReplyJump = useCallback((targetId: string) => {
+    const idx = messages.findIndex((m) => m._id === targetId);
+    if (idx < 0) return;
+
+    try {
+      flatRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });
+    } catch {
+      flatRef.current?.scrollToOffset({ offset: Math.max(0, idx * 80), animated: true });
+    }
+
+    // Brief highlight — pulse the matching bubble for ~1.5s.
+    setHighlightedId(targetId);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedId(null), 1500);
+  }, [messages]);
+
+  useEffect(() => () => {
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+  }, []);
 
   // ── Typing ─────────────────────────────────────────────────────────────────
   const handleTextChange = useCallback((t: string) => {
@@ -512,6 +1094,7 @@ export function ChatConversationScreen() {
               message={msg}
               thread={activeThread}
               isSeller={isSeller}
+              fromMe={fromMe}
               onAccept={() => handleAcceptOffer(activeThread._id)}
               onDecline={() => handleDeclineOffer(activeThread._id)}
             />
@@ -522,6 +1105,9 @@ export function ChatConversationScreen() {
         </>
       );
     }
+
+    const hasAttachments = !msg.deletedForEveryone && Array.isArray(msg.attachments) && msg.attachments.length > 0;
+    const hasReplyTo     = !msg.deletedForEveryone && !!msg.replyTo && typeof msg.replyTo === "object";
 
     return (
       <>
@@ -539,37 +1125,63 @@ export function ChatConversationScreen() {
             marginVertical: 2,
           }}
         >
-          <View
+          <Pressable
+            onLongPress={() => handleLongPressMessage(msg)}
+            delayLongPress={250}
             style={{
               backgroundColor: fromMe ? BRAND : INCOMING_BG,
               borderRadius: 16,
               borderBottomRightRadius: fromMe ? 4 : 16,
               borderBottomLeftRadius:  fromMe ? 16 : 4,
-              paddingHorizontal: 12,
+              paddingHorizontal: 10,
               paddingVertical:    8,
               maxWidth: "78%",
+              borderWidth: highlightedId === msg._id ? 2 : 0,
+              borderColor: highlightedId === msg._id ? "#F59E0B" : "transparent",
             }}
           >
-            <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: fromMe ? "#fff" : TEXT_DARK, lineHeight: 20 }}>
-              {msg.deletedForEveryone ? (
-                <Text style={{ fontStyle: "italic", color: fromMe ? "rgba(255,255,255,0.7)" : TEXT_MUTED }}>This message was deleted</Text>
-              ) : msg.content}
-            </Text>
-          </View>
+            {hasReplyTo && (
+              <RepliedMessagePreview
+                replyTo={msg.replyTo as NonNullable<ChatMessage["replyTo"]>}
+                currentUserId={user?.id}
+                fromMe={fromMe}
+                onPress={() => {
+                  const r = msg.replyTo;
+                  if (r && typeof r === "object" && r._id) handleReplyJump(r._id);
+                }}
+              />
+            )}
+
+            {hasAttachments && (
+              <View style={{ marginBottom: msg.content ? 6 : 0 }}>
+                <MessageAttachmentView
+                  attachments={msg.attachments as ChatAttachment[]}
+                  fromMe={fromMe}
+                  isPending={msg.status === "sending"}
+                />
+              </View>
+            )}
+
+            {(!!msg.content || msg.deletedForEveryone) && (
+              <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 14, color: fromMe ? "#fff" : TEXT_DARK, lineHeight: 20, paddingHorizontal: 2 }}>
+                {msg.deletedForEveryone ? (
+                  <Text style={{ fontStyle: "italic", color: fromMe ? "rgba(255,255,255,0.7)" : TEXT_MUTED }}>
+                    🚫 This message was deleted
+                  </Text>
+                ) : msg.content}
+              </Text>
+            )}
+          </Pressable>
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 4 }}>
             <Text style={{ fontFamily: ListifyFonts.regular, fontSize: 10, color: TEXT_MUTED }}>
               {formatTime(msg.createdAt)}
             </Text>
-            {fromMe && (
-              <Text style={{ fontSize: 10, color: msg.status === "read" ? BRAND : TEXT_MUTED }}>
-                {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : "✓"}
-              </Text>
-            )}
+            {fromMe && <MessageStatusTick status={msg.status} />}
           </View>
         </View>
       </>
     );
-  }, [messages, user, activeThread, isSeller, handleAcceptOffer, handleDeclineOffer]);
+  }, [messages, user, activeThread, isSeller, handleAcceptOffer, handleDeclineOffer, handleLongPressMessage, handleReplyJump, highlightedId]);
 
   const isClosed = activeThread?.status !== "active";
 
@@ -756,13 +1368,14 @@ export function ChatConversationScreen() {
       {activeThread && (
         <ProductThreadSection
           thread={activeThread}
+          currentUserId={user?.id}
           onPress={() => navigateToListingDetail(activeThread)}
         />
       )}
 
       {/* ── Messages + composer ─────────────────────────────────────────────── */}
       <KeyboardGestureArea
-        interpolator="ios"
+        interpolator={Platform.OS === "ios" ? "ios" : "linear"}
         style={{ flex: 1 }}
         textInputNativeID="chat-composer-input"
       >
@@ -774,7 +1387,25 @@ export function ChatConversationScreen() {
           renderItem={renderMessage}
           renderScrollComponent={renderChatScrollComponent}
           contentContainerStyle={{ paddingVertical: 12, paddingBottom: 4 }}
-          onContentSizeChange={scrollToBottom}
+          onContentSizeChange={() => {
+            if (isNearBottomRef.current) scrollToBottom();
+          }}
+          onScroll={handleListScroll}
+          scrollEventThrottle={16}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
+          onScrollToIndexFailed={(info) => {
+            // FlatList couldn't measure the target — fall back to an offset
+            // estimate, then re-try the precise jump once row heights settle.
+            const offset = Math.max(0, info.averageItemLength * info.index);
+            flatRef.current?.scrollToOffset({ offset, animated: false });
+            setTimeout(() => {
+              try {
+                flatRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.3 });
+              } catch {
+                // Give up silently — the user still got close enough.
+              }
+            }, 80);
+          }}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 40 }}>
@@ -814,75 +1445,156 @@ export function ChatConversationScreen() {
         {/* ── Input bar ────────────────────────────────────────────────────────── */}
         {!isClosed && (
           <KeyboardStickyView offset={stickyOffset}>
+            {/* Reply preview above the composer (visible only while a target is set). */}
+            {replyTo && (
+              <ReplyPreviewBar
+                message={replyTo}
+                currentUserId={user?.id}
+                onCancel={() => setReplyTo(null)}
+              />
+            )}
+
             <View
               style={{
                 flexDirection:    "row",
                 alignItems:       "flex-end",
-                paddingHorizontal: 12,
+                paddingHorizontal: 8,
                 paddingTop:        8,
                 paddingBottom:     footerPad,
                 backgroundColor:  BAR_BG,
-                borderTopWidth:   1,
+                borderTopWidth:   replyTo ? 0 : 1,
                 borderTopColor:   "#E5E7EB",
-                gap:              8,
+                gap:              6,
               }}
             >
-          {/* Offer button (buyer only) */}
-          {!isSeller && activeThread?.status === "active" && activeThread.offerStatus === "none" && (
-            <Pressable
-              onPress={() => setOfferModal(true)}
-              style={{ padding: 8, borderRadius: 8, backgroundColor: BRAND + "15" }}
-            >
-              <Text style={{ fontSize: 18 }}>💰</Text>
-            </Pressable>
-          )}
+              {/* Offer button (buyer only) */}
+              {!isSeller && activeThread?.status === "active" && activeThread.offerStatus === "none" && (
+                <Pressable
+                  onPress={() => setOfferModal(true)}
+                  style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BRAND + "15", alignItems: "center", justifyContent: "center" }}
+                >
+                  <Text style={{ fontSize: 18 }}>💰</Text>
+                </Pressable>
+              )}
 
-          {/* Text input */}
-          <TextInput
-            nativeID="chat-composer-input"
-            style={{
-              flex:              1,
-              minHeight:         40,
-              maxHeight:         120,
-              backgroundColor:   "#F3F4F6",
-              borderRadius:      20,
-              paddingHorizontal: 16,
-              paddingVertical:   10,
-              fontFamily:        ListifyFonts.regular,
-              fontSize:          14,
-              color:             TEXT_DARK,
-            }}
-            placeholder="Type a message…"
-            placeholderTextColor={TEXT_MUTED}
-            value={messageText}
-            onChangeText={handleTextChange}
-            onFocus={scrollToBottom}
-            multiline
-            returnKeyType="default"
-          />
+              {voice.state === "recording" ? (
+                <View
+                  style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}
+                  {...voice.micPanHandlers}
+                >
+                  <VoiceRecordingBar voice={voice} />
+                  <VoiceMicButton voice={voice} bare />
+                </View>
+              ) : (
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "flex-end",
+                    minHeight: 40,
+                    backgroundColor: "#F3F4F6",
+                    borderRadius: 24,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    gap: 2,
+                  }}
+                >
+                  <Pressable
+                    onPress={() => { setEmojiSheet(true); }}
+                    hitSlop={8}
+                    style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}
+                  >
+                    <MaterialIcons name="emoji-emotions" size={22} color={TEXT_MUTED} />
+                  </Pressable>
 
-          {/* Send */}
-          <Pressable
-            onPress={handleSend}
-            disabled={!canSend || sending}
-            style={{
-              width:           40,
-              height:          40,
-              borderRadius:    20,
-              backgroundColor: canSend ? BRAND : "#E5E7EB",
-              alignItems:      "center",
-              justifyContent:  "center",
-            }}
-          >
-            {sending
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <MaterialIcons name="send" size={20} color={canSend ? "#fff" : "#9CA3AF"} />
-            }
-          </Pressable>
-          </View>
+                  <TextInput
+                    ref={inputRef}
+                    nativeID="chat-composer-input"
+                    style={{
+                      flex: 1,
+                      minHeight: 38,
+                      maxHeight: 120,
+                      paddingHorizontal: 4,
+                      paddingVertical: 10,
+                      fontFamily: ListifyFonts.regular,
+                      fontSize: 14,
+                      color: TEXT_DARK,
+                    }}
+                    placeholder="Message"
+                    placeholderTextColor={TEXT_MUTED}
+                    value={messageText}
+                    onChangeText={handleTextChange}
+                    onFocus={() => scrollToBottom(true)}
+                    multiline
+                    blurOnSubmit={false}
+                    returnKeyType="default"
+                  />
+
+                  <Pressable
+                    onPress={() => setAttachmentSheet(true)}
+                    hitSlop={8}
+                    style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}
+                  >
+                    <MaterialIcons name="attach-file" size={22} color={TEXT_MUTED} />
+                  </Pressable>
+
+                  {!messageText.trim() && (
+                    <Pressable
+                      onPress={() => setAttachmentSheet(true)}
+                      onLongPress={() => setAttachmentSheet(true)}
+                      hitSlop={8}
+                      style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <MaterialIcons name="photo-camera" size={22} color={TEXT_MUTED} />
+                    </Pressable>
+                  )}
+                </View>
+              )}
+
+              {/* Right action — Send when there's text & not recording, otherwise the mic.
+                  The mic View stays mounted across recording so PanResponder
+                  doesn't lose the gesture mid-swipe. */}
+              {voice.state !== "recording" && (messageText.trim() ? (
+                <Pressable
+                  onPress={handleSend}
+                  disabled={!canSend || sending}
+                  style={{
+                    width: 44, height: 44, borderRadius: 22,
+                    backgroundColor: canSend ? BRAND : "#E5E7EB",
+                    alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {sending
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <MaterialIcons name="send" size={20} color={canSend ? "#fff" : "#9CA3AF"} />
+                  }
+                </Pressable>
+              ) : (
+                <VoiceMicButton voice={voice} />
+              ))}
+            </View>
           </KeyboardStickyView>
         )}
       </KeyboardGestureArea>
+
+      {/* ── Attachment / emoji / actions sheets ─────────────────────────────── */}
+      <AttachmentPickerSheet
+        visible={attachmentSheet}
+        onClose={() => setAttachmentSheet(false)}
+        onPicked={handleAttachmentsPicked}
+      />
+      <EmojiPickerSheet
+        visible={emojiSheet}
+        onClose={() => setEmojiSheet(false)}
+        onPick={handleEmojiPick}
+      />
+      <MessageActionsSheet
+        visible={!!actionTarget}
+        message={actionTarget}
+        currentUserId={user?.id}
+        onClose={() => setActionTarget(null)}
+        onSelect={handleActionSelect}
+      />
 
       {/* ── Offer modal ──────────────────────────────────────────────────────── */}
       <Modal visible={offerModal} transparent animationType="slide" onRequestClose={() => setOfferModal(false)}>

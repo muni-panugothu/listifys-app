@@ -478,30 +478,117 @@ async function initSocket(httpServer, corsOptions) {
     });
     // ── END CALLING ────────────────────────────────────────────────────────────
     // ── Message delivery acknowledgment ──
-    // Client emits this when a message is received and rendered
+    // Accepts both the legacy single-id shape and the new batched shape.
+    //   legacy: { messageId, conversationId }
+    //   batch : { messageIds: string[], conversationId, threadId? }
     socket.on("message:delivered", async (data) => {
       if (isRateLimited('message:delivered')) return;
-      const messageId = data?.messageId;
       const conversationId = data?.conversationId;
-      if (typeof messageId !== 'string' || messageId.length > 50) return;
+      const threadId       = data?.threadId;
       if (typeof conversationId !== 'string' || conversationId.length > 50) return;
+
+      const rawIds = Array.isArray(data?.messageIds)
+        ? data.messageIds
+        : data?.messageId
+          ? [data.messageId]
+          : [];
+      const ids = rawIds
+        .filter((id) => typeof id === 'string' && id.length <= 50)
+        .slice(0, 200);
+      if (ids.length === 0) return;
+
       try {
-        const Message = require('../models/message.model');
-        // Only set to delivered if current status is 'sent' (never downgrade from read)
-        await Message.updateOne(
-          { _id: messageId, sender: { $ne: userId }, status: 'sent' },
-          { $addToSet: { deliveredTo: userId }, $set: { status: 'delivered' } }
-        );
-        // Notify the sender that their message was delivered
-        socket.to(`conversation:${conversationId}`).emit("message:status", {
-          messageId,
-          conversationId,
-          status: 'delivered',
-          userId,
-        });
+        const chatService = require('../services/chat.service');
+        const { bySender, deliveredAt } = await chatService.markMessagesDelivered({ messageIds: ids, userId });
+
+        // Backwards compat: legacy clients still listen for `message:status`
+        // on the conversation room. Also fire the per-sender batch event.
+        const at = deliveredAt instanceof Date ? deliveredAt.toISOString() : new Date().toISOString();
+
+        for (const [senderId, entries] of Object.entries(bySender)) {
+          const buckets = new Map();
+          for (const e of entries) {
+            const key = `${e.conversationId}::${e.threadId || ''}`;
+            if (!buckets.has(key)) buckets.set(key, { conversationId: e.conversationId, threadId: e.threadId, ids: [] });
+            buckets.get(key).ids.push(e.messageId);
+          }
+          for (const bucket of buckets.values()) {
+            io.to(`user:${senderId}`).emit('message:status:batch', {
+              conversationId: bucket.conversationId,
+              threadId:       bucket.threadId,
+              status:         'delivered',
+              messageIds:     bucket.ids,
+              userId,
+              at,
+            });
+            // Legacy single-message status (one per id, in the conversation room)
+            for (const mid of bucket.ids) {
+              io.to(`conversation:${bucket.conversationId}`).emit('message:status', {
+                messageId:    mid,
+                conversationId: bucket.conversationId,
+                threadId:     bucket.threadId,
+                status:       'delivered',
+                userId,
+                at,
+              });
+            }
+          }
+        }
+
         socketMetrics.messagesOut++;
       } catch (err) {
         logger.debug('[Socket] message:delivered error', { err: err.message });
+      }
+    });
+
+    // ── Status catch-up ──
+    // Client calls this after a reconnect (or when opening a thread) to back-fill
+    // ticks for messages they sent while the socket was down. Returns the latest
+    // status of each in-flight message they sent in that thread.
+    SOCKET_RATE_LIMITS['message:catchup:request'] = { max: 20, windowMs: 60_000 };
+
+    socket.on('message:catchup:request', async (data, ack) => {
+      if (isRateLimited('message:catchup:request')) {
+        if (typeof ack === 'function') ack({ ok: false, reason: 'rate_limited' });
+        return;
+      }
+      const threadId       = data?.threadId;
+      const sinceMessageId = data?.sinceMessageId;
+      if (typeof threadId !== 'string' || threadId.length > 50) {
+        if (typeof ack === 'function') ack({ ok: false, reason: 'invalid_thread' });
+        return;
+      }
+      try {
+        const chatService = require('../services/chat.service');
+        const ProductThread = require('../models/product-thread.model');
+        const thread = await ProductThread.findById(threadId).select('conversation seller buyer').lean();
+        if (!thread) {
+          if (typeof ack === 'function') ack({ ok: false, reason: 'thread_not_found' });
+          return;
+        }
+        const isParticipant = [String(thread.seller), String(thread.buyer)].includes(userId);
+        if (!isParticipant) {
+          if (typeof ack === 'function') ack({ ok: false, reason: 'forbidden' });
+          return;
+        }
+
+        const updates = await chatService.getStatusCatchup({ userId, threadId, sinceMessageId });
+        if (typeof ack === 'function') {
+          ack({ ok: true, threadId, conversationId: String(thread.conversation), updates });
+        } else if (updates.length > 0) {
+          // No ack callback — emit as a normal event so the client picks it up.
+          socket.emit('message:status:batch', {
+            conversationId: String(thread.conversation),
+            threadId,
+            status:         'catchup',
+            updates,
+            userId,
+            at:             new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        logger.debug('[Socket] message:catchup:request error', { err: err.message });
+        if (typeof ack === 'function') ack({ ok: false, reason: 'server_error' });
       }
     });
 

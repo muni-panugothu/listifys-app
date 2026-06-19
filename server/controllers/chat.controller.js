@@ -327,10 +327,21 @@ exports.sendMessage = async (req, res) => {
     const userId = req.user.id;
     const { conversationId } = req.params;
     if (!isValidId(conversationId)) return res.status(400).json({ success: false, message: 'Invalid conversationId' });
-    const { content, threadId, attachments, replyTo } = req.body;
+    const { content, threadId, attachments, replyTo, clientMessageId } = req.body;
     if (!threadId || !isValidId(threadId)) return res.status(400).json({ success: false, message: 'threadId is required' });
-    const { message, plainContent, conversation, thread } = await chatService.sendMessage({ conversationId, threadId, senderId: userId, content, attachments, replyTo });
+    const { message, plainContent, conversation, thread, duplicate } = await chatService.sendMessage({
+      conversationId, threadId, senderId: userId, content, attachments, replyTo, clientMessageId,
+    });
     const formattedMsg = chatService.formatMessage(message, userId);
+
+    // On a deduped retry we already broadcast everything the first time. Just
+    // echo the canonical message back to the caller so their optimistic bubble
+    // can settle, but skip the fan-out and notifications.
+    if (duplicate) {
+      setNoCacheHeaders(res);
+      return res.status(200).json({ success: true, message: formattedMsg, duplicate: true, encrypted: isEncryptionEnabled() });
+    }
+
     emitToConversation(conversationId, 'chat:message', { ...formattedMsg, threadId: String(threadId) });
     const senderUser = await User.findById(userId).select('name').lean();
     const senderName = senderUser?.name || 'Someone';
@@ -383,14 +394,58 @@ exports.uploadAttachment = async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'File required' });
     const conversation = await Conversation.findOne({ _id: conversationId, participants: userId }).lean();
     if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
-    const mimeType  = req.file.mimetype;
-    const extension = mimeType.split('/')[1] || 'bin';
-    const key       = `chats/${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-    await s3Service.uploadBuffer(req.file.buffer, key, mimeType);
-    return res.status(200).json({ success: true, attachment: { name: req.file.originalname || key, url: `/api/images/chats/${key}`, key, mimeType, size: req.file.size, type: mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : mimeType.startsWith('audio/') ? 'audio' : 'document' } });
+    const mimeType = String(req.file.mimetype || '').toLowerCase();
+    const uploadResult = await s3Service.uploadChatAttachment(
+      req.file.buffer,
+      userId,
+      mimeType,
+      req.file.originalname || 'file',
+    );
+    const attachmentType =
+      mimeType.startsWith('image/') ? 'image'
+      : mimeType.startsWith('video/') ? 'video'
+      : mimeType.startsWith('audio/') ? 'audio'
+      : 'document';
+    return res.status(200).json({
+      success: true,
+      attachment: {
+        name: req.file.originalname || uploadResult.key,
+        url: `/api/images/${uploadResult.key}`,
+        key: uploadResult.key,
+        mimeType,
+        size: req.file.size,
+        type: attachmentType,
+      },
+    });
   } catch (err) {
     logger.error('[chat] uploadAttachment', { error: err.message });
-    return res.status(500).json({ success: false, message: 'Upload failed' });
+    return res.status(500).json({ success: false, message: err.message || 'Upload failed' });
+  }
+};
+
+// Fan out `message:status:batch` so the original sender's bubble turns blue
+// without a refetch. One event per sender, one per (sender, thread) bucket.
+const emitReadBatchToSenders = (bySender, readerId, readAt) => {
+  if (!bySender) return;
+  for (const [senderId, entries] of Object.entries(bySender)) {
+    if (!entries || entries.length === 0) continue;
+    // Bucket by threadId so each batch is small and self-contained.
+    const buckets = new Map();
+    for (const e of entries) {
+      const key = `${e.conversationId}::${e.threadId || ''}`;
+      if (!buckets.has(key)) buckets.set(key, { conversationId: e.conversationId, threadId: e.threadId, ids: [] });
+      buckets.get(key).ids.push(e.messageId);
+    }
+    for (const bucket of buckets.values()) {
+      emitToUser(senderId, 'message:status:batch', {
+        conversationId: bucket.conversationId,
+        threadId:       bucket.threadId,
+        status:         'read',
+        messageIds:     bucket.ids,
+        userId:         String(readerId),
+        at:             readAt instanceof Date ? readAt.toISOString() : new Date().toISOString(),
+      });
+    }
   }
 };
 
@@ -399,10 +454,11 @@ exports.markAsRead = async (req, res) => {
     const userId = req.user.id;
     const { conversationId } = req.params;
     if (!isValidId(conversationId)) return res.status(400).json({ success: false, message: 'Invalid conversationId' });
-    const { notificationsMarked } = await chatService.markConversationRead(conversationId, userId);
+    const { notificationsMarked, bySender, readAt } = await chatService.markConversationRead(conversationId, userId);
     if (notificationsMarked > 0) {
       emitToUser(userId, 'notification:unread_adjust', { delta: -notificationsMarked });
     }
+    emitReadBatchToSenders(bySender, userId, readAt);
     setNoCacheHeaders(res);
     return res.status(200).json({ success: true, notificationsMarked });
   } catch (err) { return res.status(500).json({ success: false, message: 'Failed to mark as read' }); }
@@ -415,10 +471,11 @@ exports.markThreadRead = async (req, res) => {
     if (!isValidId(threadId)) return res.status(400).json({ success: false, message: 'Invalid threadId' });
     const thread = await ProductThread.findById(threadId).select('conversation').lean();
     if (!thread) return res.status(404).json({ success: false, message: 'Thread not found' });
-    const { notificationsMarked } = await chatService.markThreadRead(String(thread.conversation), threadId, userId);
+    const { notificationsMarked, bySender, readAt } = await chatService.markThreadRead(String(thread.conversation), threadId, userId);
     if (notificationsMarked > 0) {
       emitToUser(userId, 'notification:unread_adjust', { delta: -notificationsMarked });
     }
+    emitReadBatchToSenders(bySender, userId, readAt);
     setNoCacheHeaders(res);
     return res.status(200).json({ success: true, notificationsMarked });
   } catch (err) { return res.status(500).json({ success: false, message: 'Failed to mark as read' }); }

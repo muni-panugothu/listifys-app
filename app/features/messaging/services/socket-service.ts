@@ -169,8 +169,101 @@ export function emitTypingStop(conversationId: string) {
 }
 
 // ── Message delivery ──
+// Legacy single-message form. Prefer `emitMessagesDelivered` below — it batches
+// receipts on a 250ms window so a thread of 100 messages becomes one round-trip.
 export function emitMessageDelivered(messageId: string, conversationId: string) {
   socket?.emit("message:delivered", { messageId, conversationId });
+}
+
+// Batched delivery acknowledgment. Coalesces all calls within `DELIVERED_FLUSH_MS`
+// per (conversationId, threadId) into a single `message:delivered` emit.
+const DELIVERED_FLUSH_MS = 250;
+
+type DeliveredBucket = {
+  conversationId: string;
+  threadId: string | null;
+  ids: Set<string>;
+  timer: ReturnType<typeof setTimeout> | null;
+};
+
+const deliveredBuckets = new Map<string, DeliveredBucket>();
+
+function flushDeliveredBucket(key: string) {
+  const bucket = deliveredBuckets.get(key);
+  if (!bucket) return;
+  if (bucket.timer) clearTimeout(bucket.timer);
+  deliveredBuckets.delete(key);
+  if (bucket.ids.size === 0) return;
+  socket?.emit("message:delivered", {
+    conversationId: bucket.conversationId,
+    ...(bucket.threadId ? { threadId: bucket.threadId } : {}),
+    messageIds: Array.from(bucket.ids),
+  });
+}
+
+export function emitMessagesDelivered(
+  conversationId: string,
+  threadId: string | null,
+  messageIds: string[],
+) {
+  if (!conversationId || messageIds.length === 0) return;
+  const key = `${conversationId}::${threadId || ""}`;
+  let bucket = deliveredBuckets.get(key);
+  if (!bucket) {
+    bucket = { conversationId, threadId, ids: new Set(), timer: null };
+    deliveredBuckets.set(key, bucket);
+  }
+  for (const id of messageIds) bucket.ids.add(id);
+  if (!bucket.timer) {
+    bucket.timer = setTimeout(() => flushDeliveredBucket(key), DELIVERED_FLUSH_MS);
+  }
+}
+
+// ── Status catch-up ──
+// Used after a reconnect or when (re-)opening a thread to back-fill ticks for
+// messages the user sent while offline. Returns the canonical status of every
+// in-flight message they sent in that thread.
+export type StatusCatchupUpdate = {
+  messageId: string;
+  status: "sent" | "delivered" | "read";
+  deliveredAt: string | null;
+  readAt: string | null;
+};
+
+export type StatusCatchupResponse = {
+  ok: boolean;
+  threadId?: string;
+  conversationId?: string;
+  updates?: StatusCatchupUpdate[];
+  reason?: string;
+};
+
+export function requestStatusCatchup(
+  threadId: string,
+  sinceMessageId?: string | null,
+): Promise<StatusCatchupResponse> {
+  return new Promise((resolve) => {
+    if (!socket?.connected) {
+      resolve({ ok: false, reason: "not_connected" });
+      return;
+    }
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: false, reason: "timeout" });
+    }, 8000);
+    socket.emit(
+      "message:catchup:request",
+      { threadId, ...(sinceMessageId ? { sinceMessageId } : {}) },
+      (response: StatusCatchupResponse | undefined) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(response ?? { ok: false, reason: "no_response" });
+      },
+    );
+  });
 }
 
 // ── Message reactions ──

@@ -19,6 +19,11 @@ const { encrypt, decrypt, isEncryptionEnabled } = require('./encryption.service'
 const s3Service = require('./s3.service');
 const { logger } = require('../utils/logger');
 
+// How long a clientMessageId stays unique. After this, a retry would create a
+// new message instead of returning the previous one — intentional, so a stale
+// app instance cannot resurrect a long-deleted draft.
+const CLIENT_MESSAGE_ID_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const safeDecrypt = (v) => { try { return decrypt(v || ''); } catch { return v || ''; } };
 
@@ -270,19 +275,37 @@ exports.closeThread = async (threadId, userId, reason = 'sold') => {
 
 const ALLOWED_ATTACHMENT_TYPES = ['image', 'video', 'audio', 'document', 'other'];
 
+const normalizeAttachmentRef = (rawUrl, rawKey) => {
+  const keyFromBody = String(rawKey || '').trim().replace(/^\/+/, '');
+  const keyFromUrl  = s3Service.extractKeyFromImageUrl(String(rawUrl || '').trim());
+  const key = (keyFromBody || keyFromUrl || '').replace(/^\/+/, '');
+  if (!key.startsWith('chats/')) return null;
+  return {
+    key,
+    url: `/api/images/${key}`,
+  };
+};
+
 const normalizeAttachments = (attachments = []) => {
   if (!Array.isArray(attachments)) return [];
   return attachments.slice(0, 5).map((a) => {
-    const url = String(a?.url || '').trim();
-    if (!url || !url.startsWith('/api/images/chats/')) return null;
+    const resolved = normalizeAttachmentRef(a?.url, a?.key);
+    if (!resolved) return null;
     const mimeType = String(a?.mimeType || '').trim();
+    const typeFromMime =
+      mimeType.startsWith('image/') ? 'image'
+      : mimeType.startsWith('video/') ? 'video'
+      : mimeType.startsWith('audio/') ? 'audio'
+      : mimeType.includes('pdf') || mimeType.includes('document') || mimeType.startsWith('text/')
+        ? 'document'
+        : null;
     return {
       name:     String(a?.name || 'Attachment').trim().slice(0, 255),
-      url,
-      key:      String(a?.key || '').trim(),
+      url:      resolved.url,
+      key:      resolved.key,
       mimeType,
       size:     Number(a?.size) || 0,
-      type:     ALLOWED_ATTACHMENT_TYPES.includes(a?.type) ? a.type : 'other',
+      type:     ALLOWED_ATTACHMENT_TYPES.includes(a?.type) ? a.type : (typeFromMime || 'other'),
     };
   }).filter(Boolean);
 };
@@ -297,6 +320,7 @@ exports.sendMessage = async ({
   content,
   attachments,
   replyTo,
+  clientMessageId,
 }) => {
   const plainContent    = String(content || '').trim();
   const safeAttachments = normalizeAttachments(attachments);
@@ -306,6 +330,33 @@ exports.sendMessage = async ({
   }
   if (plainContent.length > 5000) {
     throw Object.assign(new Error('Message exceeds 5000 characters'), { statusCode: 400 });
+  }
+
+  // ── Idempotency: same client + clientMessageId within window → return prior message ─
+  const safeClientMessageId =
+    typeof clientMessageId === 'string' && clientMessageId.trim().length > 0
+      ? clientMessageId.trim().slice(0, 64)
+      : null;
+
+  if (safeClientMessageId) {
+    const existing = await Message.findOne({
+      sender: senderId,
+      clientMessageId: safeClientMessageId,
+      createdAt: { $gte: new Date(Date.now() - CLIENT_MESSAGE_ID_DEDUP_WINDOW_MS) },
+    })
+      .populate('sender', 'name profileImage googleProfileImage avatar provider')
+      .populate({
+        path: 'replyTo',
+        select: 'content sender attachments createdAt',
+        populate: { path: 'sender', select: 'name profileImage googleProfileImage avatar' },
+      })
+      .lean();
+
+    if (existing) {
+      const conversation = await Conversation.findById(existing.conversation);
+      const thread = await ProductThread.findById(existing.productThread);
+      return { message: existing, plainContent, conversation, thread, duplicate: true };
+    }
   }
 
   // Verify conversation membership
@@ -336,19 +387,60 @@ exports.sendMessage = async ({
     if (parent) replyToId = parent._id;
   }
 
+  // Pre-seed per-recipient receipt rows (one per non-sender participant).
+  const recipientIds = (conversation.participants || [])
+    .map((p) => String(p))
+    .filter((pid) => pid !== String(senderId));
+  const initialReceipts = recipientIds.map((uid) => ({ user: uid, deliveredAt: null, readAt: null }));
+
   // Save message (encrypted)
   const encryptedContent = encrypt(plainContent);
-  let message = await Message.create({
-    conversation:  conversationId,
-    productThread: threadId,
-    sender:        senderId,
-    content:       encryptedContent,
-    attachments:   safeAttachments,
-    replyTo:       replyToId,
-    messageType:   safeAttachments.length > 0 && !plainContent ? 'image' : 'text',
-    readBy:        [senderId],
-    status:        'sent',
-  });
+  let message;
+  try {
+    // Pick the most specific messageType from the first attachment so the
+    // inbox preview / search index know whether this is a photo, video, voice
+    // note, or document. Text-only messages stay `text`.
+    const deriveMessageType = () => {
+      if (safeAttachments.length === 0) return 'text';
+      const first = safeAttachments[0] || {};
+      const candidate = String(first.type || first.mimeType || '').toLowerCase();
+      if (candidate.includes('video')) return 'video';
+      if (candidate.includes('audio')) return 'audio';
+      if (candidate.includes('image')) return 'image';
+      return 'document';
+    };
+
+    message = await Message.create({
+      conversation:    conversationId,
+      productThread:   threadId,
+      sender:          senderId,
+      content:         encryptedContent,
+      attachments:     safeAttachments,
+      replyTo:         replyToId,
+      messageType:     deriveMessageType(),
+      readBy:          [senderId],
+      status:          'sent',
+      clientMessageId: safeClientMessageId,
+      deliveryReceipts: initialReceipts,
+    });
+  } catch (err) {
+    // Duplicate key on (sender, clientMessageId) — race against a concurrent retry.
+    // Return the existing row instead of failing.
+    if (err && err.code === 11000 && safeClientMessageId) {
+      const existing = await Message.findOne({ sender: senderId, clientMessageId: safeClientMessageId })
+        .populate('sender', 'name profileImage googleProfileImage avatar provider')
+        .populate({
+          path: 'replyTo',
+          select: 'content sender attachments createdAt',
+          populate: { path: 'sender', select: 'name profileImage googleProfileImage avatar' },
+        })
+        .lean();
+      if (existing) {
+        return { message: existing, plainContent, conversation, thread, duplicate: true };
+      }
+    }
+    throw err;
+  }
 
   // Atomically update unread counts (all participants except sender)
   const incUpdate = {};
@@ -400,6 +492,7 @@ exports.sendMessage = async ({
  */
 exports.formatMessage = (m, viewerUserId) => {
   const isDeleted = m.deletedForEveryone;
+  const receipts = Array.isArray(m.deliveryReceipts) ? m.deliveryReceipts : [];
   return {
     _id:              m._id,
     conversation:     m.conversation,
@@ -411,8 +504,16 @@ exports.formatMessage = (m, viewerUserId) => {
     messageType:      m.messageType || 'text',
     offerData:        m.offerData || null,
     status:           m.status || 'sent',
+    deliveredAt:      m.deliveredAt || null,
+    readAt:           m.readAt || null,
+    clientMessageId:  m.clientMessageId || null,
     deliveredTo:      (m.deliveredTo || []).map(String),
     readBy:           (m.readBy || []).map(String),
+    deliveryReceipts: receipts.map((r) => ({
+      user:        String(r.user),
+      deliveredAt: r.deliveredAt || null,
+      readAt:      r.readAt || null,
+    })),
     replyTo:          m.replyTo ? {
       _id:         m.replyTo._id,
       sender:      formatUser(m.replyTo.sender),
@@ -549,15 +650,35 @@ exports.makeOffer = async ({ threadId, buyerId, amount, currency = '₹' }) => {
   thread.activeOffer  = { amount, currency, offeredBy: buyerId, offeredAt: new Date() };
   await thread.save();
 
-  // Create an offer message
+  // ── Build the WhatsApp-style formatted body ────────────────────────────────
+  // Single source of truth: the message content the seller sees AND the push
+  // notification body share the same formatted text.
   const buyer = await User.findById(buyerId).select('name').lean();
-  const label = `${buyer?.name || 'Buyer'} offered ${currency}${amount.toLocaleString('en-IN')}`;
+  const productTitle = thread.product?.title || 'this item';
+  const listedPriceLabel = (() => {
+    const p = Math.round(Number(thread.product?.price) || 0);
+    if (p <= 0) return null;
+    return `${thread.product?.currency || currency || '₹'}${p.toLocaleString('en-IN')}`;
+  })();
+  const offerAmountLabel = `${currency || '₹'}${Math.round(amount).toLocaleString('en-IN')}`;
+
+  const formattedLabel = [
+    `📋 Offer for: ${productTitle}`,
+    '',
+    ...(listedPriceLabel ? [`💰 Listed Price: ${listedPriceLabel}`] : []),
+    `🏷️ My Offer: ${offerAmountLabel}`,
+    '',
+    `Hi, I'm interested in this item and would like to offer ${offerAmountLabel}. Please let me know if this works for you!`,
+  ].join('\n');
+
+  // Short label used in push notifications (channels with a small body limit).
+  const compactLabel = `${buyer?.name || 'Buyer'} offered ${offerAmountLabel} on ${productTitle}`;
 
   const message = await Message.create({
     conversation:  thread.conversation,
     productThread: thread._id,
     sender:        buyerId,
-    content:       encrypt(label),
+    content:       encrypt(formattedLabel),
     messageType:   'offer',
     offerData:     { amount, currency, status: 'pending' },
     readBy:        [buyerId],
@@ -569,7 +690,7 @@ exports.makeOffer = async ({ threadId, buyerId, amount, currency = '₹' }) => {
     { $set: { lastMessage: message._id } },
   );
 
-  return { thread, message, plainLabel: label };
+  return { thread, message, plainLabel: compactLabel, formattedLabel };
 };
 
 /**
@@ -641,8 +762,78 @@ async function markConversationNotificationsRead(userId, conversationId) {
   return result.modifiedCount ?? 0;
 }
 
+// Internal helper: mark a set of unread messages as read for one user and
+// return the rich payload needed to broadcast per-sender status updates.
+async function markMessagesReadForUser({ filter, userId }) {
+  const now = new Date();
+
+  // Find the messages first so we can return their ids/senders/threads.
+  const pending = await Message.find(filter)
+    .select('_id sender productThread conversation deliveryReceipts readAt')
+    .lean();
+
+  if (pending.length === 0) {
+    return { messageIds: [], bySender: {}, readAt: now };
+  }
+
+  const ids = pending.map((m) => m._id);
+
+  await Promise.all([
+    // Bulk flip aggregate status + readAt + push into readBy (legacy).
+    Message.updateMany(
+      { _id: { $in: ids } },
+      {
+        $addToSet: { readBy: userId },
+        $set: { status: 'read', readAt: now },
+      },
+    ),
+    // Upsert per-user receipt row's readAt. Two-step: try to update the
+    // existing sub-doc; if no sub-doc matched, push a new one.
+    Message.updateMany(
+      { _id: { $in: ids }, 'deliveryReceipts.user': userId },
+      {
+        $set: {
+          'deliveryReceipts.$.readAt':        now,
+          'deliveryReceipts.$.deliveredAt':   now,
+        },
+      },
+    ),
+    Message.updateMany(
+      { _id: { $in: ids }, 'deliveryReceipts.user': { $ne: userId } },
+      {
+        $push: { deliveryReceipts: { user: userId, deliveredAt: now, readAt: now } },
+      },
+    ),
+  ]);
+
+  // Group by sender so the controller/socket layer can emit one batch per sender room.
+  const bySender = {};
+  for (const m of pending) {
+    const sid = String(m.sender);
+    if (!bySender[sid]) bySender[sid] = [];
+    bySender[sid].push({
+      messageId:    String(m._id),
+      threadId:     m.productThread ? String(m.productThread) : null,
+      conversationId: String(m.conversation),
+    });
+  }
+
+  return {
+    messageIds: ids.map(String),
+    bySender,
+    readAt: now,
+  };
+}
+
 exports.markThreadRead = async (conversationId, threadId, userId) => {
-  const [, , , notificationsMarked] = await Promise.all([
+  const baseFilter = {
+    productThread: threadId,
+    conversation:  conversationId,
+    readBy:        { $ne: userId },
+    sender:        { $ne: userId },
+  };
+
+  const [, , readResult, notificationsMarked] = await Promise.all([
     // Clear conversation-level unread
     Conversation.updateOne(
       { _id: conversationId, participants: userId },
@@ -653,23 +844,26 @@ exports.markThreadRead = async (conversationId, threadId, userId) => {
       { _id: threadId, conversation: conversationId },
       { $set: { [`unreadCounts.${userId}`]: 0 } },
     ),
-    // Mark all unread messages in thread as read
-    Message.updateMany(
-      {
-        productThread: threadId,
-        conversation:  conversationId,
-        readBy:        { $ne: userId },
-        sender:        { $ne: userId },
-      },
-      { $addToSet: { readBy: userId }, $set: { status: 'read' } },
-    ),
+    markMessagesReadForUser({ filter: baseFilter, userId }),
     markConversationNotificationsRead(userId, conversationId),
   ]);
-  return { notificationsMarked };
+
+  return {
+    notificationsMarked,
+    messageIds: readResult.messageIds,
+    bySender:   readResult.bySender,
+    readAt:     readResult.readAt,
+  };
 };
 
 exports.markConversationRead = async (conversationId, userId) => {
-  const [, , , notificationsMarked] = await Promise.all([
+  const baseFilter = {
+    conversation: conversationId,
+    readBy:       { $ne: userId },
+    sender:       { $ne: userId },
+  };
+
+  const [, , readResult, notificationsMarked] = await Promise.all([
     Conversation.updateOne(
       { _id: conversationId, participants: userId },
       { $set: { [`unreadCounts.${userId}`]: 0 } },
@@ -678,15 +872,109 @@ exports.markConversationRead = async (conversationId, userId) => {
       { conversation: conversationId },
       { $set: { [`unreadCounts.${userId}`]: 0 } },
     ),
-    Message.updateMany(
-      {
-        conversation: conversationId,
-        readBy:       { $ne: userId },
-        sender:       { $ne: userId },
-      },
-      { $addToSet: { readBy: userId }, $set: { status: 'read' } },
-    ),
+    markMessagesReadForUser({ filter: baseFilter, userId }),
     markConversationNotificationsRead(userId, conversationId),
   ]);
-  return { notificationsMarked };
+
+  return {
+    notificationsMarked,
+    messageIds: readResult.messageIds,
+    bySender:   readResult.bySender,
+    readAt:     readResult.readAt,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELIVERY STATUS (used by socket layer)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Mark a batch of messages as `delivered` for one recipient. Idempotent.
+ * Returns the messages that *actually* transitioned, grouped by sender, so the
+ * caller can emit `message:status` only to senders that need it.
+ */
+exports.markMessagesDelivered = async ({ messageIds, userId }) => {
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return { bySender: {}, deliveredAt: null };
+  }
+  const validIds = messageIds
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .slice(0, 200);
+  if (validIds.length === 0) return { bySender: {}, deliveredAt: null };
+
+  const now = new Date();
+
+  // Only flip messages this user is *not* the sender of and that are still 'sent'.
+  // We pull them first so we know which transitioned.
+  const pending = await Message.find({
+    _id:     { $in: validIds },
+    sender:  { $ne: userId },
+    status:  'sent',
+  })
+    .select('_id sender productThread conversation')
+    .lean();
+
+  if (pending.length === 0) return { bySender: {}, deliveredAt: now };
+
+  const ids = pending.map((m) => m._id);
+
+  await Promise.all([
+    Message.updateMany(
+      { _id: { $in: ids }, status: 'sent' },
+      {
+        $addToSet: { deliveredTo: userId },
+        $set: { status: 'delivered', deliveredAt: now },
+      },
+    ),
+    Message.updateMany(
+      { _id: { $in: ids }, 'deliveryReceipts.user': userId },
+      { $set: { 'deliveryReceipts.$.deliveredAt': now } },
+    ),
+    Message.updateMany(
+      { _id: { $in: ids }, 'deliveryReceipts.user': { $ne: userId } },
+      { $push: { deliveryReceipts: { user: userId, deliveredAt: now, readAt: null } } },
+    ),
+  ]);
+
+  const bySender = {};
+  for (const m of pending) {
+    const sid = String(m.sender);
+    if (!bySender[sid]) bySender[sid] = [];
+    bySender[sid].push({
+      messageId:      String(m._id),
+      threadId:       m.productThread ? String(m.productThread) : null,
+      conversationId: String(m.conversation),
+    });
+  }
+
+  return { bySender, deliveredAt: now };
+};
+
+/**
+ * Catch-up: given a thread the user is opening, return the *fresh* delivery/read
+ * status of all messages they sent that are still in flight ("sent" or "delivered").
+ * The socket layer uses this to back-fill ticks after a reconnect or first open.
+ */
+exports.getStatusCatchup = async ({ userId, threadId, sinceMessageId }) => {
+  const filter = {
+    productThread: threadId,
+    sender:        userId,
+    status:        { $in: ['sent', 'delivered'] },
+  };
+  if (sinceMessageId && mongoose.Types.ObjectId.isValid(sinceMessageId)) {
+    filter._id = { $gte: new mongoose.Types.ObjectId(sinceMessageId) };
+  }
+
+  const rows = await Message.find(filter)
+    .select('_id status deliveredAt readAt deliveryReceipts')
+    .sort({ createdAt: 1 })
+    .limit(200)
+    .lean();
+
+  return rows.map((m) => ({
+    messageId:   String(m._id),
+    status:      m.status,
+    deliveredAt: m.deliveredAt || null,
+    readAt:      m.readAt || null,
+  }));
 };
